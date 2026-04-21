@@ -6,8 +6,8 @@ This document begins the domain-model documentation for `arc-skill-eval`.
 It describes the core entities the framework is built around, how they relate to each other, and which ones already exist in code versus which are planned next.
 
 ## Status
-- **Implemented now:** source loading, skill discovery, contract validation, contract normalization, initial Pi SDK runner orchestration, observer telemetry capture/loading
-- **Planned next:** trace normalization, fixtures, scoring, reports, tiers, CLI orchestration
+- **Implemented now:** source loading, skill discovery, contract validation, contract normalization, initial Pi SDK runner orchestration, observer telemetry capture/loading, Pi SDK trace normalization
+- **Planned next:** fixtures, scoring, reports, tiers, CLI orchestration
 
 ---
 
@@ -304,20 +304,28 @@ This is the structured bridge between raw Pi SDK artifacts and the canonical tra
 ## 12. Eval Trace
 An **Eval Trace** is the canonical normalized record of what happened during an eval run.
 
-### Planned responsibilities
-- capture routing decisions
-- capture tool/process activity
-- capture final user-visible outcome
-- retain raw artifacts for debugging
+### Current responsibilities
+- capture case identity and provenance in one scorer-facing object
+- capture normalized observations from session telemetry and raw session artifacts
+- retain raw artifacts for debugging without forcing scorers to parse SDK events directly
 
-### Planned major sections
-- routing
-- process
-- outcome
-- raw artifacts
+### Current code
+- `EvalTrace`
+- `EvalTraceIdentity`
+- `EvalTraceTiming`
+- `EvalTraceObservations`
+- `EvalTraceRawArtifacts`
+- `normalizePiSdkCaseRunResult(...)`
+- `normalizePiSdkSkillRunResult(...)`
+
+### Current major sections
+- `identity`
+- `timing`
+- `observations`
+- `raw`
 
 ### Notes
-This is the bridge between execution and scoring.
+This is the bridge between execution and scoring. The current implementation normalizes Pi SDK case results only; CLI JSON normalization will target the same canonical trace shape later.
 
 ---
 
@@ -441,7 +449,16 @@ Current responsibility:
 ### Planned additions
 - CLI parity runtime
 - fixture materialization hooks
-- trace normalization inputs
+
+## Trace Context
+Current responsibility:
+- canonical trace types
+- Pi SDK case-result normalization
+- scorer-facing observations with raw debug artifacts attached
+
+### Current files
+- `src/traces/types.ts`
+- `src/traces/normalize-sdk.ts`
 
 ## Scoring Context
 Planned responsibility:
@@ -458,7 +475,7 @@ Planned responsibility:
 ---
 
 ## Immediate Documentation Follow-Ups
-1. Keep this document aligned with `src/contracts/types.ts`, `src/load/source-types.ts`, and `src/pi/types.ts`
-2. Add a trace model section once `src/traces/types.ts` exists
+1. Keep this document aligned with `src/contracts/types.ts`, `src/load/source-types.ts`, `src/pi/types.ts`, and `src/traces/types.ts`
+2. Extend the trace model once CLI JSON normalization exists
 3. Add a scorecard/tier model section once scoring starts
 4. Link CLI commands to these entities once `src/cli/` is implemented
