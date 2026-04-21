@@ -6,8 +6,8 @@ This document begins the domain-model documentation for `arc-skill-eval`.
 It describes the core entities the framework is built around, how they relate to each other, and which ones already exist in code versus which are planned next.
 
 ## Status
-- **Implemented now:** source loading, skill discovery, contract validation, contract normalization
-- **Planned next:** execution traces, fixtures, scoring, reports, tiers, CLI orchestration
+- **Implemented now:** source loading, skill discovery, contract validation, contract normalization, initial Pi SDK runner orchestration, observer telemetry capture/loading
+- **Planned next:** trace normalization, fixtures, scoring, reports, tiers, CLI orchestration
 
 ---
 
@@ -30,7 +30,10 @@ RepoSource
   -> raw skill.eval.ts module
   -> SkillEvalContract
   -> NormalizedSkillEvalContract
-  -> Eval run inputs
+  -> PiSdkRunnableCase
+  -> PiSdkRunEnvironment
+  -> PiSdkCaseRunResult
+  -> PiSessionTelemetrySnapshot
   -> EvalTrace
   -> Scorecard / Tier result
   -> Report artifact
@@ -202,7 +205,7 @@ An **Eval Case** is the unit of execution and scoring inside a normalized contra
 - declare hard assertions and optional custom assertions
 
 ### Notes
-Cases already exist structurally, but run orchestration has not been implemented yet.
+Cases now have an initial Pi SDK orchestration path for routing, deterministic execution, and live-smoke lanes. CLI parity still belongs to a separate runtime path.
 
 ---
 
@@ -226,7 +229,79 @@ Fixtures are defined in the contract model now but not yet materialized by runti
 
 ---
 
-## 9. Eval Trace
+## 9. Pi SDK Run Environment
+A **Pi SDK Run Environment** defines the isolated workspace and session state for one or more SDK-driven eval cases.
+
+### Responsibilities
+- pin the working directory for the eval run
+- isolate Pi agent state in a temp or caller-provided agent directory
+- isolate session files for later telemetry loading
+- provide a cleanup boundary after artifacts are no longer needed
+
+### Current code
+- `CreatePiSdkRunEnvironmentOptions`
+- `PiSdkRunEnvironment`
+- `createPiSdkRunEnvironment(...)`
+
+### Key fields
+- `workspaceDir`
+- `agentDir`
+- `sessionDir`
+- `cleanup()`
+
+### Notes
+This is the runtime boundary that lets later work attach fixture materialization and session-entry telemetry without changing the contract layer.
+Current implementation isolates session state per run while reusing the standard Pi credential/model configuration for auth resolution.
+
+---
+
+## 10. Pi SDK Session Artifact
+A **Pi SDK Session Artifact** is the raw captured output from executing one eval case through the Pi SDK.
+
+### Responsibilities
+- preserve the session id/file for later inspection
+- retain raw SDK events
+- retain raw session messages
+- preserve the concatenated assistant text visible during the run
+- carry model and lane metadata into downstream normalization
+
+### Current code
+- `PiSdkRunnableCase`
+- `PiSdkCaseRunResult`
+- `PiSdkSkillRunResult`
+- `runPiSdkCase(...)`
+- `runValidatedSkillViaPiSdk(...)`
+- `PiSdkCaseRunError`
+
+### Notes
+This is intentionally pre-trace. W-000007 will normalize these artifacts into the canonical scorer-facing trace model.
+
+---
+
+## 11. Pi Session Telemetry Snapshot
+A **Pi Session Telemetry Snapshot** is the structured observer data loaded back from Pi session entries after a run completes.
+
+### Responsibilities
+- capture tool calls without scraping assistant prose
+- record bash commands as first-class telemetry
+- record file touches from edit/write operations
+- record skill-read signals when `SKILL.md` files are explicitly read
+- record lightweight external-call summaries for later scoring/inspection
+
+### Current code
+- `PI_SESSION_TELEMETRY_CUSTOM_TYPE`
+- `PiSessionTelemetryEntry`
+- `PiSessionTelemetrySnapshot`
+- `createPiSessionTelemetryObserverExtension(...)`
+- `loadPiSessionTelemetry(...)`
+- `summarizePiSessionTelemetry(...)`
+
+### Notes
+This is the structured bridge between raw Pi SDK artifacts and the canonical trace model. It lives in session `custom` entries so it survives restarts and can be reloaded from the persisted session file.
+
+---
+
+## 12. Eval Trace
 An **Eval Trace** is the canonical normalized record of what happened during an eval run.
 
 ### Planned responsibilities
@@ -246,7 +321,7 @@ This is the bridge between execution and scoring.
 
 ---
 
-## 10. Score Result
+## 13. Score Result
 A **Score Result** is the deterministic evaluation of a trace against a case.
 
 ### Planned responsibilities
@@ -263,7 +338,7 @@ A **Score Result** is the deterministic evaluation of a trace against a case.
 
 ---
 
-## 11. Tier Result
+## 14. Tier Result
 A **Tier Result** compares declared maturity against achieved maturity.
 
 ### Planned responsibilities
@@ -274,7 +349,7 @@ A **Tier Result** compares declared maturity against achieved maturity.
 
 ---
 
-## 12. Report Artifact
+## 15. Report Artifact
 A **Report Artifact** is the durable output of a test run.
 
 ### Planned responsibilities
@@ -314,7 +389,9 @@ FixtureRef
   0..1 -> ExternalFixtureSpec
 
 NormalizedSkillEvalContract + Case + Fixture
-  -> Eval run
+  -> PiSdkRunEnvironment
+  -> PiSdkCaseRunResult
+  -> PiSessionTelemetrySnapshot
   -> EvalTrace
   -> Score Result
   -> Tier Result
@@ -349,10 +426,22 @@ Responsible for:
 - `src/contracts/normalize.ts`
 
 ## Runtime Context
-Planned responsibility:
-- Pi SDK and CLI execution
-- telemetry capture
-- workspace/session control
+Current responsibility:
+- Pi SDK execution for routing, deterministic execution, and live-smoke cases
+- workspace/session isolation
+- raw session artifact capture
+- observer telemetry capture and post-run session telemetry loading
+
+### Current files
+- `src/pi/types.ts`
+- `src/pi/sdk-runner.ts`
+- `src/pi/observer-extension.ts`
+- `src/pi/session-telemetry.ts`
+
+### Planned additions
+- CLI parity runtime
+- fixture materialization hooks
+- trace normalization inputs
 
 ## Scoring Context
 Planned responsibility:
@@ -369,7 +458,7 @@ Planned responsibility:
 ---
 
 ## Immediate Documentation Follow-Ups
-1. Keep this document aligned with `src/contracts/types.ts` and `src/load/source-types.ts`
+1. Keep this document aligned with `src/contracts/types.ts`, `src/load/source-types.ts`, and `src/pi/types.ts`
 2. Add a trace model section once `src/traces/types.ts` exists
 3. Add a scorecard/tier model section once scoring starts
 4. Link CLI commands to these entities once `src/cli/` is implemented

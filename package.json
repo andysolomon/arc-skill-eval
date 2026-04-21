@@ -40,6 +40,7 @@
     "semantic-release": "^24.2.3"
   },
   "dependencies": {
+    "@mariozechner/pi-coding-agent": "^0.67.68",
     "typescript": "^5.9.3"
   }
 }
