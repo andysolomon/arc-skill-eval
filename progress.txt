@@ -37,7 +37,7 @@ Sprint 1: 2026-04-27 -> 2026-05-08 (10 days)
     [x] add validation wiring on discovered contracts
     [x] add git clone loader
 
-[-] W-000004 Validate schema-only TypeScript eval contracts [AFK]
+[x] W-000004 Validate schema-only TypeScript eval contracts [AFK]
     [x] scaffold src/
     [x] add tsconfig.json
     [x] add src/index.ts exports
@@ -46,8 +46,8 @@ Sprint 1: 2026-04-27 -> 2026-05-08 (10 days)
     [x] add build + typecheck scripts
     [x] pass npm run typecheck
     [x] pass npm run build
-    [ ] add src/contracts/normalize.ts
-    [ ] add validator fixture/examples coverage
+    [x] add src/contracts/normalize.ts
+    [x] add validator fixture/examples coverage
     [x] wire validator into loader flow
 
 Milestone M2 — Pi Execution Core
@@ -78,5 +78,5 @@ Current checkpoint summary
 [x] Contract validator added
 [x] Local loader started
 [x] Git loader started
-[ ] Normalization layer started
+[-] Normalization layer started
 [ ] Pi SDK runner started

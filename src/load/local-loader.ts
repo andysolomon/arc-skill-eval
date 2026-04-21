@@ -2,7 +2,7 @@ import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 
-import { validateSkillEvalContract } from "../contracts/validate.js";
+import { validateAndNormalizeSkillEvalContract } from "../contracts/normalize.js";
 import type { ValidationIssue } from "../contracts/types.js";
 import { discoverParticipatingSkills } from "./discover-skills.js";
 import { loadSkillEvalContractModule } from "./load-skill-contract.js";
@@ -32,7 +32,7 @@ export async function loadAndValidateLocalRepo(inputPath: string): Promise<Valid
   for (const skill of loadedRepo.skills) {
     try {
       const rawContract = await loadSkillEvalContractModule(skill.evalDefinitionPath);
-      const validationResult = validateSkillEvalContract(rawContract);
+      const validationResult = validateAndNormalizeSkillEvalContract(rawContract);
 
       if (validationResult.ok) {
         validSkills.push({
