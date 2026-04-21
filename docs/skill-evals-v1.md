@@ -337,6 +337,12 @@ This includes assertions such as:
 - artifact checks
 - custom deterministic assertions
 
+Current implementation note:
+- deterministic scoring is implemented for routing and deterministic execution lanes
+- canonical scores use `0..1`, with derived `0..100` display values
+- file `created` / `edited` checks compare the initial fixture baseline to the final live workspace state
+- `expected.artifacts` remains deferred for later report/artifact semantics
+
 ### Profile Defaults + Skill Overrides
 Each profile provides default scorer packs and expectations.
 Each skill may override:
@@ -345,6 +351,11 @@ Each skill may override:
 - forbidden signals
 - custom assertions
 - thresholds
+
+Current implementation note:
+- scorer packs exist for `planning`, `repo-mutation`, `external-api`, and `orchestration`
+- profile weights are merged with per-skill weight overrides
+- canonical signal matching currently uses exact tokens, not globs or wildcards
 
 ### Assertion Style
 v1 supports **hybrid assertions**:
@@ -365,6 +376,10 @@ For multi-trial cases:
 - hard assertions fail on any violating trial
 - canonical soft score uses **median**
 - mean/min/max should also be reported
+
+Current implementation note:
+- W-000009 remains single-trial only
+- multi-trial aggregation is reserved for a later scoring expansion
 
 ---
 

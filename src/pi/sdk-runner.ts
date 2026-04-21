@@ -599,6 +599,7 @@ function snapshotFixture(materializedFixture: MaterializedFixture | null): PiSdk
     setup: snapshotValue(materializedFixture.setup),
     git: snapshotValue(materializedFixture.git),
     external: snapshotValue(materializedFixture.external),
+    initialSnapshot: snapshotValue(materializedFixture.initialSnapshot),
   };
 }
 

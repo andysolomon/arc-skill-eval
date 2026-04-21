@@ -105,7 +105,39 @@ Sprint 3: 2026-05-25 -> 2026-06-05 (10 days)
     [x] integrate fixture materialization into Pi SDK execution cases
     [x] add fixture materialization coverage/tests
     [x] update docs/domain model for fixture runtime entities
-[ ] W-000009 Score deterministic lanes with profile defaults and overrides [AFK]
+[x] W-000009 Score deterministic lanes with profile defaults and overrides [AFK]
+    [x] use grill-me plus docs/domain-model.md to lock scorer scope
+    [x] ship per-case scoring plus lightweight lane/skill aggregation objects
+    [x] score routing and deterministic execution only in W-000009
+    [x] keep scorer boundary at EvalTrace plus optional workspace context
+    [x] support local sibling custom assertion refs for both hard and soft assertion paths
+    [x] merge profile defaults with per-skill overrides
+    [x] keep canonical scores in 0..1 and emit derived 0..100 display scores
+    [x] keep W-000009 single-trial only and leave API room for multi-trial aggregation later
+    [x] use lane-specific routing semantics with single-skill engagement evidence for now
+    [x] implement scorer packs for planning, repo-mutation, external-api, and orchestration profiles
+    [x] apply thresholds only at lane/skill aggregate level with enforcement metadata
+    [x] compute overall score as mean of all scored case scores
+    [x] activate trigger/process/outcome dimensions now and keep style inactive by default
+    [x] preserve soft scores even when hard assertions fail or runtime execution fails
+    [x] define a small exact-match canonical signal namespace for deterministic scoring
+    [x] defer expected.artifacts scoring semantics for now
+    [x] use exact normalized workspace-relative file paths
+    [x] score include/exclude from final workspace state and created/edited via initial-vs-final workspace diff
+    [x] capture initial workspace baseline during fixture materialization and score against live workspace before cleanup
+    [x] treat missing dimensions and missing lanes as unscored rather than zero
+    [x] combine checks within a dimension via flat mean of applicable checks
+    [x] add src/scorers/types.ts
+    [x] add src/scorers/signals.ts
+    [x] add src/scorers/workspace.ts
+    [x] add src/scorers/custom-assertions.ts
+    [x] add src/scorers/engine.ts
+    [x] add src/scorers/weights.ts
+    [x] add profile scorer pack modules
+    [x] export scorer APIs from src/index.ts
+    [x] capture initial workspace snapshots during fixture materialization
+    [x] add deterministic scoring coverage/tests
+    [x] update docs for scoring entities and semantics
 [ ] W-000010 Emit JSON-first reports with optional HTML views [AFK]
 
 Milestone M4 — CLI, Parity, and Pilot Skills
@@ -127,3 +159,4 @@ Current checkpoint summary
 [x] Session telemetry started
 [x] Canonical trace normalization added
 [x] Hermetic fixture materialization added
+[x] Deterministic scoring added
