@@ -460,9 +460,11 @@ Current implementation note:
 The canonical report artifact is structured JSON.
 
 It should include:
-- skill name
-- profile
-- source repo/ref
+- invocation-wide source provenance
+- explicit report metadata (`reportVersion`, `runId`, `generatedAt`, framework version)
+- scored skills
+- invalid skills
+- invocation-level run issues
 - case IDs
 - lane
 - target/achieved tier
@@ -474,8 +476,19 @@ It should include:
 - trace references
 - baseline comparison metadata
 
+Current implementation note:
+- the top-level artifact is one report per test invocation, with nested per-skill entries
+- per-case results include full deterministic scoring breakdowns plus a `traceRef`
+- shared top-level `traces[]` entries preserve canonical normalized trace content with lightweight raw references
+- tier and baseline sections are explicit placeholders until later work computes them
+- trial statistics are emitted with single-trial defaults in v1
+
 ### Human View
 An optional/generated HTML report should be produced from the JSON report.
+
+Current implementation note:
+- W-000010 ships a lightweight static single-file HTML summary renderer
+- JSON remains the primary contract; HTML is a derived convenience view
 
 ---
 

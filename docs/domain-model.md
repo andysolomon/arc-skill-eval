@@ -6,8 +6,8 @@ This document begins the domain-model documentation for `arc-skill-eval`.
 It describes the core entities the framework is built around, how they relate to each other, and which ones already exist in code versus which are planned next.
 
 ## Status
-- **Implemented now:** source loading, skill discovery, contract validation, contract normalization, hermetic fixture materialization, initial Pi SDK runner orchestration, observer telemetry capture/loading, Pi SDK trace normalization, deterministic scoring for routing and execution lanes
-- **Planned next:** reports, tiers, CLI orchestration
+- **Implemented now:** source loading, skill discovery, contract validation, contract normalization, hermetic fixture materialization, initial Pi SDK runner orchestration, observer telemetry capture/loading, Pi SDK trace normalization, deterministic scoring for routing and execution lanes, JSON-first reporting with optional HTML rendering
+- **Planned next:** tiers, CLI orchestration
 
 ---
 
@@ -382,15 +382,23 @@ A **Tier Result** compares declared maturity against achieved maturity.
 ## 15. Report Artifact
 A **Report Artifact** is the durable output of a test run.
 
-### Planned responsibilities
-- preserve provenance
-- summarize lane/case outcomes
-- include tier and score results
-- support CI automation and human debugging
+### Current code
+- `ArcSkillEvalJsonReport`
+- `buildJsonReport(...)`
+- `stringifyJsonReport(...)`
+- `writeJsonReport(...)`
+- `renderHtmlReport(...)`
+- `writeHtmlReport(...)`
 
-### Planned forms
-- canonical JSON
-- optional HTML rendering
+### Current responsibilities
+- preserve invocation-wide provenance and report metadata
+- summarize scored skills, invalid skills, traces, and run issues in one canonical JSON artifact
+- retain full per-case scoring breakdowns with shared top-level trace references
+- expose explicit placeholder sections for tier and trial metadata until those systems are implemented
+- render a lightweight single-file HTML summary from canonical JSON data
+
+### Notes
+v1 reporting is intentionally JSON-first. HTML is a derived convenience view over the canonical report artifact rather than an independent reporting model.
 
 ---
 
@@ -504,15 +512,27 @@ Current responsibility:
 - tier computation
 
 ## Reporting Context
-Planned responsibility:
-- JSON artifact generation
-- optional HTML rendering
-- baseline-aware summaries
+Current responsibility:
+- build canonical invocation-wide JSON report artifacts
+- render lightweight single-file HTML summaries from canonical report data
+- preserve shared top-level trace records and per-case trace refs
+- surface invalid skills and invocation-level run issues alongside scored skills
+- expose explicit placeholders for tier and baseline sections until later work lands
+
+### Current files
+- `src/reporting/types.ts`
+- `src/reporting/json-report.ts`
+- `src/reporting/html-report.ts`
+
+### Planned additions
+- baseline comparison logic
+- model-fingerprint normalization helpers
+- richer HTML/report UX once CLI orchestration lands
 
 ---
 
 ## Immediate Documentation Follow-Ups
-1. Keep this document aligned with `src/contracts/types.ts`, `src/load/source-types.ts`, `src/pi/types.ts`, `src/traces/types.ts`, and `src/scorers/types.ts`
+1. Keep this document aligned with `src/contracts/types.ts`, `src/load/source-types.ts`, `src/pi/types.ts`, `src/traces/types.ts`, `src/scorers/types.ts`, and `src/reporting/types.ts`
 2. Extend the trace model once CLI JSON normalization exists
 3. Add a scorecard/tier model section once tiering starts
 4. Link CLI commands to these entities once `src/cli/` is implemented

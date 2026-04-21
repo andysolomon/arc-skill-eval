@@ -138,7 +138,20 @@ Sprint 3: 2026-05-25 -> 2026-06-05 (10 days)
     [x] capture initial workspace snapshots during fixture materialization
     [x] add deterministic scoring coverage/tests
     [x] update docs for scoring entities and semantics
-[ ] W-000010 Emit JSON-first reports with optional HTML views [AFK]
+[x] W-000010 Emit JSON-first reports with optional HTML views [AFK]
+    [x] use grill-me plus docs/domain-model.md to lock report artifact scope
+    [x] keep the top-level artifact invocation-wide with nested per-skill entries
+    [x] keep reporting pure and render HTML from canonical JSON
+    [x] store shared top-level traces and per-case trace refs
+    [x] include explicit placeholders for tier, baseline, and single-trial stats
+    [x] include invalid skills and invocation-level run issues in the canonical report
+    [x] add src/reporting/types.ts
+    [x] add src/reporting/json-report.ts
+    [x] add src/reporting/html-report.ts
+    [x] add src/reporting/index.ts
+    [x] export reporting APIs from src/index.ts
+    [x] add reporting coverage/tests
+    [x] update docs for report artifact entities and semantics
 
 Milestone M4 — CLI, Parity, and Pilot Skills
 Sprint 4: 2026-06-08 -> 2026-06-19 (10 days)
@@ -160,3 +173,4 @@ Current checkpoint summary
 [x] Canonical trace normalization added
 [x] Hermetic fixture materialization added
 [x] Deterministic scoring added
+[x] JSON-first reporting added
