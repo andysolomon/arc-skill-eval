@@ -136,6 +136,12 @@ Reasons:
 - easier fixture setup
 - easier integration with TypeScript scoring and reporting
 
+Current implementation note:
+- the framework now has an initial Pi SDK runner that executes selected contract cases and captures raw session artifacts
+- session state is isolated per eval run while model credentials continue to come from the normal Pi auth/model configuration
+- observer telemetry is appended to Pi session `custom` entries and reloaded after the run as structured tool/command/file telemetry
+- canonical trace normalization remains a separate downstream step
+
 ### CLI Parity Runtime
 Pi CLI JSON mode is used for a **fixed golden subset** of cases.
 

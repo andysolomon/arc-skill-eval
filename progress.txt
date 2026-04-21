@@ -53,8 +53,23 @@ Sprint 1: 2026-04-27 -> 2026-05-08 (10 days)
 Milestone M2 — Pi Execution Core
 Sprint 2: 2026-05-11 -> 2026-05-22 (10 days)
 
-[ ] W-000005 Run skills through the Pi SDK [HITL]
-[ ] W-000006 Record observer telemetry in session entries [AFK]
+[x] W-000005 Run skills through the Pi SDK [HITL]
+    [x] add src/pi/types.ts
+    [x] add src/pi/sdk-runner.ts
+    [x] export Pi runner APIs from src/index.ts
+    [x] isolate workspace/session state with temp Pi agent dirs
+    [x] capture raw SDK session artifacts for each executed case
+    [x] add injected-session tests for runner orchestration
+    [x] update framework documentation/domain model for runtime entities
+    [x] verify live SDK run assumptions with human reviewer
+[x] W-000006 Record observer telemetry in session entries [AFK]
+    [x] add src/pi/observer-extension.ts
+    [x] add src/pi/session-telemetry.ts
+    [x] append structured telemetry to Pi session custom entries
+    [x] load telemetry back from persisted session files
+    [x] attach telemetry snapshots to Pi SDK case run results
+    [x] add session-telemetry coverage/tests
+    [x] manually verify live run captures tool calls, bash commands, touched files, and skill reads
 [ ] W-000007 Normalize Pi output into canonical traces [AFK]
 
 Milestone M3 — Fixtures, Deterministic Scoring, and Reporting
@@ -78,5 +93,6 @@ Current checkpoint summary
 [x] Contract validator added
 [x] Local loader started
 [x] Git loader started
-[-] Normalization layer started
-[ ] Pi SDK runner started
+[x] Normalization layer started
+[x] Pi SDK runner started
+[x] Session telemetry started

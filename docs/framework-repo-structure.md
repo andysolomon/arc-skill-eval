@@ -33,6 +33,8 @@ arc-skill-eval/
 │   │   ├── validate.ts
 │   │   └── case-ids.ts
 │   ├── pi/
+│   │   ├── index.ts
+│   │   ├── types.ts
 │   │   ├── sdk-runner.ts
 │   │   ├── cli-runner.ts
 │   │   ├── observer-extension.ts
