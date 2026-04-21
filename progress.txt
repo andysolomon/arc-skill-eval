@@ -1,0 +1,78 @@
+arc-skill-eval progress tracker
+Last updated: 2026-04-20
+
+Legend
+[ ] not started
+[-] in progress / partially complete
+[x] done
+
+Milestone M0 — Repo Foundation and Release Automation
+Sprint 0: 2026-04-20 -> 2026-04-24 (5 days)
+
+[-] W-000001 Bootstrap repo metadata and semantic release [HITL]
+    [x] package metadata exists at repo root
+    [x] semantic-release dependencies installed
+    [x] conventional-commits planning artifact exists
+    [x] add GitHub release workflow
+    [ ] verify release dry-run on main-ready branch
+    [ ] confirm permissions/token strategy with human reviewer (`origin` ownership confirmed; token setup still pending)
+
+[x] W-000002 Capture v1 framework plan [AFK]
+    [x] tighten DEVELOPMENT_PLAN.md with sprint durations
+    [x] add story dependencies
+    [x] add AFK/HITL tags
+    [x] add milestone checkpoints
+    [x] create aligned checkbox-based progress tracker
+
+Milestone M1 — Contract Loading and Validation
+Sprint 1: 2026-04-27 -> 2026-05-08 (10 days)
+
+[ ] W-000003 Discover participating skills via adjacent eval files [AFK]
+    [ ] scaffold src/load/
+    [ ] implement local adjacency discovery
+    [ ] ignore non-participating skills
+    [ ] capture source/ref metadata shape
+    [ ] add remote loader handoff notes
+
+[-] W-000004 Validate schema-only TypeScript eval contracts [AFK]
+    [x] scaffold src/
+    [x] add tsconfig.json
+    [x] add src/index.ts exports
+    [x] add src/contracts/types.ts
+    [x] add src/contracts/validate.ts
+    [x] add build + typecheck scripts
+    [x] pass npm run typecheck
+    [x] pass npm run build
+    [ ] add src/contracts/normalize.ts
+    [ ] add validator fixture/examples coverage
+    [ ] wire validator into loader flow
+
+Milestone M2 — Pi Execution Core
+Sprint 2: 2026-05-11 -> 2026-05-22 (10 days)
+
+[ ] W-000005 Run skills through the Pi SDK [HITL]
+[ ] W-000006 Record observer telemetry in session entries [AFK]
+[ ] W-000007 Normalize Pi output into canonical traces [AFK]
+
+Milestone M3 — Fixtures, Deterministic Scoring, and Reporting
+Sprint 3: 2026-05-25 -> 2026-06-05 (10 days)
+
+[ ] W-000008 Materialize hermetic fixtures with first-class git state [AFK]
+[ ] W-000009 Score deterministic lanes with profile defaults and overrides [AFK]
+[ ] W-000010 Emit JSON-first reports with optional HTML views [AFK]
+
+Milestone M4 — CLI, Parity, and Pilot Skills
+Sprint 4: 2026-06-08 -> 2026-06-19 (10 days)
+
+[ ] W-000011 Ship library-backed CLI commands [AFK]
+[ ] W-000012 Add CLI golden parity cases [AFK]
+[ ] W-000013 Onboard representative pilot skills [HITL]
+
+Current checkpoint summary
+[x] Planning artifacts tightened and aligned
+[x] Initial TypeScript implementation scaffolded
+[x] Contract types added
+[x] Contract validator added
+[ ] Local loader started
+[ ] Normalization layer started
+[ ] Pi SDK runner started

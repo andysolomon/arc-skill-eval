@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "skills": {
+    "arc-conventional-commits": {
+      "source": "andysolomon/arc-skills",
+      "sourceType": "github",
+      "computedHash": "9b6229ddd710105d64cb8bb2abe40591791c2e7f88765804f28ff9059d478814"
+    },
+    "arc-creating-user-stories": {
+      "source": "andysolomon/arc-skills",
+      "sourceType": "github",
+      "computedHash": "2015c425845c568a8a03570b5523f7ca52a53ab40cefca4bfd481a321f1ab5c8"
+    },
+    "arc-defining-work": {
+      "source": "andysolomon/arc-skills",
+      "sourceType": "github",
+      "computedHash": "63676e03f01206e7cd4ac5ed5682c5f99fe49c8b788e28c3cb0408449f463c22"
+    },
+    "arc-linear-issue-creator": {
+      "source": "andysolomon/arc-skills",
+      "sourceType": "github",
+      "computedHash": "1cba5420f3fca0a4e919290d30915dc4b8516f48d9b6005388a5933c8164ba00"
+    },
+    "arc-parallel-implement": {
+      "source": "andysolomon/arc-skills",
+      "sourceType": "github",
+      "computedHash": "40b88fae33f5c2e9fb1091f5e12bb9c03db1c0e67bb01ef6f1e4277ec15b7e17"
+    },
+    "arc-planning-work": {
+      "source": "andysolomon/arc-skills",
+      "sourceType": "github",
+      "computedHash": "ca22e9fba318f14fc0ade224845f95b6a95add14821a727d4def034452ff194e"
+    },
+    "grill-me": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "computedHash": "784f0dbb7403b0f00324bce9a112f715342777a0daee7bbb7385f9c6f0a170ea"
+    }
+  }
+}

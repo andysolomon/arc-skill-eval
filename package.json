@@ -1,0 +1,42 @@
+{
+  "name": "arc-skill-eval",
+  "version": "0.1.0",
+  "description": "Pi-native framework and CLI for evaluating skills that ship adjacent SKILL.md and skill.eval.ts files.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andysolomon/arc-skill-eval.git"
+  },
+  "homepage": "https://github.com/andysolomon/arc-skill-eval",
+  "bugs": {
+    "url": "https://github.com/andysolomon/arc-skill-eval/issues"
+  },
+  "keywords": [
+    "pi",
+    "skills",
+    "evaluation",
+    "semantic-release",
+    "typescript"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "release": "semantic-release",
+    "test": "node -e \"console.log('No tests configured yet')\""
+  },
+  "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^11.0.6",
+    "@semantic-release/npm": "^12.0.2",
+    "@semantic-release/release-notes-generator": "^14.1.0",
+    "conventional-changelog-conventionalcommits": "^9.1.0",
+    "semantic-release": "^24.2.3",
+    "typescript": "^5.9.3"
+  }
+}
