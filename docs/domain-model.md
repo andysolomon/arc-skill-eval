@@ -6,8 +6,8 @@ This document begins the domain-model documentation for `arc-skill-eval`.
 It describes the core entities the framework is built around, how they relate to each other, and which ones already exist in code versus which are planned next.
 
 ## Status
-- **Implemented now:** source loading, skill discovery, contract validation, contract normalization, hermetic fixture materialization, initial Pi SDK runner orchestration, observer telemetry capture/loading, Pi SDK trace normalization
-- **Planned next:** scoring, reports, tiers, CLI orchestration
+- **Implemented now:** source loading, skill discovery, contract validation, contract normalization, hermetic fixture materialization, initial Pi SDK runner orchestration, observer telemetry capture/loading, Pi SDK trace normalization, deterministic scoring for routing and execution lanes
+- **Planned next:** reports, tiers, CLI orchestration
 
 ---
 
@@ -345,17 +345,26 @@ This is the bridge between execution and scoring. The current implementation nor
 ## 13. Score Result
 A **Score Result** is the deterministic evaluation of a trace against a case.
 
-### Planned responsibilities
-- apply hard assertions
-- compute weighted soft scores
-- aggregate by lane and by skill
-- feed tier computation and reports
+### Current code
+- `DeterministicCaseScoreResult`
+- `DeterministicSkillScoreResult`
+- `AggregateScoreSummary`
+- `ScoreDimensionResult`
+- `scoreDeterministicCase(...)`
+- `scoreDeterministicSkill(...)`
+- `createWorkspaceContext(...)`
+- `createWorkspaceContextFromPiSdkCaseResult(...)`
 
-### Planned neighboring concepts
-- scorer profile
-- hard assertion result
-- weighted dimension scores
-- lane summary
+### Current responsibilities
+- apply built-in hard assertions and local custom hard assertions
+- compute weighted soft scores across trigger/process/outcome/style dimensions
+- keep hard-fail semantics separate from weighted diagnostics
+- aggregate scores by routing lane family, execution lane family, and overall skill
+- evaluate aggregate thresholds with enforcement metadata
+- score execution workspace outcomes against initial fixture baselines and final live workspace state
+
+### Notes
+Current deterministic scoring targets routing and deterministic execution only. Scores remain canonical in the `0..1` range and also expose derived `0..100` display values.
 
 ---
 
@@ -461,7 +470,6 @@ Current responsibility:
 
 ### Planned additions
 - CLI parity runtime
-- fixture materialization hooks
 
 ## Trace Context
 Current responsibility:
@@ -474,9 +482,25 @@ Current responsibility:
 - `src/traces/normalize-sdk.ts`
 
 ## Scoring Context
-Planned responsibility:
-- assertions
-- weighted scoring
+Current responsibility:
+- deterministic case scoring from canonical traces plus optional workspace context
+- built-in hard assertions and typed local custom assertions
+- exact-token canonical signal extraction
+- weighted dimension scoring and lane/skill aggregation
+- threshold evaluation with enforcement metadata
+
+### Current files
+- `src/scorers/types.ts`
+- `src/scorers/signals.ts`
+- `src/scorers/workspace.ts`
+- `src/scorers/custom-assertions.ts`
+- `src/scorers/engine.ts`
+- `src/scorers/weights.ts`
+- `src/scorers/profiles/*`
+
+### Planned additions
+- multi-trial aggregation
+- CLI parity scoring inputs
 - tier computation
 
 ## Reporting Context
@@ -488,7 +512,7 @@ Planned responsibility:
 ---
 
 ## Immediate Documentation Follow-Ups
-1. Keep this document aligned with `src/contracts/types.ts`, `src/load/source-types.ts`, `src/pi/types.ts`, and `src/traces/types.ts`
+1. Keep this document aligned with `src/contracts/types.ts`, `src/load/source-types.ts`, `src/pi/types.ts`, `src/traces/types.ts`, and `src/scorers/types.ts`
 2. Extend the trace model once CLI JSON normalization exists
-3. Add a scorecard/tier model section once scoring starts
+3. Add a scorecard/tier model section once tiering starts
 4. Link CLI commands to these entities once `src/cli/` is implemented

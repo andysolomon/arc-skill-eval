@@ -1,6 +1,16 @@
 import type { ExternalFixtureSpec, FixtureKind, FixtureRef, GitFixtureSpec } from "../contracts/types.js";
 import type { DiscoveredSkillFiles } from "../load/source-types.js";
 
+export interface WorkspaceFileSnapshot {
+  path: string;
+  size: number;
+  sha256: string;
+}
+
+export interface WorkspaceSnapshot {
+  files: WorkspaceFileSnapshot[];
+}
+
 export interface HookExecutionResult {
   phase: "setup" | "teardown";
   command: string;
@@ -36,6 +46,7 @@ export interface MaterializedFixtureDetails {
   setup: HookExecutionResult | null;
   git: GitFixtureApplicationResult | null;
   external: ExternalFixtureSpec | undefined;
+  initialSnapshot: WorkspaceSnapshot;
 }
 
 export interface MaterializedFixture extends MaterializedFixtureDetails {

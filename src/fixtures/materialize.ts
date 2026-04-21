@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { applyGitFixtureState } from "./git-state.js";
+import { captureWorkspaceSnapshot } from "./workspace-snapshot.js";
 import type {
   FixtureCleanupResult,
   HookExecutionResult,
@@ -55,6 +56,7 @@ export async function materializeFixture(options: MaterializeFixtureOptions): Pr
     setup: null,
     git,
     external: options.fixture.external,
+    initialSnapshot: { files: [] },
     cleanup: async () => {
       if (cleanupResult) {
         return cleanupResult;
@@ -101,6 +103,8 @@ export async function materializeFixture(options: MaterializeFixtureOptions): Pr
       );
     }
   }
+
+  materialized.initialSnapshot = await captureWorkspaceSnapshot(workspaceDir);
 
   return materialized;
 }
