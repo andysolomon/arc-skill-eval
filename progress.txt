@@ -82,7 +82,29 @@ Sprint 2: 2026-05-11 -> 2026-05-22 (10 days)
 Milestone M3 — Fixtures, Deterministic Scoring, and Reporting
 Sprint 3: 2026-05-25 -> 2026-06-05 (10 days)
 
-[ ] W-000008 Materialize hermetic fixtures with first-class git state [AFK]
+[x] W-000008 Materialize hermetic fixtures with first-class git state [AFK]
+    [x] review fixture schema, domain model, and Pi runtime integration seams
+    [x] lock fixture materialization plan via grill-me
+    [x] decide per-case fresh workspace by default
+    [x] narrow W-000008 scope to snapshot copy + hooks + git state + env wiring
+    [x] limit fixture.source support to filesystem paths resolved from the skill directory
+    [x] define setup/teardown as shell command hooks run from the workspace root
+    [x] lock deterministic git-state application order
+    [x] place fixture lifecycle logic in reusable src/fixtures/ modules
+    [x] apply fixture materialization only to execution/live-smoke cases that declare fixtures
+    [x] treat repo/docs fixtures the same operationally and keep api fixtures declarative for now
+    [x] copy fixture directory contents into the temp workspace root
+    [x] flow fixture env into both hooks and Pi case execution
+    [x] use fixed local git identity for generated fixture commits
+    [x] capture structured hook execution artifacts
+    [x] run teardown during final cleanup and return a structured cleanup result
+    [x] add src/fixtures/types.ts
+    [x] add src/fixtures/materialize.ts
+    [x] add src/fixtures/git-state.ts
+    [x] export fixture APIs from src/index.ts
+    [x] integrate fixture materialization into Pi SDK execution cases
+    [x] add fixture materialization coverage/tests
+    [x] update docs/domain model for fixture runtime entities
 [ ] W-000009 Score deterministic lanes with profile defaults and overrides [AFK]
 [ ] W-000010 Emit JSON-first reports with optional HTML views [AFK]
 
@@ -104,3 +126,4 @@ Current checkpoint summary
 [x] Pi SDK runner started
 [x] Session telemetry started
 [x] Canonical trace normalization added
+[x] Hermetic fixture materialization added

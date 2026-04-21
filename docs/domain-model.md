@@ -6,8 +6,8 @@ This document begins the domain-model documentation for `arc-skill-eval`.
 It describes the core entities the framework is built around, how they relate to each other, and which ones already exist in code versus which are planned next.
 
 ## Status
-- **Implemented now:** source loading, skill discovery, contract validation, contract normalization, initial Pi SDK runner orchestration, observer telemetry capture/loading, Pi SDK trace normalization
-- **Planned next:** fixtures, scoring, reports, tiers, CLI orchestration
+- **Implemented now:** source loading, skill discovery, contract validation, contract normalization, hermetic fixture materialization, initial Pi SDK runner orchestration, observer telemetry capture/loading, Pi SDK trace normalization
+- **Planned next:** scoring, reports, tiers, CLI orchestration
 
 ---
 
@@ -217,15 +217,28 @@ A **Fixture** describes the workspace and dependencies needed for deterministic 
 - `GitFixtureSpec`
 - `ExternalFixtureSpec`
 - related nested types
+- `MaterializedFixture`
+- `HookExecutionResult`
+- `FixtureCleanupResult`
+- `materializeFixture(...)`
+- `resolveFixtureSourcePath(...)`
+- `applyGitFixtureState(...)`
+- `FixtureMaterializationError`
+
+### Current responsibilities
+- materialize temp workspaces from filesystem-backed fixture sources
+- copy fixture directory contents into a fresh workspace root
+- initialize first-class git state including branches, commits, tags, remotes, dirty files, and staged files
+- run setup/teardown shell hooks and capture structured hook artifacts
+- attach fixture env overlays safely for hooks and Pi runtime execution
+- preserve declared external fixture metadata for later activation
 
 ### Planned responsibilities
-- materialize temp workspaces
-- initialize git state
-- provide mock servers and CLI shims
-- attach env configuration safely
+- provide mock servers and CLI shims as active runtime dependencies
+- add shared fixture catalogs/IDs beyond filesystem-path sources
 
 ### Notes
-Fixtures are defined in the contract model now but not yet materialized by runtime code.
+In the current implementation, relative fixture paths resolve from the participating skill directory. Pi SDK execution now materializes a fresh fixture workspace per execution/live-smoke case that declares a fixture.
 
 ---
 
@@ -250,7 +263,7 @@ A **Pi SDK Run Environment** defines the isolated workspace and session state fo
 - `cleanup()`
 
 ### Notes
-This is the runtime boundary that lets later work attach fixture materialization and session-entry telemetry without changing the contract layer.
+This is the runtime boundary that now composes with fixture materialization and session-entry telemetry without changing the contract layer.
 Current implementation isolates session state per run while reusing the standard Pi credential/model configuration for auth resolution.
 
 ---

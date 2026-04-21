@@ -410,10 +410,12 @@ Hybrid ownership:
 - shared reusable fixtures can live centrally in the framework repo
 
 ### Fixture Materialization
-Default materialization strategy:
-- copy snapshot into temp workspace
-- run optional setup hooks
-- run optional teardown hooks
+Current v1 materialization strategy:
+- resolve filesystem-backed fixture sources relative to the skill directory
+- copy fixture contents into a fresh temp workspace root per case
+- run optional setup hooks before execution
+- run optional teardown hooks during final cleanup
+- flow fixture env into hooks and Pi execution
 
 ### First-Class Git Fixture State
 Git state is a first-class fixture concern.
@@ -430,6 +432,10 @@ Fixture specs should be able to express:
 v1 uses **hybrid mocking**:
 - mock servers for API-native integrations
 - CLI shims for CLI-native workflows
+
+Current implementation note:
+- external fixture metadata can be declared and preserved during materialization
+- active mock-server and CLI-shim orchestration remains a later follow-on
 
 ---
 

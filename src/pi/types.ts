@@ -5,6 +5,7 @@ import type {
   NormalizedSkillEvalContract,
   RoutingCase,
 } from "../contracts/types.js";
+import type { MaterializedFixtureDetails, FixtureCleanupResult } from "../fixtures/types.js";
 import type { RepoSourceDescriptor, ValidatedSkillDiscovery } from "../load/source-types.js";
 
 export type PiSdkCaseKind = "routing" | "execution" | "live-smoke";
@@ -54,11 +55,15 @@ export interface CreatePiSdkRunEnvironmentOptions {
   sessionDir?: string;
 }
 
+export interface PiSdkRunEnvironmentCleanupResult {
+  agentDirRemoved: boolean;
+}
+
 export interface PiSdkRunEnvironment {
   workspaceDir: string;
   agentDir: string;
   sessionDir: string;
-  cleanup: () => Promise<void>;
+  cleanup: () => Promise<PiSdkRunEnvironmentCleanupResult>;
 }
 
 export interface RunPiSdkCaseOptions {
@@ -180,6 +185,19 @@ export interface PiSdkSessionArtifact {
   events: unknown[];
 }
 
+export interface PiSdkCaseCleanupResult {
+  fixture: FixtureCleanupResult | null;
+  environment: PiSdkRunEnvironmentCleanupResult;
+}
+
+export interface PiSdkSkillCleanupResult {
+  cases: Array<{
+    caseId: string;
+    fixture: FixtureCleanupResult | null;
+  }>;
+  environment: PiSdkRunEnvironmentCleanupResult;
+}
+
 export interface PiSdkCaseRunResult {
   source: RepoSourceDescriptor;
   skill: {
@@ -192,13 +210,14 @@ export interface PiSdkCaseRunResult {
   workspaceDir: string;
   agentDir: string;
   sessionDir: string;
+  fixture: MaterializedFixtureDetails | null;
   model: ModelSelection | null;
   startedAt: string;
   finishedAt: string;
   durationMs: number;
   session: PiSdkSessionArtifact;
   telemetry: PiSessionTelemetrySnapshot | null;
-  cleanup: () => Promise<void>;
+  cleanup: () => Promise<PiSdkCaseCleanupResult>;
 }
 
 export interface PiSdkSkillRunResult {
@@ -208,5 +227,5 @@ export interface PiSdkSkillRunResult {
   agentDir: string;
   sessionDir: string;
   results: PiSdkCaseRunResult[];
-  cleanup: () => Promise<void>;
+  cleanup: () => Promise<PiSdkSkillCleanupResult>;
 }

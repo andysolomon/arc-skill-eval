@@ -23,15 +23,20 @@ import type {
   NormalizedSkillEvalContract,
   RoutingCase,
 } from "../contracts/types.js";
+import { materializeFixture, type MaterializedFixture } from "../fixtures/index.js";
 import type { DiscoveredSkillFiles, ValidatedSkillDiscovery } from "../load/source-types.js";
 import type {
   CreatePiSdkRunEnvironmentOptions,
+  PiSdkCaseCleanupResult,
   PiSdkCaseRunResult,
   PiSdkExecutionCase,
   PiSdkLiveSmokeCase,
   PiSdkRunEnvironment,
+  PiSdkRunEnvironmentCleanupResult,
   PiSdkRunnableCase,
   PiSdkRoutingCase,
+  PiSdkSessionArtifact,
+  PiSdkSkillCleanupResult,
   PiSdkSkillRunResult,
   RunPiSdkCaseOptions,
   RunValidatedSkillViaPiSdkOptions,
@@ -57,6 +62,7 @@ export interface PiSdkSessionFactoryOptions {
   skillFiles: DiscoveredSkillFiles;
   requestedModel: ModelSelection | undefined;
   appendSystemPrompt: string[];
+  env: Record<string, string>;
 }
 
 export interface PiSdkSessionFactoryResult {
@@ -85,6 +91,7 @@ export async function createPiSdkRunEnvironment(
   const agentDir = options.agentDir ? path.resolve(options.agentDir) : await mkdtemp(path.join(tmpdir(), "arc-skill-eval-pi-"));
   const sessionDir = options.sessionDir ? path.resolve(options.sessionDir) : path.join(agentDir, "sessions");
   const ownsAgentDir = options.agentDir === undefined;
+  let cleaned = false;
 
   await mkdir(agentDir, { recursive: true });
   await mkdir(sessionDir, { recursive: true });
@@ -94,11 +101,14 @@ export async function createPiSdkRunEnvironment(
     agentDir,
     sessionDir,
     cleanup: async () => {
-      if (!ownsAgentDir) {
-        return;
+      if (!ownsAgentDir || cleaned) {
+        return { agentDirRemoved: false };
       }
 
       await rm(agentDir, { recursive: true, force: true });
+      cleaned = true;
+
+      return { agentDirRemoved: true };
     },
   };
 }
@@ -131,21 +141,34 @@ export async function runPiSdkCase(
       agentDir: options.agentDir,
       sessionDir: options.sessionDir,
     }));
-
   const createSession = options.createSession ?? createDefaultPiSdkSession;
   const requestedModel = resolveRequestedModel(options.skill.contract, options.caseDefinition, options.model);
   const appendSystemPrompt = [...(options.appendSystemPrompt ?? [])];
-  const { session, model } = await createSession({
-    workspaceDir: environment.workspaceDir,
-    agentDir: environment.agentDir,
-    sessionDir: environment.sessionDir,
-    skill: options.skill,
-    caseDefinition: options.caseDefinition,
-    skillFiles: options.skill.files,
-    requestedModel,
-    appendSystemPrompt,
-  });
+  const materializedFixture = await maybeMaterializeCaseFixture(options.skill, options.caseDefinition);
+  const caseWorkspaceDir = materializedFixture?.workspaceDir ?? environment.workspaceDir;
+  const caseEnv = materializedFixture?.env ?? {};
+  const cleanup = createCaseCleanup(environment, materializedFixture);
 
+  let sessionResult: PiSdkSessionFactoryResult;
+
+  try {
+    sessionResult = await createSession({
+      workspaceDir: caseWorkspaceDir,
+      agentDir: environment.agentDir,
+      sessionDir: environment.sessionDir,
+      skill: options.skill,
+      caseDefinition: options.caseDefinition,
+      skillFiles: options.skill.files,
+      requestedModel,
+      appendSystemPrompt,
+      env: caseEnv,
+    });
+  } catch (error) {
+    await cleanup().catch(() => undefined);
+    throw error;
+  }
+
+  const { session, model } = sessionResult;
   const events: unknown[] = [];
   let assistantText = "";
   const unsubscribe = session.subscribe((event) => {
@@ -178,9 +201,10 @@ export async function runPiSdkCase(
       targetTier: options.skill.contract.targetTier,
     },
     caseDefinition: options.caseDefinition,
-    workspaceDir: environment.workspaceDir,
+    workspaceDir: caseWorkspaceDir,
     agentDir: environment.agentDir,
     sessionDir: environment.sessionDir,
+    fixture: snapshotFixture(materializedFixture),
     model,
     startedAt: startedAt.toISOString(),
     finishedAt: finishedAt.toISOString(),
@@ -193,7 +217,7 @@ export async function runPiSdkCase(
       events,
     },
     telemetry,
-    cleanup: environment.cleanup,
+    cleanup,
   };
 
   session.dispose();
@@ -243,7 +267,7 @@ export async function runValidatedSkillViaPiSdk(
     agentDir: environment.agentDir,
     sessionDir: environment.sessionDir,
     results,
-    cleanup: environment.cleanup,
+    cleanup: createSkillCleanup(results, environment),
   };
 }
 
@@ -274,7 +298,7 @@ async function createDefaultPiSdkSession(
     modelRegistry,
     model: resolvedModel?.sdkModel,
     thinkingLevel: resolvedModel?.selection.thinking,
-    tools: createCodingTools(options.workspaceDir),
+    tools: createPiSdkCodingTools(options.workspaceDir, options.env),
     resourceLoader,
     sessionManager: SessionManager.create(options.workspaceDir, options.sessionDir),
     settingsManager,
@@ -468,6 +492,114 @@ async function loadTelemetryIfAvailable(sessionFile: string | undefined) {
   } catch {
     return null;
   }
+}
+
+async function maybeMaterializeCaseFixture(
+  skill: ValidatedSkillDiscovery,
+  caseDefinition: PiSdkRunnableCase,
+): Promise<MaterializedFixture | null> {
+  if (caseDefinition.kind === "routing") {
+    return null;
+  }
+
+  const fixture = caseDefinition.definition.fixture;
+
+  if (!fixture) {
+    return null;
+  }
+
+  return await materializeFixture({
+    skillFiles: skill.files,
+    fixture,
+  });
+}
+
+function createPiSdkCodingTools(workspaceDir: string, env: Record<string, string>) {
+  if (Object.keys(env).length === 0) {
+    return createCodingTools(workspaceDir);
+  }
+
+  return createCodingTools(workspaceDir, {
+    bash: {
+      spawnHook: (context) => ({
+        ...context,
+        env: {
+          ...context.env,
+          ...env,
+        },
+      }),
+    },
+  });
+}
+
+function createCaseCleanup(
+  environment: PiSdkRunEnvironment,
+  materializedFixture: MaterializedFixture | null,
+): () => Promise<PiSdkCaseCleanupResult> {
+  let cleanupPromise: Promise<PiSdkCaseCleanupResult> | undefined;
+
+  return async () => {
+    cleanupPromise ??= (async () => {
+      const fixture = materializedFixture ? await materializedFixture.cleanup() : null;
+      const environmentResult = await environment.cleanup();
+      return {
+        fixture,
+        environment: environmentResult,
+      };
+    })();
+
+    return await cleanupPromise;
+  };
+}
+
+function createSkillCleanup(
+  results: PiSdkCaseRunResult[],
+  environment: PiSdkRunEnvironment,
+): () => Promise<PiSdkSkillCleanupResult> {
+  let cleanupPromise: Promise<PiSdkSkillCleanupResult> | undefined;
+
+  return async () => {
+    cleanupPromise ??= (async () => {
+      const cases: PiSdkSkillCleanupResult["cases"] = [];
+      let agentDirRemoved = false;
+
+      for (const result of results) {
+        const caseCleanup = await result.cleanup();
+        cases.push({
+          caseId: result.caseDefinition.caseId,
+          fixture: caseCleanup.fixture,
+        });
+        agentDirRemoved ||= caseCleanup.environment.agentDirRemoved;
+      }
+
+      if (!agentDirRemoved) {
+        agentDirRemoved = (await environment.cleanup()).agentDirRemoved;
+      }
+
+      return {
+        cases,
+        environment: { agentDirRemoved },
+      };
+    })();
+
+    return await cleanupPromise;
+  };
+}
+
+function snapshotFixture(materializedFixture: MaterializedFixture | null): PiSdkCaseRunResult["fixture"] {
+  if (!materializedFixture) {
+    return null;
+  }
+
+  return {
+    kind: materializedFixture.kind,
+    sourcePath: materializedFixture.sourcePath,
+    workspaceDir: materializedFixture.workspaceDir,
+    env: snapshotValue(materializedFixture.env),
+    setup: snapshotValue(materializedFixture.setup),
+    git: snapshotValue(materializedFixture.git),
+    external: snapshotValue(materializedFixture.external),
+  };
 }
 
 function buildPromptFailureMessage(caseId: string, error: unknown): string {

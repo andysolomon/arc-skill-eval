@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { access } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
+import { access, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
@@ -68,8 +69,9 @@ test("createPiSdkRunEnvironment creates temp agent state and cleanup removes it"
   await access(environment.agentDir, fsConstants.F_OK);
   await access(environment.sessionDir, fsConstants.F_OK);
 
-  await environment.cleanup();
+  const cleanup = await environment.cleanup();
 
+  assert.equal(cleanup.agentDirRemoved, true);
   await assert.rejects(() => access(environment.agentDir, fsConstants.F_OK));
 });
 
@@ -142,6 +144,8 @@ test("runPiSdkCase captures prompt output, events, and session artifacts from in
     id: "claude-sonnet-4-5",
     thinking: "minimal",
   });
+  assert.deepEqual(receivedOptions.env, {});
+  assert.equal(result.fixture, null);
   assert.equal(result.session.assistantText, "done");
   assert.deepEqual(result.session.messages, [{ role: "assistant", content: "done" }]);
   assert.equal(result.session.events.length, 1);
@@ -206,3 +210,117 @@ test("runValidatedSkillViaPiSdk reuses the environment and filters selected case
     await environment.cleanup();
   }
 });
+
+test("runValidatedSkillViaPiSdk materializes a fresh fixture workspace per execution case", async () => {
+  const tempRoot = await mkdtemp(path.join(tmpdir(), "arc-skill-eval-pi-fixtures-"));
+  const fixtureSourceDir = path.join(tempRoot, "skills/alpha/fixtures/basic");
+
+  await mkdir(fixtureSourceDir, { recursive: true });
+  await writeFile(path.join(tempRoot, "skills/alpha/SKILL.md"), "# Alpha\n", "utf8");
+  await writeFile(path.join(tempRoot, "skills/alpha/skill.eval.ts"), "export default {};\n", "utf8");
+  await writeFile(path.join(fixtureSourceDir, "README.md"), "fixture workspace\n", "utf8");
+
+  const tempSkillFiles = {
+    skillName: "alpha",
+    skillDir: path.join(tempRoot, "skills/alpha"),
+    relativeSkillDir: "skills/alpha",
+    skillDefinitionPath: path.join(tempRoot, "skills/alpha/SKILL.md"),
+    evalDefinitionPath: path.join(tempRoot, "skills/alpha/skill.eval.ts"),
+  };
+
+  const contract = normalizeSkillEvalContract({
+    skill: "alpha",
+    profile: "planning",
+    targetTier: 1,
+    routing: {
+      explicit: [],
+      implicitPositive: [],
+      adjacentNegative: [],
+    },
+    execution: [
+      {
+        id: "execution-001",
+        prompt: "Run case one.",
+        fixture: {
+          kind: "repo",
+          source: "./fixtures/basic",
+          env: { GREETING: "hello" },
+          setup: createNodeStdoutCommand("process.stdout.write(process.env.GREETING ?? '')"),
+          teardown: createNodeStdoutCommand("process.stdout.write(process.env.GREETING ?? '')"),
+        },
+      },
+      {
+        id: "execution-002",
+        prompt: "Run case two.",
+        fixture: {
+          kind: "repo",
+          source: "./fixtures/basic",
+          env: { GREETING: "hello" },
+          setup: createNodeStdoutCommand("process.stdout.write(process.env.GREETING ?? '')"),
+          teardown: createNodeStdoutCommand("process.stdout.write(process.env.GREETING ?? '')"),
+        },
+      },
+    ],
+  });
+  const skill = { files: tempSkillFiles, contract };
+  const observedWorkspaces = [];
+  const observedEnv = [];
+
+  try {
+    const result = await runValidatedSkillViaPiSdk({
+      source: {
+        ...source,
+        repositoryRoot: tempRoot,
+      },
+      skill,
+      selectedCaseIds: ["execution-001", "execution-002"],
+      createSession: async (options) => {
+        observedWorkspaces.push(options.workspaceDir);
+        observedEnv.push(options.env);
+        const copiedReadme = await readFile(path.join(options.workspaceDir, "README.md"), "utf8");
+
+        assert.equal(copiedReadme, "fixture workspace\n");
+
+        return {
+          model: null,
+          session: {
+            sessionId: `session-${observedWorkspaces.length}`,
+            sessionFile: undefined,
+            messages: [],
+            subscribe() {
+              return () => {};
+            },
+            async prompt() {},
+            dispose() {},
+          },
+        };
+      },
+    });
+
+    assert.equal(result.results.length, 2);
+    assert.equal(new Set(observedWorkspaces).size, 2);
+    assert.deepEqual(observedEnv, [{ GREETING: "hello" }, { GREETING: "hello" }]);
+    assert.equal(result.results[0].fixture?.setup?.stdout, "hello");
+    assert.equal(result.results[1].fixture?.setup?.stdout, "hello");
+    assert.notEqual(result.results[0].workspaceDir, result.results[1].workspaceDir);
+
+    const cleanup = await result.cleanup();
+
+    assert.equal(cleanup.cases.length, 2);
+    assert.equal(cleanup.cases[0].fixture?.teardown?.stdout, "hello");
+    assert.equal(cleanup.cases[1].fixture?.teardown?.stdout, "hello");
+    assert.equal(cleanup.environment.agentDirRemoved, true);
+    await assert.rejects(() => access(observedWorkspaces[0], fsConstants.F_OK));
+    await assert.rejects(() => access(observedWorkspaces[1], fsConstants.F_OK));
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+function createNodeStdoutCommand(script) {
+  return `${quoteForShell(process.execPath)} -e ${quoteForShell(script)}`;
+}
+
+function quoteForShell(value) {
+  return `'${String(value).replace(/'/g, `'"'"'`)}'`;
+}
