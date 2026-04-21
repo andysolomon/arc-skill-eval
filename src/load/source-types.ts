@@ -1,4 +1,4 @@
-import type { SkillEvalContract, ValidationIssue } from "../contracts/types.js";
+import type { NormalizedSkillEvalContract, ValidationIssue } from "../contracts/types.js";
 
 export type RepoSourceKind = "local" | "git";
 
@@ -41,7 +41,7 @@ export interface LocalRepoLoadResult {
 
 export interface ValidatedSkillDiscovery {
   files: DiscoveredSkillFiles;
-  contract: SkillEvalContract;
+  contract: NormalizedSkillEvalContract;
 }
 
 export interface InvalidSkillDiscovery {

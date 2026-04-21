@@ -26,7 +26,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "release": "semantic-release",
-    "test": "node -e \"console.log('No tests configured yet')\""
+    "test": "npm run build && node --test tests"
   },
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",

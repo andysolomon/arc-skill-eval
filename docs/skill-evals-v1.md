@@ -48,6 +48,8 @@ Version 1 is intentionally optimized for **Pi-only execution** while establishin
 
 ## Terminology
 
+See also: `docs/domain-model.md` for the evolving framework entity map and current implemented-vs-planned boundaries.
+
 ### Skill
 A directory containing `SKILL.md` and, if participating in evals, `skill.eval.ts`.
 

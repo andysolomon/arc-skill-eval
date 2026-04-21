@@ -53,9 +53,29 @@ export interface SkillEvalContract {
   rubric?: RubricConfig;
 }
 
+export interface NormalizedSkillEvalContract {
+  skill: string;
+  profile: SkillProfile;
+  targetTier: TargetTier;
+  enforcement: NormalizedEnforcementConfig;
+  thresholds?: ThresholdConfig;
+  model?: ModelSelection;
+  overrides: NormalizedOverridesConfig;
+  routing: NormalizedRoutingSection;
+  execution: ExecutionCase[];
+  cliParity: ParityCase[];
+  liveSmoke: LiveSmokeCase[];
+  rubric: NormalizedRubricConfig;
+}
+
 export interface EnforcementConfig {
   tier?: EnforcementMode;
   score?: EnforcementMode;
+}
+
+export interface NormalizedEnforcementConfig {
+  tier: EnforcementMode;
+  score: EnforcementMode;
 }
 
 export interface ThresholdConfig {
@@ -78,11 +98,24 @@ export interface OverridesConfig {
   forbiddenSignals?: string[];
 }
 
+export interface NormalizedOverridesConfig {
+  weights: Partial<Record<"trigger" | "process" | "outcome" | "style", number>>;
+  expectedSignals: string[];
+  forbiddenSignals: string[];
+}
+
 export interface RoutingSection {
   explicit: RoutingCase[];
   implicitPositive: RoutingCase[];
   adjacentNegative: RoutingCase[];
   hardNegative?: RoutingCase[];
+}
+
+export interface NormalizedRoutingSection {
+  explicit: RoutingCase[];
+  implicitPositive: RoutingCase[];
+  adjacentNegative: RoutingCase[];
+  hardNegative: RoutingCase[];
 }
 
 export interface BaseCase {
@@ -217,6 +250,11 @@ export interface CliShimFixture {
 export interface RubricConfig {
   enabled: boolean;
   prompts?: string[];
+}
+
+export interface NormalizedRubricConfig {
+  enabled: boolean;
+  prompts: string[];
 }
 
 export interface ValidationIssue {

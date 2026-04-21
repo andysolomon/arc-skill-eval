@@ -16,7 +16,8 @@ arc-skill-eval/
 ├── docs/
 │   ├── skill-evals-v1.md
 │   ├── framework-repo-structure.md
-│   └── skill-eval-schema.md
+│   ├── skill-eval-schema.md
+│   └── domain-model.md
 ├── src/
 │   ├── index.ts
 │   ├── cli/
