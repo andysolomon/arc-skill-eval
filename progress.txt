@@ -1,5 +1,5 @@
 arc-skill-eval progress tracker
-Last updated: 2026-04-20
+Last updated: 2026-04-21
 
 Legend
 [ ] not started
@@ -70,7 +70,14 @@ Sprint 2: 2026-05-11 -> 2026-05-22 (10 days)
     [x] attach telemetry snapshots to Pi SDK case run results
     [x] add session-telemetry coverage/tests
     [x] manually verify live run captures tool calls, bash commands, touched files, and skill reads
-[ ] W-000007 Normalize Pi output into canonical traces [AFK]
+[x] W-000007 Normalize Pi output into canonical traces [AFK]
+    [x] add src/traces/types.ts
+    [x] add src/traces/normalize-sdk.ts
+    [x] export trace normalization APIs from src/index.ts
+    [x] normalize Pi SDK case results into canonical scorer-facing traces
+    [x] preserve raw session messages, SDK events, and telemetry entries for debugging
+    [x] add trace-normalization coverage/tests
+    [x] update domain model and framework docs for trace entities
 
 Milestone M3 — Fixtures, Deterministic Scoring, and Reporting
 Sprint 3: 2026-05-25 -> 2026-06-05 (10 days)
@@ -96,3 +103,4 @@ Current checkpoint summary
 [x] Normalization layer started
 [x] Pi SDK runner started
 [x] Session telemetry started
+[x] Canonical trace normalization added

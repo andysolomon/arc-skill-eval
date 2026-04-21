@@ -140,7 +140,7 @@ Current implementation note:
 - the framework now has an initial Pi SDK runner that executes selected contract cases and captures raw session artifacts
 - session state is isolated per eval run while model credentials continue to come from the normal Pi auth/model configuration
 - observer telemetry is appended to Pi session `custom` entries and reloaded after the run as structured tool/command/file telemetry
-- canonical trace normalization remains a separate downstream step
+- Pi SDK case results can now be normalized into a canonical trace shape for downstream scoring
 
 ### CLI Parity Runtime
 Pi CLI JSON mode is used for a **fixed golden subset** of cases.
@@ -171,34 +171,55 @@ Telemetry includes signals such as:
 ## Canonical Trace Model
 Scorers must target a normalized trace shape rather than raw Pi events directly.
 
-Illustrative shape:
+Current v1 Pi SDK shape:
 
 ```ts
 type EvalTrace = {
-  prompt: string;
-  profile: "planning" | "repo-mutation" | "external-api" | "orchestration";
-  routing: {
-    explicitInvocation: boolean;
-    detectedSkillReads: string[];
-    matchedSkill?: string;
+  identity: {
+    runtime: "pi-sdk";
+    source: RepoSourceDescriptor;
+    skill: {
+      name: string;
+      relativeSkillDir: string;
+      profile: "planning" | "repo-mutation" | "external-api" | "orchestration";
+      targetTier: 0 | 1 | 2 | 3;
+    };
+    case: {
+      caseId: string;
+      kind: "routing" | "execution" | "live-smoke";
+      lane:
+        | "routing-explicit"
+        | "routing-implicit-positive"
+        | "routing-adjacent-negative"
+        | "routing-hard-negative"
+        | "execution-deterministic"
+        | "live-smoke";
+      prompt: string;
+    };
+    model: ModelSelection | null;
   };
-  process: {
-    toolCalls: Array<{ name: string; inputSummary?: string }>;
+  timing: {
+    startedAt: string;
+    finishedAt: string;
+    durationMs: number;
+  };
+  observations: {
+    assistantText: string;
+    toolCalls: Array<{ toolName: string; inputSummary?: string }>;
+    toolResults: Array<{ toolName: string; isError: boolean }>;
     bashCommands: string[];
-    touchedFiles: string[];
-    createdFiles: string[];
+    touchedFiles: Array<{ path: string; toolName: "edit" | "write" }>;
+    writtenFiles: string[];
     editedFiles: string[];
-    externalCalls: Array<{ system: string; operation: string }>;
-  };
-  outcome: {
-    finalText: string;
-    artifacts: string[];
-    exitCode?: number | null;
+    skillReads: Array<{ path: string; skillName: string }>;
+    externalCalls: Array<{ system: string; operation: string; target?: string }>;
   };
   raw: {
-    sdkEvents?: unknown[];
-    jsonlEvents?: unknown[];
-    observerTelemetry?: unknown;
+    sessionId: string;
+    sessionFile?: string;
+    messages: unknown[];
+    sdkEvents: unknown[];
+    telemetryEntries: unknown[];
   };
 };
 ```
