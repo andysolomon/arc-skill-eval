@@ -13,6 +13,10 @@ defineSkillEval(
     skill: "alpha",
     profile: "planning",
     targetTier: 0,
+    // Pin model for the Evalite spike so Pi mode does not inherit the
+    // user's global default (which may point elsewhere, e.g. ChatGPT Plus
+    // with quota caps).
+    model: { provider: "google", id: "gemini-2.5-flash" },
     routing: {
       explicit,
       implicitPositive: [],
