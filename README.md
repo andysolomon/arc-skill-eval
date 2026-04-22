@@ -1,40 +1,44 @@
 # arc-skill-eval
 
-Pi-native library and CLI for evaluating skills that ship adjacent `SKILL.md` and `skill.eval.ts` files.
+Pi-native library and CLI that runs [Anthropic-standard skill evals](https://platform.claude.com/docs/en/agents-and-tools/agent-skills) — `evals/evals.json` inside a skill directory, executed with the skill attached, graded with LLM-judged + script-based assertions.
 
-## Status
-Current v1 foundation includes:
-- skill discovery, contract validation, and contract normalization
-- hermetic fixture materialization with first-class git state
-- Pi SDK execution for routing, deterministic execution, CLI parity baselines, and live-smoke runs
-- Pi CLI JSON execution for declared `cliParity[]` cases
-- canonical trace normalization for SDK and CLI runs
-- deterministic scoring for routing and execution lanes
-- JSON-first reporting with optional single-file HTML rendering
-- library-backed CLI commands for `list`, `validate`, and `test`
-- semantic-release automation
+## What it does
+Given a skill that ships `SKILL.md` and a sibling `evals/evals.json`, `arc-skill-eval`:
 
-## What this project does
-`arc-skill-eval` evaluates participating Pi skills in a repo by:
-1. discovering skill directories that contain both `SKILL.md` and `skill.eval.ts`
-2. loading and validating the adjacent eval contract
-3. executing declared cases through Pi runtimes
-4. normalizing runtime artifacts into canonical traces
-5. scoring deterministic lanes
-6. emitting invocation-wide report artifacts
+1. discovers every `SKILL.md` + `evals/evals.json` pair under a repo.
+2. materializes each case's optional `files/` into a temp workspace.
+3. runs the case through the Pi SDK with the skill attached.
+4. grades the outputs — string assertions via an LLM-judge, `file-exists` / `regex-match` / `json-valid` via deterministic scripts.
+5. writes per-case `outputs/` + `timing.json` + `grading.json` under `<skill>/evals-runs/<runId>/`.
 
-## Core docs
-- `docs/skill-evals-v1.md`
-- `docs/skill-eval-schema.md`
-- `docs/framework-repo-structure.md`
-- `docs/domain-model.md`
+Assertion grading follows the guidance in [Anthropic's eval-skills methodology](https://platform.claude.com/docs/en/agents-and-tools/agent-skills) and the inspiration from [OpenAI's eval-skills blog post](https://developers.openai.com/blog/eval-skills).
+
+## Input format
+`<skill-dir>/evals/evals.json`:
+```json
+{
+  "skill_name": "arc-conventional-commits",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Set up semantic-release in this repo.",
+      "expected_output": "semantic-release configured with the Conventional Commits preset.",
+      "files": ["files/clean-repo"],
+      "assertions": [
+        { "type": "file-exists", "path": ".releaserc.json" },
+        { "type": "regex-match", "pattern": "conventionalcommits", "target": { "file": ".releaserc.json" } },
+        "The response summarizes the semantic-release plugins it installed."
+      ]
+    }
+  ]
+}
+```
 
 ## Requirements
-- Node.js `>=20`
-- Pi installed/configured for real runtime execution
-- Pi auth/model configuration available for live SDK or CLI runs
+- Node.js ≥ 20
+- Pi installed and configured with at least one provider API key (Anthropic, OpenAI, Google/Gemini, Mistral, xAI, etc.). The skill's assistant runs via `@mariozechner/pi-coding-agent`.
 
-## Install as a CLI
+## Install
 
 ### From a local checkout
 ```bash
@@ -50,110 +54,67 @@ npm install --global arc-skill-eval
 arc-skill-eval --help
 ```
 
-## Local development
+## Usage
+
 ```bash
-npm install
-npm run build
-npm run typecheck
-npm test
+# Run every eval in every discovered skill under the current repo
+arc-skill-eval run .
+
+# Run one skill
+arc-skill-eval run ./skills/arc-conventional-commits
+
+# Run one case inside one skill
+arc-skill-eval run ./skills/arc-conventional-commits --case 1
+
+# Retarget output to a different workspace root
+arc-skill-eval run . --output-dir ./evals-runs
+
+# Machine-readable JSON
+arc-skill-eval run . --json
 ```
 
-## CLI surface
-```bash
-arc-skill-eval list <repo-or-path>
-arc-skill-eval validate <repo-or-path>
-arc-skill-eval test <repo-or-path>
-arc-skill-eval test <repo-or-path> --skill arc-planning-work
-arc-skill-eval test <repo-or-path> --skill arc-planning-work --case routing-explicit-001
-arc-skill-eval test <repo-or-path> --skill arc-planning-work --case cli-parity-001
+The positional `<skill-dir-or-repo>` is resolved as:
+- a skill directory if it contains `evals/evals.json`,
+- otherwise a repo whose tree is walked for SKILL.md + evals/evals.json pairs.
+
+Exit code: `0` when every case has no failing assertions, `1` otherwise.
+
+## Output layout
+
+For each run:
+
+```
+<skillDir>/evals-runs/<runId>/
+├── eval-<case-id>/
+│   ├── outputs/              # files produced by the run
+│   ├── timing.json           # { total_tokens, duration_ms }
+│   └── grading.json          # per-assertion passed + evidence
 ```
 
-### Source inputs
-All commands accept the same `<repo-or-path>` input.
+`grading.json` per the Anthropic format:
 
-Examples:
-```bash
-arc-skill-eval test ../arc-skills
-arc-skill-eval test github:andysolomon/arc-skills@main
+```json
+{
+  "case_id": "1",
+  "assertion_results": [
+    { "text": "file-exists: .releaserc.json", "passed": true, "evidence": "Found .releaserc.json (182 bytes)", "assertion": { "type": "file-exists", "path": ".releaserc.json" } },
+    { "text": "The response summarizes the semantic-release plugins it installed.", "passed": true, "evidence": "\"installs @semantic-release/commit-analyzer + release-notes-generator\"", "assertion": "The response summarizes the semantic-release plugins it installed." }
+  ],
+  "summary": { "passed": 2, "failed": 0, "total": 2, "pass_rate": 1.0 }
+}
 ```
 
-## Typical workflow
+## Authoring an eval suite for a skill
+Use the bundled **`arc-creating-evals`** skill in `skills/arc-creating-evals/`. It interviews you across Anthropic's four success dimensions (outcome, process, style, efficiency) and emits `evals/evals.json` + fixtures. Install the skill into your agent's skills directory (`.claude/skills/` or the equivalent for your tool) — see `skills/README.md` for the recipe.
 
-### Discover participating skills
-```bash
-arc-skill-eval list ../arc-skills
-```
+## Docs
+- `docs/evals-json-pivot.md` — direction, milestone log, and what stays vs what was deprecated.
+- `docs/domain-model.md` — runtime + grading entities.
 
-### Validate contracts
-```bash
-arc-skill-eval validate ../arc-skills
-arc-skill-eval validate ../arc-skills --skill arc-planning-work
-```
+## Deferred, not dropped
+The current release is the slim MVP of the pivot to the Anthropic format. Planned follow-ups:
+- `with_skill` vs `without_skill` dual-run for pass-rate *delta* — the canonical "does this skill add value" signal.
+- `iteration-N/` workspaces and `benchmark.json` aggregation for iterate-and-compare flows.
+- Human-review `feedback.json`.
 
-### Run evals
-```bash
-arc-skill-eval test ../arc-skills
-arc-skill-eval test ../arc-skills --skill arc-planning-work
-arc-skill-eval test ../arc-skills --skill arc-planning-work --case execution-001
-arc-skill-eval test ../arc-skills --html
-```
-
-### Machine-readable output
-```bash
-arc-skill-eval list ../arc-skills --json
-arc-skill-eval validate ../arc-skills --json
-arc-skill-eval test ../arc-skills --json
-```
-
-## Current v1 behavior
-- `--skill <name>` is repeatable on `list`, `validate`, and `test`
-- `--case <id>` is repeatable on `test`
-- `test` runs deterministic lanes plus declared `cliParity[]` cases by default
-- `--include-live-smoke` opt-ins live-smoke execution
-- `test` always writes `report.json`
-- `--html` additionally writes `report.html`
-- default stdout is human-readable
-- `--json` prints each command’s canonical payload directly
-- exit codes are currently `0` or `1`
-
-## Evaluation lanes
-- **Routing:** explicit, implicit-positive, adjacent-negative, hard-negative
-- **Deterministic execution:** fixture-backed execution cases with deterministic scoring
-- **CLI parity:** same-invocation SDK-vs-CLI comparison for declared golden cases
-- **Live smoke:** opt-in live runtime checks for cases that require them
-
-## Reports
-`arc-skill-eval test` produces an invocation-wide report.
-
-Default artifact location:
-```text
-.arc-skill-eval/reports/<runId>/
-```
-
-Artifacts:
-- `report.json` always
-- `report.html` when `--html` is passed
-
-The JSON report includes:
-- top-level invocation metadata and status
-- valid and invalid skills
-- scored deterministic cases
-- unscored executed cases such as live-smoke
-- parity case results with mismatch diagnostics and paired trace refs
-- shared canonical traces for SDK and CLI runs
-
-## Library areas
-Main code lives in:
-- `src/load/`
-- `src/contracts/`
-- `src/fixtures/`
-- `src/pi/`
-- `src/traces/`
-- `src/scorers/`
-- `src/reporting/`
-- `src/cli/`
-
-## Notes
-- deterministic scoring is currently implemented for routing and execution lanes
-- CLI parity is currently a case-level drift signal, not a weighted score lane
-- tier computation and pilot onboarding are later follow-up work
+See `docs/evals-json-pivot.md` for the full plan.

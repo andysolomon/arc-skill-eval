@@ -1,7 +1,7 @@
 {
   "name": "arc-skill-eval",
   "version": "0.1.0",
-  "description": "Pi-native framework and CLI for evaluating skills that ship adjacent SKILL.md and skill.eval.ts files.",
+  "description": "Pi-native library and CLI that runs Anthropic-standard skill evals (evals/evals.json) with LLM-judged + script assertions.",
   "type": "module",
   "license": "MIT",
   "repository": {
