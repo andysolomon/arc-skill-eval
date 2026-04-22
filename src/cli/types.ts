@@ -72,11 +72,18 @@ export interface HelpCommandResult {
   text: string;
 }
 
+export interface RunEvalsCliOptions extends CommandSelectionOptions {
+  input: string;
+  caseIds?: string[];
+  outputDir?: string;
+}
+
 export type ParsedCliCommand =
   | { command: "help" }
   | ({ command: "list"; json?: boolean } & ListCommandOptions)
   | ({ command: "validate"; json?: boolean } & ValidateCommandOptions)
-  | ({ command: "test"; json?: boolean } & TestCommandOptions);
+  | ({ command: "test"; json?: boolean } & TestCommandOptions)
+  | ({ command: "run"; json?: boolean } & RunEvalsCliOptions);
 
 export class CliUsageError extends Error {
   constructor(message: string) {

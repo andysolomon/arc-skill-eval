@@ -11,17 +11,42 @@ export function parseCliArgs(argv: string[]): ParsedCliCommand {
     case "list":
       return {
         command: "list",
-        ...parseSharedCommandArgs(rest, { allowCase: false, allowHtml: false, allowLiveSmoke: false }),
+        ...parseSharedCommandArgs(rest, {
+          allowCase: false,
+          allowHtml: false,
+          allowLiveSmoke: false,
+          allowOutputDir: false,
+        }),
       };
     case "validate":
       return {
         command: "validate",
-        ...parseSharedCommandArgs(rest, { allowCase: false, allowHtml: false, allowLiveSmoke: false }),
+        ...parseSharedCommandArgs(rest, {
+          allowCase: false,
+          allowHtml: false,
+          allowLiveSmoke: false,
+          allowOutputDir: false,
+        }),
       };
     case "test":
       return {
         command: "test",
-        ...parseSharedCommandArgs(rest, { allowCase: true, allowHtml: true, allowLiveSmoke: true }),
+        ...parseSharedCommandArgs(rest, {
+          allowCase: true,
+          allowHtml: true,
+          allowLiveSmoke: true,
+          allowOutputDir: true,
+        }),
+      };
+    case "run":
+      return {
+        command: "run",
+        ...parseSharedCommandArgs(rest, {
+          allowCase: true,
+          allowHtml: false,
+          allowLiveSmoke: false,
+          allowOutputDir: true,
+        }),
       };
     default:
       throw new CliUsageError(`Unknown command: ${commandName}.`);
@@ -36,11 +61,13 @@ export function renderHelp(): string {
     "  arc-skill-eval list <repo-or-path> [--skill <name>]... [--json]",
     "  arc-skill-eval validate <repo-or-path> [--skill <name>]... [--json]",
     "  arc-skill-eval test <repo-or-path> [--skill <name>]... [--case <id>]... [--include-live-smoke] [--output-dir <path>] [--html] [--json]",
+    "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--output-dir <path>] [--json]",
     "",
     "Notes:",
     "  - <repo-or-path> resolves to a local path first, then supported git references.",
-    "  - test writes report.json by default and report.html when --html is set.",
-    "  - validate and test exit with code 1 on invalid skills.",
+    "  - test writes report.json by default and report.html when --html is set (legacy format).",
+    "  - run reads evals/evals.json inside each skill dir and writes per-case grading.json + timing.json + outputs/ under <skill>/evals-runs/<runId>/.",
+    "  - validate, test, and run exit with code 1 when any skill or assertion fails.",
   ].join("\n");
 }
 
@@ -50,6 +77,7 @@ function parseSharedCommandArgs(
     allowCase: boolean;
     allowHtml: boolean;
     allowLiveSmoke: boolean;
+    allowOutputDir: boolean;
   },
 ) {
   const skillNames: string[] = [];
@@ -105,8 +133,8 @@ function parseSharedCommandArgs(
     }
 
     if (arg === "--output-dir" || arg.startsWith("--output-dir=")) {
-      if (!options.allowHtml) {
-        throw new CliUsageError("--output-dir is only supported by the test command.");
+      if (!options.allowOutputDir) {
+        throw new CliUsageError("--output-dir is not supported for this command.");
       }
 
       const parsed = readFlagValue(arg, args[index + 1]);
@@ -137,7 +165,7 @@ function parseSharedCommandArgs(
     json,
     html: options.allowHtml ? html : undefined,
     includeLiveSmoke: options.allowLiveSmoke ? includeLiveSmoke : undefined,
-    outputDir: options.allowHtml ? outputDir : undefined,
+    outputDir: options.allowOutputDir ? outputDir : undefined,
   };
 }
 

@@ -1,7 +1,13 @@
 import { runListCommand } from "./list-command.js";
 import { runTestCommand } from "./test-command.js";
+import { runEvalsCommand } from "./run-evals-command.js";
 import { renderHelp, parseCliArgs } from "./argv.js";
-import { formatListResult, formatTestResult, formatValidateResult } from "./render.js";
+import {
+  formatListResult,
+  formatRunEvalsResult,
+  formatTestResult,
+  formatValidateResult,
+} from "./render.js";
 import { runValidateCommand } from "./validate-command.js";
 import { CliCommandError, CliUsageError, type CliInvocationResult } from "./types.js";
 
@@ -37,6 +43,20 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
         return {
           exitCode: result.report.status === "failed" || result.report.status === "partial" || result.report.invalidSkills.length > 0 ? 1 : 0,
           stdout: formatTestResult(result, { json: parsed.json }),
+          stderr: "",
+        };
+      }
+      case "run": {
+        const result = await runEvalsCommand({
+          input: parsed.input,
+          skillNames: parsed.skillNames,
+          caseIds: parsed.caseIds,
+          outputDirOverride: parsed.outputDir,
+        });
+        const failed = result.summary.failedCases > 0 || result.summary.failedAssertions > 0;
+        return {
+          exitCode: failed ? 1 : 0,
+          stdout: formatRunEvalsResult(result, { json: parsed.json }),
           stderr: "",
         };
       }
