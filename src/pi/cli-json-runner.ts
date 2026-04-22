@@ -376,22 +376,29 @@ export function collectCliJsonTelemetryLikeObservations(options: {
   const touchedFiles = [];
   const skillReads = [];
   const externalCalls = [];
+  // tool_execution_end only carries the result + isError; the original
+  // args (file path, command string, etc.) arrived with the matching
+  // tool_execution_start. Pair them by toolCallId so downstream helpers
+  // like toFileTouchTelemetry still see the path.
+  const argsByToolCallId = new Map<string, Record<string, unknown>>();
 
   for (const event of options.events) {
     if (isToolCallEvent(event)) {
+      argsByToolCallId.set(event.toolCallId, event.args);
+
       toolCalls.push({
         toolCallId: event.toolCallId,
         toolName: event.toolName,
-        inputSummary: summarizeToolInput(event.toolName, event.input),
+        inputSummary: summarizeToolInput(event.toolName, event.args),
       });
 
-      if (event.toolName === "bash" && typeof event.input.command === "string") {
-        bashCommands.push(event.input.command);
-        externalCalls.push(...summarizeExternalCalls(event.toolCallId, event.input.command));
+      if (event.toolName === "bash" && typeof event.args.command === "string") {
+        bashCommands.push(event.args.command);
+        externalCalls.push(...summarizeExternalCalls(event.toolCallId, event.args.command));
       }
 
-      if (event.toolName === "read" && typeof event.input.path === "string") {
-        const skillRead = toSkillReadTelemetry(options.workspaceDir, event.toolCallId, event.input.path);
+      if (event.toolName === "read" && typeof event.args.path === "string") {
+        const skillRead = toSkillReadTelemetry(options.workspaceDir, event.toolCallId, event.args.path);
 
         if (skillRead) {
           skillReads.push(skillRead);
@@ -409,7 +416,8 @@ export function collectCliJsonTelemetryLikeObservations(options: {
       });
 
       if (!event.isError) {
-        const fileTouch = toFileTouchTelemetry(options.workspaceDir, event.toolCallId, event.toolName, event.input);
+        const args = argsByToolCallId.get(event.toolCallId) ?? {};
+        const fileTouch = toFileTouchTelemetry(options.workspaceDir, event.toolCallId, event.toolName, args);
 
         if (fileTouch) {
           touchedFiles.push(fileTouch);
@@ -430,43 +438,39 @@ export function collectCliJsonTelemetryLikeObservations(options: {
 
 function isToolCallEvent(
   event: unknown,
-): event is { type: "tool_call"; toolCallId: string; toolName: string; input: Record<string, unknown> } {
+): event is { type: "tool_execution_start"; toolCallId: string; toolName: string; args: Record<string, unknown> } {
   return (
     typeof event === "object" &&
     event !== null &&
     "type" in event &&
-    event.type === "tool_call" &&
+    event.type === "tool_execution_start" &&
     "toolCallId" in event &&
     typeof event.toolCallId === "string" &&
     "toolName" in event &&
     typeof event.toolName === "string" &&
-    "input" in event &&
-    typeof event.input === "object" &&
-    event.input !== null
+    "args" in event &&
+    typeof event.args === "object" &&
+    event.args !== null
   );
 }
 
 function isToolResultEvent(
   event: unknown,
 ): event is {
-  type: "tool_result";
+  type: "tool_execution_end";
   toolCallId: string;
   toolName: string;
-  input: Record<string, unknown>;
   isError: boolean;
 } {
   return (
     typeof event === "object" &&
     event !== null &&
     "type" in event &&
-    event.type === "tool_result" &&
+    event.type === "tool_execution_end" &&
     "toolCallId" in event &&
     typeof event.toolCallId === "string" &&
     "toolName" in event &&
     typeof event.toolName === "string" &&
-    "input" in event &&
-    typeof event.input === "object" &&
-    event.input !== null &&
     "isError" in event &&
     typeof event.isError === "boolean"
   );
