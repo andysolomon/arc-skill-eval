@@ -2,6 +2,62 @@
 
 Lives on `experiment/evalite-conformance` only. Not merged to main.
 
+---
+
+## Verdict (2026-04-22, after 6 iterations)
+
+**Recommendation: conditional go.** Migrate `arc-skill-eval` to Evalite-native authoring and runtime, **after** two main-branch bug fixes and one upstream-risk mitigation are in place.
+
+### Why go
+- **Wiring works end-to-end.** `defineSkillEval` compiles a `SkillEvalContract` into one `evalite()` call; Evalite's own file discovery picks it up; the task composes our fixture materializer, Pi SDK adapter, trace normalizer, and deterministic scorer cleanly. Real Pi runs via Mistral and Gemini confirmed the pipeline produces accurate scores (routing 100% on Gemini, 100% on Mistral).
+- **Adapter surface is small.** Three files, 692 LOC (`src/evalite/define-skill-eval.ts`, `pi-runner-task.ts`, `synthesize-trace.ts`). That's the total net-new code needed to bring the framework to Evalite.
+- **Shrink target is met.** The delete-list audit identified ~2,100 LOC across `src/cli/*`, `src/reporting/*`, and their tests that become dead under Evalite — roughly 30–35% reduction in orchestration/reporting/CLI surface. The "go if `src/` shrinks meaningfully" bar clears.
+- **Authoring surface stays good.** `defineSkillEval(contract, { skillDir })` is a ~3-line change from today's `export default contract` — no generated files, no cache dirs, no build step.
+- **Pi runtime is unchanged.** `runPiSdkCase`, `runPiCliJsonCase`, observer telemetry, fixture materializer, canonical `EvalTrace` all stay. The experiment did not force any internal API break.
+
+### Why conditional
+Three issues must be addressed before a migration PR lands on `main`:
+
+1. **Fix `compare-parity.ts` degenerate-match false positive** (main-branch bug #1 from Iteration 6). Today two empty traces compare as `matched: true`, which silently hides parity failures when a provider returns 403/429/empty. Guard: treat both-empty as an explicit mismatch, or refuse to compare until at least one side has non-empty observations.
+
+2. **Fix `cli-json-runner.ts` stale event shape** (main-branch bug #2 from Iteration 6). `collectCliJsonTelemetryLikeObservations` looks for `tool_call` / `tool_result` events with `input` fields; real Pi CLI emits `tool_execution_start` / `tool_execution_end` with `args` / `result`. Every live CLI run today records 0 tool calls, guaranteeing parity mismatches on any tool-using case. Current W-000012 tests pass only because their mock streams use the obsolete shape.
+
+3. **Pin Evalite to a major version and plan for beta churn.** `evalite@0.19.0` with v1 still in beta is real upstream risk. Pin to `^0.19.0` (or wait for v1 stable), keep the pin strict in `package.json`, and add a weekly CI check that tries the latest Evalite release against our spike so we notice breaking changes before upgrading. Budget: plan to re-run the spike against each Evalite minor version before upgrading in production.
+
+### Open items not blocking the call
+- The contract's `text.include` idiom needs documentation guidance toward "summarization-friendly tokens" instead of literal quotes. Surfaced by Mistral's execution case.
+- Evalite's scorer-array model assumes homogeneous scoring dimensions; our lane-conditional model fits it via one unified scorer with `metadata` drill-down. This is a UX compromise, not a correctness compromise. Drill-down via Evalite's web UI (`:3006`) is not yet confirmed — worth a quick spike during migration.
+- `EvalTrace.identity.model` was reported as `null` in Iteration 3 when no contract-level model pin was set; resolved in Iteration 5 when the pin was added. If future contracts don't pin, confirm downstream consumers handle `null` gracefully.
+
+### Suggested migration sequencing
+1. **Separate PRs on `main` first:**
+   - PR A: fix `compare-parity.ts` degenerate match + add a test covering both-empty.
+   - PR B: fix `cli-json-runner.ts` event shape + paired start/end extraction + drop the stale mock streams from `tests/cli.test.mjs`.
+2. **Evalite migration PR (larger):**
+   - Port `src/evalite/*` from this experiment branch.
+   - Migrate `skill.eval.ts` files in `tests/fixtures/valid-skill-repo` to call `defineSkillEval`.
+   - Delete `src/cli/*` (keep shrunk `types.ts` + `shared.ts` helpers consumed by `defineSkillEval`).
+   - Delete `src/reporting/json-report.ts` + `html-report.ts`; shrink `reporting/types.ts`.
+   - Retire or rewrite `tests/cli.test.mjs` + `tests/reporting.test.mjs` as Evalite `--outputPath` validations.
+   - Update `package.json` `bin` to point at `evalite` directly or to a thin shim that forwards positional path args.
+   - Update `README.md` + `docs/domain-model.md` to describe the Evalite-native authoring model.
+3. **Follow-up polish:**
+   - `evalite.config.ts` with `maxConcurrency` and `scoreThreshold` defaults suited to our profile.
+   - Guidance for `expected.text.include` tokens in authoring docs.
+   - Pilot cohort onboarding (current W-000013) now runs against the Evalite path directly.
+
+### What would flip this to no-go
+- Evalite beta introduces a breaking change we can't mitigate in under a minor release cycle (unlikely, but worth pinning for).
+- Evalite's web UI turns out to be unusable for our drill-down needs and the JSON `--outputPath` export isn't enough for CI consumers.
+- Real Pi runs against the pilot cohort (W-000013) show fundamental incompatibility with Evalite's Vitest-backed execution model that we couldn't see on the alpha-only spike.
+
+### How to verify the verdict before PR time
+Run the spike on Mistral with the current contract fix; expect ≥75% average (2 routing green, execution green after fix, parity still blocked by main-branch bug #2):
+```bash
+ARC_EVALITE_USE_PI=1 npm run evalite:spike
+```
+If that run doesn't clean up the execution lane, the contract guidance needs more work before migration. If parity is still broken after main-branch bug #2 is fixed and ported, the adapter needs another iteration.
+
 ## Iteration 1 — minimal wiring proof (2026-04-22)
 
 ### What ran
