@@ -114,7 +114,7 @@ export async function scoreDeterministicSkill(
 }
 
 function ensureDeterministicCase(caseDefinition: PiSdkRunnableCase): void {
-  if (caseDefinition.kind === "live-smoke") {
+  if (caseDefinition.kind === "live-smoke" || caseDefinition.kind === "cli-parity") {
     throw new Error(`Case ${caseDefinition.caseId} is not part of deterministic scoring.`);
   }
 }

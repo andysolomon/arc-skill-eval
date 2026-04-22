@@ -4,14 +4,23 @@ import path from "node:path";
 import type { ModelSelection } from "../contracts/types.js";
 import type { ValidatedSkillDiscovery } from "../load/source-types.js";
 import {
+  PiCliJsonCaseRunError,
   PiSdkCaseRunError,
   collectPiSdkRunnableCases,
+  runPiCliJsonCase,
   runPiSdkCase,
+  type PiSdkParityCase,
   type PiSdkRunnableCase,
 } from "../pi/index.js";
 import { buildJsonReport, writeHtmlReport, writeJsonReport, type ReportRunIssue } from "../reporting/index.js";
 import { scoreDeterministicSkill, createWorkspaceContextFromPiSdkCaseResult } from "../scorers/index.js";
-import { normalizePiSdkCaseRunResult, type EvalTrace } from "../traces/index.js";
+import {
+  compareEvalTraceParity,
+  normalizePiCliJsonCaseRunResult,
+  normalizePiSdkCaseRunResult,
+  type EvalTrace,
+  type EvalTraceParityMismatch,
+} from "../traces/index.js";
 import {
   CliCommandError,
   type TestCommandArtifacts,
@@ -28,7 +37,7 @@ import {
 } from "./shared.js";
 
 interface ExecutedDeterministicCase {
-  caseDefinition: Exclude<PiSdkRunnableCase, { kind: "live-smoke" }>;
+  caseDefinition: Exclude<PiSdkRunnableCase, { kind: "live-smoke" | "cli-parity" }>;
   trace: EvalTrace;
   executionStatus: "completed" | "failed";
   workspace?: ReturnType<typeof createWorkspaceContextFromPiSdkCaseResult>;
@@ -37,6 +46,16 @@ interface ExecutedDeterministicCase {
 interface ExecutedUnscoredCase {
   trace: EvalTrace;
   executionStatus: "completed" | "failed";
+}
+
+interface ExecutedParityCase {
+  caseId: string;
+  sdkTrace: EvalTrace | null;
+  cliTrace: EvalTrace | null;
+  sdkExecutionStatus: "completed" | "failed";
+  cliExecutionStatus: "completed" | "failed";
+  comparisonStatus: "matched" | "mismatched" | "runtime_failed";
+  mismatches: EvalTraceParityMismatch[];
 }
 
 export async function runTestCommand(options: TestCommandOptions): Promise<TestCommandResult> {
@@ -75,20 +94,42 @@ export async function runTestCommand(options: TestCommandOptions): Promise<TestC
       const traces: EvalTrace[] = [];
       const deterministicCases: ExecutedDeterministicCase[] = [];
       const unscoredCases: ExecutedUnscoredCase[] = [];
+      const parityCases: ExecutedParityCase[] = [];
       const cleanupTasks: Array<() => Promise<unknown>> = [];
 
       try {
         for (const caseDefinition of runnableCases) {
-          const executedCase = await executeCase({
+          if (caseDefinition.kind === "cli-parity") {
+            const executedCase = await executeParityCase({
+              source: loaded.result.source,
+              skill,
+              caseDefinition,
+              model: options.model,
+              appendSystemPrompt: options.appendSystemPrompt,
+              createSession: options.createSession,
+              invokePiCli: options.invokePiCli,
+            });
+
+            traces.push(...executedCase.traces);
+            runIssues.push(...executedCase.runIssues);
+            cleanupTasks.push(...executedCase.cleanups);
+            parityCases.push(executedCase.parityCase);
+            continue;
+          }
+
+          const executedCase = await executeSdkCase({
             source: loaded.result.source,
             skill,
             caseDefinition,
             model: options.model,
             appendSystemPrompt: options.appendSystemPrompt,
             createSession: options.createSession,
+            allowSyntheticTraceOnUnknownError: true,
           });
 
-          traces.push(executedCase.trace);
+          if (executedCase.trace) {
+            traces.push(executedCase.trace);
+          }
 
           if (executedCase.runIssue) {
             runIssues.push(executedCase.runIssue);
@@ -99,11 +140,19 @@ export async function runTestCommand(options: TestCommandOptions): Promise<TestC
           }
 
           if (caseDefinition.kind === "live-smoke") {
+            if (!executedCase.trace) {
+              throw new Error(`Expected a trace for live-smoke case ${caseDefinition.caseId}.`);
+            }
+
             unscoredCases.push({
               trace: executedCase.trace,
               executionStatus: executedCase.executionStatus,
             });
             continue;
+          }
+
+          if (!executedCase.trace) {
+            throw new Error(`Expected a trace for deterministic case ${caseDefinition.caseId}.`);
           }
 
           deterministicCases.push({
@@ -125,6 +174,7 @@ export async function runTestCommand(options: TestCommandOptions): Promise<TestC
           score,
           traces,
           unscoredCases,
+          parityCases,
         });
       } finally {
         const cleanupResults = await Promise.allSettled(cleanupTasks.map(async (cleanup) => await cleanup()));
@@ -209,15 +259,16 @@ function collectRunnableCases(skill: ValidatedSkillDiscovery, includeLiveSmoke: 
   );
 }
 
-async function executeCase(options: {
+async function executeSdkCase(options: {
   source: ValidatedSkillDiscovery["files"] extends never ? never : Parameters<typeof runPiSdkCase>[0]["source"];
   skill: ValidatedSkillDiscovery;
   caseDefinition: PiSdkRunnableCase;
   model: ModelSelection | undefined;
   appendSystemPrompt: string[] | undefined;
   createSession: TestCommandOptions["createSession"];
+  allowSyntheticTraceOnUnknownError: boolean;
 }): Promise<{
-  trace: EvalTrace;
+  trace: EvalTrace | null;
   executionStatus: "completed" | "failed";
   workspace?: ReturnType<typeof createWorkspaceContextFromPiSdkCaseResult>;
   cleanup?: () => Promise<unknown>;
@@ -252,16 +303,132 @@ async function executeCase(options: {
             ? createWorkspaceContextFromPiSdkCaseResult(error.result)
             : undefined,
         cleanup: async () => await error.result.cleanup(),
-        runIssue: createCaseRunIssue(options.skill, options.caseDefinition, error.message),
+        runIssue: createCaseRunIssue(options.skill, options.caseDefinition, error.message, "cli.case-run-failed"),
       };
     }
 
     const message = error instanceof Error ? error.message : `Unknown error while executing case ${options.caseDefinition.caseId}.`;
 
     return {
-      trace: createSyntheticFailedTrace(options.source, options.skill, options.caseDefinition, options.model),
+      trace: options.allowSyntheticTraceOnUnknownError
+        ? createSyntheticFailedTrace(options.source, options.skill, options.caseDefinition, options.model)
+        : null,
       executionStatus: "failed",
-      runIssue: createCaseRunIssue(options.skill, options.caseDefinition, message),
+      runIssue: createCaseRunIssue(options.skill, options.caseDefinition, message, "cli.case-run-failed"),
+    };
+  }
+}
+
+async function executeParityCase(options: {
+  source: ValidatedSkillDiscovery["files"] extends never ? never : Parameters<typeof runPiSdkCase>[0]["source"];
+  skill: ValidatedSkillDiscovery;
+  caseDefinition: PiSdkParityCase;
+  model: ModelSelection | undefined;
+  appendSystemPrompt: string[] | undefined;
+  createSession: TestCommandOptions["createSession"];
+  invokePiCli: TestCommandOptions["invokePiCli"];
+}): Promise<{
+  traces: EvalTrace[];
+  cleanups: Array<() => Promise<unknown>>;
+  runIssues: ReportRunIssue[];
+  parityCase: ExecutedParityCase;
+}> {
+  const sdkRun = await executeSdkCase({
+    source: options.source,
+    skill: options.skill,
+    caseDefinition: options.caseDefinition,
+    model: options.model,
+    appendSystemPrompt: options.appendSystemPrompt,
+    createSession: options.createSession,
+    allowSyntheticTraceOnUnknownError: false,
+  });
+  const cliRun = await executeCliParityCase(options);
+  const traces = [sdkRun.trace, cliRun.trace].filter((trace): trace is EvalTrace => trace !== null);
+  const cleanups = [sdkRun.cleanup, cliRun.cleanup].filter((cleanup): cleanup is () => Promise<unknown> => cleanup !== undefined);
+  const runIssues = [sdkRun.runIssue, cliRun.runIssue].filter((issue): issue is ReportRunIssue => issue !== undefined);
+  const mismatches: EvalTraceParityMismatch[] = [];
+  let comparisonStatus: ExecutedParityCase["comparisonStatus"];
+
+  if (sdkRun.executionStatus === "failed") {
+    mismatches.push(createRuntimeMismatch("sdk-runtime-failed", "sdk", sdkRun.runIssue?.message ?? "Pi SDK parity run failed."));
+  }
+
+  if (cliRun.executionStatus === "failed") {
+    mismatches.push(createRuntimeMismatch("cli-runtime-failed", "cli", cliRun.runIssue?.message ?? "Pi CLI parity run failed."));
+  }
+
+  if (mismatches.length > 0 || !sdkRun.trace || !cliRun.trace) {
+    comparisonStatus = "runtime_failed";
+  } else {
+    const comparison = compareEvalTraceParity({
+      sdkTrace: sdkRun.trace,
+      cliTrace: cliRun.trace,
+    });
+
+    mismatches.push(...comparison.mismatches);
+    comparisonStatus = comparison.matched ? "matched" : "mismatched";
+  }
+
+  return {
+    traces,
+    cleanups,
+    runIssues,
+    parityCase: {
+      caseId: options.caseDefinition.caseId,
+      sdkTrace: sdkRun.trace,
+      cliTrace: cliRun.trace,
+      sdkExecutionStatus: sdkRun.executionStatus,
+      cliExecutionStatus: cliRun.executionStatus,
+      comparisonStatus,
+      mismatches,
+    },
+  };
+}
+
+async function executeCliParityCase(options: {
+  source: ValidatedSkillDiscovery["files"] extends never ? never : Parameters<typeof runPiSdkCase>[0]["source"];
+  skill: ValidatedSkillDiscovery;
+  caseDefinition: PiSdkParityCase;
+  model: ModelSelection | undefined;
+  appendSystemPrompt: string[] | undefined;
+  invokePiCli: TestCommandOptions["invokePiCli"];
+}): Promise<{
+  trace: EvalTrace | null;
+  executionStatus: "completed" | "failed";
+  cleanup?: () => Promise<unknown>;
+  runIssue?: ReportRunIssue;
+}> {
+  try {
+    const result = await runPiCliJsonCase({
+      source: options.source,
+      skill: options.skill,
+      caseDefinition: options.caseDefinition,
+      model: options.model,
+      appendSystemPrompt: options.appendSystemPrompt,
+      invokeCli: options.invokePiCli,
+    });
+
+    return {
+      trace: normalizePiCliJsonCaseRunResult(result),
+      executionStatus: "completed",
+      cleanup: async () => await result.cleanup(),
+    };
+  } catch (error) {
+    if (error instanceof PiCliJsonCaseRunError) {
+      return {
+        trace: normalizePiCliJsonCaseRunResult(error.result),
+        executionStatus: "failed",
+        cleanup: async () => await error.result.cleanup(),
+        runIssue: createCaseRunIssue(options.skill, options.caseDefinition, error.message, "cli.parity-cli-run-failed"),
+      };
+    }
+
+    const message = error instanceof Error ? error.message : `Unknown error while executing CLI parity case ${options.caseDefinition.caseId}.`;
+
+    return {
+      trace: null,
+      executionStatus: "failed",
+      runIssue: createCaseRunIssue(options.skill, options.caseDefinition, message, "cli.parity-cli-run-failed"),
     };
   }
 }
@@ -312,7 +479,7 @@ function createSyntheticFailedTrace(
       sessionId: `synthetic-${skill.contract.skill}-${caseDefinition.caseId}`,
       sessionFile: undefined,
       messages: [],
-      sdkEvents: [],
+      runtimeEvents: [],
       telemetryEntries: [],
     },
   };
@@ -322,9 +489,10 @@ function createCaseRunIssue(
   skill: ValidatedSkillDiscovery,
   caseDefinition: PiSdkRunnableCase,
   message: string,
+  code: string,
 ): ReportRunIssue {
   return {
-    code: "cli.case-run-failed",
+    code,
     severity: "error",
     message: `Case ${caseDefinition.caseId} for skill ${skill.contract.skill} failed: ${message}`,
     details: {
@@ -333,5 +501,13 @@ function createCaseRunIssue(
       lane: caseDefinition.lane,
       kind: caseDefinition.kind,
     },
+  };
+}
+
+function createRuntimeMismatch(code: string, path: string, message: string): EvalTraceParityMismatch {
+  return {
+    code,
+    path,
+    message,
   };
 }

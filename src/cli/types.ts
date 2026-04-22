@@ -5,6 +5,7 @@ import type {
   RepoSourceDescriptor,
   ValidatedSkillDiscovery,
 } from "../load/source-types.js";
+import type { PiCliJsonInvoker } from "../pi/types.js";
 import type { PiSdkSessionFactory } from "../pi/sdk-runner.js";
 import type { ArcSkillEvalJsonReport } from "../reporting/types.js";
 
@@ -31,6 +32,7 @@ export interface TestCommandOptions extends CommandSelectionOptions {
   runId?: string;
   generatedAt?: string;
   createSession?: PiSdkSessionFactory;
+  invokePiCli?: PiCliJsonInvoker;
 }
 
 export interface ListCommandResult {

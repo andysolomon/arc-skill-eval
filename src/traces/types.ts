@@ -11,7 +11,7 @@ import type {
   PiSessionTelemetryToolResult,
 } from "../pi/types.js";
 
-export type EvalTraceRuntime = "pi-sdk";
+export type EvalTraceRuntime = "pi-sdk" | "pi-cli-json";
 
 export interface EvalTraceIdentity {
   runtime: EvalTraceRuntime;
@@ -53,7 +53,7 @@ export interface EvalTraceRawArtifacts {
   sessionId: string;
   sessionFile: string | undefined;
   messages: unknown[];
-  sdkEvents: unknown[];
+  runtimeEvents: unknown[];
   telemetryEntries: PiSessionTelemetryEntry[];
 }
 
@@ -62,4 +62,17 @@ export interface EvalTrace {
   timing: EvalTraceTiming;
   observations: EvalTraceObservations;
   raw: EvalTraceRawArtifacts;
+}
+
+export interface EvalTraceParityMismatch {
+  code?: string;
+  path: string;
+  message: string;
+  expected?: unknown;
+  actual?: unknown;
+}
+
+export interface EvalTraceParityComparisonResult {
+  matched: boolean;
+  mismatches: EvalTraceParityMismatch[];
 }

@@ -61,6 +61,7 @@ export function formatTestResult(result: TestCommandResult, options: CliRenderOp
     `Executed cases: ${result.report.summary.executedCaseCount}`,
     `Scored cases: ${result.report.summary.caseCount}`,
     `Unscored cases: ${result.report.summary.unscoredCaseCount}`,
+    `Parity cases: ${result.report.summary.parityCaseCount}`,
     `Report JSON: ${result.artifacts.jsonReportPath}`,
   ];
 
@@ -73,7 +74,7 @@ export function formatTestResult(result: TestCommandResult, options: CliRenderOp
     lines.push(
       ...result.report.skills.map(
         (skill) =>
-          `- ${skill.skill}: ${skill.status} (scored ${skill.cases.length}, unscored ${skill.unscoredCases.length}, overall ${formatPercent(skill.lanes.overall.scorePercent)})`,
+          `- ${skill.skill}: ${skill.status} (scored ${skill.cases.length}, unscored ${skill.unscoredCases.length}, parity ${skill.parityCases.length}, overall ${formatPercent(skill.lanes.overall.scorePercent)})`,
       ),
     );
   }

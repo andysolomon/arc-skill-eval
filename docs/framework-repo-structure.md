@@ -46,11 +46,15 @@ arc-skill-eval/
 │   │   ├── index.ts
 │   │   ├── types.ts
 │   │   ├── sdk-runner.ts
+│   │   ├── cli-json-runner.ts
+│   │   ├── telemetry-helpers.ts
 │   │   ├── observer-extension.ts
 │   │   └── session-telemetry.ts
 │   ├── traces/
 │   │   ├── types.ts
-│   │   └── normalize-sdk.ts
+│   │   ├── normalize-sdk.ts
+│   │   ├── normalize-cli-json.ts
+│   │   └── compare-parity.ts
 │   ├── fixtures/
 │   │   ├── index.ts
 │   │   ├── materialize.ts

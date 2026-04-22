@@ -53,7 +53,7 @@ test("runValidateCommand fails fast on unknown selected skills", async () => {
   }
 });
 
-test("runTestCommand writes reports, includes invalid skills, and preserves unscored live-smoke cases", async () => {
+test("runTestCommand writes reports, includes invalid skills, live-smoke cases, and parity cases", async () => {
   const repoDir = await createCliFixtureRepo();
   const outputDir = await mkdtemp(path.join(tmpdir(), "arc-skill-eval-cli-output-"));
 
@@ -69,6 +69,7 @@ test("runTestCommand writes reports, includes invalid skills, and preserves unsc
         model: options.requestedModel ?? null,
         session: createFakeSession(options.caseDefinition.caseId),
       }),
+      invokePiCli: async (options) => createFakeCliInvocation(options.argv.at(-1)),
     });
 
     assert.equal(result.report.runId, "cli-run-001");
@@ -77,12 +78,17 @@ test("runTestCommand writes reports, includes invalid skills, and preserves unsc
     assert.equal(result.report.skills.length, 1);
     assert.equal(result.report.skills[0].cases.length, 2);
     assert.equal(result.report.skills[0].unscoredCases.length, 1);
+    assert.equal(result.report.skills[0].parityCases.length, 1);
     assert.equal(result.report.summary.caseCount, 2);
     assert.equal(result.report.summary.unscoredCaseCount, 1);
-    assert.equal(result.report.summary.executedCaseCount, 3);
+    assert.equal(result.report.summary.parityCaseCount, 1);
+    assert.equal(result.report.summary.executedCaseCount, 4);
     assert.equal(result.report.skills[0].unscoredCases[0].caseId, "live-smoke-001");
     assert.equal(result.report.skills[0].unscoredCases[0].status, "passed");
     assert.equal(result.report.skills[0].cases[1].executionStatus, "failed");
+    assert.equal(result.report.skills[0].parityCases[0].comparisonStatus, "matched");
+    assert.equal(result.report.skills[0].parityCases[0].sdkTraceRef, "alpha::cli-parity-001::sdk");
+    assert.equal(result.report.skills[0].parityCases[0].cliTraceRef, "alpha::cli-parity-001::cli");
     assert.equal(result.report.runIssues.some((issue) => issue.code === "cli.case-run-failed"), true);
 
     const jsonReport = JSON.parse(await readFile(result.artifacts.jsonReportPath, "utf8"));
@@ -90,8 +96,11 @@ test("runTestCommand writes reports, includes invalid skills, and preserves unsc
 
     assert.equal(jsonReport.runId, "cli-run-001");
     assert.equal(jsonReport.skills[0].unscoredCases[0].reason, "not-deterministically-scored");
+    assert.equal(jsonReport.skills[0].parityCases[0].comparisonStatus, "matched");
     assert.match(htmlReport, /Unscored cases/);
     assert.match(htmlReport, /live-smoke-001/);
+    assert.match(htmlReport, /Parity cases/);
+    assert.match(htmlReport, /cli-parity-001/);
   } finally {
     await rm(repoDir, { recursive: true, force: true });
     await rm(outputDir, { recursive: true, force: true });
@@ -124,6 +133,10 @@ async function createCliFixtureRepo() {
     expected: {
       text: { include: ["## Plan"] },
     },
+  }],
+  cliParity: [{
+    id: "cli-parity-001",
+    prompt: "Run the CLI parity case.",
   }],
   liveSmoke: [{
     id: "live-smoke-001",
@@ -180,6 +193,18 @@ function createFakeSession(caseId) {
         return;
       }
 
+      if (caseId === "cli-parity-001") {
+        messages.push({ role: "assistant", content: "PARITY_OK" });
+        listener({
+          type: "message_update",
+          assistantMessageEvent: {
+            type: "text_delta",
+            delta: "PARITY_OK",
+          },
+        });
+        return;
+      }
+
       if (caseId === "live-smoke-001") {
         messages.push({ role: "assistant", content: "SMOKE_OK" });
         listener({
@@ -195,5 +220,37 @@ function createFakeSession(caseId) {
       throw new Error("synthetic execution failure");
     },
     dispose() {},
+  };
+}
+
+function createFakeCliInvocation(prompt) {
+  if (prompt !== "Run the CLI parity case.") {
+    return {
+      stdout: "",
+      stderr: `Unexpected CLI parity prompt: ${prompt}`,
+      exitCode: 1,
+    };
+  }
+
+  return {
+    stdout: [
+      JSON.stringify({ type: "session", id: "cli-session-123" }),
+      JSON.stringify({
+        type: "message_update",
+        assistantMessageEvent: {
+          type: "text_delta",
+          delta: "PARITY_OK",
+        },
+      }),
+      JSON.stringify({
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "PARITY_OK" }],
+        },
+      }),
+    ].join("\n"),
+    stderr: "",
+    exitCode: 0,
   };
 }

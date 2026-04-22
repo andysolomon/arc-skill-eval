@@ -184,7 +184,27 @@ Sprint 4: 2026-06-08 -> 2026-06-19 (10 days)
     [x] add package bin entry
     [x] add CLI coverage/tests
     [x] update docs for CLI orchestration and report behavior
-[ ] W-000012 Add CLI golden parity cases [AFK]
+[x] W-000012 Add CLI golden parity cases [AFK]
+    [x] use grill-me plus docs/domain-model.md and progress.txt to lock parity scope
+    [x] keep CLI parity inside the existing test flow as a first-class lane
+    [x] keep W-000012 narrow and case-level rather than adding weighted parity scoring
+    [x] run fresh SDK-vs-CLI executions in the same invocation instead of comparing against stored baselines
+    [x] compare a stable semantic projection rather than full raw trace equality
+    [x] run declared cliParity cases by default within test
+    [x] materialize separate fresh fixture workspaces per runtime when parity cases declare fixtures
+    [x] surface parity mismatches as first-class per-case report data with sdkTraceRef and cliTraceRef
+    [x] preserve partial artifacts when one or both parity runtimes fail
+    [x] add src/pi/cli-json-runner.ts
+    [x] add src/pi/telemetry-helpers.ts
+    [x] add src/traces/normalize-cli-json.ts
+    [x] add src/traces/compare-parity.ts
+    [x] extend Pi runnable case types to include cli-parity lane coverage
+    [x] normalize Pi CLI JSON event streams into canonical traces
+    [x] compare SDK and CLI traces via a stable semantic projection
+    [x] report parity cases with paired sdkTraceRef and cliTraceRef entries
+    [x] update JSON/HTML reporting summaries for parity cases
+    [x] add parity coverage/tests
+    [x] update docs for CLI parity runtime and trace/report semantics
 [ ] W-000013 Onboard representative pilot skills [HITL]
 
 Current checkpoint summary
@@ -202,3 +222,4 @@ Current checkpoint summary
 [x] Deterministic scoring added
 [x] JSON-first reporting added
 [x] Library-backed CLI commands added
+[x] CLI golden parity cases added

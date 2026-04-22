@@ -23,7 +23,7 @@ const baseSource = {
   git: null,
 };
 
-test("buildJsonReport emits invocation-wide JSON with shared traces and placeholders", async () => {
+test("buildJsonReport emits invocation-wide JSON with shared traces, parity cases, and placeholders", async () => {
   const contract = normalizeSkillEvalContract({
     skill: "alpha",
     profile: "planning",
@@ -54,10 +54,17 @@ test("buildJsonReport emits invocation-wide JSON with shared traces and placehol
         },
       },
     ],
+    cliParity: [
+      {
+        id: "cli-parity-001",
+        prompt: "Plan the work through the shipped CLI.",
+      },
+    ],
   });
   const cases = collectPiSdkRunnableCases(contract);
   const routingCase = cases.find((entry) => entry.caseId === "routing-explicit-001");
   const executionCase = cases.find((entry) => entry.caseId === "execution-001");
+  const parityCase = cases.find((entry) => entry.caseId === "cli-parity-001");
   const routingTrace = createTrace({
     skill: "alpha",
     profile: contract.profile,
@@ -91,8 +98,33 @@ test("buildJsonReport emits invocation-wide JSON with shared traces and placehol
     },
     raw: {
       messages: [{ role: "assistant", content: "## Plan" }],
-      sdkEvents: [{ type: "assistant-message" }],
+      runtimeEvents: [{ type: "assistant-message" }],
       telemetryEntries: [{ kind: "tool-call" }],
+    },
+  });
+  const paritySdkTrace = createTrace({
+    skill: "alpha",
+    profile: contract.profile,
+    targetTier: contract.targetTier,
+    caseDefinition: parityCase,
+    assistantText: "PARITY_OK",
+    model: {
+      provider: "openai-codex",
+      id: "gpt-5.4-mini",
+      thinking: "minimal",
+    },
+  });
+  const parityCliTrace = createTrace({
+    runtime: "pi-cli-json",
+    skill: "alpha",
+    profile: contract.profile,
+    targetTier: contract.targetTier,
+    caseDefinition: parityCase,
+    assistantText: "PARITY_OK",
+    model: {
+      provider: "openai-codex",
+      id: "gpt-5.4-mini",
+      thinking: "minimal",
     },
   });
 
@@ -125,7 +157,18 @@ test("buildJsonReport emits invocation-wide JSON with shared traces and placehol
           evalDefinitionPath: "/tmp/skills/alpha/skill.eval.ts",
         },
         score,
-        traces: [routingTrace, executionTrace],
+        traces: [routingTrace, executionTrace, paritySdkTrace, parityCliTrace],
+        parityCases: [
+          {
+            caseId: "cli-parity-001",
+            sdkTrace: paritySdkTrace,
+            cliTrace: parityCliTrace,
+            sdkExecutionStatus: "completed",
+            cliExecutionStatus: "completed",
+            comparisonStatus: "matched",
+            mismatches: [],
+          },
+        ],
       },
     ],
     invalidSkills: [
@@ -158,9 +201,13 @@ test("buildJsonReport emits invocation-wide JSON with shared traces and placehol
   assert.equal(report.summary.caseCount, 2);
   assert.equal(report.summary.passedCaseCount, 2);
   assert.equal(report.summary.failedCaseCount, 0);
+  assert.equal(report.summary.parityCaseCount, 1);
+  assert.equal(report.summary.passedParityCaseCount, 1);
+  assert.equal(report.summary.failedParityCaseCount, 0);
+  assert.equal(report.summary.executedCaseCount, 3);
   assert.equal(report.skills.length, 1);
   assert.equal(report.invalidSkills.length, 1);
-  assert.equal(report.traces.length, 2);
+  assert.equal(report.traces.length, 4);
   assert.equal(report.skills[0].status, "passed");
   assert.equal(report.skills[0].tier.status, "not_computed");
   assert.equal(report.skills[0].baseline.status, "not_configured");
@@ -174,14 +221,16 @@ test("buildJsonReport emits invocation-wide JSON with shared traces and placehol
   assert.equal(report.skills[0].cases[0].traceRef, "alpha::routing-explicit-001");
   assert.equal(report.skills[0].cases[0].trialStats.trialCount, 1);
   assert.equal(report.skills[0].cases[1].model.id, "gpt-5.4-mini");
-  assert.equal(report.traces[1].traceId, "alpha::execution-001");
-  assert.equal(report.traces[1].raw.messageCount, 1);
-  assert.equal(report.traces[1].raw.sdkEventCount, 1);
+  assert.equal(report.skills[0].parityCases[0].sdkTraceRef, "alpha::cli-parity-001::sdk");
+  assert.equal(report.skills[0].parityCases[0].cliTraceRef, "alpha::cli-parity-001::cli");
+  assert.equal(report.skills[0].parityCases[0].comparisonStatus, "matched");
+  assert.equal(report.traces[3].traceId, "alpha::cli-parity-001::cli");
+  assert.equal(report.traces[1].raw.runtimeEventCount, 1);
   assert.equal(report.traces[1].raw.telemetryEntryCount, 1);
   assert.equal(report.traces[1].raw.hasTelemetryEntries, true);
 });
 
-test("renderHtmlReport and write helpers produce stable report artifacts", async () => {
+test("renderHtmlReport and write helpers produce stable report artifacts including parity diagnostics", async () => {
   const contract = normalizeSkillEvalContract({
     skill: "alpha",
     profile: "planning",
@@ -196,8 +245,16 @@ test("renderHtmlReport and write helpers produce stable report artifacts", async
       implicitPositive: [],
       adjacentNegative: [],
     },
+    cliParity: [
+      {
+        id: "cli-parity-001",
+        prompt: "Plan the work through the shipped CLI.",
+      },
+    ],
   });
-  const caseDefinition = collectPiSdkRunnableCases(contract)[0];
+  const cases = collectPiSdkRunnableCases(contract);
+  const caseDefinition = cases.find((entry) => entry.caseId === "routing-explicit-001");
+  const parityCase = cases.find((entry) => entry.caseId === "cli-parity-001");
   const trace = createTrace({
     skill: "alpha",
     profile: contract.profile,
@@ -212,6 +269,21 @@ test("renderHtmlReport and write helpers produce stable report artifacts", async
         skillName: "alpha",
       },
     ],
+  });
+  const paritySdkTrace = createTrace({
+    skill: "alpha",
+    profile: contract.profile,
+    targetTier: contract.targetTier,
+    caseDefinition: parityCase,
+    assistantText: "PARITY_OK",
+  });
+  const parityCliTrace = createTrace({
+    runtime: "pi-cli-json",
+    skill: "alpha",
+    profile: contract.profile,
+    targetTier: contract.targetTier,
+    caseDefinition: parityCase,
+    assistantText: "PARITY_DIFFERENT",
   });
   const score = await scoreDeterministicSkill({
     contract,
@@ -236,7 +308,25 @@ test("renderHtmlReport and write helpers produce stable report artifacts", async
           evalDefinitionPath: "/tmp/skills/alpha/skill.eval.ts",
         },
         score,
-        traces: [trace],
+        traces: [trace, paritySdkTrace, parityCliTrace],
+        parityCases: [
+          {
+            caseId: "cli-parity-001",
+            sdkTrace: paritySdkTrace,
+            cliTrace: parityCliTrace,
+            sdkExecutionStatus: "completed",
+            cliExecutionStatus: "completed",
+            comparisonStatus: "mismatched",
+            mismatches: [
+              {
+                path: "observations.assistantText",
+                message: "Mismatch at observations.assistantText.",
+                expected: "PARITY_OK",
+                actual: "PARITY_DIFFERENT",
+              },
+            ],
+          },
+        ],
       },
     ],
     runIssues: [
@@ -253,6 +343,8 @@ test("renderHtmlReport and write helpers produce stable report artifacts", async
   assert.match(html, /run-html/);
   assert.match(html, /alpha::routing-explicit-001/);
   assert.match(html, /Example warning/);
+  assert.match(html, /Parity cases/);
+  assert.match(html, /observations\.assistantText/);
 
   const outputDir = await mkdtemp(path.join(tmpdir(), "arc-skill-eval-report-"));
 
@@ -264,8 +356,10 @@ test("renderHtmlReport and write helpers produce stable report artifacts", async
 
     assert.match(jsonContent, /"reportVersion": "1"/);
     assert.match(jsonContent, /"runId": "run-html"/);
+    assert.match(jsonContent, /"comparisonStatus": "mismatched"/);
     assert.match(htmlContent, /<!doctype html>/i);
     assert.match(htmlContent, /alpha::routing-explicit-001/);
+    assert.match(htmlContent, /PARITY_DIFFERENT/);
   } finally {
     await rm(outputDir, { recursive: true, force: true });
   }
@@ -273,6 +367,7 @@ test("renderHtmlReport and write helpers produce stable report artifacts", async
 
 function createTrace({
   source = baseSource,
+  runtime = "pi-sdk",
   skill,
   profile,
   targetTier,
@@ -282,13 +377,13 @@ function createTrace({
   skillReads = [],
   raw = {
     messages: [],
-    sdkEvents: [],
+    runtimeEvents: [],
     telemetryEntries: [],
   },
 }) {
   return {
     identity: {
-      runtime: "pi-sdk",
+      runtime,
       source,
       skill: {
         name: skill,
@@ -324,7 +419,7 @@ function createTrace({
       sessionId: "session-123",
       sessionFile: "/tmp/session.jsonl",
       messages: raw.messages,
-      sdkEvents: raw.sdkEvents,
+      runtimeEvents: raw.runtimeEvents,
       telemetryEntries: raw.telemetryEntries,
     },
   };

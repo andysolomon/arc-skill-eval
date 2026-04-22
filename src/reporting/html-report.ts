@@ -82,6 +82,32 @@ export function renderHtmlReport(report: ArcSkillEvalJsonReport): string {
                 .join("")}
             </tbody>
           </table>` : ""}
+          ${skill.parityCases.length ? `<h3>Parity cases</h3>
+          <table>
+            <thead>
+              <tr><th>Case</th><th>Status</th><th>Comparison</th><th>SDK</th><th>CLI</th><th>SDK Trace</th><th>CLI Trace</th></tr>
+            </thead>
+            <tbody>
+              ${skill.parityCases
+                .map(
+                  (caseEntry) => `<tr>
+                    <td><code>${escapeHtml(caseEntry.caseId)}</code></td>
+                    <td>${escapeHtml(caseEntry.status)}</td>
+                    <td>${escapeHtml(caseEntry.comparisonStatus)}</td>
+                    <td>${escapeHtml(caseEntry.sdkExecutionStatus)}</td>
+                    <td>${escapeHtml(caseEntry.cliExecutionStatus)}</td>
+                    <td>${caseEntry.sdkTraceRef ? `<code>${escapeHtml(caseEntry.sdkTraceRef)}</code>` : "—"}</td>
+                    <td>${caseEntry.cliTraceRef ? `<code>${escapeHtml(caseEntry.cliTraceRef)}</code>` : "—"}</td>
+                  </tr>
+                  ${caseEntry.mismatches.length ? `<tr><td colspan="7"><ul>${caseEntry.mismatches
+                    .map(
+                      (mismatch) => `<li><strong>${escapeHtml(mismatch.path)}</strong>${mismatch.code ? ` (${escapeHtml(mismatch.code)})` : ""} — ${escapeHtml(mismatch.message)}</li>`,
+                    )
+                    .join("")}</ul></td></tr>` : ""}`,
+                )
+                .join("")}
+            </tbody>
+          </table>` : ""}
         </article>`,
     )
     .join("");
@@ -91,6 +117,7 @@ export function renderHtmlReport(report: ArcSkillEvalJsonReport): string {
       (trace) => `<details class="card">
           <summary>${escapeHtml(trace.traceId)} — ${escapeHtml(trace.skill)} / ${escapeHtml(trace.caseId)}</summary>
           <p>
+            <strong>Runtime:</strong> ${escapeHtml(trace.identity.runtime)}<br />
             <strong>Lane:</strong> ${escapeHtml(trace.lane)}<br />
             <strong>Duration:</strong> ${trace.timing.durationMs} ms<br />
             <strong>Session:</strong> ${escapeHtml(trace.raw.sessionId)}
@@ -115,6 +142,7 @@ export function renderHtmlReport(report: ArcSkillEvalJsonReport): string {
       th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #9994; vertical-align: top; }
       code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
       pre { overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+      ul { margin: 0.5rem 0 0 1.25rem; }
     </style>
   </head>
   <body>
@@ -138,9 +166,12 @@ export function renderHtmlReport(report: ArcSkillEvalJsonReport): string {
           <tr><th>Scored skills</th><td>${report.summary.scoredSkillCount}</td></tr>
           <tr><th>Scored cases</th><td>${report.summary.caseCount}</td></tr>
           <tr><th>Unscored cases</th><td>${report.summary.unscoredCaseCount}</td></tr>
+          <tr><th>Parity cases</th><td>${report.summary.parityCaseCount}</td></tr>
           <tr><th>Executed cases</th><td>${report.summary.executedCaseCount}</td></tr>
           <tr><th>Passed scored cases</th><td>${report.summary.passedCaseCount}</td></tr>
           <tr><th>Failed scored cases</th><td>${report.summary.failedCaseCount}</td></tr>
+          <tr><th>Passed parity cases</th><td>${report.summary.passedParityCaseCount}</td></tr>
+          <tr><th>Failed parity cases</th><td>${report.summary.failedParityCaseCount}</td></tr>
         </tbody>
       </table>
     </section>

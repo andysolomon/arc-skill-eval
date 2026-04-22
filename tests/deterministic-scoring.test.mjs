@@ -348,7 +348,7 @@ function createTrace({
       sessionId: "session-123",
       sessionFile: undefined,
       messages: [],
-      sdkEvents: [],
+      runtimeEvents: [],
       telemetryEntries: [],
     },
   };

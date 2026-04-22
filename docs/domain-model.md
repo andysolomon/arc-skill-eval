@@ -6,8 +6,8 @@ This document begins the domain-model documentation for `arc-skill-eval`.
 It describes the core entities the framework is built around, how they relate to each other, and which ones already exist in code versus which are planned next.
 
 ## Status
-- **Implemented now:** source loading, skill discovery, contract validation, contract normalization, hermetic fixture materialization, initial Pi SDK runner orchestration, observer telemetry capture/loading, Pi SDK trace normalization, deterministic scoring for routing and execution lanes, JSON-first reporting with optional HTML rendering, library-backed CLI commands for list/validate/test
-- **Planned next:** tiers, CLI parity orchestration
+- **Implemented now:** source loading, skill discovery, contract validation, contract normalization, hermetic fixture materialization, initial Pi SDK runner orchestration, observer telemetry capture/loading, Pi SDK and Pi CLI JSON trace normalization, case-level CLI golden parity comparison, deterministic scoring for routing and execution lanes, JSON-first reporting with optional HTML rendering, library-backed CLI commands for list/validate/test
+- **Planned next:** tiers, parity-aware tier computation, pilot onboarding
 
 ---
 
@@ -205,7 +205,7 @@ An **Eval Case** is the unit of execution and scoring inside a normalized contra
 - declare hard assertions and optional custom assertions
 
 ### Notes
-Cases now have an initial Pi SDK orchestration path for routing, deterministic execution, and live-smoke lanes. CLI parity still belongs to a separate runtime path.
+Cases now have an initial Pi SDK orchestration path for routing, deterministic execution, CLI parity SDK baselines, and live-smoke lanes. Declared `cliParity[]` cases also have a paired Pi CLI JSON runtime path used for same-invocation parity comparison.
 
 ---
 
@@ -466,7 +466,8 @@ Responsible for:
 
 ## Runtime Context
 Current responsibility:
-- Pi SDK execution for routing, deterministic execution, and live-smoke cases
+- Pi SDK execution for routing, deterministic execution, CLI parity baseline, and live-smoke cases
+- Pi CLI JSON parity execution for declared `cliParity[]` cases
 - workspace/session isolation
 - raw session artifact capture
 - observer telemetry capture and post-run session telemetry loading
@@ -474,21 +475,27 @@ Current responsibility:
 ### Current files
 - `src/pi/types.ts`
 - `src/pi/sdk-runner.ts`
+- `src/pi/cli-json-runner.ts`
+- `src/pi/telemetry-helpers.ts`
 - `src/pi/observer-extension.ts`
 - `src/pi/session-telemetry.ts`
 
 ### Planned additions
-- CLI parity runtime
+- richer CLI parity runtime controls only if the golden subset proves too narrow
 
 ## Trace Context
 Current responsibility:
 - canonical trace types
 - Pi SDK case-result normalization
+- Pi CLI JSON case-result normalization
+- semantic parity comparison across normalized SDK and CLI traces
 - scorer-facing observations with raw debug artifacts attached
 
 ### Current files
 - `src/traces/types.ts`
 - `src/traces/normalize-sdk.ts`
+- `src/traces/normalize-cli-json.ts`
+- `src/traces/compare-parity.ts`
 
 ## Scoring Context
 Current responsibility:
@@ -518,6 +525,7 @@ Current responsibility:
 - render lightweight single-file HTML summaries from canonical report data
 - preserve shared top-level trace records and per-case trace refs
 - surface invalid skills and invocation-level run issues alongside scored skills
+- preserve unscored executed cases and first-class CLI parity case diagnostics with paired SDK/CLI trace refs
 - expose explicit placeholders for tier and baseline sections until later work lands
 
 ### Current files
@@ -537,7 +545,7 @@ Current responsibility:
 - parse a minimal v1 command surface for `list`, `validate`, and `test`
 - resolve shared `<repo-or-path>` inputs into local or git-backed loads
 - apply consistent `--skill` and `--case` selection semantics before validation/execution
-- orchestrate Pi SDK execution, deterministic scoring, and report writing through library APIs
+- orchestrate Pi SDK execution, CLI parity execution, deterministic scoring, and report writing through library APIs
 - expose human-readable stdout by default with opt-in canonical JSON stdout
 
 ### Current files
@@ -553,13 +561,13 @@ Current responsibility:
 
 ### Planned additions
 - standalone report-view command wiring
-- CLI parity lane orchestration
 - richer machine-facing CLI output controls if needed beyond `--json`
+- pilot-oriented execution presets if the representative cohort needs them
 
 ---
 
 ## Immediate Documentation Follow-Ups
 1. Keep this document aligned with `src/contracts/types.ts`, `src/load/source-types.ts`, `src/pi/types.ts`, `src/traces/types.ts`, `src/scorers/types.ts`, `src/reporting/types.ts`, and `src/cli/types.ts`
-2. Extend the trace model once CLI JSON normalization exists
-3. Add a scorecard/tier model section once tiering starts
-4. Document pilot-oriented CLI workflows once `W-000013` starts
+2. Add a scorecard/tier model section once tiering starts
+3. Document pilot-oriented CLI workflows once `W-000013` starts
+4. Revisit whether parity mismatches should eventually contribute to weighted tier evidence rather than remaining case-level only
