@@ -12,6 +12,20 @@ export function compareEvalTraceParity(input: {
   const cliProjection = projectParityComparableTrace(input.cliTrace);
   const mismatches: EvalTraceParityMismatch[] = [];
 
+  if (
+    isEmptyObservations(sdkProjection.observations) &&
+    isEmptyObservations(cliProjection.observations)
+  ) {
+    mismatches.push({
+      path: "_both_empty",
+      message:
+        "Both SDK and CLI runtimes produced empty observations; parity cannot be evaluated.",
+      expected: sdkProjection.observations,
+      actual: cliProjection.observations,
+    });
+    return { matched: false, mismatches };
+  }
+
   pushMismatchIfDifferent(mismatches, "skill.name", sdkProjection.skill.name, cliProjection.skill.name);
   pushMismatchIfDifferent(mismatches, "case.caseId", sdkProjection.case.caseId, cliProjection.case.caseId);
   pushMismatchIfDifferent(mismatches, "case.kind", sdkProjection.case.kind, cliProjection.case.kind);
@@ -100,4 +114,24 @@ function normalizeOptionalText(value: string | undefined): string | undefined {
 
 function stableStringify(value: unknown): string {
   return JSON.stringify(value);
+}
+
+type ParityComparableObservations = ReturnType<
+  typeof projectParityComparableTrace
+>["observations"];
+
+function isEmptyObservations(
+  observations: ParityComparableObservations,
+): boolean {
+  return (
+    observations.assistantText.length === 0 &&
+    observations.toolCalls.length === 0 &&
+    observations.toolResults.length === 0 &&
+    observations.bashCommands.length === 0 &&
+    observations.touchedFiles.length === 0 &&
+    observations.writtenFiles.length === 0 &&
+    observations.editedFiles.length === 0 &&
+    observations.skillReads.length === 0 &&
+    observations.externalCalls.length === 0
+  );
 }
