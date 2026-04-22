@@ -20,6 +20,10 @@ ln -s "$(pwd)/node_modules/arc-skill-eval/skills/arc-creating-evals" ~/.claude/s
 ## Bundled skills
 
 - **`arc-creating-evals`** — interview-style skill that authors an `evals/evals.json` test suite for an existing skill. Follows the Anthropic skill-eval methodology. See `arc-creating-evals/SKILL.md`.
+- **`hello-world`** — deterministic reference skill + permanent smoke test. Writes `greeting.txt` in response to any "create a greeting" prompt. Ships with three eval cases demonstrating `file-exists`, file-targeted `regex-match`, assistant-text `regex-match`, and string (LLM-judged) assertions side-by-side. Use this as a worked example when authoring your own `evals/evals.json`, and as a cheap sanity check when debugging the framework:
+   ```bash
+   arc-skill-eval run skills/hello-world
+   ```
 
 ## Authoring your own bundled skills
 

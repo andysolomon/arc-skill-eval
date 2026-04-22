@@ -120,3 +120,28 @@ test("discoverEvalSkills skips dot-prefixed dirs unless includeDotDirs is set", 
   const skills = await discoverEvalSkills(FIXTURE_REPO, { includeDotDirs: false });
   assert.equal(skills.length, 1);
 });
+
+test("hello-world bundled skill evals.json parses and carries the expected cases", async () => {
+  const bundledPath = path.resolve(
+    __dirname,
+    "..",
+    "skills",
+    "hello-world",
+    "evals",
+    "evals.json",
+  );
+  const file = await readEvalsJson(bundledPath);
+  assert.equal(file.skill_name, "hello-world");
+  assert.equal(file.evals.length, 3);
+  const ids = file.evals.map((c) => String(c.id));
+  assert.deepEqual(ids, ["default-world", "named-ada", "assistant-names-file"]);
+
+  const lastCase = file.evals[2];
+  const assistantTargetAssertion = lastCase.assertions?.find(
+    (a) => typeof a !== "string" && a.type === "regex-match" && a.target === "assistant-text",
+  );
+  assert.ok(
+    assistantTargetAssertion,
+    "expected assistant-names-file case to carry an assistant-text regex-match assertion",
+  );
+});

@@ -6,3 +6,6 @@ dist/
 .agents/
 .claude/
 .pi/
+# Per-run eval artifacts — produced by `arc-skill-eval run`. Authored
+# content (SKILL.md, evals/evals.json, evals/files/) stays tracked.
+**/evals-runs/
