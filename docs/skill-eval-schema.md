@@ -512,3 +512,41 @@ At minimum, the framework should validate:
 - Use custom assertions sparingly.
 - Keep most expectations declarative.
 - Prefer stable fixture references and stable case IDs.
+
+### Writing effective `expected.text.include` tokens
+`expected.text.include` is a substring match against the assistant's final
+text. Each entry must appear verbatim somewhere in the response, or the
+check fails. That's strict — and against a real LLM it's easy to get
+wrong in ways that have nothing to do with whether the skill worked.
+
+**Pick tokens that survive paraphrasing.** Models alternate freely between
+quoting and summarizing, and between sentence case and lowercase. A token
+that only matches one rendering style will report false failures for the
+other.
+
+<table>
+<tr><th>Avoid</th><th>Prefer</th><th>Why</th></tr>
+<tr>
+  <td><code>["Hello World"]</code></td>
+  <td><code>["README"]</code> or <code>["Hello", "World"]</code></td>
+  <td>Literal heading-quotes fail when the model summarizes instead of quoting. A token that every reasonable response mentions (the file name, the subject) is more robust.</td>
+</tr>
+<tr>
+  <td><code>["## Implementation Plan"]</code></td>
+  <td><code>["Implementation Plan"]</code></td>
+  <td>Heading-marker prefixes fail when the model uses a different level or prose. Match the heading text, not the markdown syntax.</td>
+</tr>
+<tr>
+  <td><code>["You should"]</code></td>
+  <td><code>["should", "recommend"]</code></td>
+  <td>Subject-pronoun phrasing fails when the model uses "you could" / "we recommend". Match the action verb, not the sentence stem.</td>
+</tr>
+</table>
+
+**Rules of thumb:**
+
+- Treat the list as "what *must* appear for the task to be considered done," not "what the ideal answer would say."
+- Prefer nouns/proper nouns and action verbs over phrases.
+- If you need structural expectations (e.g., "the response must have an Implementation Plan section"), consider pairing a soft `text.include: ["Implementation Plan"]` with a custom assertion that parses the actual structure.
+- For execution cases, `expected.tools.include` (e.g., `["read"]`) is usually a stronger signal than `text.include`. Tool calls are deterministic; prose is not.
+- When a check fails against a real run, ask whether the model behaved correctly but chose different words. If yes, loosen the token before blaming the model.
