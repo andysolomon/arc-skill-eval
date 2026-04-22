@@ -45,3 +45,50 @@ Not yet; spike only *adds* `src/evalite/`. The shrink comes when we point the Ev
 ### Risks surfaced so far
 - Evalite's `include` glob is hardcoded and non-overridable. If we ever want to run Evalite from repo root (not a subdirectory), we'd need to exclude `tests/fixtures/valid-skill-repo/**/*.eval.ts` via `vitest.config.ts`, or migrate those fixtures to `defineSkillEval` too. For now the positional path argument is enough.
 - `evalite@0.19.0` with v1 still in beta. Worth pinning strictly and watching releases.
+
+---
+
+## Iteration 2 — real deterministic scorer wired (2026-04-22)
+
+### What changed
+- `src/evalite/synthesize-trace.ts` — builds a realistic `EvalTrace` per input lane without calling Pi. Explicit/implicit-positive/execution lanes get a "skill invoked" trace; adjacent/hard-negative get a "skill not invoked" trace.
+- `src/evalite/define-skill-eval.ts` now normalizes the contract, registers a `PiSdkRunnableCase` per data entry, and runs `scoreDeterministicCase` inside `task`. Output carries `{ input, trace, scorecard, summary }`.
+- Two Evalite scorers in place of five:
+  - **`deterministic`** — returns `scorecard.score` with the full dimension breakdown + executionStatus + passed + deferredExpectations in `metadata`.
+  - **`hard-assertions`** — returns `hardPassed ? 1 : 0` with the assertion list in `metadata`.
+
+### Result
+```
+Score        100%
+Eval Files   1
+Evals        2
+Duration     17ms
+```
+Scorer breakdown per case:
+```
+deterministic: 1   metadata-keys=scorePercent,executionStatus,passed,dimensions,deferredExpectations
+hard-assertions: 1 metadata-keys=assertions
+```
+Evalite's displayed average (1.0) matches our canonical `scorecard.scorePercent` (100%).
+
+### Key finding: Evalite averages scorers equally; null == 0
+Iteration 2.0 used five scorers (overall + trigger/process/outcome + hard-assertions). When a dimension wasn't applicable to a lane (e.g. `process` for routing), `dimensions[dim].score` is `null`. Evalite's types document that null scores are reported as 0, which **pulled the displayed average to 60% even though our deterministic score was 100%**.
+
+Fix: collapse to a single authoritative scorer plus hard-assertions, and move dimension breakdown into `metadata`. This is the right pattern for any domain where "not applicable" is distinct from "failed."
+
+### Call on dimension breakdown UI
+Evalite's default table view renders one column per scorer and hides `metadata`. For dimension drill-down we'd want either:
+- the Evalite web UI (`evalite watch` → `:3006`) — not verified yet on this branch
+- post-processing `--outputPath` JSON
+- a custom `columns` callback on the eval to surface dimensions inline
+
+Defer the decision until someone's actually consuming the UI.
+
+### What still isn't real
+- `task` still synthesizes the trace. Iteration 3 replaces with `materializeFixture → runPiSdkCase → normalizePiSdkCaseRunResult`. That needs Pi SDK credentials in the environment; the spike so far is reproducible without any auth.
+- CLI parity + live-smoke lanes are still stubbed out at registration time (deferred).
+- No execution lane yet — alpha only has routing.explicit cases. Next iteration's new case should declare a fixture so fixture lifecycle inside an Evalite task is exercised.
+
+### Shrink watch
+- `src/evalite/` is now ~290 lines across 2 files.
+- Still zero lines deleted from `src/cli/*` or `src/reporting/*`. That deletion starts once the Evalite path covers execution + parity + reporting.
