@@ -293,3 +293,58 @@ Pi automatically retries on provider errors with backoff, including 429s. The CL
 - **Wiring**: fully validated end-to-end through Pi on Gemini (routing lanes green; execution lane LLM-green, scorer waiting on `expected` contract; parity lane SDK-green, CLI-side needs rate-limit headroom).
 - **Still not verified**: a single invocation that lands all 4 lanes green simultaneously. Requires either a paid provider tier or staggered runs.
 - **`EvalTrace.identity.model`** is now correctly populated with `{ provider: "google", id: "gemini-2.5-flash" }` in the Pi path (earlier iteration-3 note about `model: null` was when no override was passed; resolved here).
+
+---
+
+## Iteration 6 — cross-provider runs surface two real bugs (2026-04-22)
+
+### What we tried
+- **xAI (`grok-4-fast-non-reasoning`):** 403 on every call — *"Your newly created team doesn't have any credits or licenses yet."* All 4 cases returned empty traces.
+- **Mistral (`ministral-8b-latest`):** ran cleanly in 6.1s. 2 routing cases 100%. Execution case 54% (tool check passed, text check failed on too-strict expectation). Parity case 0% with a meaningful trace diff.
+
+### Bug #1 — parity degenerate-match false positive
+During the xAI run, the parity case scored 100% — but both runtimes produced **empty** traces (403 on both sides). Two empty projections compare as identical → `matched: true` → score 1. This hides real failures.
+
+**Recommendation:** in `src/traces/compare-parity.ts` (on main), add a pre-condition that treats `matched: true` as invalid when *both* projections have empty `assistantText` AND empty `toolCalls`. Alternatively, require at least one side to carry non-empty observations before the comparison proceeds; otherwise emit `{ matched: false, mismatches: [{ path: "_both_empty", message: "Both runtimes produced empty observations; parity cannot be evaluated." }] }`.
+
+Not fixed on the experiment branch — it's a main-branch concern.
+
+### Bug #2 — `collectCliJsonTelemetryLikeObservations` uses stale event shape
+The Mistral parity case proved the CLI JSON runner has never been extracting tool calls correctly against current Pi.
+
+**What Pi CLI actually emits** (verified from the run's raw events):
+```json
+{ "type": "tool_execution_start", "toolCallId": "...", "toolName": "read", "args": { "path": "README.md" } }
+{ "type": "tool_execution_end",   "toolCallId": "...", "toolName": "read", "result": {...}, "isError": false }
+```
+
+**What `src/pi/cli-json-runner.ts` looks for** (`isToolCallEvent` L431, `isToolResultEvent` L449):
+```json
+{ "type": "tool_call",   ... "input": {...} }
+{ "type": "tool_result", ... "input": {...}, "isError": ... }
+```
+
+Every current event fails both guards, so `toolCalls` / `toolResults` / `touchedFiles` / `skillReads` all stay empty for the CLI path. Every parity case that invokes any tool will mismatch. W-000012's tests pass because they use injected mock event streams with the obsolete shape, not real Pi CLI output.
+
+**Minimal fix (main-branch PR candidate):**
+- `isToolCallEvent`: accept `type: "tool_execution_start"`, read `args` instead of `input`.
+- `isToolResultEvent`: accept `type: "tool_execution_end"`.
+- In the loop body swap `event.input` → `event.args` for call events.
+- `tool_execution_end` doesn't carry the original tool args; pair start→end by `toolCallId` with a small `Map<string, args>` so `toFileTouchTelemetry` still has the path.
+
+Not fixed on the experiment branch — main-branch concern that this experiment surfaced, not part of the Evalite adapter.
+
+### Bug #3 — `text.include` is brittle against summarization
+Mistral's execution-case response was a good-faith summary of the README ("The README.md in this workspace is a placeholder file for the Alpha skill..."). Our contract required the literal string `"Hello World"` (the README's first heading). No model that summarizes will pass this check.
+
+**Applied fix** on the experiment branch: replaced `text.include: ["Hello World"]` with `text.include: ["README"]` in `tests/fixtures/evalite-skill-repo/skills/alpha/execution.ts`. Broader signal that matches both quoting and summarizing styles.
+
+### Cross-provider experience summary
+| Provider | Model | Result |
+|---|---|---|
+| `openai-codex` | `gpt-5.4` (default via ChatGPT Plus) | Rate limit in ~90min window |
+| `google` | `gemini-2.5-flash` | Wiring green, parity fails on 5 req/min free-tier cap |
+| `xai` | `grok-4-fast-non-reasoning` | 403 — no team credits |
+| `mistral` | `ministral-8b-latest` | Wiring green; surfaced bugs #2 and #3 |
+
+Mistral is the most productive provider for this spike so far. Minimax (`MiniMax-M2.7-highspeed`) hasn't been tried yet and would be a useful cross-reference.
