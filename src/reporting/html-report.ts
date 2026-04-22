@@ -42,7 +42,7 @@ export function renderHtmlReport(report: ArcSkillEvalJsonReport): string {
               ${renderLaneRow("overall", skill.lanes.overall)}
             </tbody>
           </table>
-          <h3>Cases</h3>
+          <h3>Scored cases</h3>
           <table>
             <thead>
               <tr><th>Case</th><th>Lane</th><th>Status</th><th>Execution</th><th>Score</th><th>Trace</th></tr>
@@ -62,6 +62,26 @@ export function renderHtmlReport(report: ArcSkillEvalJsonReport): string {
                 .join("")}
             </tbody>
           </table>
+          ${skill.unscoredCases.length ? `<h3>Unscored cases</h3>
+          <table>
+            <thead>
+              <tr><th>Case</th><th>Lane</th><th>Status</th><th>Execution</th><th>Reason</th><th>Trace</th></tr>
+            </thead>
+            <tbody>
+              ${skill.unscoredCases
+                .map(
+                  (caseEntry) => `<tr>
+                    <td><code>${escapeHtml(caseEntry.caseId)}</code></td>
+                    <td>${escapeHtml(caseEntry.lane)}</td>
+                    <td>${escapeHtml(caseEntry.status)}</td>
+                    <td>${escapeHtml(caseEntry.executionStatus)}</td>
+                    <td>${escapeHtml(caseEntry.reason)}</td>
+                    <td><code>${escapeHtml(caseEntry.traceRef)}</code></td>
+                  </tr>`,
+                )
+                .join("")}
+            </tbody>
+          </table>` : ""}
         </article>`,
     )
     .join("");
@@ -116,9 +136,11 @@ export function renderHtmlReport(report: ArcSkillEvalJsonReport): string {
           <tr><th>Valid skills</th><td>${report.summary.validSkillCount}</td></tr>
           <tr><th>Invalid skills</th><td>${report.summary.invalidSkillCount}</td></tr>
           <tr><th>Scored skills</th><td>${report.summary.scoredSkillCount}</td></tr>
-          <tr><th>Total cases</th><td>${report.summary.caseCount}</td></tr>
-          <tr><th>Passed cases</th><td>${report.summary.passedCaseCount}</td></tr>
-          <tr><th>Failed cases</th><td>${report.summary.failedCaseCount}</td></tr>
+          <tr><th>Scored cases</th><td>${report.summary.caseCount}</td></tr>
+          <tr><th>Unscored cases</th><td>${report.summary.unscoredCaseCount}</td></tr>
+          <tr><th>Executed cases</th><td>${report.summary.executedCaseCount}</td></tr>
+          <tr><th>Passed scored cases</th><td>${report.summary.passedCaseCount}</td></tr>
+          <tr><th>Failed scored cases</th><td>${report.summary.failedCaseCount}</td></tr>
         </tbody>
       </table>
     </section>

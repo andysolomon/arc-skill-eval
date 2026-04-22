@@ -20,8 +20,18 @@ arc-skill-eval/
 │   └── domain-model.md
 ├── src/
 │   ├── index.ts
+│   ├── bin/
+│   │   └── arc-skill-eval.ts
 │   ├── cli/
-│   │   └── index.ts
+│   │   ├── index.ts
+│   │   ├── types.ts
+│   │   ├── shared.ts
+│   │   ├── list-command.ts
+│   │   ├── validate-command.ts
+│   │   ├── test-command.ts
+│   │   ├── argv.ts
+│   │   ├── render.ts
+│   │   └── run-cli.ts
 │   ├── load/
 │   │   ├── local-loader.ts
 │   │   ├── git-loader.ts
@@ -36,29 +46,25 @@ arc-skill-eval/
 │   │   ├── index.ts
 │   │   ├── types.ts
 │   │   ├── sdk-runner.ts
-│   │   ├── cli-runner.ts
 │   │   ├── observer-extension.ts
-│   │   ├── session-telemetry.ts
-│   │   └── model-selection.ts
+│   │   └── session-telemetry.ts
 │   ├── traces/
 │   │   ├── types.ts
-│   │   ├── normalize-sdk.ts
-│   │   ├── normalize-cli-json.ts
-│   │   └── merge-telemetry.ts
+│   │   └── normalize-sdk.ts
 │   ├── fixtures/
+│   │   ├── index.ts
 │   │   ├── materialize.ts
-│   │   ├── workspace.ts
 │   │   ├── git-state.ts
-│   │   ├── mock-servers.ts
-│   │   ├── cli-shims.ts
-│   │   └── shared/
+│   │   ├── types.ts
+│   │   └── workspace-snapshot.ts
 │   ├── scorers/
+│   │   ├── index.ts
 │   │   ├── engine.ts
-│   │   ├── hard-assertions.ts
+│   │   ├── custom-assertions.ts
+│   │   ├── signals.ts
+│   │   ├── types.ts
 │   │   ├── weights.ts
-│   │   ├── assertions/
-│   │   │   ├── declarative.ts
-│   │   │   └── custom.ts
+│   │   ├── workspace.ts
 │   │   └── profiles/
 │   │       ├── planning.ts
 │   │       ├── repo-mutation.ts
@@ -69,10 +75,10 @@ arc-skill-eval/
 │   │   ├── compute-achieved-tier.ts
 │   │   └── enforcement.ts
 │   ├── reporting/
+│   │   ├── index.ts
+│   │   ├── types.ts
 │   │   ├── json-report.ts
-│   │   ├── html-report.ts
-│   │   ├── baseline.ts
-│   │   └── model-fingerprint.ts
+│   │   └── html-report.ts
 │   ├── rubric/
 │   │   ├── types.ts
 │   │   └── extension-point.ts
@@ -245,9 +251,26 @@ arc-skill-eval report <results.json>
 
 ### Phase 4 — CLI and Reports
 14. `src/cli/index.ts`
-15. `src/reporting/json-report.ts`
-16. `src/reporting/html-report.ts`
-17. `src/pi/cli-runner.ts`
+15. `src/cli/test-command.ts`
+16. `src/reporting/json-report.ts`
+17. `src/reporting/html-report.ts`
+18. `src/bin/arc-skill-eval.ts`
+
+### `src/cli/`
+Produces the library-backed CLI orchestration layer.
+
+Responsibilities:
+- parse and validate CLI arguments
+- resolve local-vs-git sources consistently across commands
+- run discovery, validation, execution, scoring, and reporting through library APIs
+- render human-readable stdout or canonical JSON stdout
+
+### `src/bin/`
+Contains executable entrypoints.
+
+Responsibilities:
+- invoke the typed CLI runner
+- wire stdout/stderr and exit codes
 
 ### Phase 5 — Git Loader and Pilot Skills
 18. `src/load/git-loader.ts`

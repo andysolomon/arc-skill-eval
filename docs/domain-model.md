@@ -6,8 +6,8 @@ This document begins the domain-model documentation for `arc-skill-eval`.
 It describes the core entities the framework is built around, how they relate to each other, and which ones already exist in code versus which are planned next.
 
 ## Status
-- **Implemented now:** source loading, skill discovery, contract validation, contract normalization, hermetic fixture materialization, initial Pi SDK runner orchestration, observer telemetry capture/loading, Pi SDK trace normalization, deterministic scoring for routing and execution lanes, JSON-first reporting with optional HTML rendering
-- **Planned next:** tiers, CLI orchestration
+- **Implemented now:** source loading, skill discovery, contract validation, contract normalization, hermetic fixture materialization, initial Pi SDK runner orchestration, observer telemetry capture/loading, Pi SDK trace normalization, deterministic scoring for routing and execution lanes, JSON-first reporting with optional HTML rendering, library-backed CLI commands for list/validate/test
+- **Planned next:** tiers, CLI parity orchestration
 
 ---
 
@@ -394,6 +394,7 @@ A **Report Artifact** is the durable output of a test run.
 - preserve invocation-wide provenance and report metadata
 - summarize scored skills, invalid skills, traces, and run issues in one canonical JSON artifact
 - retain full per-case scoring breakdowns with shared top-level trace references
+- preserve unscored executed cases such as live-smoke runs that are not yet part of deterministic scoring
 - expose explicit placeholder sections for tier and trial metadata until those systems are implemented
 - render a lightweight single-file HTML summary from canonical JSON data
 
@@ -527,12 +528,38 @@ Current responsibility:
 ### Planned additions
 - baseline comparison logic
 - model-fingerprint normalization helpers
-- richer HTML/report UX once CLI orchestration lands
+- richer HTML/report UX once pilot-scale CLI usage lands
+
+---
+
+## CLI Context
+Current responsibility:
+- parse a minimal v1 command surface for `list`, `validate`, and `test`
+- resolve shared `<repo-or-path>` inputs into local or git-backed loads
+- apply consistent `--skill` and `--case` selection semantics before validation/execution
+- orchestrate Pi SDK execution, deterministic scoring, and report writing through library APIs
+- expose human-readable stdout by default with opt-in canonical JSON stdout
+
+### Current files
+- `src/cli/types.ts`
+- `src/cli/shared.ts`
+- `src/cli/list-command.ts`
+- `src/cli/validate-command.ts`
+- `src/cli/test-command.ts`
+- `src/cli/argv.ts`
+- `src/cli/render.ts`
+- `src/cli/run-cli.ts`
+- `src/bin/arc-skill-eval.ts`
+
+### Planned additions
+- standalone report-view command wiring
+- CLI parity lane orchestration
+- richer machine-facing CLI output controls if needed beyond `--json`
 
 ---
 
 ## Immediate Documentation Follow-Ups
-1. Keep this document aligned with `src/contracts/types.ts`, `src/load/source-types.ts`, `src/pi/types.ts`, `src/traces/types.ts`, `src/scorers/types.ts`, and `src/reporting/types.ts`
+1. Keep this document aligned with `src/contracts/types.ts`, `src/load/source-types.ts`, `src/pi/types.ts`, `src/traces/types.ts`, `src/scorers/types.ts`, `src/reporting/types.ts`, and `src/cli/types.ts`
 2. Extend the trace model once CLI JSON normalization exists
 3. Add a scorecard/tier model section once tiering starts
-4. Link CLI commands to these entities once `src/cli/` is implemented
+4. Document pilot-oriented CLI workflows once `W-000013` starts

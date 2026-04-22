@@ -156,7 +156,34 @@ Sprint 3: 2026-05-25 -> 2026-06-05 (10 days)
 Milestone M4 — CLI, Parity, and Pilot Skills
 Sprint 4: 2026-06-08 -> 2026-06-19 (10 days)
 
-[ ] W-000011 Ship library-backed CLI commands [AFK]
+[x] W-000011 Ship library-backed CLI commands [AFK]
+    [x] begin grill-me planning with docs/domain-model.md and progress.txt
+    [x] lock minimal v1 command surface to list, validate, and test
+    [x] use one shared repo-or-path resolver with local-first then git fallback
+    [x] support repeatable --skill filters on list/validate/test and repeatable --case on test
+    [x] keep human-readable stdout by default with opt-in --json output
+    [x] run deterministic lanes by default and gate live-smoke behind --include-live-smoke
+    [x] write canonical report.json by default and opt into report.html with --html
+    [x] keep exit codes at 0/1 with warn-only outcomes non-fatal in v1
+    [x] implement a thin executable over typed src/cli command runners
+    [x] fail fast on empty selectors for validate/test and on unknown skill/case selections
+    [x] continue across case-level failures and emit the fullest report possible
+    [x] keep list discovery-only and keep validate/test selection semantics aligned
+    [x] emit natural command payloads directly for --json output
+    [x] add src/cli/types.ts
+    [x] add src/cli/shared.ts
+    [x] add src/cli/list-command.ts
+    [x] add src/cli/validate-command.ts
+    [x] add src/cli/test-command.ts
+    [x] add src/cli/argv.ts
+    [x] add src/cli/render.ts
+    [x] add src/cli/run-cli.ts
+    [x] add src/cli/index.ts
+    [x] add src/bin/arc-skill-eval.ts
+    [x] export CLI APIs from src/index.ts
+    [x] add package bin entry
+    [x] add CLI coverage/tests
+    [x] update docs for CLI orchestration and report behavior
 [ ] W-000012 Add CLI golden parity cases [AFK]
 [ ] W-000013 Onboard representative pilot skills [HITL]
 
@@ -174,3 +201,4 @@ Current checkpoint summary
 [x] Hermetic fixture materialization added
 [x] Deterministic scoring added
 [x] JSON-first reporting added
+[x] Library-backed CLI commands added

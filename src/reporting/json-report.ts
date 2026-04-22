@@ -15,6 +15,7 @@ import type {
   ReportSkillEntry,
   ReportSummary,
   ReportTraceEntry,
+  ReportUnscoredCaseEntry,
 } from "./types.js";
 import { ARC_SKILL_EVAL_REPORT_VERSION } from "./types.js";
 
@@ -79,12 +80,14 @@ function buildReportSkillEntry(options: {
 }): ReportSkillEntry {
   const { entry, reportTraces, runIssues } = options;
   const traceMap = new Map(entry.traces.map((trace) => [trace.identity.case.caseId, trace]));
+  const emittedTraceIds = new Set<string>();
   const caseEntries = entry.score.cases.map((caseScore) => {
     const traceId = createTraceId(entry.score.skill.skill, caseScore.caseId);
     const trace = traceMap.get(caseScore.caseId);
 
     if (trace) {
       reportTraces.push(buildReportTraceEntry(trace, traceId));
+      emittedTraceIds.add(traceId);
     } else {
       runIssues.push({
         code: "report.missing-trace",
@@ -100,13 +103,28 @@ function buildReportSkillEntry(options: {
 
     return buildReportCaseEntry(caseScore, traceId, trace ?? null);
   });
+  const unscoredCases = (entry.unscoredCases ?? []).map((caseResult) => {
+    const traceId = createTraceId(entry.score.skill.skill, caseResult.trace.identity.case.caseId);
+    reportTraces.push(buildReportTraceEntry(caseResult.trace, traceId));
+    emittedTraceIds.add(traceId);
+    return buildReportUnscoredCaseEntry(caseResult, traceId);
+  });
+
+  for (const trace of entry.traces) {
+    const traceId = createTraceId(trace.identity.skill.name, trace.identity.case.caseId);
+
+    if (!emittedTraceIds.has(traceId)) {
+      reportTraces.push(buildReportTraceEntry(trace, traceId));
+      emittedTraceIds.add(traceId);
+    }
+  }
 
   return {
     skill: entry.score.skill.skill,
     relativeSkillDir: entry.files.relativeSkillDir,
     profile: entry.score.skill.profile,
     targetTier: entry.score.skill.targetTier,
-    status: resolveSkillStatus(entry.score, caseEntries),
+    status: resolveSkillStatus(entry.score, caseEntries, unscoredCases),
     weights: entry.score.weights,
     thresholds: entry.score.thresholds ?? null,
     tier: {
@@ -120,6 +138,7 @@ function buildReportSkillEntry(options: {
     models: collectDistinctModels(entry.traces),
     lanes: entry.score.lanes,
     cases: caseEntries,
+    unscoredCases,
   };
 }
 
@@ -140,6 +159,22 @@ function buildReportCaseEntry(
       aggregationMethod: null,
     },
     model: trace?.identity.model ?? null,
+  };
+}
+
+function buildReportUnscoredCaseEntry(
+  input: NonNullable<BuildReportSkillInput["unscoredCases"]>[number],
+  traceId: string,
+): ReportUnscoredCaseEntry {
+  return {
+    caseId: input.trace.identity.case.caseId,
+    kind: input.trace.identity.case.kind,
+    lane: input.trace.identity.case.lane,
+    executionStatus: input.executionStatus,
+    status: input.executionStatus === "completed" ? "passed" : "failed",
+    traceRef: traceId,
+    model: input.trace.identity.model,
+    reason: "not-deterministically-scored",
   };
 }
 
@@ -181,6 +216,7 @@ function buildReportSummary(
   invalidSkills: ReportInvalidSkillEntry[],
 ): ReportSummary {
   const caseEntries = skills.flatMap((skill) => skill.cases);
+  const unscoredCaseEntries = skills.flatMap((skill) => skill.unscoredCases);
   const laneSummaries = skills.flatMap((skill) => [skill.lanes.routing, skill.lanes.execution, skill.lanes.overall]);
 
   return {
@@ -191,6 +227,8 @@ function buildReportSummary(
     caseCount: caseEntries.length,
     passedCaseCount: caseEntries.filter((entry) => entry.passed).length,
     failedCaseCount: caseEntries.filter((entry) => !entry.passed).length,
+    unscoredCaseCount: unscoredCaseEntries.length,
+    executedCaseCount: caseEntries.length + unscoredCaseEntries.length,
     skillStatusCounts: {
       passed: skills.filter((entry) => entry.status === "passed").length,
       warn: skills.filter((entry) => entry.status === "warn").length,
@@ -213,8 +251,9 @@ function buildReportSummary(
 function resolveSkillStatus(
   score: BuildReportSkillInput["score"],
   cases: ReportCaseEntry[],
+  unscoredCases: ReportUnscoredCaseEntry[],
 ): ArcSkillEvalReportStatus {
-  if (cases.some((entry) => entry.status === "failed")) {
+  if (cases.some((entry) => entry.status === "failed") || unscoredCases.some((entry) => entry.status === "failed")) {
     return "failed";
   }
 
@@ -224,6 +263,10 @@ function resolveSkillStatus(
 
   if ([score.lanes.routing.status, score.lanes.execution.status, score.lanes.overall.status].includes("warn")) {
     return "warn";
+  }
+
+  if (unscoredCases.length > 0 && cases.length === 0 && score.lanes.overall.status === "not_applicable") {
+    return "passed";
   }
 
   return "passed";

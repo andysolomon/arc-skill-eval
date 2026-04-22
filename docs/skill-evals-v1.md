@@ -493,15 +493,24 @@ Current implementation note:
 ---
 
 ## CLI Surface
-Illustrative commands:
+Current v1 commands:
 
 ```bash
 arc-skill-eval list <repo-or-path>
 arc-skill-eval validate <repo-or-path>
 arc-skill-eval test <repo-or-path>
 arc-skill-eval test <repo-or-path> --skill arc-planning-work
-arc-skill-eval report <results.json>
+arc-skill-eval test <repo-or-path> --skill arc-planning-work --case routing-explicit-001
 ```
+
+Current implementation notes:
+- all commands accept the same `<repo-or-path>` input and resolve local paths before git references
+- `--skill <name>` is repeatable on `list`, `validate`, and `test`
+- `--case <id>` is repeatable on `test`
+- `test` runs deterministic lanes by default and requires `--include-live-smoke` to execute live-smoke cases
+- `test` writes canonical `report.json` by default and optionally writes `report.html` with `--html`
+- default stdout is human-readable; `--json` prints the canonical command payload directly
+- exit codes stay simple: `0` for success, `1` for invalid selections, invalid skills, failed test results, or command/runtime errors
 
 Potential source forms:
 
