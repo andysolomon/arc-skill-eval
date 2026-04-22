@@ -74,7 +74,7 @@ Per Anthropic's guidance: *"Require concrete evidence for a PASS. Don't give the
 - Profile concept (planning / repo-mutation / external-api / orchestration) at the authoring surface. Same reasoning.
 - The custom `report.json` / `report.html` output shape. Replaced by per-case `grading.json` + aggregate `benchmark.json`.
 - Deterministic scorer packs (`src/scorers/profiles/*`) and the scoring engine. Replaced by assertion grading.
-- `docs/skill-eval-schema.md` (our custom schema doc). Will be replaced by a short authoring guide that points at Anthropic's docs for the canonical schema and documents our runtime-specific extensions only.
+- `docs/skill-eval-schema.md`, `docs/skill-evals-v1.md`, `docs/framework-repo-structure.md` — all deleted. The README is now the authoritative authoring guide; it points at Anthropic's docs for the canonical schema and documents our runtime-specific extensions (script assertions) only.
 
 ## Slim-MVP milestone plan
 
@@ -82,11 +82,11 @@ The pivot starts as a minimum-viable shape: **single run per case, assertion gra
 
 | Milestone | Scope | Rough size |
 |---|---|---|
-| **M1** | Types for `evals/evals.json`, `EvalAssertion` discriminated union (string = LLM-judged, object = script-type), `GradingJson` shape; loader + schema validator with one test fixture; discovery of `SKILL.md` + `evals/evals.json` adjacency side-by-side with existing discovery | ~1 day |
-| **M2** | Runner: Pi SDK with skill attached, one run per case, capture assistant text + touched files + timing. Grader: LLM-judge for string assertions + a small set of mechanical script assertions (file-exists, regex-match, json-valid). Per-case `grading.json` output | ~1 day |
-| **M3** | CLI surface (`arc-skill-eval run <skill-dir-or-repo>`), author-side `arc-creating-evals` skill that emits the new format + minimal `evals/files/`, deprecation pass: remove `src/contracts/`, `src/scorers/`, `src/reporting/`, `src/traces/compare-parity.ts`, most of `src/cli/*`, and the old tests that covered them | ~1 day |
+| **M1** ✅ | Types for `evals/evals.json`, `EvalAssertion` discriminated union (string = LLM-judged, object = script-type), `GradingJson` shape; loader + schema validator with one test fixture; discovery of `SKILL.md` + `evals/evals.json` adjacency side-by-side with existing discovery | done (#15) |
+| **M2** ✅ | Runner (M2A, #16): Pi SDK with skill attached, one run per case, capture assistant text + workspace + timing. Grader (M2B, #17): LLM-judge for string assertions, mechanical script assertions (`file-exists`, `regex-match`, `json-valid`). Per-case `grading.json` output | done |
+| **M3** ✅ | CLI `arc-skill-eval run` (M3a, #18). `arc-creating-evals` authoring skill at `skills/arc-creating-evals/` (M3b, #19). Deprecation pass (M3c, this PR): `src/scorers/`, `src/reporting/`, `src/traces/compare-parity.ts`, `src/cli/{list,validate,test}-command.ts`, legacy `src/load/` loaders, `src/contracts/validate.ts`, `tests/{cli,reporting,deterministic-scoring,contracts-and-loaders}.test.mjs`. Retained `src/contracts/{types,normalize}.ts` and `src/load/source-types.ts` as internal scaffolding that M2A's run-case.ts synthesizes for Pi's existing signature | done |
 
-**Total rough estimate: ~3 focused days.**
+**Actual delivery: ~3 focused days, 8 PRs (#14 direction, #15 M1, #16 M2A, #17 M2B, #18 M3a, #19 M3b, this M3c; plus #10 docs-only divergence note).**
 
 ## Deferred to post-MVP
 - **`with_skill` vs `without_skill` dual-run** — the canonical "does this skill add value" signal. Adds one more Pi call per case and a small aggregator. Layer on when authors need the delta, not sooner.

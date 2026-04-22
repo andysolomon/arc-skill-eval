@@ -21,9 +21,7 @@ import type {
   ParityCase,
   RoutingCase,
   SkillEvalContract,
-  ValidationResult,
 } from "./types.js";
-import { validateSkillEvalContract } from "./validate.js";
 
 export function normalizeSkillEvalContract(contract: SkillEvalContract): NormalizedSkillEvalContract {
   return {
@@ -39,22 +37,6 @@ export function normalizeSkillEvalContract(contract: SkillEvalContract): Normali
     cliParity: normalizeParityCases(contract.cliParity),
     liveSmoke: normalizeLiveSmokeCases(contract.liveSmoke),
     rubric: normalizeRubric(contract.rubric),
-  };
-}
-
-export function validateAndNormalizeSkillEvalContract(
-  input: unknown,
-): ValidationResult<NormalizedSkillEvalContract> {
-  const validationResult = validateSkillEvalContract(input);
-
-  if (!validationResult.ok) {
-    return validationResult;
-  }
-
-  return {
-    ok: true,
-    value: normalizeSkillEvalContract(validationResult.value),
-    issues: [],
   };
 }
 
