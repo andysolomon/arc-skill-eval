@@ -14,9 +14,10 @@ defineSkillEval(
     profile: "planning",
     targetTier: 0,
     // Pin model for the Evalite spike so Pi mode does not inherit the
-    // user's global default. xAI's `grok-4-fast-non-reasoning` avoids
-    // the Gemini free-tier 5-req/min cap that sinks the parity case.
-    model: { provider: "xai", id: "grok-4-fast-non-reasoning" },
+    // user's global default. `ministral-8b-latest` is fast, cheap, and
+    // does not hit the Gemini free-tier 5-req/min cap or the xAI
+    // newly-created-team zero-credits trap.
+    model: { provider: "mistral", id: "ministral-8b-latest" },
     routing: {
       explicit,
       implicitPositive: [],
