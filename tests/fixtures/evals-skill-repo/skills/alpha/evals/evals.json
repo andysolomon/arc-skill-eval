@@ -1,0 +1,23 @@
+{
+  "skill_name": "alpha",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Use alpha to echo the word 'ready'.",
+      "expected_output": "Assistant replies with the word 'ready'.",
+      "assertions": [
+        "The response contains the word 'ready'",
+        { "type": "regex-match", "pattern": "\\bready\\b", "flags": "i" }
+      ]
+    },
+    {
+      "id": "execution-write-file",
+      "prompt": "Create a file named notes.txt containing a one-line TODO list.",
+      "files": ["files/empty-workspace"],
+      "assertions": [
+        { "type": "file-exists", "path": "notes.txt" },
+        { "type": "regex-match", "pattern": "TODO", "target": { "file": "notes.txt" } }
+      ]
+    }
+  ]
+}
