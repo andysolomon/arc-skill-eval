@@ -8,3 +8,4 @@ export * from "./traces/index.js";
 export * from "./scorers/index.js";
 export * from "./reporting/index.js";
 export * from "./cli/index.js";
+export * from "./evals/index.js";

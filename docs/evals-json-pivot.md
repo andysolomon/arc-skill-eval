@@ -76,29 +76,44 @@ Per Anthropic's guidance: *"Require concrete evidence for a PASS. Don't give the
 - Deterministic scorer packs (`src/scorers/profiles/*`) and the scoring engine. Replaced by assertion grading.
 - `docs/skill-eval-schema.md` (our custom schema doc). Will be replaced by a short authoring guide that points at Anthropic's docs for the canonical schema and documents our runtime-specific extensions only.
 
-## Milestone plan
+## Slim-MVP milestone plan
+
+The pivot starts as a minimum-viable shape: **single run per case, assertion grading, no dual-runtime, no iteration workspaces**. Anthropic's `with_skill` vs `without_skill` delta, `iteration-N/` dirs, and `benchmark.json` aggregation are all recognized post-MVP extensions — useful for *proving a skill adds value* but not required to answer *does my skill work*. They land after the MVP is proven.
 
 | Milestone | Scope | Rough size |
 |---|---|---|
-| **M1** | This plan doc merged; new internal types for `evals/evals.json`, `grading.json`, `benchmark.json`; stub modules so later milestones don't start from scratch | ~half day |
-| **M2** | `evals/evals.json` loader + schema validator; one test fixture; a `read-evals-json` internal API that returns the parsed model | ~1 day |
-| **M3** | Dual-run execution: extend Pi runner to invoke each case twice (with / without skill context); per-run timing + output capture; session isolation | ~1–2 days |
-| **M4** | Assertion grading via Pi SDK with an LLM-judge prompt; `grading.json` emission per case/configuration | ~1 day |
-| **M5** | Workspace + iteration dirs; `benchmark.json` aggregation with delta computation | ~1 day |
-| **M6** | Rewrite `arc-creating-evals` skill to emit `evals/evals.json` + `evals/files/`; drop the TS-contract guidance | ~half day |
-| **M7** | Deprecation pass: mark `SkillEvalContract`, scorer packs, lane types as internal/legacy; shrink `src/cli/*` + `src/reporting/*` accordingly; rewrite `tests/cli.test.mjs` + `tests/reporting.test.mjs` against `benchmark.json` | ~1 day |
+| **M1** | Types for `evals/evals.json`, `EvalAssertion` discriminated union (string = LLM-judged, object = script-type), `GradingJson` shape; loader + schema validator with one test fixture; discovery of `SKILL.md` + `evals/evals.json` adjacency side-by-side with existing discovery | ~1 day |
+| **M2** | Runner: Pi SDK with skill attached, one run per case, capture assistant text + touched files + timing. Grader: LLM-judge for string assertions + a small set of mechanical script assertions (file-exists, regex-match, json-valid). Per-case `grading.json` output | ~1 day |
+| **M3** | CLI surface (`arc-skill-eval run <skill-dir-or-repo>`), author-side `arc-creating-evals` skill that emits the new format + minimal `evals/files/`, deprecation pass: remove `src/contracts/`, `src/scorers/`, `src/reporting/`, `src/traces/compare-parity.ts`, most of `src/cli/*`, and the old tests that covered them | ~1 day |
 
-Total rough estimate: **5–7 focused days**.
+**Total rough estimate: ~3 focused days.**
+
+## Deferred to post-MVP
+- **`with_skill` vs `without_skill` dual-run** — the canonical "does this skill add value" signal. Adds one more Pi call per case and a small aggregator. Layer on when authors need the delta, not sooner.
+- **Iteration workspaces** (`<skill>-workspace/iteration-N/`, per-iteration LLM-proposed SKILL.md diffs). Once the MVP is answering real questions, this becomes the natural "improve the skill" loop.
+- **`benchmark.json` aggregation across eval sets.** Pairs with the dual-run feature.
+- **Human-review `feedback.json`.** Authoring ergonomic; nice to have, not structural.
 
 ## Sequencing guidance
 - Each milestone ships as its own PR against `main`.
-- Each milestone must leave `npm run typecheck` and `npm test` green. Deprecation happens in-place rather than big-bang at M7 — we keep the old code paths running until the new ones cover them end-to-end.
-- Break the plan if the first few milestones reveal the Anthropic format doesn't fit our Pi runtime cleanly. That's a go/no-go checkpoint worth honoring.
+- Each milestone must leave `npm run typecheck` and `npm test` green. Deprecation happens in-place — we keep the old code paths until the new ones cover them end-to-end, then delete in M3.
+- Within M2 the runner and grader can split into parallel subagents once M1's types are on main.
+
+## Assertion grading contract
+The MVP accepts both assertion shapes in a case's `assertions` array:
+
+- **`string`** — graded by an LLM-judge prompt, result is `{ passed, evidence }`.
+- **`{ type: "file-exists" | "regex-match" | "json-valid", ...args }`** — graded by a deterministic script. Faster and cheaper than the LLM-judge, and reliable for mechanical checks.
+
+Script assertions cover cases where the LLM-judge is overkill or unreliable (file presence, exact regex, JSON validity). String assertions handle the rest. Anthropic's published format uses string-only; the typed-object variant is our extension.
+
+## CLI + package name
+Keep `arc-skill-eval` as the package and CLI name. The framework still tests skills via evals — the name remains accurate; migrating it costs work for zero value.
 
 ## Out of scope for this pivot
-- **Rubric scoring.** Anthropic's methodology doesn't use a separate rubric lane — subjective-quality concerns show up as assertions or as human-review feedback in `feedback.json`. Our stubbed rubric type goes away with the TS contract.
-- **CLI parity as a first-class lane.** In the Anthropic model, SDK-vs-CLI drift detection would be a *variant run configuration* (run the same case through both runtimes, compare outputs or assertion-level pass rates). It becomes a runtime concern, not an authoring concern. Defer until actually requested by an author.
-- **Tiering.** Never implemented on main; it doesn't carry over. If we need trust tiers under the new model, they'd come from pass-rate thresholds, not declared target tiers.
+- **Rubric scoring.** Anthropic's methodology doesn't use a separate rubric lane — subjective-quality concerns show up as assertions or as human-review feedback. Our stubbed rubric type goes away with the TS contract.
+- **CLI parity as a first-class lane.** In the new model, SDK-vs-CLI drift detection would be a *variant run configuration*, not an authoring concern. Defer until actually requested.
+- **Tiering.** Never implemented on main; doesn't carry over. If we need trust tiers later, they'd come from pass-rate thresholds, not declared target tiers.
 
 ## References
 - [OpenAI blog: Eval Skills](https://developers.openai.com/blog/eval-skills)
