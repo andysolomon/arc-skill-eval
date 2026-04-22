@@ -1,3 +1,8 @@
+---
+name: alpha
+description: Stub skill used only by the arc-skill-eval Evalite-conformance experiment. Not for production use.
+---
+
 # alpha
 
 Stub skill for the Evalite conformance experiment. The only goal of

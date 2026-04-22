@@ -23,6 +23,8 @@ import type { EvalTrace } from "../traces/types.js";
 import type { DeterministicCaseScoreResult } from "../scorers/types.js";
 import { scoreDeterministicCase } from "../scorers/engine.js";
 import { synthesizeTrace } from "./synthesize-trace.js";
+import { runCaseViaPi, buildSkillFiles } from "./pi-runner-task.js";
+import type { DiscoveredSkillFiles } from "../load/source-types.js";
 
 export type SkillEvalLane =
   | "routing-explicit"
@@ -50,19 +52,34 @@ export interface SkillEvalOutput {
 
 export interface DefineSkillEvalOptions {
   /**
-   * Override for the task function. Defaults to the synthetic-trace +
-   * deterministic-scorer composition used by the experiment's spike.
-   * Iteration 3+ will replace this with a real Pi SDK runner.
+   * Override for the task function. When set, the synthetic / Pi branch
+   * is bypassed entirely.
    */
   task?: Evalite.Task<SkillEvalInput, SkillEvalOutput>;
   /**
-   * Optional provenance override for synthetic traces. Defaults to the
-   * process cwd so the spike can run without a real repo source.
+   * Absolute path to the skill's directory (the one containing
+   * `SKILL.md` + this `skill.eval.ts`). Required when the real Pi
+   * runner is active (`ARC_EVALITE_USE_PI=1`). In synthetic mode the
+   * cwd is used as the default repo source.
+   */
+  skillDir?: string;
+  /**
+   * Absolute path to the repository root that contains `skillDir`.
+   * Defaults to `skillDir` itself, so a self-contained skill fixture
+   * works without extra config. Only needed if the skill lives inside
+   * a larger repo and you want RepoSourceDescriptor to reflect that.
+   */
+  repositoryRoot?: string;
+  /**
+   * Optional provenance override for synthetic traces. When unset,
+   * it is derived from `skillDir`/`repositoryRoot` when available or
+   * from the process cwd as a last resort.
    */
   source?: RepoSourceDescriptor;
   /**
    * Optional relative skill dir override for synthetic traces.
-   * Defaults to `"skills/<skill-name>"`.
+   * Defaults to `path.relative(repositoryRoot, skillDir)` when
+   * available, or `"skills/<skill-name>"` otherwise.
    */
   relativeSkillDir?: string;
 }
@@ -72,9 +89,22 @@ export function defineSkillEval(
   options: DefineSkillEvalOptions = {},
 ): void {
   const normalized = normalizeSkillEvalContract(contract);
-  const source = options.source ?? defaultRepoSource();
+  const repositoryRoot = options.repositoryRoot ?? options.skillDir ?? process.cwd();
+  const skillDir = options.skillDir ?? repositoryRoot;
+  const source = options.source ?? defaultRepoSource(repositoryRoot);
   const relativeSkillDir =
-    options.relativeSkillDir ?? `skills/${normalized.skill}`;
+    options.relativeSkillDir ??
+    (options.skillDir
+      ? path.relative(repositoryRoot, skillDir) || "."
+      : `skills/${normalized.skill}`);
+  const skillFiles: DiscoveredSkillFiles | null = options.skillDir
+    ? buildSkillFiles({
+        skillDir,
+        repositoryRoot,
+        skillName: normalized.skill,
+      })
+    : null;
+  const usePi = process.env.ARC_EVALITE_USE_PI === "1";
 
   const caseByKey = new Map<string, PiSdkRunnableCase>();
   const data: Evalite.DataShape<SkillEvalInput, SkillEvalOutput>[] = [];
@@ -125,6 +155,40 @@ export function defineSkillEval(
           ).join(", ")}`,
         );
       }
+
+      if (usePi) {
+        if (!skillFiles) {
+          throw new Error(
+            `defineSkillEval: ARC_EVALITE_USE_PI=1 requires the \`skillDir\` option on the defineSkillEval call.`,
+          );
+        }
+        const piResult = await runCaseViaPi({
+          contract: normalized,
+          caseDefinition,
+          source,
+          skillFiles,
+        });
+        try {
+          const scorecard = isScorableCase(caseDefinition)
+            ? await scoreDeterministicCase({
+                contract: normalized,
+                caseDefinition,
+                trace: piResult.trace,
+                workspace: piResult.workspace ?? undefined,
+                skillFiles,
+              })
+            : null;
+          return {
+            input,
+            trace: piResult.trace,
+            scorecard,
+            summary: buildSummary(input, scorecard, "pi"),
+          };
+        } finally {
+          await piResult.cleanup().catch(() => undefined);
+        }
+      }
+
       const trace = synthesizeTrace({
         contract: normalized,
         caseDefinition,
@@ -136,15 +200,14 @@ export function defineSkillEval(
             contract: normalized,
             caseDefinition,
             trace,
+            skillFiles: skillFiles ?? undefined,
           })
         : null;
       return {
         input,
         trace,
         scorecard,
-        summary: scorecard
-          ? `${input.caseId}: score=${scorecard.scorePercent ?? "—"}% hardPassed=${scorecard.hardPassed}`
-          : `${input.caseId}: non-scored lane (${input.lane})`,
+        summary: buildSummary(input, scorecard, "synthetic"),
       };
     });
 
@@ -215,16 +278,26 @@ function isScorableCase(caseDefinition: PiSdkRunnableCase): boolean {
   return caseDefinition.kind === "routing" || caseDefinition.kind === "execution";
 }
 
-function defaultRepoSource(): RepoSourceDescriptor {
-  const cwd = process.cwd();
+function defaultRepoSource(repositoryRoot: string): RepoSourceDescriptor {
   return {
     kind: "local",
-    input: cwd,
-    repositoryRoot: cwd,
-    displayName: path.basename(cwd),
+    input: repositoryRoot,
+    repositoryRoot,
+    displayName: path.basename(repositoryRoot),
     resolvedRef: null,
     git: null,
   };
+}
+
+function buildSummary(
+  input: SkillEvalInput,
+  scorecard: DeterministicCaseScoreResult | null,
+  mode: "synthetic" | "pi",
+): string {
+  if (!scorecard) {
+    return `${input.caseId} [${mode}]: non-scored lane (${input.lane})`;
+  }
+  return `${input.caseId} [${mode}]: score=${scorecard.scorePercent ?? "—"}% hardPassed=${scorecard.hardPassed}`;
 }
 
 const deterministicScorer: Evalite.Scorer<

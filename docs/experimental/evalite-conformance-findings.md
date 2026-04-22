@@ -92,3 +92,62 @@ Defer the decision until someone's actually consuming the UI.
 ### Shrink watch
 - `src/evalite/` is now ~290 lines across 2 files.
 - Still zero lines deleted from `src/cli/*` or `src/reporting/*`. That deletion starts once the Evalite path covers execution + parity + reporting.
+
+---
+
+## Iteration 3 — real Pi SDK wired behind env flag (2026-04-22)
+
+### What changed
+- `src/evalite/pi-runner-task.ts` — new module. `runCaseViaPi()` builds a `ValidatedSkillDiscovery` from a `DiscoveredSkillFiles`, calls `runPiSdkCase`, normalizes via `normalizePiSdkCaseRunResult`, and constructs a `DeterministicWorkspaceContext` for the scorer. Returns `{ trace, workspace, cleanup }`.
+- `src/evalite/define-skill-eval.ts` — new options: `skillDir` (required for Pi mode), `repositoryRoot`. Task branches on `ARC_EVALITE_USE_PI=1`. Pi branch always calls `runPiSdkCase().cleanup()` in a `finally` so temp workspaces don't leak when scoring throws.
+- `tests/fixtures/evalite-skill-repo/skills/alpha/skill.eval.ts` — now derives `skillDir` from `import.meta.url` and passes it through.
+- `tests/fixtures/evalite-skill-repo/skills/alpha/execution.ts` — first execution case with a fixture reference (`./fixtures/hello-world`).
+- `tests/fixtures/evalite-skill-repo/skills/alpha/fixtures/hello-world/README.md` — minimal fixture content for the execution case to read.
+- `tests/fixtures/evalite-skill-repo/skills/alpha/SKILL.md` — now has YAML frontmatter (`name`, `description`). Required by `@mariozechner/pi-coding-agent`'s `loadSkillsFromDir` — without a non-empty `description` the loader silently drops the skill and `runPiSdkCase` throws `Unable to load Pi skill definition`.
+
+### Run modes
+```
+# synthetic, free, deterministic
+npm run evalite:spike
+
+# real Pi SDK, costs API calls (~$0.05–0.30/case)
+ARC_EVALITE_USE_PI=1 npx evalite tests/fixtures/evalite-skill-repo
+```
+
+### Synthetic result (3 evals)
+```
+Score  83%      # routing 100%+100%, execution 50% (no workspace outcomes applicable)
+Time   16ms
+```
+Execution case lands at 50% in synthetic mode because our synthesized trace has no file edits / no applicable outcome checks — exactly the gap Pi mode should fill.
+
+### Pi result (3 evals, same session)
+```
+Score  50%
+Time   8.8s
+```
+All 3 cases scored 50%. Inspecting the trace showed the LLM responded with empty content. Raw session explains why:
+```
+"stopReason": "error",
+"errorMessage": "You have hit your ChatGPT usage limit (plus plan). Try again in ~91 min."
+```
+So **the Evalite→defineSkillEval→runPiSdkCase→normalize→score pipeline worked end-to-end**; the 50% average came from a real rate-limit on the model provider, not a wiring bug. Notably the scorer correctly flagged `routing.target-skill-engagement: failed` even though the session returned cleanly — i.e. the scorer treats "no assistant output" as "skill not engaged," which is the correct signal.
+
+### Cost/time profile (Pi mode)
+- 3 cases × ~8.8s each = ~27s wall time (concurrency 5 in Evalite's default).
+- Actual wall clock: 8.8s thanks to the concurrent runner.
+- Tokens: 0 on all three (quota-gated). Real tokens on a healthy day would dwarf the evals themselves, so Evalite's default `maxConcurrency: 5` will need a think when the pilot cohort is large.
+
+### Pi-mode still-open items
+- Haven't seen a fully green Pi run yet. Worth a retry after ~91 min or with a provider switch.
+- `normalizePiSdkCaseRunResult` is producing `model: null` on the trace. Expected? The session itself records `"model": "gpt-5.4"`, so the normalizer may be losing this. Minor; worth a follow-up.
+- `createWorkspaceContextFromPiSdkCaseResult` runs synchronously on an (un)awaited path in `pi-runner-task.ts` — I had to drop the `await` after tsc complained. Double-check that it's actually synchronous (it is — `workspace.ts:22` returns a plain object, no await needed).
+
+### Cumulative shrink watch
+- `src/evalite/` is now ~380 lines across 3 files.
+- Still zero deletions in `src/cli/*` / `src/reporting/*`. Iteration 4 is when the CLI stops being necessary for Evalite-backed runs.
+
+### Next iteration — options (pick in the next turn)
+1. **Retry Pi on healthy quota** to confirm green routing + execution scoring. No code needed.
+2. **Parity lanes.** Wire `cli-parity` by running the same case through both runners inside one `task` and attaching parity comparison as a third scorer.
+3. **Delete-list walk.** Now that the Evalite path is structurally complete, audit `src/cli/*` + `src/reporting/*` for what's dead under the new model and draft a deprecation plan.
