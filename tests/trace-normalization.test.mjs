@@ -265,6 +265,66 @@ test("normalizePiCliJsonCaseRunResult derives canonical observations from CLI JS
   assert.deepEqual(trace.raw.telemetryEntries, []);
 });
 
+test("compareEvalTraceParity flags two empty traces as an explicit mismatch", () => {
+  const sdkTrace = {
+    identity: {
+      runtime: "pi-sdk",
+      source,
+      skill: {
+        name: "alpha",
+        relativeSkillDir: "skills/alpha",
+        profile: "planning",
+        targetTier: 1,
+      },
+      case: {
+        caseId: "cli-parity-empty",
+        kind: "cli-parity",
+        lane: "cli-parity",
+        prompt: "This run returned nothing.",
+      },
+      model: null,
+    },
+    timing: {
+      startedAt: "2026-04-22T03:00:00.000Z",
+      finishedAt: "2026-04-22T03:00:00.500Z",
+      durationMs: 500,
+    },
+    observations: {
+      assistantText: "",
+      toolCalls: [],
+      toolResults: [],
+      bashCommands: [],
+      touchedFiles: [],
+      writtenFiles: [],
+      editedFiles: [],
+      skillReads: [],
+      externalCalls: [],
+    },
+    raw: {
+      sessionId: "sdk-empty",
+      sessionFile: undefined,
+      messages: [],
+      runtimeEvents: [],
+      telemetryEntries: [],
+    },
+  };
+  const cliTrace = {
+    ...sdkTrace,
+    identity: { ...sdkTrace.identity, runtime: "pi-cli-json" },
+    raw: { ...sdkTrace.raw, sessionId: "cli-empty" },
+  };
+
+  const result = compareEvalTraceParity({ sdkTrace, cliTrace });
+
+  assert.equal(result.matched, false);
+  assert.equal(result.mismatches.length, 1);
+  assert.equal(result.mismatches[0].path, "_both_empty");
+  assert.match(
+    result.mismatches[0].message,
+    /Both SDK and CLI runtimes produced empty observations/u,
+  );
+});
+
 test("compareEvalTraceParity compares semantic projections rather than runtime metadata", () => {
   const sdkTrace = normalizePiSdkCaseRunResult(createCaseRunResult({
     caseDefinition: {
