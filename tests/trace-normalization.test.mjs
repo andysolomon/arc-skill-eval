@@ -230,22 +230,28 @@ test("normalizePiCliJsonCaseRunResult derives canonical observations from CLI JS
       messages: [{ role: "assistant", content: [{ type: "text", text: "DONE" }] }],
       events: [
         {
-          type: "tool_call",
+          type: "tool_execution_start",
           toolCallId: "call-read",
           toolName: "read",
-          input: { path: "skills/alpha/SKILL.md" },
+          args: { path: "skills/alpha/SKILL.md" },
         },
         {
-          type: "tool_call",
+          type: "tool_execution_start",
           toolCallId: "call-bash",
           toolName: "bash",
-          input: { command: "curl https://api.github.com/repos/example/repo" },
+          args: { command: "curl https://api.github.com/repos/example/repo" },
         },
         {
-          type: "tool_result",
+          type: "tool_execution_start",
           toolCallId: "call-write",
           toolName: "write",
-          input: { path: "output.txt" },
+          args: { path: "output.txt" },
+        },
+        {
+          type: "tool_execution_end",
+          toolCallId: "call-write",
+          toolName: "write",
+          result: { content: [] },
           isError: false,
         },
       ],
@@ -257,11 +263,11 @@ test("normalizePiCliJsonCaseRunResult derives canonical observations from CLI JS
 
   assert.equal(trace.identity.runtime, "pi-cli-json");
   assert.equal(trace.identity.case.kind, "cli-parity");
-  assert.equal(trace.observations.toolCalls.length, 2);
+  assert.equal(trace.observations.toolCalls.length, 3);
   assert.deepEqual(trace.observations.writtenFiles, ["output.txt"]);
   assert.equal(trace.observations.skillReads[0].skillName, "alpha");
   assert.equal(trace.observations.externalCalls[0].target, "api.github.com");
-  assert.equal(trace.raw.runtimeEvents.length, 3);
+  assert.equal(trace.raw.runtimeEvents.length, 4);
   assert.deepEqual(trace.raw.telemetryEntries, []);
 });
 
