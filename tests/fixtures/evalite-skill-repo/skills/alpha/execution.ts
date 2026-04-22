@@ -9,5 +9,9 @@ export const executionCases: ExecutionCase[] = [
       kind: "repo",
       source: "./fixtures/hello-world",
     },
+    expected: {
+      tools: { include: ["read"] },
+      text: { include: ["Hello World"] },
+    },
   },
 ];

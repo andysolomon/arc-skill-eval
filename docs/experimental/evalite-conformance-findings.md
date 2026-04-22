@@ -240,3 +240,56 @@ The experiment's original "go if `src/` shrinks meaningfully" bar is ~30% reduct
 - A fully green real Pi run (iteration 3 blocked on quota).
 - Whether Evalite's web UI is good enough that we don't miss our HTML report.
 - Whether beta churn in `evalite@0.x` is tolerable over a release cycle.
+
+---
+
+## Iteration 5 — first real Pi run on Gemini, two real failures diagnosed (2026-04-22)
+
+### Setup
+- Switched off the user's global `openai-codex` default by pinning `model: { provider: "google", id: "gemini-2.5-flash" }` on alpha's contract.
+- Exported `GEMINI_API_KEY` in the user's shell (free tier).
+- Ran `ARC_EVALITE_USE_PI=1 npm run evalite:spike`.
+
+### Result
+```
+Score       50%
+Evals       4
+Duration    19.7s
+  routing-explicit-001  100%  (SDK, 4.4s)
+  routing-explicit-002  100%  (SDK, 10.8s)
+  execution-read-readme   0%  (SDK, 3.7s; LLM succeeded, scorer had nothing to check)
+  parity-echo-readme      0%  (SDK green, CLI rate-limited, 19.7s incl. 4 retries)
+```
+Both routing cases green; the other two failures are **real signal**, not wiring bugs.
+
+### Failure 1 — execution case: contract had no `expected` block
+Gemini handled the task perfectly:
+> *"The `README.md` describes Alpha as a test skill for the `arc-skill-eval` Evalite-conformance experiment, existing to provide file content for fixture materialization."*
+
+Tool call: `read`. No errors. But alpha's execution case had no `expected` declaration, so the deterministic scorer found zero applicable checks across all dimensions, returned `score: null`, which Evalite coerces to `0`.
+
+**Fix:** added `expected.tools.include: ["read"]` + `expected.text.include: ["Hello World"]` to `tests/fixtures/evalite-skill-repo/skills/alpha/execution.ts`. In synthetic mode this still scores 0 (no real tool calls in the synthesized trace) — which is the correct gap signal. In Pi mode the next run should score ≥50% on this case.
+
+### Failure 2 — parity case: Gemini free-tier rate limit
+The CLI side of the parity hit:
+```
+429 RESOURCE_EXHAUSTED
+Quota exceeded for metric:
+  generativelanguage.googleapis.com/generate_content_free_tier_requests
+  limit: 5
+Please retry in 12.4s
+```
+Pi's built-in auto-retry ran four times, each hit 429 again (retry window 6–60s each), and Pi gave up with an empty trace. The first 4 Pi calls in the invocation (2 routing + 1 execution + 1 parity-SDK) exhausted the free-tier 5-per-minute budget; the 5th (parity-CLI) was the blocked one.
+
+Not a wiring bug — pure infra. Three ways to get past it:
+1. **Upgrade Gemini tier** — paid plans raise the req/min cap substantially.
+2. **Use a different provider for the spike** — Anthropic's `claude-haiku-4-5` has no comparable free-tier cap.
+3. **Turn down Evalite concurrency** — `maxConcurrency: 1` in `evalite.config.ts` serializes runs and spreads them across minutes, but 5 cases would still be 5 calls inside a ~60s window.
+
+### Notable observation — Pi's auto-retry on 429 is visible
+Pi automatically retries on provider errors with backoff, including 429s. The CLI side of the parity ran 4 retries back-to-back (spaced by the provider's own "please retry in Xs" hint). Useful behavior, but not matched to free-tier windows — a 12s retry after a 60s-window 429 burns CPU for nothing. Worth remembering for cost modelling.
+
+### Status after iteration 5
+- **Wiring**: fully validated end-to-end through Pi on Gemini (routing lanes green; execution lane LLM-green, scorer waiting on `expected` contract; parity lane SDK-green, CLI-side needs rate-limit headroom).
+- **Still not verified**: a single invocation that lands all 4 lanes green simultaneously. Requires either a paid provider tier or staggered runs.
+- **`EvalTrace.identity.model`** is now correctly populated with `{ provider: "google", id: "gemini-2.5-flash" }` in the Pi path (earlier iteration-3 note about `model: null` was when no override was passed; resolved here).
