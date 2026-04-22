@@ -10,7 +10,10 @@ It describes the core entities the framework is built around, how they relate to
 - **Planned next:** tiers, parity-aware tier computation, pilot onboarding
 
 ## Divergent Experiments
-- **Evalite conformance** — an experimental branch, `experiment/evalite-conformance`, explores replacing this framework's orchestration, CLI, and report artifact with Evalite's `evalite()` + SQLite + UI. `skill.eval.ts` files on that branch call `evalite()` directly via a `defineSkillEval()` helper. This experiment is **not intended for merge**; it is a source-of-truth comparison to decide whether `arc-skill-eval` should migrate. The canonical model in this document continues to describe the `main` architecture. See [experimental/evalite-conformance.md](experimental/evalite-conformance.md).
+- **Evalite conformance** — an experimental branch, `experiment/evalite-conformance`, explores replacing this framework's orchestration, CLI, and report artifact with Evalite's `evalite()` + SQLite + UI. `skill.eval.ts` files on that branch call `evalite()` directly via a `defineSkillEval()` helper. This experiment is **not intended for merge**; it is a source-of-truth comparison to decide whether `arc-skill-eval` should migrate. See [experimental/evalite-conformance.md](experimental/evalite-conformance.md).
+
+## Active Pivot
+This document describes the architecture currently on `main`. The framework is mid-pivot to consume Anthropic's `evals/evals.json` standard (and the `with_skill` / `without_skill` dual-run methodology) as its primary authoring + execution model. The `SkillEvalContract` / lane / profile / scorer-pack concepts documented below are on a deprecation path and will be superseded in subsequent milestones. See [evals-json-pivot.md](evals-json-pivot.md) for the direction, rationale, and milestone plan.
 
 ---
 
