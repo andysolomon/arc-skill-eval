@@ -78,6 +78,17 @@ export interface ReportCaseEntry extends DeterministicCaseScoreResult {
   model: EvalTraceIdentity["model"];
 }
 
+export interface ReportUnscoredCaseEntry {
+  caseId: string;
+  kind: EvalTraceIdentity["case"]["kind"];
+  lane: EvalTraceIdentity["case"]["lane"];
+  executionStatus: "completed" | "failed";
+  status: "passed" | "failed";
+  traceRef: string;
+  model: EvalTraceIdentity["model"];
+  reason: "not-deterministically-scored";
+}
+
 export interface ReportSkillEntry {
   skill: string;
   relativeSkillDir: string;
@@ -91,6 +102,7 @@ export interface ReportSkillEntry {
   models: Array<EvalTraceIdentity["model"]>;
   lanes: DeterministicSkillScoreResult["lanes"];
   cases: ReportCaseEntry[];
+  unscoredCases: ReportUnscoredCaseEntry[];
 }
 
 export interface ReportInvalidSkillEntry {
@@ -109,6 +121,8 @@ export interface ReportSummary {
   caseCount: number;
   passedCaseCount: number;
   failedCaseCount: number;
+  unscoredCaseCount: number;
+  executedCaseCount: number;
   skillStatusCounts: Record<ArcSkillEvalReportStatus, number>;
   caseStatusCounts: {
     passed: number;
@@ -131,10 +145,16 @@ export interface ArcSkillEvalJsonReport {
   traces: ReportTraceEntry[];
 }
 
+export interface BuildReportUnscoredCaseInput {
+  trace: EvalTrace;
+  executionStatus: "completed" | "failed";
+}
+
 export interface BuildReportSkillInput {
   files: DiscoveredSkillFiles;
   score: DeterministicSkillScoreResult;
   traces: EvalTrace[];
+  unscoredCases?: BuildReportUnscoredCaseInput[];
 }
 
 export interface BuildInvalidSkillInput {
