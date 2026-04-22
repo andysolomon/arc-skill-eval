@@ -14,9 +14,9 @@ defineSkillEval(
     profile: "planning",
     targetTier: 0,
     // Pin model for the Evalite spike so Pi mode does not inherit the
-    // user's global default (which may point elsewhere, e.g. ChatGPT Plus
-    // with quota caps).
-    model: { provider: "google", id: "gemini-2.5-flash" },
+    // user's global default. xAI's `grok-4-fast-non-reasoning` avoids
+    // the Gemini free-tier 5-req/min cap that sinks the parity case.
+    model: { provider: "xai", id: "grok-4-fast-non-reasoning" },
     routing: {
       explicit,
       implicitPositive: [],
