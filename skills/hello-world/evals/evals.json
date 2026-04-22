@@ -1,0 +1,35 @@
+{
+  "skill_name": "hello-world",
+  "evals": [
+    {
+      "id": "default-world",
+      "prompt": "Create a greeting.",
+      "expected_output": "greeting.txt exists in the workspace with 'Hello, world!' and the assistant reply names the file.",
+      "assertions": [
+        { "type": "file-exists", "path": "greeting.txt" },
+        { "type": "regex-match", "pattern": "Hello, world!", "target": { "file": "greeting.txt" } },
+        "The response mentions the file `greeting.txt` by name"
+      ]
+    },
+    {
+      "id": "named-ada",
+      "prompt": "Create a greeting for Ada.",
+      "expected_output": "greeting.txt contains 'Hello, Ada!' and the assistant reply confirms it greeted Ada.",
+      "assertions": [
+        { "type": "file-exists", "path": "greeting.txt" },
+        { "type": "regex-match", "pattern": "Hello, Ada!", "target": { "file": "greeting.txt" } },
+        "The response confirms the greeting was written for Ada"
+      ]
+    },
+    {
+      "id": "assistant-names-file",
+      "prompt": "Please generate a greeting for Grace Hopper.",
+      "expected_output": "greeting.txt exists; assistant text mentions 'greeting.txt' literally.",
+      "assertions": [
+        { "type": "file-exists", "path": "greeting.txt" },
+        { "type": "regex-match", "pattern": "greeting\\.txt", "target": "assistant-text" },
+        { "type": "regex-match", "pattern": "Hello, Grace Hopper!", "target": { "file": "greeting.txt" } }
+      ]
+    }
+  ]
+}
