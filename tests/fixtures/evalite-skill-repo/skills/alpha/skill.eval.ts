@@ -4,6 +4,7 @@ import path from "node:path";
 import { defineSkillEval } from "../../../../../src/evalite/define-skill-eval.js";
 import { explicit } from "./routing.js";
 import { executionCases } from "./execution.js";
+import { parityCases } from "./parity.js";
 
 const skillDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -18,6 +19,7 @@ defineSkillEval(
       adjacentNegative: [],
     },
     execution: executionCases,
+    cliParity: parityCases,
   },
   {
     skillDir,

@@ -151,3 +151,92 @@ So **the Evalite→defineSkillEval→runPiSdkCase→normalize→score pipeline w
 1. **Retry Pi on healthy quota** to confirm green routing + execution scoring. No code needed.
 2. **Parity lanes.** Wire `cli-parity` by running the same case through both runners inside one `task` and attaching parity comparison as a third scorer.
 3. **Delete-list walk.** Now that the Evalite path is structurally complete, audit `src/cli/*` + `src/reporting/*` for what's dead under the new model and draft a deprecation plan.
+
+---
+
+## Iteration 4 — cli-parity lane + unified scorer (2026-04-22)
+
+### What changed
+- `src/evalite/pi-runner-task.ts` gains `runParityCaseViaPi()` — runs the case through both `runPiSdkCase` and `runPiCliJsonCase`, normalizes each via `normalizePiSdkCaseRunResult` / `normalizePiCliJsonCaseRunResult`, compares via `compareEvalTraceParity`, and returns a unified `{ sdkTrace, cliTrace, comparison, cleanup }`. The `cleanup` tears down **both** temp workspaces.
+- `src/evalite/define-skill-eval.ts` now handles `cli-parity` cases: synthetic mode emits two synthesized traces (one tagged `pi-sdk`, one `pi-cli-json`) and runs `compareEvalTraceParity` against them; Pi mode dispatches to `runParityCaseViaPi`.
+- `SkillEvalOutput` gained `parity: { cliTrace, comparison } | null` so the output carries both sides of a parity case.
+- Alpha fixture: new `parity.ts` with one `cli-parity` case, wired into `skill.eval.ts`.
+
+### Scorer model: collapsed three scorers to one
+Iteration 2's lesson repeated itself. Having separate `deterministic` / `hard-assertions` / `parity-match` scorers meant every lane produced `null` for at least one scorer, and Evalite's null-to-0 coercion dragged displayed averages below canonical `scorecard.score`. The fix: one unified `arc-skill` scorer that dispatches by lane kind and puts the breakdown (dimensions, hard assertions, parity mismatches) in `metadata`.
+
+This is a **structural mismatch worth noting**: Evalite's scorer array is designed for homogeneous per-result dimensions (all scorers apply to every result) — not for our lane-conditional model where "process" / "parity" / "hard-assertions" only apply to specific lane kinds. Folding into one scorer loses Evalite's UI drill-down columns, but the metadata is complete and any consumer that wants drill-down can project from `--outputPath` JSON.
+
+### Synthetic result (4 evals)
+```
+Score       75%
+Eval Files  1
+Evals       4
+Duration    18ms
+```
+Breakdown:
+- `routing-explicit-001`: 100%
+- `routing-explicit-002`: 100%
+- `execution-read-readme`: 0% (synth mode has no workspace → scorecard.score null → 0; expected)
+- `parity-echo-readme`: 100% (synthetic SDK and CLI traces match)
+
+### Pi mode status
+Not yet re-run — blocked on the user's ChatGPT Plus quota reset. Wiring is identical to iteration 3's Pi path; parity adds one more Pi invocation per parity case (two runtimes × one case = ~17s wall time on top of existing cases). Cost should be considered before re-running.
+
+### Cumulative shrink watch
+- `src/evalite/` is now ~470 lines across 3 files.
+- Still zero deletions in `src/cli/*` / `src/reporting/*` — iteration 5 material (below).
+
+---
+
+## Delete-list walk — what `src/cli/*` and `src/reporting/*` become under Evalite
+
+(Captured by a background audit agent on 2026-04-22.)
+
+### `src/cli/` module audit
+| File | Purpose | Status | Rationale |
+|---|---|---|---|
+| `argv.ts` | Parses CLI flags (`list`/`validate`/`test`, `--skill`, `--case`, `--json`, `--html`). | **delete** | Absorbed by `evalite run`/`evalite watch` + `--outputPath`. |
+| `run-cli.ts` | Command dispatcher: parse → run → format → exit. | **delete** | Orchestration layer superseded by Evalite's discovery + runner. |
+| `list-command.ts` | Lists discovered skills. | **delete** | Evalite storage/UI surface discovery. |
+| `validate-command.ts` | Validates contracts without running. | **delete** | Validation folds into case discovery; invalid skills surface in Evalite results. |
+| `test-command.ts` | Core runner: Pi SDK/CLI, normalize, score, write report. | **rewrite/extract** | Logic stays but moves into `defineSkillEval`'s `task` + scorers. |
+| `render.ts` | Terminal output formatting. | **delete** | Evalite UI + JSON export replace. |
+| `types.ts` | Command/result/error types. | **keep/shrink** | Error classes retire; a few types still shape `test-command` pieces that move into the Evalite path. |
+| `shared.ts` | Repo loading, skill selection, framework version, output dir. | **keep/extract** | Skill loading + selection stays (used indirectly by `defineSkillEval`); `resolveReportOutputDir` deletable; `resolveFrameworkVersion` stays for report metadata. |
+| `index.ts` | Barrel. | **delete** | Nothing left to re-export. |
+
+### `src/reporting/` module audit
+| File | Purpose | Status | Rationale |
+|---|---|---|---|
+| `types.ts` | Report schema (`ArcSkillEvalJsonReport`, case/skill/parity/issue entries). | **keep/shrink** | Domain shapes still needed where `EvalTrace` + scorecard are transported, but report-specific shapes can retire once nothing consumes them. |
+| `json-report.ts` | Builds + writes canonical `report.json`. | **delete** | Evalite's SQLite + `--outputPath` JSON replace. |
+| `html-report.ts` | Renders HTML summary from JSON. | **delete** | Evalite's web UI at `:3006` replaces. |
+| `index.ts` | Barrel. | **delete** | Nothing left to re-export. |
+
+### Entrypoint + SDK orchestration
+| File | Status | Notes |
+|---|---|---|
+| `src/bin/arc-skill-eval.ts` | **delete** | `evalite` binary is the entrypoint. |
+| `src/pi/sdk-runner.ts` (incl. `runValidatedSkillViaPiSdk`) | **keep** | Canonical Pi SDK adapter — `defineSkillEval`'s task still wraps it via `runCaseViaPi`. |
+
+### Index + test impact
+- `src/index.ts` drops `export * from "./cli/index.js"` and `export * from "./reporting/index.js"`. Everything else stays.
+- `tests/cli.test.mjs` (~256 LOC) and `tests/reporting.test.mjs` (~426 LOC) would be retired or rewritten against Evalite output. That's ~682 LOC of test code chasing ~1,800 LOC of deletable implementation.
+
+### Rough delete budget
+- `src/cli/`: ~1,161 LOC deletable (most of the dir) minus ~200 LOC of shared+types that stay
+- `src/reporting/`: ~630 LOC deletable minus ~150 LOC of types that stay
+- tests: ~682 LOC deletable
+- **Net target: ~2,100+ LOC** (≈ 35% reduction in orchestration/reporting/CLI surface)
+
+### Top 3 consumers that would break if deletion went too fast
+1. **`src/cli/test-command.ts` → `src/evalite/define-skill-eval.ts`** — scoring + parity orchestration currently lives in `test-command`; pieces must be extracted cleanly into `defineSkillEval`'s task before the file is deleted.
+2. **`src/index.ts` public barrel** — removing CLI/reporting re-exports breaks any downstream import. Needs coordinated changes.
+3. **`tests/cli.test.mjs` + `tests/reporting.test.mjs`** — integration tests that assume the `CliInvocationResult` + `ArcSkillEvalJsonReport` shapes. Rewrite against `evalite --outputPath` JSON.
+
+### Go / no-go signal so far
+The experiment's original "go if `src/` shrinks meaningfully" bar is ~30% reduction in orchestration/reporting/CLI lines. The delete-list shows ~2,100 LOC is plausibly removable, which clears that bar. What we still haven't validated:
+- A fully green real Pi run (iteration 3 blocked on quota).
+- Whether Evalite's web UI is good enough that we don't miss our HTML report.
+- Whether beta churn in `evalite@0.x` is tolerable over a release cycle.

@@ -6,10 +6,13 @@ import type {
   RepoSourceDescriptor,
   ValidatedSkillDiscovery,
 } from "../load/source-types.js";
-import type { PiSdkRunnableCase } from "../pi/types.js";
+import type { PiSdkParityCase, PiSdkRunnableCase } from "../pi/types.js";
 import { runPiSdkCase } from "../pi/sdk-runner.js";
-import type { EvalTrace } from "../traces/types.js";
+import { runPiCliJsonCase } from "../pi/cli-json-runner.js";
+import type { EvalTrace, EvalTraceParityComparisonResult } from "../traces/types.js";
 import { normalizePiSdkCaseRunResult } from "../traces/normalize-sdk.js";
+import { normalizePiCliJsonCaseRunResult } from "../traces/normalize-cli-json.js";
+import { compareEvalTraceParity } from "../traces/compare-parity.js";
 import type { DeterministicWorkspaceContext } from "../scorers/types.js";
 import { createWorkspaceContextFromPiSdkCaseResult } from "../scorers/workspace.js";
 
@@ -53,6 +56,71 @@ export async function runCaseViaPi(
     workspace,
     cleanup: async () => {
       await caseResult.cleanup();
+    },
+  };
+}
+
+export interface RunParityCaseViaPiOptions {
+  contract: NormalizedSkillEvalContract;
+  caseDefinition: PiSdkParityCase;
+  source: RepoSourceDescriptor;
+  skillFiles: DiscoveredSkillFiles;
+}
+
+export interface RunParityCaseViaPiResult {
+  sdkTrace: EvalTrace;
+  cliTrace: EvalTrace;
+  comparison: EvalTraceParityComparisonResult;
+  cleanup: () => Promise<void>;
+}
+
+/**
+ * Execute a `cli-parity` case through both the Pi SDK and the Pi CLI
+ * JSON runtime, normalize each side, and compare them. Caller must
+ * call `cleanup()` to tear down both temp workspaces.
+ */
+export async function runParityCaseViaPi(
+  options: RunParityCaseViaPiOptions,
+): Promise<RunParityCaseViaPiResult> {
+  const validated: ValidatedSkillDiscovery = {
+    files: options.skillFiles,
+    contract: options.contract,
+  };
+
+  // Fresh workspaces per runtime — required because the SDK and CLI
+  // paths materialize fixtures independently and could otherwise
+  // trample each other's state.
+  const sdkResult = await runPiSdkCase({
+    source: options.source,
+    skill: validated,
+    caseDefinition: options.caseDefinition,
+  });
+
+  let cliResult;
+  try {
+    cliResult = await runPiCliJsonCase({
+      source: options.source,
+      skill: validated,
+      caseDefinition: options.caseDefinition,
+    });
+  } catch (error) {
+    await sdkResult.cleanup().catch(() => undefined);
+    throw error;
+  }
+
+  const sdkTrace = normalizePiSdkCaseRunResult(sdkResult);
+  const cliTrace = normalizePiCliJsonCaseRunResult(cliResult);
+  const comparison = compareEvalTraceParity({ sdkTrace, cliTrace });
+
+  return {
+    sdkTrace,
+    cliTrace,
+    comparison,
+    cleanup: async () => {
+      await Promise.all([
+        sdkResult.cleanup().catch(() => undefined),
+        cliResult.cleanup().catch(() => undefined),
+      ]);
     },
   };
 }

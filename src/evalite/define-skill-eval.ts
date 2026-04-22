@@ -18,12 +18,14 @@ import type {
   PiSdkRunnableCase,
   PiSdkRoutingCase,
   PiSdkExecutionCase,
+  PiSdkParityCase,
 } from "../pi/types.js";
-import type { EvalTrace } from "../traces/types.js";
+import type { EvalTrace, EvalTraceParityComparisonResult } from "../traces/types.js";
+import { compareEvalTraceParity } from "../traces/compare-parity.js";
 import type { DeterministicCaseScoreResult } from "../scorers/types.js";
 import { scoreDeterministicCase } from "../scorers/engine.js";
 import { synthesizeTrace } from "./synthesize-trace.js";
-import { runCaseViaPi, buildSkillFiles } from "./pi-runner-task.js";
+import { runCaseViaPi, runParityCaseViaPi, buildSkillFiles } from "./pi-runner-task.js";
 import type { DiscoveredSkillFiles } from "../load/source-types.js";
 
 export type SkillEvalLane =
@@ -44,8 +46,17 @@ export interface SkillEvalInput {
 
 export interface SkillEvalOutput {
   input: SkillEvalInput;
+  /**
+   * For routing/execution lanes this is the single canonical trace.
+   * For cli-parity lanes this is the SDK-side trace; the CLI-side
+   * trace and the comparison result are attached under `parity`.
+   */
   trace: EvalTrace;
   scorecard: DeterministicCaseScoreResult | null;
+  parity: {
+    cliTrace: EvalTrace;
+    comparison: EvalTraceParityComparisonResult;
+  } | null;
   /** Human summary for Evalite's default output rendering. */
   summary: string;
 }
@@ -136,11 +147,12 @@ export function defineSkillEval(
   for (const c of normalized.execution) {
     register(data, caseByKey, buildExecutionCase(normalized, c));
   }
-  // cli-parity and live-smoke lanes are not part of deterministic scoring
-  // and are deferred until the Pi runtime adapter lands on this branch.
+  for (const c of normalized.cliParity) {
+    register(data, caseByKey, buildParityCase(normalized, c));
+  }
+  // live-smoke still gated behind ARC_INCLUDE_LIVE_SMOKE — deferred.
   if (process.env.ARC_INCLUDE_LIVE_SMOKE === "1") {
-    // live-smoke wiring is a deferred iteration; emit nothing for now
-    // so Evalite doesn't try to score lanes the scorer refuses to handle.
+    // wiring will land alongside execution-lane Pi validation.
   }
 
   const task: Evalite.Task<SkillEvalInput, SkillEvalOutput> =
@@ -162,6 +174,28 @@ export function defineSkillEval(
             `defineSkillEval: ARC_EVALITE_USE_PI=1 requires the \`skillDir\` option on the defineSkillEval call.`,
           );
         }
+        if (caseDefinition.kind === "cli-parity") {
+          const parityResult = await runParityCaseViaPi({
+            contract: normalized,
+            caseDefinition,
+            source,
+            skillFiles,
+          });
+          try {
+            return {
+              input,
+              trace: parityResult.sdkTrace,
+              scorecard: null,
+              parity: {
+                cliTrace: parityResult.cliTrace,
+                comparison: parityResult.comparison,
+              },
+              summary: buildParitySummary(input, parityResult.comparison, "pi"),
+            };
+          } finally {
+            await parityResult.cleanup().catch(() => undefined);
+          }
+        }
         const piResult = await runCaseViaPi({
           contract: normalized,
           caseDefinition,
@@ -182,11 +216,38 @@ export function defineSkillEval(
             input,
             trace: piResult.trace,
             scorecard,
+            parity: null,
             summary: buildSummary(input, scorecard, "pi"),
           };
         } finally {
           await piResult.cleanup().catch(() => undefined);
         }
+      }
+
+      // Synthetic mode.
+      if (caseDefinition.kind === "cli-parity") {
+        const sdkTrace = synthesizeTrace({
+          contract: normalized,
+          caseDefinition,
+          source,
+          relativeSkillDir,
+          runtime: "pi-sdk",
+        });
+        const cliTrace = synthesizeTrace({
+          contract: normalized,
+          caseDefinition,
+          source,
+          relativeSkillDir,
+          runtime: "pi-cli-json",
+        });
+        const comparison = compareEvalTraceParity({ sdkTrace, cliTrace });
+        return {
+          input,
+          trace: sdkTrace,
+          scorecard: null,
+          parity: { cliTrace, comparison },
+          summary: buildParitySummary(input, comparison, "synthetic"),
+        };
       }
 
       const trace = synthesizeTrace({
@@ -207,6 +268,7 @@ export function defineSkillEval(
         input,
         trace,
         scorecard,
+        parity: null,
         summary: buildSummary(input, scorecard, "synthetic"),
       };
     });
@@ -214,7 +276,7 @@ export function defineSkillEval(
   evalite<SkillEvalInput, SkillEvalOutput, SkillEvalOutput>(normalized.skill, {
     data,
     task,
-    scorers: [deterministicScorer, hardAssertionScorer],
+    scorers: [primaryScorer],
   });
 }
 
@@ -270,6 +332,21 @@ function buildExecutionCase(
   };
 }
 
+function buildParityCase(
+  contract: NormalizedSkillEvalContract,
+  definition: ParityCase,
+): PiSdkParityCase {
+  return {
+    kind: "cli-parity",
+    lane: "cli-parity",
+    caseId: definition.id,
+    prompt: definition.prompt,
+    skillName: contract.skill,
+    contractModel: contract.model,
+    definition,
+  };
+}
+
 function caseKey(skill: string, caseId: string, lane: PiSdkCaseLane | SkillEvalLane): string {
   return `${skill}::${lane}::${caseId}`;
 }
@@ -300,52 +377,69 @@ function buildSummary(
   return `${input.caseId} [${mode}]: score=${scorecard.scorePercent ?? "—"}% hardPassed=${scorecard.hardPassed}`;
 }
 
-const deterministicScorer: Evalite.Scorer<
-  SkillEvalInput,
-  SkillEvalOutput,
-  SkillEvalOutput
-> = ({ output }) => {
-  const card = output.scorecard;
-  if (!card) {
-    return {
-      score: null,
-      name: "deterministic",
-      description: "Non-scored lane (cli-parity / live-smoke).",
-    };
+function buildParitySummary(
+  input: SkillEvalInput,
+  comparison: EvalTraceParityComparisonResult,
+  mode: "synthetic" | "pi",
+): string {
+  if (comparison.matched) {
+    return `${input.caseId} [${mode}]: parity matched`;
   }
-  return {
-    score: card.score,
-    name: "deterministic",
-    description:
-      "Weighted deterministic score (0..1) from scoreDeterministicCase. Dimension breakdown in metadata.",
-    metadata: {
-      scorePercent: card.scorePercent,
-      executionStatus: card.executionStatus,
-      passed: card.passed,
-      dimensions: card.dimensions,
-      deferredExpectations: card.deferredExpectations,
-    },
-  };
-};
+  return `${input.caseId} [${mode}]: parity MISMATCH (${comparison.mismatches.length})`;
+}
 
-const hardAssertionScorer: Evalite.Scorer<
+/**
+ * One unified scorer that dispatches by lane kind. Evalite averages
+ * scorers equally and treats `null` as `0`, which means per-lane
+ * conditional scorers drag down the displayed average. Folding
+ * everything into one scorer keeps Evalite's displayed score aligned
+ * with our canonical per-case score. Hard-assertion status, dimension
+ * breakdown, and parity mismatches ride in `metadata`.
+ */
+const primaryScorer: Evalite.Scorer<
   SkillEvalInput,
   SkillEvalOutput,
   SkillEvalOutput
 > = ({ output }) => {
-  const card = output.scorecard;
-  if (!card) {
+  const { scorecard, parity } = output;
+
+  if (parity) {
     return {
-      score: null,
-      name: "hard-assertions",
-      description: "Non-scored lane (cli-parity / live-smoke).",
+      score: parity.comparison.matched ? 1 : 0,
+      name: "arc-skill",
+      description:
+        "cli-parity case: 1 when SDK vs CLI semantic projections match. Mismatches in metadata.",
+      metadata: {
+        lane: "cli-parity",
+        matched: parity.comparison.matched,
+        mismatchCount: parity.comparison.mismatches.length,
+        mismatches: parity.comparison.mismatches,
+      },
     };
   }
+
+  if (!scorecard) {
+    return {
+      score: null,
+      name: "arc-skill",
+      description: "Non-scored lane (live-smoke or unsupported).",
+    };
+  }
+
   return {
-    score: card.hardPassed ? 1 : 0,
-    name: "hard-assertions",
+    score: scorecard.score,
+    name: "arc-skill",
     description:
-      "1 when all hard assertions pass, 0 otherwise. Preserved separately from weighted score.",
-    metadata: { assertions: card.hardAssertions },
+      "Deterministic weighted score (routing/execution). Dimension + hard-assertion breakdown in metadata.",
+    metadata: {
+      lane: scorecard.lane,
+      scorePercent: scorecard.scorePercent,
+      executionStatus: scorecard.executionStatus,
+      hardPassed: scorecard.hardPassed,
+      passed: scorecard.passed,
+      dimensions: scorecard.dimensions,
+      hardAssertions: scorecard.hardAssertions,
+      deferredExpectations: scorecard.deferredExpectations,
+    },
   };
 };

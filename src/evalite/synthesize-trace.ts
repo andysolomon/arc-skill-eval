@@ -1,13 +1,18 @@
 import type { RepoSourceDescriptor } from "../load/source-types.js";
 import type { NormalizedSkillEvalContract } from "../contracts/types.js";
 import type { PiSdkRunnableCase } from "../pi/types.js";
-import type { EvalTrace } from "../traces/types.js";
+import type { EvalTrace, EvalTraceRuntime } from "../traces/types.js";
 
 export interface SynthesizeTraceInput {
   contract: NormalizedSkillEvalContract;
   caseDefinition: PiSdkRunnableCase;
   source: RepoSourceDescriptor;
   relativeSkillDir: string;
+  /**
+   * Override which runtime tag the synthesized trace carries. Defaults
+   * to "pi-sdk". Used by parity synthesis to emit a matched pair.
+   */
+  runtime?: EvalTraceRuntime;
 }
 
 /**
@@ -33,7 +38,7 @@ export function synthesizeTrace(input: SynthesizeTraceInput): EvalTrace {
 
   return {
     identity: {
-      runtime: "pi-sdk",
+      runtime: input.runtime ?? "pi-sdk",
       source,
       skill: {
         name: skillName,
