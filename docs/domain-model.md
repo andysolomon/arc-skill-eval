@@ -9,6 +9,9 @@ It describes the core entities the framework is built around, how they relate to
 - **Implemented now:** source loading, skill discovery, contract validation, contract normalization, hermetic fixture materialization, initial Pi SDK runner orchestration, observer telemetry capture/loading, Pi SDK and Pi CLI JSON trace normalization, case-level CLI golden parity comparison, deterministic scoring for routing and execution lanes, JSON-first reporting with optional HTML rendering, library-backed CLI commands for list/validate/test
 - **Planned next:** tiers, parity-aware tier computation, pilot onboarding
 
+## Divergent Experiments
+- **Evalite conformance** — an experimental branch, `experiment/evalite-conformance`, explores replacing this framework's orchestration, CLI, and report artifact with Evalite's `evalite()` + SQLite + UI. `skill.eval.ts` files on that branch call `evalite()` directly via a `defineSkillEval()` helper. This experiment is **not intended for merge**; it is a source-of-truth comparison to decide whether `arc-skill-eval` should migrate. The canonical model in this document continues to describe the `main` architecture. See [experimental/evalite-conformance.md](experimental/evalite-conformance.md).
+
 ---
 
 ## Domain Overview
