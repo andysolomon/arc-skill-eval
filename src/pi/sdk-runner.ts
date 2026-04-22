@@ -21,6 +21,7 @@ import type {
   LiveSmokeCase,
   ModelSelection,
   NormalizedSkillEvalContract,
+  ParityCase,
   RoutingCase,
 } from "../contracts/types.js";
 import { materializeFixture, type MaterializedFixture } from "../fixtures/index.js";
@@ -120,6 +121,7 @@ export function collectPiSdkRunnableCases(contract: NormalizedSkillEvalContract)
     ...contract.routing.adjacentNegative.map((definition) => toRoutingCase(contract, "routing-adjacent-negative", definition)),
     ...contract.routing.hardNegative.map((definition) => toRoutingCase(contract, "routing-hard-negative", definition)),
     ...contract.execution.map((definition) => toExecutionCase(contract, definition)),
+    ...contract.cliParity.map((definition) => toParityCase(contract, definition)),
     ...contract.liveSmoke.map((definition) => toLiveSmokeCase(contract, definition)),
   ];
 }
@@ -447,6 +449,21 @@ function toExecutionCase(
     contractModel: contract.model,
     definition,
   };
+}
+
+function toParityCase(
+  contract: NormalizedSkillEvalContract,
+  definition: ParityCase,
+) {
+  return {
+    kind: "cli-parity",
+    lane: "cli-parity",
+    caseId: definition.id,
+    prompt: definition.prompt,
+    skillName: contract.skill,
+    contractModel: contract.model,
+    definition,
+  } as const;
 }
 
 function toLiveSmokeCase(

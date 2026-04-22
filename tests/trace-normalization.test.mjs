@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  compareEvalTraceParity,
+  normalizePiCliJsonCaseRunResult,
   normalizePiSdkCaseRunResult,
   normalizePiSdkSkillRunResult,
 } from "../dist/index.js";
@@ -179,7 +181,7 @@ test("normalizePiSdkCaseRunResult produces a scorer-facing canonical trace with 
   assert.equal(trace.observations.skillReads[0].path, "skills/alpha/SKILL.md");
   assert.equal(trace.observations.externalCalls[0].target, "api.github.com");
   assert.equal(trace.raw.sessionId, "session-123");
-  assert.equal(trace.raw.sdkEvents.length, 1);
+  assert.equal(trace.raw.runtimeEvents.length, 1);
   assert.equal(trace.raw.telemetryEntries.length, 4);
 });
 
@@ -193,6 +195,117 @@ test("normalizePiSdkCaseRunResult falls back to empty observations when telemetr
   assert.deepEqual(trace.observations.writtenFiles, []);
   assert.deepEqual(trace.observations.editedFiles, []);
   assert.deepEqual(trace.raw.telemetryEntries, []);
+});
+
+test("normalizePiCliJsonCaseRunResult derives canonical observations from CLI JSON events", () => {
+  const trace = normalizePiCliJsonCaseRunResult({
+    source,
+    skill: {
+      name: "alpha",
+      relativeSkillDir: "skills/alpha",
+      profile: "planning",
+      targetTier: 1,
+    },
+    caseDefinition: {
+      caseId: "cli-parity-001",
+      kind: "cli-parity",
+      lane: "cli-parity",
+      prompt: "Plan the work.",
+      skillName: "alpha",
+      definition: { id: "cli-parity-001", prompt: "Plan the work." },
+    },
+    workspaceDir: "/tmp/workspace",
+    fixture: null,
+    model: {
+      provider: "openai-codex",
+      id: "gpt-5.4-mini",
+    },
+    startedAt: "2026-04-21T18:00:00.000Z",
+    finishedAt: "2026-04-21T18:00:02.500Z",
+    durationMs: 2500,
+    session: {
+      sessionId: "cli-session-123",
+      sessionFile: undefined,
+      assistantText: "DONE",
+      messages: [{ role: "assistant", content: [{ type: "text", text: "DONE" }] }],
+      events: [
+        {
+          type: "tool_call",
+          toolCallId: "call-read",
+          toolName: "read",
+          input: { path: "skills/alpha/SKILL.md" },
+        },
+        {
+          type: "tool_call",
+          toolCallId: "call-bash",
+          toolName: "bash",
+          input: { command: "curl https://api.github.com/repos/example/repo" },
+        },
+        {
+          type: "tool_result",
+          toolCallId: "call-write",
+          toolName: "write",
+          input: { path: "output.txt" },
+          isError: false,
+        },
+      ],
+      stderr: "",
+      exitCode: 0,
+    },
+    cleanup: async () => ({ fixture: null }),
+  });
+
+  assert.equal(trace.identity.runtime, "pi-cli-json");
+  assert.equal(trace.identity.case.kind, "cli-parity");
+  assert.equal(trace.observations.toolCalls.length, 2);
+  assert.deepEqual(trace.observations.writtenFiles, ["output.txt"]);
+  assert.equal(trace.observations.skillReads[0].skillName, "alpha");
+  assert.equal(trace.observations.externalCalls[0].target, "api.github.com");
+  assert.equal(trace.raw.runtimeEvents.length, 3);
+  assert.deepEqual(trace.raw.telemetryEntries, []);
+});
+
+test("compareEvalTraceParity compares semantic projections rather than runtime metadata", () => {
+  const sdkTrace = normalizePiSdkCaseRunResult(createCaseRunResult({
+    caseDefinition: {
+      caseId: "cli-parity-001",
+      kind: "cli-parity",
+      lane: "cli-parity",
+      prompt: "Plan the work.",
+      skillName: "alpha",
+      definition: { id: "cli-parity-001", prompt: "Plan the work." },
+    },
+  }));
+  const cliTrace = {
+    ...sdkTrace,
+    identity: {
+      ...sdkTrace.identity,
+      runtime: "pi-cli-json",
+    },
+    raw: {
+      ...sdkTrace.raw,
+      sessionId: "cli-session",
+      runtimeEvents: [{ type: "message_update" }],
+      telemetryEntries: [],
+    },
+  };
+
+  const matched = compareEvalTraceParity({ sdkTrace, cliTrace });
+  assert.equal(matched.matched, true);
+
+  const mismatched = compareEvalTraceParity({
+    sdkTrace,
+    cliTrace: {
+      ...cliTrace,
+      observations: {
+        ...cliTrace.observations,
+        assistantText: "DIFFERENT",
+      },
+    },
+  });
+
+  assert.equal(mismatched.matched, false);
+  assert.equal(mismatched.mismatches[0].path, "observations.assistantText");
 });
 
 test("normalizePiSdkSkillRunResult maps each case result into a canonical trace", () => {

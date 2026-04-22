@@ -42,7 +42,7 @@ export function normalizePiSdkCaseRunResult(result: PiSdkCaseRunResult): EvalTra
       sessionId: result.session.sessionId,
       sessionFile: result.session.sessionFile,
       messages: result.session.messages,
-      sdkEvents: result.session.events,
+      runtimeEvents: result.session.events,
       telemetryEntries: telemetry.entries,
     },
   };

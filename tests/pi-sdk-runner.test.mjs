@@ -30,7 +30,7 @@ const skillFiles = {
   evalDefinitionPath: path.join(process.cwd(), "tests/fixtures/valid-skill-repo/skills/alpha/skill.eval.ts"),
 };
 
-test("collectPiSdkRunnableCases flattens routing, execution, and live-smoke lanes only", () => {
+test("collectPiSdkRunnableCases flattens routing, execution, cli-parity, and live-smoke lanes", () => {
   const contract = normalizeSkillEvalContract({
     skill: "alpha",
     profile: "planning",
@@ -56,6 +56,7 @@ test("collectPiSdkRunnableCases flattens routing, execution, and live-smoke lane
       { id: "routing-negative-001", lane: "routing-adjacent-negative" },
       { id: "routing-hard-negative-001", lane: "routing-hard-negative" },
       { id: "execution-001", lane: "execution-deterministic" },
+      { id: "cli-parity-001", lane: "cli-parity" },
       { id: "live-smoke-001", lane: "live-smoke" },
     ],
   );

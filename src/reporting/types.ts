@@ -5,11 +5,13 @@ import type {
   DeterministicSkillScoreResult,
   DeterministicCaseScoreResult,
   ThresholdStatus,
+  ExecutionStatus,
 } from "../scorers/types.js";
 import type {
   EvalTrace,
   EvalTraceIdentity,
   EvalTraceObservations,
+  EvalTraceParityMismatch,
   EvalTraceTiming,
 } from "../traces/types.js";
 
@@ -17,6 +19,7 @@ export const ARC_SKILL_EVAL_REPORT_VERSION = "1";
 
 export type ArcSkillEvalReportStatus = "passed" | "warn" | "failed" | "partial";
 export type ReportIssueSeverity = "info" | "warn" | "error";
+export type ReportParityComparisonStatus = "matched" | "mismatched" | "runtime_failed";
 
 export interface ReportFrameworkInfo {
   name: "arc-skill-eval";
@@ -34,10 +37,10 @@ export interface ReportTraceRawSummary {
   sessionId: string;
   sessionFile: string | undefined;
   messageCount: number;
-  sdkEventCount: number;
+  runtimeEventCount: number;
   telemetryEntryCount: number;
   hasMessages: boolean;
-  hasSdkEvents: boolean;
+  hasRuntimeEvents: boolean;
   hasTelemetryEntries: boolean;
 }
 
@@ -82,11 +85,26 @@ export interface ReportUnscoredCaseEntry {
   caseId: string;
   kind: EvalTraceIdentity["case"]["kind"];
   lane: EvalTraceIdentity["case"]["lane"];
-  executionStatus: "completed" | "failed";
+  executionStatus: ExecutionStatus;
   status: "passed" | "failed";
   traceRef: string;
   model: EvalTraceIdentity["model"];
   reason: "not-deterministically-scored";
+}
+
+export interface ReportParityCaseEntry {
+  caseId: string;
+  kind: "cli-parity";
+  lane: "cli-parity";
+  status: "passed" | "failed";
+  comparisonStatus: ReportParityComparisonStatus;
+  sdkExecutionStatus: ExecutionStatus;
+  cliExecutionStatus: ExecutionStatus;
+  sdkTraceRef: string | null;
+  cliTraceRef: string | null;
+  sdkModel: EvalTraceIdentity["model"];
+  cliModel: EvalTraceIdentity["model"];
+  mismatches: EvalTraceParityMismatch[];
 }
 
 export interface ReportSkillEntry {
@@ -103,6 +121,7 @@ export interface ReportSkillEntry {
   lanes: DeterministicSkillScoreResult["lanes"];
   cases: ReportCaseEntry[];
   unscoredCases: ReportUnscoredCaseEntry[];
+  parityCases: ReportParityCaseEntry[];
 }
 
 export interface ReportInvalidSkillEntry {
@@ -122,6 +141,9 @@ export interface ReportSummary {
   passedCaseCount: number;
   failedCaseCount: number;
   unscoredCaseCount: number;
+  parityCaseCount: number;
+  passedParityCaseCount: number;
+  failedParityCaseCount: number;
   executedCaseCount: number;
   skillStatusCounts: Record<ArcSkillEvalReportStatus, number>;
   caseStatusCounts: {
@@ -147,7 +169,17 @@ export interface ArcSkillEvalJsonReport {
 
 export interface BuildReportUnscoredCaseInput {
   trace: EvalTrace;
-  executionStatus: "completed" | "failed";
+  executionStatus: ExecutionStatus;
+}
+
+export interface BuildReportParityCaseInput {
+  caseId: string;
+  sdkTrace: EvalTrace | null;
+  cliTrace: EvalTrace | null;
+  sdkExecutionStatus: ExecutionStatus;
+  cliExecutionStatus: ExecutionStatus;
+  comparisonStatus: ReportParityComparisonStatus;
+  mismatches: EvalTraceParityMismatch[];
 }
 
 export interface BuildReportSkillInput {
@@ -155,6 +187,7 @@ export interface BuildReportSkillInput {
   score: DeterministicSkillScoreResult;
   traces: EvalTrace[];
   unscoredCases?: BuildReportUnscoredCaseInput[];
+  parityCases?: BuildReportParityCaseInput[];
 }
 
 export interface BuildInvalidSkillInput {

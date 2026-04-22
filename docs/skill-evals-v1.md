@@ -145,6 +145,13 @@ Current implementation note:
 ### CLI Parity Runtime
 Pi CLI JSON mode is used for a **fixed golden subset** of cases.
 
+Current implementation notes:
+- declared `cliParity[]` cases run inside the existing `arc-skill-eval test` flow by default
+- each parity case executes once through Pi SDK and once through Pi CLI JSON mode in the same invocation
+- fixture-backed parity cases materialize separate fresh workspaces per runtime
+- parity compares a stable semantic projection of the normalized traces rather than transport metadata or raw payload equality
+- mismatches are reported at case level with paired SDK and CLI trace refs
+
 Purpose:
 - detect SDK/CLI drift
 - validate shipped CLI behavior
@@ -171,12 +178,12 @@ Telemetry includes signals such as:
 ## Canonical Trace Model
 Scorers must target a normalized trace shape rather than raw Pi events directly.
 
-Current v1 Pi SDK shape:
+Current v1 shape:
 
 ```ts
 type EvalTrace = {
   identity: {
-    runtime: "pi-sdk";
+    runtime: "pi-sdk" | "pi-cli-json";
     source: RepoSourceDescriptor;
     skill: {
       name: string;
@@ -186,13 +193,14 @@ type EvalTrace = {
     };
     case: {
       caseId: string;
-      kind: "routing" | "execution" | "live-smoke";
+      kind: "routing" | "execution" | "cli-parity" | "live-smoke";
       lane:
         | "routing-explicit"
         | "routing-implicit-positive"
         | "routing-adjacent-negative"
         | "routing-hard-negative"
         | "execution-deterministic"
+        | "cli-parity"
         | "live-smoke";
       prompt: string;
     };
@@ -218,7 +226,7 @@ type EvalTrace = {
     sessionId: string;
     sessionFile?: string;
     messages: unknown[];
-    sdkEvents: unknown[];
+    runtimeEvents: unknown[];
     telemetryEntries: unknown[];
   };
 };
@@ -305,6 +313,10 @@ Per-skill thresholds may include:
 - routing score
 - execution score
 - parity score
+
+Current implementation note:
+- routing and deterministic execution thresholds are implemented now
+- CLI parity currently remains a case-level drift signal rather than a weighted thresholded score lane
 
 ---
 
@@ -501,13 +513,14 @@ arc-skill-eval validate <repo-or-path>
 arc-skill-eval test <repo-or-path>
 arc-skill-eval test <repo-or-path> --skill arc-planning-work
 arc-skill-eval test <repo-or-path> --skill arc-planning-work --case routing-explicit-001
+arc-skill-eval test <repo-or-path> --skill arc-planning-work --case cli-parity-001
 ```
 
 Current implementation notes:
 - all commands accept the same `<repo-or-path>` input and resolve local paths before git references
 - `--skill <name>` is repeatable on `list`, `validate`, and `test`
 - `--case <id>` is repeatable on `test`
-- `test` runs deterministic lanes by default and requires `--include-live-smoke` to execute live-smoke cases
+- `test` runs deterministic lanes plus declared `cliParity[]` cases by default and requires `--include-live-smoke` to execute live-smoke cases
 - `test` writes canonical `report.json` by default and optionally writes `report.html` with `--html`
 - default stdout is human-readable; `--json` prints the canonical command payload directly
 - exit codes stay simple: `0` for success, `1` for invalid selections, invalid skills, failed test results, or command/runtime errors
