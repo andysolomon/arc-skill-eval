@@ -178,6 +178,62 @@ export interface GradingJson {
 
 export type EvalRunVariant = "with_skill" | "without_skill";
 
+export interface BenchmarkJson {
+  benchmark_version: "1";
+  run_id: string;
+  skill_name: string;
+  generated_at: string;
+  summary: BenchmarkSummary;
+  cases: BenchmarkCaseResult[];
+  errors: BenchmarkCaseError[];
+  metadata?: BenchmarkMetadata;
+}
+
+export interface BenchmarkSummary {
+  total_cases: number;
+  errored_cases: number;
+  cases_with_delta: number;
+  with_skill_pass_rate: number | null;
+  without_skill_pass_rate: number | null;
+  delta: number | null;
+}
+
+export interface BenchmarkVariantSummary {
+  passed: number;
+  failed: number;
+  total: number;
+  pass_rate: number | null;
+}
+
+export interface BenchmarkCaseResult {
+  case_id: EvalCaseId;
+  with_skill: BenchmarkVariantSummary;
+  without_skill: BenchmarkVariantSummary;
+  delta: number | null;
+}
+
+export interface BenchmarkCaseError {
+  case_id: EvalCaseId;
+  message: string;
+}
+
+export interface BenchmarkMetadata {
+  runtime: "pi";
+  extensions: {
+    artifact_root: string;
+    variants: EvalRunVariant[];
+    case_artifacts: Record<EvalCaseId, Partial<Record<EvalRunVariant, BenchmarkVariantArtifacts>>>;
+  };
+}
+
+export interface BenchmarkVariantArtifacts {
+  outputs_dir: string;
+  timing_path: string;
+  grading_path: string;
+  total_tokens: number;
+  duration_ms: number;
+}
+
 /** Shape of `timing.json` emitted per run. */
 export interface TimingJson {
   total_tokens: number;

@@ -104,7 +104,7 @@ A case-level aggregate that points at both variant grading outputs and computes:
 - runtime or grading errors per variant
 
 ### Benchmark JSON (`benchmark.json`)
-A planned run-level aggregate over all cases in a skill. It should answer the product question: “does this skill improve results?” Keep the core artifact Anthropic-compatible: per-case results, overall pass rates, overall delta, and error summaries. Put Pi-specific trace refs, token counts, model info, and artifact paths under a metadata/extensions section so the artifact remains portable while preserving debugging detail.
+An opt-in `--compare` run-level aggregate over all cases in a skill. It answers the product question: “does this skill improve results?” The core artifact stays Anthropic-compatible: per-case results, overall pass rates, overall delta, and error summaries. Pi-specific artifact paths, token counts, and timings live under `metadata.extensions` so the artifact remains portable while preserving debugging detail. Single-run mode does not emit `benchmark.json` yet.
 
 ### Iteration Workspace
 A durable grouping for repeated eval cycles, e.g. `iteration-1/`, `iteration-2/`. In the initial implementation, iterations are runner artifacts only: they group outputs without proposing or applying `SKILL.md` edits. Iterations should keep prior artifacts immutable and may optionally include the evaluated `SKILL.md` snapshot. Generated feedback or improvement proposals can layer on later.
