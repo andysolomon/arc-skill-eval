@@ -118,8 +118,20 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
     });
 
     const timing: TimingJson = {
-      total_tokens: sumAssistantTokens(piResult.session.messages),
+      total_tokens: piResult.usage.totalTokens,
       duration_ms: piResult.durationMs,
+      model: piResult.usage.model,
+      thinking_level: piResult.usage.thinkingLevel,
+      token_usage: {
+        input_tokens: piResult.usage.inputTokens,
+        output_tokens: piResult.usage.outputTokens,
+        cache_read_tokens: piResult.usage.cacheReadTokens,
+        cache_write_tokens: piResult.usage.cacheWriteTokens,
+        total_tokens: piResult.usage.totalTokens,
+      },
+      estimated_cost_usd: piResult.usage.estimatedCostUsd,
+      context_window_tokens: piResult.usage.contextWindowTokens,
+      context_window_used_percent: piResult.usage.contextWindowUsedPercent,
     };
     const trace = normalizePiSdkCaseRunResult(piResult);
 
@@ -318,31 +330,3 @@ function buildSourceDescriptor(skill: DiscoveredEvalSkill): RepoSourceDescriptor
   };
 }
 
-function sumAssistantTokens(messages: unknown[]): number {
-  let total = 0;
-
-  for (const message of messages) {
-    if (!isAssistantMessageWithUsage(message)) continue;
-    const usage = message.usage;
-    total += numericField(usage, "input");
-    total += numericField(usage, "output");
-    total += numericField(usage, "cacheRead");
-    total += numericField(usage, "cacheWrite");
-  }
-
-  return total;
-}
-
-function isAssistantMessageWithUsage(
-  value: unknown,
-): value is { role: "assistant"; usage: Record<string, unknown> } {
-  if (typeof value !== "object" || value === null) return false;
-  const record = value as Record<string, unknown>;
-  if (record.role !== "assistant") return false;
-  return typeof record.usage === "object" && record.usage !== null;
-}
-
-function numericField(source: Record<string, unknown>, key: string): number {
-  const raw = source[key];
-  return typeof raw === "number" && Number.isFinite(raw) ? raw : 0;
-}

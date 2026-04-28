@@ -67,7 +67,7 @@ The slim MVP is complete: discovery, loading/validation, workspace setup, Pi exe
 - [x] Define `BenchmarkJson` TypeScript types.
 - [x] Aggregate per-case `with_skill` / `without_skill` grading summaries.
 - [x] Include an Anthropic-compatible core with totals, pass rates, deltas, and failures.
-- [x] Include Pi-specific token counts, timings, and artifact paths under a metadata/extensions section.
+- [x] Include Pi-specific token counts, timings, model/thinking metadata, estimated cost, context usage, assistant response paths, and artifact paths under a metadata/extensions section.
 - [x] Write `benchmark.json` at the run root for `--compare` runs only.
 - [x] Add JSON shape tests.
 
@@ -109,6 +109,7 @@ The slim MVP is complete: discovery, loading/validation, workspace setup, Pi exe
 
 **Work items**
 - Ensure each pilot skill has meaningful `evals/evals.json` coverage.
+- Use `assistant.md` plus model/token/cost/context timing metadata to explain pilot pass/fail deltas.
 - Add or tighten fixtures for repo-mutation cases.
 - Identify any live API requirements and gate them explicitly.
 - Run the pilot cohort with dual-run + benchmark aggregation once P1/P2 are available.

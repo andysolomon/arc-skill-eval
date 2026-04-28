@@ -3,6 +3,7 @@ import type {
   LiveSmokeCase,
   ModelSelection,
   NormalizedSkillEvalContract,
+  ThinkingLevel,
   ParityCase,
   RoutingCase,
 } from "../contracts/types.js";
@@ -188,6 +189,19 @@ export interface PiSessionTelemetrySnapshot {
   externalCalls: PiSessionTelemetryExternalCall[];
 }
 
+export interface PiSdkUsageMetrics {
+  model: ModelSelection | null;
+  thinkingLevel: ThinkingLevel | null;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
+  contextWindowTokens: number | null;
+  contextWindowUsedPercent: number | null;
+}
+
 export interface PiSdkSessionArtifact {
   sessionId: string;
   sessionFile: string | undefined;
@@ -227,6 +241,7 @@ export interface PiSdkCaseRunResult {
   finishedAt: string;
   durationMs: number;
   session: PiSdkSessionArtifact;
+  usage: PiSdkUsageMetrics;
   telemetry: PiSessionTelemetrySnapshot | null;
   cleanup: () => Promise<PiSdkCaseCleanupResult>;
 }

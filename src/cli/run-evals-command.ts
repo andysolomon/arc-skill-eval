@@ -49,6 +49,7 @@ export interface RunEvalsCommandOptions {
 
 export interface VariantRunArtifacts {
   variant: EvalRunVariant;
+  assistantPath: string;
   outputsDir: string;
   timingPath: string;
   gradingPath: string;
@@ -263,17 +264,20 @@ async function runOneCaseVariant(args: {
       judgeModel: args.judgeModel,
     });
 
+    const assistantPath = path.join(args.variantDir, "assistant.md");
     const outputsDir = path.join(args.variantDir, "outputs");
     const timingPath = path.join(args.variantDir, "timing.json");
     const gradingPath = path.join(args.variantDir, "grading.json");
 
     await mkdir(outputsDir, { recursive: true });
+    await writeFile(assistantPath, formatAssistantArtifact(run.assistantText), "utf-8");
     await cp(run.workspaceDir, outputsDir, { recursive: true, force: true });
     await writeFile(timingPath, `${JSON.stringify(run.timing, null, 2)}\n`, "utf-8");
     await writeFile(gradingPath, `${JSON.stringify(grading, null, 2)}\n`, "utf-8");
 
     return {
       variant: args.variant,
+      assistantPath,
       outputsDir,
       timingPath,
       gradingPath,
@@ -283,6 +287,10 @@ async function runOneCaseVariant(args: {
   } finally {
     await run.cleanup().catch(() => undefined);
   }
+}
+
+function formatAssistantArtifact(assistantText: string): string {
+  return assistantText.endsWith("\n") ? assistantText : `${assistantText}\n`;
 }
 
 function compareVariantPassRates(withSkill: GradingJson, withoutSkill: GradingJson): CaseRunComparison {
@@ -384,11 +392,17 @@ function toBenchmarkVariantSummary(artifacts: GradingJson): BenchmarkVariantSumm
 
 function toBenchmarkVariantArtifacts(artifacts: VariantRunArtifacts): BenchmarkVariantArtifacts {
   return {
+    assistant_path: artifacts.assistantPath,
     outputs_dir: artifacts.outputsDir,
     timing_path: artifacts.timingPath,
     grading_path: artifacts.gradingPath,
     total_tokens: artifacts.timing.total_tokens,
     duration_ms: artifacts.timing.duration_ms,
+    model: artifacts.timing.model,
+    thinking_level: artifacts.timing.thinking_level,
+    estimated_cost_usd: artifacts.timing.estimated_cost_usd,
+    context_window_tokens: artifacts.timing.context_window_tokens,
+    context_window_used_percent: artifacts.timing.context_window_used_percent,
   };
 }
 

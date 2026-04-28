@@ -9,8 +9,9 @@ Given a skill that ships `SKILL.md` and a sibling `evals/evals.json`, `arc-skill
 2. materializes each case's optional `files/` into a temp workspace.
 3. runs the case through the Pi SDK with the skill attached.
 4. grades the outputs — string assertions via an LLM-judge, `file-exists` / `regex-match` / `json-valid` via deterministic scripts.
-5. writes per-case `outputs/` + `timing.json` + `grading.json` under `<skill>/evals-runs/<runId>/`.
-6. optionally compares each case against a no-skill baseline with `--compare`.
+5. writes per-case `assistant.md` + `outputs/` + `timing.json` + `grading.json` under `<skill>/evals-runs/<runId>/`.
+6. tracks model, thinking level, token usage, estimated cost, context-window size, and context percentage used.
+7. optionally compares each case against a no-skill baseline with `--compare`.
 
 Assertion grading follows the guidance in [Anthropic's eval-skills methodology](https://platform.claude.com/docs/en/agents-and-tools/agent-skills) and the inspiration from [OpenAI's eval-skills blog post](https://developers.openai.com/blog/eval-skills).
 
@@ -93,8 +94,9 @@ For each default single-variant run:
 ```
 <skillDir>/evals-runs/<runId>/
 ├── eval-<case-id>/
+│   ├── assistant.md          # final assistant response text
 │   ├── outputs/              # files produced by the run
-│   ├── timing.json           # { total_tokens, duration_ms }
+│   ├── timing.json           # duration, model, thinking, token/cost/context metrics
 │   └── grading.json          # per-assertion passed + evidence
 ```
 
@@ -107,13 +109,36 @@ With `--compare`, each case writes isolated variant artifacts and the skill run 
 ├── benchmark.json            # with_skill vs without_skill aggregate
 ├── eval-<case-id>/
 │   ├── with_skill/
+│   │   ├── assistant.md
 │   │   ├── outputs/
 │   │   ├── timing.json
 │   │   └── grading.json
 │   └── without_skill/
+│       ├── assistant.md
 │       ├── outputs/
 │       ├── timing.json
 │       └── grading.json
+```
+
+`timing.json` includes runner observability:
+
+```json
+{
+  "total_tokens": 12345,
+  "duration_ms": 50123,
+  "model": { "provider": "anthropic", "id": "claude-opus-4-5", "thinking": "medium" },
+  "thinking_level": "medium",
+  "token_usage": {
+    "input_tokens": 10000,
+    "output_tokens": 2000,
+    "cache_read_tokens": 300,
+    "cache_write_tokens": 45,
+    "total_tokens": 12345
+  },
+  "estimated_cost_usd": 0.1234,
+  "context_window_tokens": 200000,
+  "context_window_used_percent": 6.2
+}
 ```
 
 `grading.json` per the Anthropic format:
