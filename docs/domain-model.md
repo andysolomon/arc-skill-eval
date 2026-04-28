@@ -28,6 +28,16 @@ GradingJson ({ assertion_results, summary })
 <skillDir>/evals-runs/<runId>/eval-<id>/{outputs, timing.json, grading.json}
 ```
 
+Planned opt-in post-MVP pipeline extension:
+
+```text
+EvalCase
+  ├── with_skill     → runEvalCase → gradeEvalCase → with_skill/grading.json
+  └── without_skill  → runEvalCase → gradeEvalCase → without_skill/grading.json
+          ↓ aggregate
+benchmark.json ({ per-case pass rates, skill deltas, timing/token summaries })
+```
+
 ## Core entities
 
 ### Discovered Eval Skill (`src/evals/discover.ts`)
@@ -75,6 +85,31 @@ Discriminated union:
 
 ### Grading Output (`grading.json`, `timing.json`)
 Per Anthropic's shape. `grading.json`: `assertion_results[]` with `text`, `passed`, `evidence`, and the originating `assertion`; plus a `summary` block. `timing.json`: `{ total_tokens, duration_ms }`.
+
+## Planned post-MVP entities
+
+These entities are not implemented yet, but define the roadmap shape for dual-run and iteration support.
+
+### Run Variant
+A run variant is the execution strategy for one eval case. Single-run remains the default execution mode; variant comparison starts as an opt-in mode. The first planned variants are:
+- **`with_skill`** — current behavior: run through Pi with the target skill attached.
+- **`without_skill`** — baseline behavior: run the same prompt/model/workspace setup without attaching the target skill.
+
+Both variants should materialize equivalent fresh workspaces before execution so pass-rate deltas reflect skill value rather than workspace contamination.
+
+### Case Benchmark Result
+A case-level aggregate that points at both variant grading outputs and computes:
+- `with_skill` pass rate
+- `without_skill` pass rate
+- delta = `with_skill.pass_rate - without_skill.pass_rate`
+- timing/token summaries per variant
+- runtime or grading errors per variant
+
+### Benchmark JSON (`benchmark.json`)
+A run-level aggregate over all cases in a skill. It should answer the product question: “does this skill improve results?” Keep the core artifact Anthropic-compatible: per-case results, overall pass rates, overall delta, and error summaries. Put Pi-specific trace refs, token counts, model info, and artifact paths under a metadata/extensions section so the artifact remains portable while preserving debugging detail.
+
+### Iteration Workspace
+A durable grouping for repeated eval cycles, e.g. `iteration-1/`, `iteration-2/`. In the initial implementation, iterations are runner artifacts only: they group outputs without proposing or applying `SKILL.md` edits. Iterations should keep prior artifacts immutable and may optionally include the evaluated `SKILL.md` snapshot. Generated feedback or improvement proposals can layer on later.
 
 ## Runtime adapters (kept from pre-pivot)
 - **`src/pi/`** — Pi SDK runner + CLI JSON runner. `runPiSdkCase` is what the case runner wraps internally.
