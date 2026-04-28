@@ -57,6 +57,9 @@ function createInjectedSession(assistantText) {
     sessionId: "session-test",
     sessionFile: undefined,
     messages: [createAssistantMessage(assistantText)],
+    model: { provider: "mock", id: "mock-model", contextWindow: 1000 },
+    thinkingLevel: "medium",
+    getContextUsage: () => ({ contextWindow: 1000, percent: 1.2 }),
     subscribe(listener) {
       state.listener = listener;
       return () => {
@@ -123,7 +126,38 @@ test("runEvalsCommand runs every case, writes per-case artifacts, aggregates pas
 
       const timing = JSON.parse(await readFile(caseArt.timingPath, "utf8"));
       assert.equal(timing.total_tokens, 12);
+      assert.deepEqual(timing.token_usage, {
+        input_tokens: 5,
+        output_tokens: 7,
+        cache_read_tokens: 0,
+        cache_write_tokens: 0,
+        total_tokens: 12,
+      });
+      assert.deepEqual(timing.model, { provider: "mock", id: "mock-model", thinking: "medium" });
+      assert.equal(timing.thinking_level, "medium");
+      assert.equal(timing.estimated_cost_usd, 0);
+      assert.equal(timing.context_window_tokens, 1000);
+      assert.equal(timing.context_window_used_percent, 1.2);
       assert.ok(timing.duration_ms >= 0);
+
+      assert.equal(await readFile(caseArt.assistantPath, "utf8"), `${caseArt.caseId === "1" ? "Say hello." : "Say goodbye."}\n`);
+
+      const trace = JSON.parse(await readFile(caseArt.tracePath, "utf8"));
+      assert.equal(trace.identity.runtime, "pi-sdk");
+      assert.equal(trace.observations.assistantText, caseArt.caseId === "1" ? "Say hello." : "Say goodbye.");
+
+      const toolSummary = JSON.parse(await readFile(caseArt.toolSummaryPath, "utf8"));
+      assert.equal(toolSummary.tool_call_count, 0);
+      assert.equal(toolSummary.mcp_tool_call_count, 0);
+
+      const contextManifest = JSON.parse(await readFile(caseArt.contextManifestPath, "utf8"));
+      assert.equal(contextManifest.runtime, "pi");
+      assert.equal(contextManifest.mode, "isolated");
+      assert.deepEqual(contextManifest.attached_skills, [
+        { name: "sample", path: path.join(skillDir, "SKILL.md"), role: "target" },
+      ]);
+      assert.equal(contextManifest.ambient.extensions, false);
+      assert.ok(contextManifest.available_tools.some((tool) => tool.name === "bash" && tool.source === "builtin"));
 
       assert.ok(caseArt.outputsDir.startsWith(skillDir));
       assert.ok(caseArt.outputsDir.includes("run-fixed"));
@@ -228,6 +262,23 @@ test("runEvalsCommand compare mode writes with_skill and without_skill variant a
     assert.equal(benchmark.metadata.extensions.variants[0], "with_skill");
     assert.ok(benchmark.metadata.extensions.artifact_root.endsWith("iteration-baseline/run-compare"));
     assert.ok(benchmark.metadata.extensions.case_artifacts.compare.with_skill.grading_path.endsWith("with_skill/grading.json"));
+    assert.ok(benchmark.metadata.extensions.case_artifacts.compare.with_skill.assistant_path.endsWith("with_skill/assistant.md"));
+    assert.ok(benchmark.metadata.extensions.case_artifacts.compare.with_skill.trace_path.endsWith("with_skill/trace.json"));
+    assert.ok(benchmark.metadata.extensions.case_artifacts.compare.with_skill.tool_summary_path.endsWith("with_skill/tool-summary.json"));
+    assert.ok(benchmark.metadata.extensions.case_artifacts.compare.with_skill.context_manifest_path.endsWith("with_skill/context-manifest.json"));
+    assert.equal(benchmark.metadata.extensions.case_artifacts.compare.with_skill.total_tokens, 12);
+    assert.equal(benchmark.metadata.extensions.case_artifacts.compare.with_skill.estimated_cost_usd, 0);
+    assert.equal(benchmark.metadata.extensions.case_artifacts.compare.with_skill.context_window_tokens, 1000);
+    assert.equal(benchmark.metadata.extensions.case_artifacts.compare.with_skill.context_window_used_percent, 1.2);
+    assert.deepEqual(benchmark.metadata.extensions.case_artifacts.compare.with_skill.model, { provider: "mock", id: "mock-model", thinking: "medium" });
+    assert.equal(benchmark.metadata.extensions.case_artifacts.compare.with_skill.thinking_level, "medium");
+    assert.equal(benchmark.metadata.extensions.case_artifacts.compare.with_skill.tool_call_count, 0);
+    assert.equal(benchmark.metadata.extensions.case_artifacts.compare.with_skill.tool_error_count, 0);
+    assert.equal(benchmark.metadata.extensions.case_artifacts.compare.with_skill.mcp_tool_call_count, 0);
+    assert.deepEqual(benchmark.metadata.extensions.case_artifacts.compare.with_skill.attached_skills, [
+      { name: "sample", path: path.join(skillDir, "SKILL.md"), role: "target" },
+    ]);
+    assert.deepEqual(benchmark.metadata.extensions.case_artifacts.compare.with_skill.mcp_tools, []);
 
     assert.equal(
       await readFile(path.join(caseArt.variants.with_skill.outputsDir, "variant.txt"), "utf8"),
@@ -237,6 +288,9 @@ test("runEvalsCommand compare mode writes with_skill and without_skill variant a
       await readFile(path.join(caseArt.variants.without_skill.outputsDir, "variant.txt"), "utf8"),
       "without",
     );
+
+    assert.equal(await readFile(caseArt.variants.with_skill.assistantPath, "utf8"), "success\n");
+    assert.equal(await readFile(caseArt.variants.without_skill.assistantPath, "utf8"), "baseline\n");
 
     const withGrading = JSON.parse(await readFile(caseArt.variants.with_skill.gradingPath, "utf8"));
     const withoutGrading = JSON.parse(await readFile(caseArt.variants.without_skill.gradingPath, "utf8"));

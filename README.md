@@ -9,8 +9,10 @@ Given a skill that ships `SKILL.md` and a sibling `evals/evals.json`, `arc-skill
 2. materializes each case's optional `files/` into a temp workspace.
 3. runs the case through the Pi SDK with the skill attached.
 4. grades the outputs — string assertions via an LLM-judge, `file-exists` / `regex-match` / `json-valid` via deterministic scripts.
-5. writes per-case `outputs/` + `timing.json` + `grading.json` under `<skill>/evals-runs/<runId>/`.
-6. optionally compares each case against a no-skill baseline with `--compare`.
+5. writes per-case `assistant.md` + `outputs/` + `timing.json` + `grading.json` + observability artifacts under `<skill>/evals-runs/<runId>/`.
+6. tracks model, thinking level, token usage, estimated cost, context-window size, and context percentage used.
+7. records tool-call counts, skill reads, external calls, MCP-looking tool calls, and the context/tool manifest exposed to the model.
+8. optionally compares each case against a no-skill baseline with `--compare`.
 
 Assertion grading follows the guidance in [Anthropic's eval-skills methodology](https://platform.claude.com/docs/en/agents-and-tools/agent-skills) and the inspiration from [OpenAI's eval-skills blog post](https://developers.openai.com/blog/eval-skills).
 
@@ -93,9 +95,13 @@ For each default single-variant run:
 ```
 <skillDir>/evals-runs/<runId>/
 ├── eval-<case-id>/
+│   ├── assistant.md          # final assistant response text
 │   ├── outputs/              # files produced by the run
-│   ├── timing.json           # { total_tokens, duration_ms }
-│   └── grading.json          # per-assertion passed + evidence
+│   ├── timing.json           # duration, model, thinking, token/cost/context metrics
+│   ├── grading.json          # per-assertion passed + evidence
+│   ├── trace.json            # normalized runtime trace + raw telemetry refs
+│   ├── tool-summary.json     # tool calls, errors, skill reads, external/MCP activity
+│   └── context-manifest.json # skills/tools/context exposed to the model
 ```
 
 Use `--iteration <name>` to group artifacts under `<skillDir>/evals-runs/iteration-<name>/<runId>/`; for example `--iteration 1` writes to `iteration-1/<runId>/`.
@@ -107,13 +113,71 @@ With `--compare`, each case writes isolated variant artifacts and the skill run 
 ├── benchmark.json            # with_skill vs without_skill aggregate
 ├── eval-<case-id>/
 │   ├── with_skill/
+│   │   ├── assistant.md
 │   │   ├── outputs/
 │   │   ├── timing.json
-│   │   └── grading.json
+│   │   ├── grading.json
+│   │   ├── trace.json
+│   │   ├── tool-summary.json
+│   │   └── context-manifest.json
 │   └── without_skill/
+│       ├── assistant.md
 │       ├── outputs/
 │       ├── timing.json
-│       └── grading.json
+│       ├── grading.json
+│       ├── trace.json
+│       ├── tool-summary.json
+│       └── context-manifest.json
+```
+
+`timing.json` includes runner observability:
+
+```json
+{
+  "total_tokens": 12345,
+  "duration_ms": 50123,
+  "model": { "provider": "anthropic", "id": "claude-opus-4-5", "thinking": "medium" },
+  "thinking_level": "medium",
+  "token_usage": {
+    "input_tokens": 10000,
+    "output_tokens": 2000,
+    "cache_read_tokens": 300,
+    "cache_write_tokens": 45,
+    "total_tokens": 12345
+  },
+  "estimated_cost_usd": 0.1234,
+  "context_window_tokens": 200000,
+  "context_window_used_percent": 6.2
+}
+```
+
+`tool-summary.json` highlights behavior-level observability:
+
+```json
+{
+  "tool_call_count": 8,
+  "tool_error_count": 0,
+  "tool_calls_by_name": { "read": 2, "bash": 3, "write": 2, "edit": 1 },
+  "skill_read_count": 1,
+  "skill_reads_by_name": { "arc-conventional-commits": 1 },
+  "external_call_count": 0,
+  "mcp_tool_call_count": 0
+}
+```
+
+`context-manifest.json` records the run loadout so skill/tool conflicts can be diagnosed:
+
+```json
+{
+  "runtime": "pi",
+  "mode": "isolated",
+  "attached_skills": [{ "name": "arc-conventional-commits", "path": ".../SKILL.md", "role": "target" }],
+  "available_tools": [{ "name": "bash", "source": "builtin" }],
+  "active_tools": ["read", "bash", "edit", "write"],
+  "mcp_tools": [],
+  "mcp_servers": [],
+  "ambient": { "extensions": false, "skills": false, "prompt_templates": false, "themes": false, "context_files": false }
+}
 ```
 
 `grading.json` per the Anthropic format:

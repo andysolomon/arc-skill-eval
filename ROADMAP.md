@@ -2,7 +2,7 @@
 
 ## Current direction
 
-`arc-skill-eval` has pivoted to the Anthropic skill-eval shape: skills ship `SKILL.md` plus adjacent `evals/evals.json`, cases run through Pi with the skill attached, and assertions produce per-case `grading.json` + `timing.json` artifacts.
+`arc-skill-eval` has pivoted to the Anthropic skill-eval shape: skills ship `SKILL.md` plus adjacent `evals/evals.json`, cases run through Pi with the skill attached, and assertions produce per-case `grading.json` + `timing.json` + observability artifacts.
 
 The slim MVP is complete: discovery, loading/validation, workspace setup, Pi execution, grading, CLI run command, and the bundled `arc-creating-evals` authoring skill are in place.
 
@@ -67,7 +67,7 @@ The slim MVP is complete: discovery, loading/validation, workspace setup, Pi exe
 - [x] Define `BenchmarkJson` TypeScript types.
 - [x] Aggregate per-case `with_skill` / `without_skill` grading summaries.
 - [x] Include an Anthropic-compatible core with totals, pass rates, deltas, and failures.
-- [x] Include Pi-specific token counts, timings, and artifact paths under a metadata/extensions section.
+- [x] Include Pi-specific token counts, timings, model/thinking metadata, estimated cost, context usage, assistant response paths, trace/tool/context paths, tool-call counts, MCP-looking tool counts, and artifact paths under a metadata/extensions section.
 - [x] Write `benchmark.json` at the run root for `--compare` runs only.
 - [x] Add JSON shape tests.
 
@@ -109,6 +109,7 @@ The slim MVP is complete: discovery, loading/validation, workspace setup, Pi exe
 
 **Work items**
 - Ensure each pilot skill has meaningful `evals/evals.json` coverage.
+- Use `assistant.md`, `trace.json`, `tool-summary.json`, `context-manifest.json`, and model/token/cost/context timing metadata to explain pilot pass/fail deltas.
 - Add or tighten fixtures for repo-mutation cases.
 - Identify any live API requirements and gate them explicitly.
 - Run the pilot cohort with dual-run + benchmark aggregation once P1/P2 are available.
@@ -147,6 +148,6 @@ The slim MVP is complete: discovery, loading/validation, workspace setup, Pi exe
 ## Open design questions
 
 1. **Resolved:** single-run remains the default; dual-run starts as opt-in behind a flag.
-2. **Resolved:** `benchmark.json` should keep an Anthropic-compatible core and put Pi-specific trace refs, token counts, model info, and artifact paths under metadata/extensions.
+2. **Resolved:** `benchmark.json` should keep an Anthropic-compatible core and put Pi-specific trace refs, tool/context refs, token counts, model info, and artifact paths under metadata/extensions.
 3. **Resolved:** iteration workspaces are runner artifacts only at first; no automatic `SKILL.md` improvement loop in the initial implementation.
 4. **Resolved:** pilot `arc-conventional-commits` first, then `arc-creating-evals`, then `arc-linear-issue-creator`.

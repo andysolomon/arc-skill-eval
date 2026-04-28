@@ -30,7 +30,7 @@ export function formatRunEvalsResult(result: RunEvalsCommandResult, options: Cli
       const comparison = caseArt.comparison
         ? `, delta ${formatSignedFractionPercent(caseArt.comparison.delta)}`
         : "";
-      lines.push(`  [${verdict}] ${caseArt.caseId}: ${s.passed}/${s.total} assertions (${caseArt.timing.duration_ms}ms${comparison})`);
+      lines.push(`  [${verdict}] ${caseArt.caseId}: ${s.passed}/${s.total} assertions (${formatTimingSummary(caseArt.timing)}, ${formatToolSummary(caseArt.toolSummary)}${comparison})`);
     }
     for (const err of skill.errors) {
       lines.push(`  [ERROR] ${err.caseId}: ${err.message}`);
@@ -38,6 +38,39 @@ export function formatRunEvalsResult(result: RunEvalsCommandResult, options: Cli
   }
 
   return `${lines.join("\n")}\n`;
+}
+
+function formatTimingSummary(timing: { duration_ms: number; total_tokens: number; estimated_cost_usd?: number; context_window_used_percent?: number | null; model?: { provider: string; id: string } | null; thinking_level?: string | null }): string {
+  const parts = [`${timing.duration_ms}ms`, `${timing.total_tokens} tokens`];
+  if (typeof timing.estimated_cost_usd === "number") {
+    parts.push(`$${timing.estimated_cost_usd.toFixed(4)}`);
+  }
+  if (timing.context_window_used_percent !== undefined) {
+    parts.push(`ctx ${formatPercentValue(timing.context_window_used_percent)}`);
+  }
+  if (timing.model) {
+    const thinking = timing.thinking_level ? `, thinking ${timing.thinking_level}` : "";
+    parts.push(`${timing.model.provider}/${timing.model.id}${thinking}`);
+  }
+  return parts.join(", ");
+}
+
+function formatToolSummary(toolSummary: { tool_call_count: number; tool_error_count: number; skill_read_count: number; mcp_tool_call_count: number }): string {
+  const parts = [`tools ${toolSummary.tool_call_count}`];
+  if (toolSummary.tool_error_count > 0) {
+    parts.push(`${toolSummary.tool_error_count} errors`);
+  }
+  if (toolSummary.skill_read_count > 0) {
+    parts.push(`skill reads ${toolSummary.skill_read_count}`);
+  }
+  if (toolSummary.mcp_tool_call_count > 0) {
+    parts.push(`mcp ${toolSummary.mcp_tool_call_count}`);
+  }
+  return parts.join(", ");
+}
+
+function formatPercentValue(value: number | null): string {
+  return value === null ? "n/a" : `${value.toFixed(1)}%`;
 }
 
 function formatFractionPercent(value: number | null): string {

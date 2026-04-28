@@ -55,7 +55,14 @@ function createAssistantMessage(delta, usageOverrides = {}) {
   };
 }
 
-function createInjectedSession({ onPrompt, assistantText = "ok", extraMessages = [] } = {}) {
+function createInjectedSession({
+  onPrompt,
+  assistantText = "ok",
+  extraMessages = [],
+  model = { provider: "mock", id: "mock-model", contextWindow: 1000 },
+  thinkingLevel = "low",
+  contextUsage = { contextWindow: 1000, percent: 3.8 },
+} = {}) {
   const sessionState = {
     listener: () => {},
   };
@@ -64,6 +71,9 @@ function createInjectedSession({ onPrompt, assistantText = "ok", extraMessages =
     sessionId: "session-test",
     sessionFile: undefined,
     messages: extraMessages,
+    model,
+    thinkingLevel,
+    getContextUsage: () => contextUsage,
     subscribe(listener) {
       sessionState.listener = listener;
       return () => {
@@ -120,9 +130,28 @@ test("runEvalCase returns assistantText + timing when case has no files", async 
       await access(result.workspaceDir, fsConstants.F_OK);
       // 10 + 20 + 5 + 3 = 38
       assert.equal(result.timing.total_tokens, 38);
+      assert.deepEqual(result.timing.token_usage, {
+        input_tokens: 10,
+        output_tokens: 20,
+        cache_read_tokens: 5,
+        cache_write_tokens: 3,
+        total_tokens: 38,
+      });
+      assert.deepEqual(result.timing.model, { provider: "mock", id: "mock-model", thinking: "low" });
+      assert.equal(result.timing.thinking_level, "low");
+      assert.equal(result.timing.estimated_cost_usd, 0);
+      assert.equal(result.timing.context_window_tokens, 1000);
+      assert.equal(result.timing.context_window_used_percent, 3.8);
       assert.ok(result.timing.duration_ms >= 0);
       assert.equal(result.trace.identity.runtime, "pi-sdk");
       assert.equal(result.trace.observations.assistantText, "hello there");
+      assert.equal(result.contextManifest.runtime, "pi");
+      assert.equal(result.contextManifest.mode, "isolated");
+      assert.deepEqual(result.contextManifest.attached_skills, [
+        { name: "sample", path: path.join(skill.skillDir, "SKILL.md"), role: "target" },
+      ]);
+      assert.equal(result.toolSummary.tool_call_count, 0);
+      assert.equal(result.toolSummary.mcp_tool_call_count, 0);
     } finally {
       await result.cleanup();
     }

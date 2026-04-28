@@ -5,6 +5,7 @@ import type { ValidatedSkillDiscovery } from "../load/source-types.js";
 import type {
   PiSessionTelemetryEntry,
   PiSessionTelemetryToolCall,
+  PiSessionTelemetryToolInfo,
   PiSessionTelemetryToolResult,
   PiSdkRunnableCase,
 } from "./types.js";
@@ -39,6 +40,8 @@ export function createPiSessionTelemetryObserverExtension(
         data: {
           kind: options.caseDefinition.kind,
           relativeSkillDir: options.skill.files.relativeSkillDir,
+          activeTools: safeGetStringArray(() => pi.getActiveTools()),
+          allTools: safeGetToolInfo(() => pi.getAllTools()),
         },
       });
     });
@@ -151,5 +154,39 @@ export function createPiSessionTelemetryObserverExtension(
 
 function appendTelemetry(pi: ExtensionAPI, entry: PiSessionTelemetryEntry): void {
   pi.appendEntry(PI_SESSION_TELEMETRY_CUSTOM_TYPE, entry);
+}
+
+function safeGetStringArray(getter: () => unknown): string[] {
+  try {
+    const value = getter();
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function safeGetToolInfo(getter: () => unknown): PiSessionTelemetryToolInfo[] {
+  try {
+    const value = getter();
+    if (!Array.isArray(value)) return [];
+    return value.flatMap((item) => {
+      if (typeof item !== "object" || item === null) return [];
+      const record = item as Record<string, unknown>;
+      const name = typeof record.name === "string" ? record.name : undefined;
+      if (!name) return [];
+      const sourceInfo = typeof record.sourceInfo === "object" && record.sourceInfo !== null
+        ? record.sourceInfo as Record<string, unknown>
+        : {};
+      return [{
+        name,
+        ...(typeof sourceInfo.source === "string" ? { source: sourceInfo.source } : {}),
+        ...(typeof sourceInfo.path === "string" ? { sourcePath: sourceInfo.path } : {}),
+        ...(typeof sourceInfo.scope === "string" ? { sourceScope: sourceInfo.scope } : {}),
+        ...(typeof sourceInfo.origin === "string" ? { sourceOrigin: sourceInfo.origin } : {}),
+      }];
+    });
+  } catch {
+    return [];
+  }
 }
 

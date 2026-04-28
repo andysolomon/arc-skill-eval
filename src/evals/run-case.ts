@@ -19,6 +19,12 @@ import type {
   PiSdkCaseRunResult,
   PiSdkExecutionCase,
 } from "../pi/types.js";
+import {
+  buildIsolatedContextManifest,
+  buildToolSummary,
+  enrichContextManifestWithTrace,
+} from "../observability/artifacts.js";
+import type { ContextManifestJson, ToolSummaryJson } from "../observability/types.js";
 import { normalizePiSdkCaseRunResult } from "../traces/normalize-sdk.js";
 import type { EvalTrace } from "../traces/types.js";
 
@@ -67,6 +73,10 @@ export interface EvalCaseRunResult {
   timing: TimingJson;
   /** Normalized trace for downstream grading / reporting. */
   trace: EvalTrace;
+  /** Manifest describing what skills/tools/context were exposed to the model. */
+  contextManifest: ContextManifestJson;
+  /** Aggregated tool/context activity observed during the run. */
+  toolSummary: ToolSummaryJson;
   /** Idempotent cleanup for the workspace + underlying agent dir. */
   cleanup: () => Promise<void>;
 }
@@ -118,10 +128,31 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
     });
 
     const timing: TimingJson = {
-      total_tokens: sumAssistantTokens(piResult.session.messages),
+      total_tokens: piResult.usage.totalTokens,
       duration_ms: piResult.durationMs,
+      model: piResult.usage.model,
+      thinking_level: piResult.usage.thinkingLevel,
+      token_usage: {
+        input_tokens: piResult.usage.inputTokens,
+        output_tokens: piResult.usage.outputTokens,
+        cache_read_tokens: piResult.usage.cacheReadTokens,
+        cache_write_tokens: piResult.usage.cacheWriteTokens,
+        total_tokens: piResult.usage.totalTokens,
+      },
+      estimated_cost_usd: piResult.usage.estimatedCostUsd,
+      context_window_tokens: piResult.usage.contextWindowTokens,
+      context_window_used_percent: piResult.usage.contextWindowUsedPercent,
     };
     const trace = normalizePiSdkCaseRunResult(piResult);
+    const contextManifest = enrichContextManifestWithTrace(
+      buildIsolatedContextManifest({
+        targetSkillName: path.basename(options.skill.skillDir),
+        targetSkillPath: options.skill.skillDefinitionPath,
+        attachTargetSkill: options.attachSkill ?? true,
+      }),
+      trace,
+    );
+    const toolSummary = buildToolSummary(trace, contextManifest);
 
     const cleanup = async () => {
       if (!workspaceCleaned) {
@@ -138,6 +169,8 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
       workspaceDir,
       timing,
       trace,
+      contextManifest,
+      toolSummary,
       cleanup,
     };
   } catch (error) {
@@ -318,31 +351,3 @@ function buildSourceDescriptor(skill: DiscoveredEvalSkill): RepoSourceDescriptor
   };
 }
 
-function sumAssistantTokens(messages: unknown[]): number {
-  let total = 0;
-
-  for (const message of messages) {
-    if (!isAssistantMessageWithUsage(message)) continue;
-    const usage = message.usage;
-    total += numericField(usage, "input");
-    total += numericField(usage, "output");
-    total += numericField(usage, "cacheRead");
-    total += numericField(usage, "cacheWrite");
-  }
-
-  return total;
-}
-
-function isAssistantMessageWithUsage(
-  value: unknown,
-): value is { role: "assistant"; usage: Record<string, unknown> } {
-  if (typeof value !== "object" || value === null) return false;
-  const record = value as Record<string, unknown>;
-  if (record.role !== "assistant") return false;
-  return typeof record.usage === "object" && record.usage !== null;
-}
-
-function numericField(source: Record<string, unknown>, key: string): number {
-  const raw = source[key];
-  return typeof raw === "number" && Number.isFinite(raw) ? raw : 0;
-}

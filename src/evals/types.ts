@@ -7,9 +7,12 @@
 
 import type {
   EnvironmentRequirements,
+  ModelSelection,
   SkillDefinition,
+  ThinkingLevel,
   WorkspaceSetup,
 } from "../contracts/types.js";
+import type { ContextManifestJson, ToolSummaryJson } from "../observability/types.js";
 
 /** Top-level shape of a `<skill-dir>/evals/evals.json` file. */
 export interface EvalsJsonFile {
@@ -227,15 +230,47 @@ export interface BenchmarkMetadata {
 }
 
 export interface BenchmarkVariantArtifacts {
+  assistant_path: string;
   outputs_dir: string;
   timing_path: string;
   grading_path: string;
+  trace_path: string;
+  tool_summary_path: string;
+  context_manifest_path: string;
   total_tokens: number;
   duration_ms: number;
+  model: ModelSelection | null;
+  thinking_level: ThinkingLevel | null;
+  estimated_cost_usd: number;
+  context_window_tokens: number | null;
+  context_window_used_percent: number | null;
+  tool_call_count: number;
+  tool_error_count: number;
+  mcp_tool_call_count: number;
+  attached_skills: ContextManifestJson["attached_skills"];
+  mcp_tools: ContextManifestJson["mcp_tools"];
+}
+
+export type { ContextManifestJson, ToolSummaryJson };
+
+export interface TokenUsageJson {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  total_tokens: number;
 }
 
 /** Shape of `timing.json` emitted per run. */
 export interface TimingJson {
+  /** Back-compat summary; equal to `token_usage.total_tokens`. */
   total_tokens: number;
   duration_ms: number;
+  model: ModelSelection | null;
+  thinking_level: ThinkingLevel | null;
+  token_usage: TokenUsageJson;
+  estimated_cost_usd: number;
+  context_window_tokens: number | null;
+  /** Percentage from 0..100, or null when the context window is unknown. */
+  context_window_used_percent: number | null;
 }

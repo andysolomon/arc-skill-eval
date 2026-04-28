@@ -4,5 +4,6 @@ export * from "./load/index.js";
 export * from "./fixtures/index.js";
 export * from "./pi/index.js";
 export * from "./traces/index.js";
+export * from "./observability/index.js";
 export * from "./cli/index.js";
 export * from "./evals/index.js";

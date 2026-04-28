@@ -3,6 +3,7 @@ import type {
   LiveSmokeCase,
   ModelSelection,
   NormalizedSkillEvalContract,
+  ThinkingLevel,
   ParityCase,
   RoutingCase,
 } from "../contracts/types.js";
@@ -153,9 +154,19 @@ export interface PiSessionExternalCallSummary {
 
 export type PiSessionTelemetryExternalCall = PiSessionExternalCallSummary;
 
+export interface PiSessionTelemetryToolInfo {
+  name: string;
+  source?: string;
+  sourcePath?: string;
+  sourceScope?: string;
+  sourceOrigin?: string;
+}
+
 export interface PiSessionTelemetryRunStart {
   kind: PiSdkRunnableCase["kind"];
   relativeSkillDir: string;
+  activeTools?: string[];
+  allTools?: PiSessionTelemetryToolInfo[];
 }
 
 interface PiSessionTelemetryEntryBase<TKind extends PiSessionTelemetryKind, TData> {
@@ -186,6 +197,19 @@ export interface PiSessionTelemetrySnapshot {
   bashCommands: string[];
   touchedFiles: PiSessionTelemetryFileTouch[];
   externalCalls: PiSessionTelemetryExternalCall[];
+}
+
+export interface PiSdkUsageMetrics {
+  model: ModelSelection | null;
+  thinkingLevel: ThinkingLevel | null;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
+  contextWindowTokens: number | null;
+  contextWindowUsedPercent: number | null;
 }
 
 export interface PiSdkSessionArtifact {
@@ -227,6 +251,7 @@ export interface PiSdkCaseRunResult {
   finishedAt: string;
   durationMs: number;
   session: PiSdkSessionArtifact;
+  usage: PiSdkUsageMetrics;
   telemetry: PiSessionTelemetrySnapshot | null;
   cleanup: () => Promise<PiSdkCaseCleanupResult>;
 }
