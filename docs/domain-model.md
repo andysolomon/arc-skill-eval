@@ -4,8 +4,8 @@
 This doc describes the runtime entities `arc-skill-eval` operates on after the pivot to [Anthropic's `evals/evals.json` standard](https://platform.claude.com/docs/en/agents-and-tools/agent-skills). It tracks what lives in `src/` today. The pre-pivot lane / profile / scorer architecture is gone; see [evals-json-pivot.md](evals-json-pivot.md) for what moved and why.
 
 ## Status
-- **Implemented now:** `evals/evals.json` loading + validation, SKILL.md adjacency discovery, per-case Pi SDK execution with the skill attached, workspace materialization via legacy `files` or explicit `setup`, assertion grading (LLM-judge + legacy scripts + intent-based output/workspace assertions), per-case `grading.json` + `timing.json` outputs, CLI `run` command with per-case artifact layout.
-- **Deferred post-MVP:** `with_skill` vs `without_skill` dual-run, iteration workspaces, `benchmark.json` aggregation, human-review `feedback.json`.
+- **Implemented now:** `evals/evals.json` loading + validation, SKILL.md adjacency discovery, per-case Pi SDK execution with the skill attached, workspace materialization via legacy `files` or explicit `setup`, assertion grading (LLM-judge + legacy scripts + intent-based output/workspace assertions), per-case `grading.json` + `timing.json` outputs, CLI `run` command with per-case artifact layout, and opt-in `with_skill` vs `without_skill` comparison via `--compare`.
+- **Deferred post-MVP:** iteration workspaces, `benchmark.json` aggregation, human-review `feedback.json`.
 
 ## Pipeline
 
@@ -28,7 +28,7 @@ GradingJson ({ assertion_results, summary })
 <skillDir>/evals-runs/<runId>/eval-<id>/{outputs, timing.json, grading.json}
 ```
 
-Planned opt-in post-MVP pipeline extension:
+Opt-in comparison pipeline extension:
 
 ```text
 EvalCase
@@ -86,18 +86,16 @@ Discriminated union:
 ### Grading Output (`grading.json`, `timing.json`)
 Per Anthropic's shape. `grading.json`: `assertion_results[]` with `text`, `passed`, `evidence`, and the originating `assertion`; plus a `summary` block. `timing.json`: `{ total_tokens, duration_ms }`.
 
-## Planned post-MVP entities
-
-These entities are not implemented yet, but define the roadmap shape for dual-run and iteration support.
+## Comparison and planned post-MVP entities
 
 ### Run Variant
-A run variant is the execution strategy for one eval case. Single-run remains the default execution mode; variant comparison starts as an opt-in mode. The first planned variants are:
+A run variant is the execution strategy for one eval case. Single-run remains the default execution mode; variant comparison is opt-in via `--compare`. The current variants are:
 - **`with_skill`** — current behavior: run through Pi with the target skill attached.
 - **`without_skill`** — baseline behavior: run the same prompt/model/workspace setup without attaching the target skill.
 
 Both variants should materialize equivalent fresh workspaces before execution so pass-rate deltas reflect skill value rather than workspace contamination.
 
-### Case Benchmark Result
+### Case Comparison Result
 A case-level aggregate that points at both variant grading outputs and computes:
 - `with_skill` pass rate
 - `without_skill` pass rate
@@ -106,7 +104,7 @@ A case-level aggregate that points at both variant grading outputs and computes:
 - runtime or grading errors per variant
 
 ### Benchmark JSON (`benchmark.json`)
-A run-level aggregate over all cases in a skill. It should answer the product question: “does this skill improve results?” Keep the core artifact Anthropic-compatible: per-case results, overall pass rates, overall delta, and error summaries. Put Pi-specific trace refs, token counts, model info, and artifact paths under a metadata/extensions section so the artifact remains portable while preserving debugging detail.
+A planned run-level aggregate over all cases in a skill. It should answer the product question: “does this skill improve results?” Keep the core artifact Anthropic-compatible: per-case results, overall pass rates, overall delta, and error summaries. Put Pi-specific trace refs, token counts, model info, and artifact paths under a metadata/extensions section so the artifact remains portable while preserving debugging detail.
 
 ### Iteration Workspace
 A durable grouping for repeated eval cycles, e.g. `iteration-1/`, `iteration-2/`. In the initial implementation, iterations are runner artifacts only: they group outputs without proposing or applying `SKILL.md` edits. Iterations should keep prior artifacts immutable and may optionally include the evaluated `SKILL.md` snapshot. Generated feedback or improvement proposals can layer on later.

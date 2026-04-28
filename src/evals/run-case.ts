@@ -42,6 +42,8 @@ export interface RunEvalCaseOptions {
   evalsDir: string;
   /** Optional model pin; falls back to runtime defaults when absent. */
   model?: ModelSelection;
+  /** Attach the target skill to the Pi session. Defaults to true. */
+  attachSkill?: boolean;
   /**
    * Test-injection hook. When provided, replaces the real Pi SDK session
    * so tests can assert on prompt flow without calling the API.
@@ -73,7 +75,7 @@ export interface EvalCaseRunResult {
  * Execute one {@link EvalCase} against its parent skill via the Pi SDK.
  *
  * This is the M2A "runner" half of the MVP pipeline — it runs the
- * prompt once with the skill attached, captures assistant text +
+ * prompt once with the skill attached by default, captures assistant text +
  * timing + trace, and hands the populated workspace back to the caller
  * for downstream assertion grading (M2B).
  */
@@ -112,6 +114,7 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
       workspaceDir,
       model: options.model,
       createSession: options.createSession,
+      attachSkill: options.attachSkill,
     });
 
     const timing: TimingJson = {

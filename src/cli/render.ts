@@ -23,7 +23,10 @@ export function formatRunEvalsResult(result: RunEvalsCommandResult, options: Cli
     for (const caseArt of skill.cases) {
       const s = caseArt.grading.summary;
       const verdict = s.failed === 0 && s.total > 0 ? "PASS" : s.total === 0 ? "NO-OP" : "FAIL";
-      lines.push(`  [${verdict}] ${caseArt.caseId}: ${s.passed}/${s.total} assertions (${caseArt.timing.duration_ms}ms)`);
+      const comparison = caseArt.comparison
+        ? `, delta ${formatSignedFractionPercent(caseArt.comparison.delta)}`
+        : "";
+      lines.push(`  [${verdict}] ${caseArt.caseId}: ${s.passed}/${s.total} assertions (${caseArt.timing.duration_ms}ms${comparison})`);
     }
     for (const err of skill.errors) {
       lines.push(`  [ERROR] ${err.caseId}: ${err.message}`);
@@ -35,4 +38,10 @@ export function formatRunEvalsResult(result: RunEvalsCommandResult, options: Cli
 
 function formatFractionPercent(value: number | null): string {
   return value === null ? "n/a" : `${(value * 100).toFixed(1)}%`;
+}
+
+function formatSignedFractionPercent(value: number | null): string {
+  if (value === null) return "n/a";
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${(value * 100).toFixed(1)}%`;
 }

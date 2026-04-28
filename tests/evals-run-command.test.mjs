@@ -138,6 +138,61 @@ test("runEvalsCommand runs every case, writes per-case artifacts, aggregates pas
   }
 });
 
+test("runEvalsCommand compare mode writes with_skill and without_skill variant artifacts", async () => {
+  const { repoRoot, skillDir } = await createSkillFixture({
+    evals: [
+      { id: "compare", prompt: "Do the task.", assertions: ["The response succeeds"] },
+    ],
+  });
+
+  try {
+    const attachSkillValues = [];
+    const result = await runEvalsCommand({
+      input: skillDir,
+      runId: "run-compare",
+      compare: true,
+      createSession: async ({ attachSkill, workspaceDir }) => {
+        attachSkillValues.push(attachSkill);
+        await writeFile(path.join(workspaceDir, "variant.txt"), attachSkill ? "with" : "without", "utf8");
+        return {
+          model: null,
+          session: createInjectedSession(attachSkill ? "success" : "baseline"),
+        };
+      },
+      judge: async ({ assistantText, assertions }) => ({
+        results: assertions.map(() => ({
+          passed: assistantText === "success",
+          evidence: assistantText,
+        })),
+      }),
+    });
+
+    assert.deepEqual(attachSkillValues, [true, false]);
+    assert.equal(result.skills[0].cases.length, 1);
+    const caseArt = result.skills[0].cases[0];
+    assert.equal(caseArt.variant, "with_skill");
+    assert.equal(caseArt.comparison.withSkillPassRate, 1);
+    assert.equal(caseArt.comparison.withoutSkillPassRate, 0);
+    assert.equal(caseArt.comparison.delta, 1);
+
+    assert.equal(
+      await readFile(path.join(caseArt.variants.with_skill.outputsDir, "variant.txt"), "utf8"),
+      "with",
+    );
+    assert.equal(
+      await readFile(path.join(caseArt.variants.without_skill.outputsDir, "variant.txt"), "utf8"),
+      "without",
+    );
+
+    const withGrading = JSON.parse(await readFile(caseArt.variants.with_skill.gradingPath, "utf8"));
+    const withoutGrading = JSON.parse(await readFile(caseArt.variants.without_skill.gradingPath, "utf8"));
+    assert.equal(withGrading.summary.passed, 1);
+    assert.equal(withoutGrading.summary.failed, 1);
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
 test("runEvalsCommand surfaces failing assertions in the summary", async () => {
   const { repoRoot, skillDir } = await createSkillFixture({
     evals: [

@@ -20,6 +20,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
           skillNames: parsed.skillNames,
           caseIds: parsed.caseIds,
           outputDirOverride: parsed.outputDir,
+          compare: parsed.compare,
         });
         const failed = result.summary.failedCases > 0 || result.summary.failedAssertions > 0;
         return {

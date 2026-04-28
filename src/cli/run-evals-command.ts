@@ -8,6 +8,7 @@ import { gradeEvalCase, type LlmJudgeFn } from "../evals/grade.js";
 import { runEvalCase } from "../evals/run-case.js";
 import type {
   EvalCase,
+  EvalRunVariant,
   EvalsJsonFile,
   GradingJson,
   TimingJson,
@@ -32,18 +33,33 @@ export interface RunEvalsCommandOptions {
   judgeModel?: ModelSelection;
   /** Fixed runId; default is an ISO timestamp. */
   runId?: string;
+  /** Opt into with_skill vs without_skill variant comparison. */
+  compare?: boolean;
   /** Test-injection points. */
   createSession?: PiSdkSessionFactory;
   judge?: LlmJudgeFn;
 }
 
-export interface CaseRunArtifacts {
-  caseId: string;
+export interface VariantRunArtifacts {
+  variant: EvalRunVariant;
   outputsDir: string;
   timingPath: string;
   gradingPath: string;
   timing: TimingJson;
   grading: GradingJson;
+}
+
+export interface CaseRunComparison {
+  withSkillPassRate: number | null;
+  withoutSkillPassRate: number | null;
+  /** `null` when either variant has no assertion pass rate. */
+  delta: number | null;
+}
+
+export interface CaseRunArtifacts extends VariantRunArtifacts {
+  caseId: string;
+  variants?: Partial<Record<EvalRunVariant, VariantRunArtifacts>>;
+  comparison?: CaseRunComparison;
 }
 
 export interface SkillRunResult {
@@ -116,6 +132,7 @@ export async function runEvalsCommand(
           skillOutputDir,
           model: options.model,
           judgeModel: options.judgeModel,
+          compare: options.compare ?? false,
           createSession: options.createSession,
           judge: options.judge,
         });
@@ -142,15 +159,70 @@ async function runOneCase(args: {
   skillOutputDir: string;
   model: ModelSelection | undefined;
   judgeModel: ModelSelection | undefined;
+  compare: boolean;
   createSession: PiSdkSessionFactory | undefined;
   judge: LlmJudgeFn | undefined;
 }): Promise<CaseRunArtifacts> {
+  const caseSlug = sanitizeCaseId(args.evalCase.id);
+  const caseDir = path.join(args.skillOutputDir, `eval-${caseSlug}`);
+
+  if (!args.compare) {
+    const single = await runOneCaseVariant({
+      ...args,
+      variant: "with_skill",
+      variantDir: caseDir,
+      attachSkill: true,
+    });
+
+    return {
+      caseId: String(args.evalCase.id),
+      ...single,
+    };
+  }
+
+  const withSkill = await runOneCaseVariant({
+    ...args,
+    variant: "with_skill",
+    variantDir: path.join(caseDir, "with_skill"),
+    attachSkill: true,
+  });
+  const withoutSkill = await runOneCaseVariant({
+    ...args,
+    variant: "without_skill",
+    variantDir: path.join(caseDir, "without_skill"),
+    attachSkill: false,
+  });
+
+  return {
+    caseId: String(args.evalCase.id),
+    ...withSkill,
+    variants: {
+      with_skill: withSkill,
+      without_skill: withoutSkill,
+    },
+    comparison: compareVariantPassRates(withSkill.grading, withoutSkill.grading),
+  };
+}
+
+async function runOneCaseVariant(args: {
+  skill: DiscoveredEvalSkill;
+  evalCase: EvalCase;
+  evalsDir: string;
+  model: ModelSelection | undefined;
+  judgeModel: ModelSelection | undefined;
+  createSession: PiSdkSessionFactory | undefined;
+  judge: LlmJudgeFn | undefined;
+  variant: EvalRunVariant;
+  variantDir: string;
+  attachSkill: boolean;
+}): Promise<VariantRunArtifacts> {
   const run = await runEvalCase({
     skill: args.skill,
     case: args.evalCase,
     evalsDir: args.evalsDir,
     model: args.model,
     createSession: args.createSession,
+    attachSkill: args.attachSkill,
   });
 
   try {
@@ -162,11 +234,9 @@ async function runOneCase(args: {
       judgeModel: args.judgeModel,
     });
 
-    const caseSlug = sanitizeCaseId(args.evalCase.id);
-    const caseDir = path.join(args.skillOutputDir, `eval-${caseSlug}`);
-    const outputsDir = path.join(caseDir, "outputs");
-    const timingPath = path.join(caseDir, "timing.json");
-    const gradingPath = path.join(caseDir, "grading.json");
+    const outputsDir = path.join(args.variantDir, "outputs");
+    const timingPath = path.join(args.variantDir, "timing.json");
+    const gradingPath = path.join(args.variantDir, "grading.json");
 
     await mkdir(outputsDir, { recursive: true });
     await cp(run.workspaceDir, outputsDir, { recursive: true, force: true });
@@ -174,7 +244,7 @@ async function runOneCase(args: {
     await writeFile(gradingPath, `${JSON.stringify(grading, null, 2)}\n`, "utf-8");
 
     return {
-      caseId: String(args.evalCase.id),
+      variant: args.variant,
       outputsDir,
       timingPath,
       gradingPath,
@@ -184,6 +254,16 @@ async function runOneCase(args: {
   } finally {
     await run.cleanup().catch(() => undefined);
   }
+}
+
+function compareVariantPassRates(withSkill: GradingJson, withoutSkill: GradingJson): CaseRunComparison {
+  const withSkillPassRate = withSkill.summary.pass_rate;
+  const withoutSkillPassRate = withoutSkill.summary.pass_rate;
+  const delta = withSkillPassRate === null || withoutSkillPassRate === null
+    ? null
+    : withSkillPassRate - withoutSkillPassRate;
+
+  return { withSkillPassRate, withoutSkillPassRate, delta };
 }
 
 async function discoverInput(input: string): Promise<DiscoveredEvalSkill[]> {

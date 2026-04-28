@@ -10,6 +10,7 @@ Given a skill that ships `SKILL.md` and a sibling `evals/evals.json`, `arc-skill
 3. runs the case through the Pi SDK with the skill attached.
 4. grades the outputs — string assertions via an LLM-judge, `file-exists` / `regex-match` / `json-valid` via deterministic scripts.
 5. writes per-case `outputs/` + `timing.json` + `grading.json` under `<skill>/evals-runs/<runId>/`.
+6. optionally compares each case against a no-skill baseline with `--compare`.
 
 Assertion grading follows the guidance in [Anthropic's eval-skills methodology](https://platform.claude.com/docs/en/agents-and-tools/agent-skills) and the inspiration from [OpenAI's eval-skills blog post](https://developers.openai.com/blog/eval-skills).
 
@@ -71,6 +72,9 @@ arc-skill-eval run . --output-dir ./evals-runs
 
 # Machine-readable JSON
 arc-skill-eval run . --json
+
+# Opt into with_skill vs without_skill comparison
+arc-skill-eval run . --compare
 ```
 
 The positional `<skill-dir-or-repo>` is resolved as:
@@ -81,7 +85,7 @@ Exit code: `0` when every case has no failing assertions, `1` otherwise.
 
 ## Output layout
 
-For each run:
+For each default single-variant run:
 
 ```
 <skillDir>/evals-runs/<runId>/
@@ -89,6 +93,21 @@ For each run:
 │   ├── outputs/              # files produced by the run
 │   ├── timing.json           # { total_tokens, duration_ms }
 │   └── grading.json          # per-assertion passed + evidence
+```
+
+With `--compare`, each case writes isolated variant artifacts:
+
+```
+<skillDir>/evals-runs/<runId>/
+├── eval-<case-id>/
+│   ├── with_skill/
+│   │   ├── outputs/
+│   │   ├── timing.json
+│   │   └── grading.json
+│   └── without_skill/
+│       ├── outputs/
+│       ├── timing.json
+│       └── grading.json
 ```
 
 `grading.json` per the Anthropic format:

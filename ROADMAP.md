@@ -16,7 +16,7 @@ The slim MVP is complete: discovery, loading/validation, workspace setup, Pi exe
 
 ## Next priorities
 
-### P0 — Repo hygiene and roadmap consolidation
+### P0 — Repo hygiene and roadmap consolidation ✅
 
 **Goal:** remove local/generated state from version control and make this roadmap the single next-work source of truth.
 
@@ -33,17 +33,18 @@ The slim MVP is complete: discovery, loading/validation, workspace setup, Pi exe
 
 ---
 
-### P1 — Dual-run skill delta: `with_skill` vs `without_skill`
+### P1 — Dual-run skill delta: `with_skill` vs `without_skill` 🚧
 
 **Goal:** measure whether a skill adds value by running each case twice and comparing pass rates.
 
 **Work items**
-- Add run configuration for `with_skill` and `without_skill` variants.
-- Execute both variants against equivalent fresh workspaces.
-- Grade each variant independently.
-- Compute per-case and per-skill pass-rate delta.
-- Keep current single-run behavior as the default.
-- Add dual-run as an opt-in mode first, e.g. `--compare` or `--with-baseline`.
+- [x] Add run configuration for `with_skill` and `without_skill` variants.
+- [x] Execute both variants against equivalent fresh workspaces.
+- [x] Grade each variant independently.
+- [x] Compute per-case pass-rate delta.
+- [ ] Compute per-skill pass-rate delta in `benchmark.json` during P2.
+- [x] Keep current single-run behavior as the default.
+- [x] Add dual-run as an opt-in mode first via `--compare`.
 
 **Design notes**
 - The `with_skill` variant attaches the target skill as today.
@@ -52,9 +53,9 @@ The slim MVP is complete: discovery, loading/validation, workspace setup, Pi exe
 - Case setup materialization should be deterministic and shared by both variants.
 
 **Acceptance criteria**
-- A case can emit both `with_skill/grading.json` and `without_skill/grading.json`.
-- The framework computes a delta: `with_skill.pass_rate - without_skill.pass_rate`.
-- Tests cover deterministic workspace isolation between variants.
+- [x] A case can emit both `with_skill/grading.json` and `without_skill/grading.json`.
+- [x] The framework computes a delta: `with_skill.pass_rate - without_skill.pass_rate`.
+- [x] Tests cover deterministic workspace isolation between variants.
 
 ---
 

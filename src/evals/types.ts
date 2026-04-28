@@ -176,6 +176,8 @@ export interface GradingJson {
   };
 }
 
+export type EvalRunVariant = "with_skill" | "without_skill";
+
 /** Shape of `timing.json` emitted per run. */
 export interface TimingJson {
   total_tokens: number;
