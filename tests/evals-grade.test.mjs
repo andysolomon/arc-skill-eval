@@ -97,6 +97,59 @@ test("gradeEvalCase resolves every assertion (string + script mixture, all pass)
   }
 });
 
+test("gradeEvalCase supports intent-based output and workspace assertions", async () => {
+  const ws = await makeTempWorkspace();
+  try {
+    await writeFile(path.join(ws.dir, "package.json"), JSON.stringify({ name: "demo" }), "utf-8");
+
+    const result = await gradeEvalCase({
+      case: {
+        id: "intent-assertions",
+        prompt: "noop",
+        assertions: [
+          {
+            id: "package-json-exists",
+            kind: "workspace",
+            method: "file-exists",
+            path: "package.json",
+          },
+          {
+            id: "package-json-valid",
+            kind: "workspace",
+            method: "json-valid",
+            path: "package.json",
+          },
+          {
+            id: "assistant-says-done",
+            kind: "output",
+            method: "regex",
+            pattern: "done",
+            flags: "i",
+          },
+          {
+            id: "assistant-summary",
+            kind: "output",
+            method: "judge",
+            prompt: "The assistant summarizes the setup.",
+          },
+        ],
+      },
+      workspaceDir: ws.dir,
+      assistantText: "Done configuring the repository.",
+      judge: async (input) => ({
+        results: input.assertions.map(() => ({ passed: true, evidence: '"Done configuring"' })),
+      }),
+    });
+
+    assert.equal(result.summary.total, 4);
+    assert.equal(result.summary.passed, 4);
+    assert.equal(result.assertion_results[0].assertion.kind, "workspace");
+    assert.equal(result.assertion_results[3].text, "The assistant summarizes the setup.");
+  } finally {
+    await ws.cleanup();
+  }
+});
+
 test("gradeEvalCase handles file-exists failure: missing file", async () => {
   const ws = await makeTempWorkspace();
   try {

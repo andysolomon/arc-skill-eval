@@ -4,7 +4,7 @@
 This doc describes the runtime entities `arc-skill-eval` operates on after the pivot to [Anthropic's `evals/evals.json` standard](https://platform.claude.com/docs/en/agents-and-tools/agent-skills). It tracks what lives in `src/` today. The pre-pivot lane / profile / scorer architecture is gone; see [evals-json-pivot.md](evals-json-pivot.md) for what moved and why.
 
 ## Status
-- **Implemented now:** `evals/evals.json` loading + validation, SKILL.md adjacency discovery, per-case Pi SDK execution with the skill attached, fixture materialization for `files`, assertion grading (LLM-judge + `file-exists` / `regex-match` / `json-valid` scripts), per-case `grading.json` + `timing.json` outputs, CLI `run` command with per-case artifact layout.
+- **Implemented now:** `evals/evals.json` loading + validation, SKILL.md adjacency discovery, per-case Pi SDK execution with the skill attached, workspace materialization via legacy `files` or explicit `setup`, assertion grading (LLM-judge + legacy scripts + intent-based output/workspace assertions), per-case `grading.json` + `timing.json` outputs, CLI `run` command with per-case artifact layout.
 - **Deferred post-MVP:** `with_skill` vs `without_skill` dual-run, iteration workspaces, `benchmark.json` aggregation, human-review `feedback.json`.
 
 ## Pipeline
@@ -19,6 +19,7 @@ This doc describes the runtime entities `arc-skill-eval` operates on after the p
 DiscoveredEvalSkill
          ↓ readEvalsJson
 EvalsJsonFile (+ EvalCase[])
+         ↓ materialize WorkspaceSetup / legacy files
          ↓ runEvalCase
 { assistantText, workspaceDir, timing, trace }
          ↓ gradeEvalCase
@@ -32,21 +33,42 @@ GradingJson ({ assertion_results, summary })
 ### Discovered Eval Skill (`src/evals/discover.ts`)
 A skill directory that ships both `SKILL.md` and `evals/evals.json`. Discovery walks a repo, respects `.gitignore`-style ignored dirs, skips dot-prefixed dirs unless `includeDotDirs` is set.
 
+### Skill Domain Types (`src/contracts/types.ts`)
+New code should distinguish classification, capabilities, policy, and environment instead of overloading the old `profile` enum:
+- `SkillCategory` / `SkillClassification` — what the skill is for, with primary/secondary categories and confidence.
+- `SkillCapabilities` — what the skill can do (`readsRepo`, `writesRepo`, `usesGit`, external APIs, orchestration, planning, validation).
+- `SkillPolicy` — thinking level, enforcement mode, and target tier.
+- `EnvironmentRequirements` — workspace/git/network/tool/env-var requirements.
+- `InferenceMetadata` — source, confidence, and rationale for inferred values.
+- `SkillDefinition<EvalSuiteT>` — first-class aggregate tying descriptor, source, and optional eval suite together.
+
+`PROFILE_VALUES` and `SkillProfile` remain as deprecated aliases for compatibility.
+
 ### Evals JSON File (`src/evals/types.ts`, `src/evals/loader.ts`)
-`{ skill_name, evals: EvalCase[] }`. Loaded + validated via `readEvalsJson` with an issue-collecting error type. Each `EvalCase` has `{ id, prompt, expected_output?, files?, assertions? }`.
+`{ version?, skill_name, evals: EvalCase[] }`. Loaded + validated via `readEvalsJson` with an issue-collecting error type. Each `EvalCase` has `{ id, description?, prompt, expected_output?, setup?, files?, assertions?, metadata? }`. Prefer `setup` for new cases; `files` remains supported as a legacy shorthand.
+
+### Workspace Setup (`src/contracts/types.ts`, `src/evals/run-case.ts`)
+`WorkspaceSetup` unifies the ways a case prepares its workspace:
+- **`{ kind: "empty" }`** — start with an empty temp workspace.
+- **`{ kind: "seeded", sources, mountMode? }`** — copy files from `evals/`, either preserving source paths or flattening directory contents into `to`.
+- **`{ kind: "fixture", fixture }`** — use the existing `FixtureRef` materializer, including git setup/hooks.
+
+Legacy `files: [...]` compiles to a seeded setup with `mountMode: "preserve-path"`, preserving current copy behavior.
 
 ### Eval Assertion (`src/evals/types.ts`)
 Discriminated union:
-- **string** — graded by an LLM-judge, result is `{ passed, evidence }`.
-- **`{ type: "file-exists", path }`** — pass iff the file exists in the case workspace.
-- **`{ type: "regex-match", pattern, flags?, target? }`** — pass iff the regex matches `assistant-text` (default) or a file read from the workspace.
-- **`{ type: "json-valid", path }`** — pass iff the file parses as JSON.
+- **string** — legacy LLM-judged assertion.
+- **legacy script assertions** — `{ type: "file-exists" | "regex-match" | "json-valid", ... }`.
+- **intent assertions** — `{ id, kind, method, ... }`, split by purpose:
+  - `kind: "output"` with `method: "judge" | "regex" | "exact"`.
+  - `kind: "workspace"` with `method: "file-exists" | "file-contains" | "json-valid" | "snapshot-diff"`.
+  - `kind: "behavior"` and `kind: "safety"` for trace-aware checks. These validate now; deterministic grading for them is still deferred.
 
 ### Eval Case Runner (`src/evals/run-case.ts`)
-`runEvalCase({ skill, case, evalsDir, model?, createSession? })` → `{ caseId, assistantText, workspaceDir, timing, trace, cleanup }`. Materializes `case.files` into a temp workspace before invoking Pi. Caller owns `cleanup()`.
+`runEvalCase({ skill, case, evalsDir, model?, createSession? })` → `{ caseId, assistantText, workspaceDir, timing, trace, cleanup }`. Materializes `case.setup` and legacy `case.files` into a temp workspace before invoking Pi. Caller owns `cleanup()`.
 
 ### Grader (`src/evals/grade.ts`)
-`gradeEvalCase({ case, workspaceDir, assistantText, judge?, judgeModel? })` → `GradingJson`. Batches string assertions into one LLM-judge call; runs script assertions synchronously. Path-traversal guard on every script path.
+`gradeEvalCase({ case, workspaceDir, assistantText, judge?, judgeModel? })` → `GradingJson`. Batches legacy string assertions and `output/judge` assertions into one LLM-judge call; runs legacy scripts plus `output/regex`, `output/exact`, and workspace intent assertions synchronously. Path-traversal guard remains on every workspace path.
 
 ### Run Command (`src/cli/run-evals-command.ts`)
 `runEvalsCommand({ input, skillNames?, caseIds?, outputDirOverride?, ... })` — the top-level CLI handler. Discovers, loops over cases, writes artifacts, aggregates a summary. Per-case failures are captured in `skill.errors[]` rather than aborting the run.
@@ -56,11 +78,11 @@ Per Anthropic's shape. `grading.json`: `assertion_results[]` with `text`, `passe
 
 ## Runtime adapters (kept from pre-pivot)
 - **`src/pi/`** — Pi SDK runner + CLI JSON runner. `runPiSdkCase` is what the case runner wraps internally.
-- **`src/fixtures/`** — temp workspace materialization with git-state support. Used when a case declares `files`.
+- **`src/fixtures/`** — temp workspace materialization with git-state support. Used when a case declares `setup: { kind: "fixture" }`.
 - **`src/traces/`** — `EvalTrace` canonical trace type + SDK / CLI JSON normalizers. Kept because the trace is useful scaffolding for debugging runs.
 
 ## Deprecated and removed
-- `src/contracts/` + `src/load/` — the old `SkillEvalContract` TypeScript authoring surface and its loaders. Replaced by `evals/evals.json`.
+- `src/load/` plus the legacy portions of `src/contracts/` — the old `SkillEvalContract` TypeScript authoring surface and its loaders. Replaced for authoring by `evals/evals.json`; `src/contracts/types.ts` now also hosts the newer domain descriptor types.
 - `src/scorers/` — lane + profile + dimension scoring engine. Replaced by assertion grading in `src/evals/grade.ts`.
 - `src/reporting/` — custom `report.json` / `report.html` output. Replaced by per-case `grading.json` + `timing.json`.
 - `src/traces/compare-parity.ts` — parity lane comparison. Parity as a first-class lane is deferred; when it returns it will be an execution strategy, not an authoring concern.

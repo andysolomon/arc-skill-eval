@@ -193,6 +193,56 @@ test("runEvalCase materializes declared files into the per-case workspace before
   }
 });
 
+test("runEvalCase materializes explicit seeded setup with flattened contents", async () => {
+  const { repoRoot, skill, evalsDir } = await createSkillFixture();
+
+  const filesDir = path.join(evalsDir, "files", "clean-repo");
+  await mkdir(filesDir, { recursive: true });
+  await writeFile(path.join(filesDir, "package.json"), JSON.stringify({ name: "flat-pkg" }), "utf8");
+
+  try {
+    let packageJsonAtPromptTime;
+
+    const result = await runEvalCase({
+      skill,
+      evalsDir,
+      case: {
+        id: "with-setup",
+        prompt: "Inspect the package.",
+        setup: {
+          kind: "seeded",
+          sources: [{ from: "files/clean-repo", to: "." }],
+          mountMode: "flatten-contents",
+        },
+      },
+      createSession: async (options) => ({
+        model: null,
+        session: createInjectedSession({
+          onPrompt: async () => {
+            packageJsonAtPromptTime = await readFile(
+              path.join(options.workspaceDir, "package.json"),
+              "utf8",
+            );
+          },
+          assistantText: "done",
+          extraMessages: [createAssistantMessage("done")],
+        }),
+      }),
+    });
+
+    try {
+      assert.equal(packageJsonAtPromptTime, JSON.stringify({ name: "flat-pkg" }));
+      const copied = await readFile(path.join(result.workspaceDir, "package.json"), "utf8");
+      assert.equal(copied, JSON.stringify({ name: "flat-pkg" }));
+      await assert.rejects(() => access(path.join(result.workspaceDir, "files/clean-repo/package.json"), fsConstants.F_OK));
+    } finally {
+      await result.cleanup();
+    }
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
 test("runEvalCase cleanup is idempotent and tears down the workspace", async () => {
   const { repoRoot, skill, evalsDir } = await createSkillFixture();
 
