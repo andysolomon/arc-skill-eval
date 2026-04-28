@@ -51,12 +51,18 @@ Every case runs **twice** in the same iteration — once with the skill attached
     │   │   ├── assistant.md      # final assistant response text
     │   │   ├── outputs/          # files produced by the run
     │   │   ├── timing.json       # duration + model/token/cost/context metrics
-    │   │   └── grading.json      # per-assertion pass/fail + evidence
+    │   │   ├── grading.json      # per-assertion pass/fail + evidence
+    │   │   ├── trace.json        # normalized runtime trace
+    │   │   ├── tool-summary.json # tool/skill-read/external/MCP activity counts
+    │   │   └── context-manifest.json # skills/tools/context exposed to the model
     │   └── without_skill/
     │       ├── assistant.md
     │       ├── outputs/
     │       ├── timing.json
-    │       └── grading.json
+    │       ├── grading.json
+    │       ├── trace.json
+    │       ├── tool-summary.json
+    │       └── context-manifest.json
     └── benchmark.json            # aggregated with_skill vs without_skill delta
 ```
 
@@ -97,9 +103,10 @@ The pivot starts as a minimum-viable shape: **single run per case, assertion gra
 
 ## Post-MVP progress
 - **`with_skill` vs `without_skill` dual-run** — implemented as opt-in `--compare`. This emits per-case `with_skill/` and `without_skill/` artifacts and computes case-level pass-rate deltas.
-- **`benchmark.json` aggregation** — implemented for `--compare` runs only. The artifact keeps an Anthropic-compatible core and stores Pi-specific artifact paths/timing/model/token/cost/context metadata under `metadata.extensions`.
+- **`benchmark.json` aggregation** — implemented for `--compare` runs only. The artifact keeps an Anthropic-compatible core and stores Pi-specific artifact paths/timing/model/token/cost/context/tool metadata under `metadata.extensions`.
 - **Explicit iteration output layout** — implemented as `--iteration <name>`, writing under `<skillDir>/evals-runs/iteration-<name>/<runId>/` while leaving default layout unchanged.
 - **Response and usage artifacts** — implemented per run variant: `assistant.md` stores the final assistant response, and `timing.json` records duration, model, thinking level, token usage, estimated cost, context-window size, and context-window percentage used.
+- **Tool/context observability artifacts** — implemented per run variant: `trace.json`, `tool-summary.json`, and `context-manifest.json` capture tool-call counts, skill reads, MCP-looking tool activity, external calls, and the skills/tools/context exposed to the model.
 
 ## Sequencing guidance
 - Each milestone ships as its own PR against `main`.

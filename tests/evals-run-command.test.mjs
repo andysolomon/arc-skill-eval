@@ -141,6 +141,24 @@ test("runEvalsCommand runs every case, writes per-case artifacts, aggregates pas
       assert.ok(timing.duration_ms >= 0);
 
       assert.equal(await readFile(caseArt.assistantPath, "utf8"), `${caseArt.caseId === "1" ? "Say hello." : "Say goodbye."}\n`);
+
+      const trace = JSON.parse(await readFile(caseArt.tracePath, "utf8"));
+      assert.equal(trace.identity.runtime, "pi-sdk");
+      assert.equal(trace.observations.assistantText, caseArt.caseId === "1" ? "Say hello." : "Say goodbye.");
+
+      const toolSummary = JSON.parse(await readFile(caseArt.toolSummaryPath, "utf8"));
+      assert.equal(toolSummary.tool_call_count, 0);
+      assert.equal(toolSummary.mcp_tool_call_count, 0);
+
+      const contextManifest = JSON.parse(await readFile(caseArt.contextManifestPath, "utf8"));
+      assert.equal(contextManifest.runtime, "pi");
+      assert.equal(contextManifest.mode, "isolated");
+      assert.deepEqual(contextManifest.attached_skills, [
+        { name: "sample", path: path.join(skillDir, "SKILL.md"), role: "target" },
+      ]);
+      assert.equal(contextManifest.ambient.extensions, false);
+      assert.ok(contextManifest.available_tools.some((tool) => tool.name === "bash" && tool.source === "builtin"));
+
       assert.ok(caseArt.outputsDir.startsWith(skillDir));
       assert.ok(caseArt.outputsDir.includes("run-fixed"));
     }
@@ -245,12 +263,22 @@ test("runEvalsCommand compare mode writes with_skill and without_skill variant a
     assert.ok(benchmark.metadata.extensions.artifact_root.endsWith("iteration-baseline/run-compare"));
     assert.ok(benchmark.metadata.extensions.case_artifacts.compare.with_skill.grading_path.endsWith("with_skill/grading.json"));
     assert.ok(benchmark.metadata.extensions.case_artifacts.compare.with_skill.assistant_path.endsWith("with_skill/assistant.md"));
+    assert.ok(benchmark.metadata.extensions.case_artifacts.compare.with_skill.trace_path.endsWith("with_skill/trace.json"));
+    assert.ok(benchmark.metadata.extensions.case_artifacts.compare.with_skill.tool_summary_path.endsWith("with_skill/tool-summary.json"));
+    assert.ok(benchmark.metadata.extensions.case_artifacts.compare.with_skill.context_manifest_path.endsWith("with_skill/context-manifest.json"));
     assert.equal(benchmark.metadata.extensions.case_artifacts.compare.with_skill.total_tokens, 12);
     assert.equal(benchmark.metadata.extensions.case_artifacts.compare.with_skill.estimated_cost_usd, 0);
     assert.equal(benchmark.metadata.extensions.case_artifacts.compare.with_skill.context_window_tokens, 1000);
     assert.equal(benchmark.metadata.extensions.case_artifacts.compare.with_skill.context_window_used_percent, 1.2);
     assert.deepEqual(benchmark.metadata.extensions.case_artifacts.compare.with_skill.model, { provider: "mock", id: "mock-model", thinking: "medium" });
     assert.equal(benchmark.metadata.extensions.case_artifacts.compare.with_skill.thinking_level, "medium");
+    assert.equal(benchmark.metadata.extensions.case_artifacts.compare.with_skill.tool_call_count, 0);
+    assert.equal(benchmark.metadata.extensions.case_artifacts.compare.with_skill.tool_error_count, 0);
+    assert.equal(benchmark.metadata.extensions.case_artifacts.compare.with_skill.mcp_tool_call_count, 0);
+    assert.deepEqual(benchmark.metadata.extensions.case_artifacts.compare.with_skill.attached_skills, [
+      { name: "sample", path: path.join(skillDir, "SKILL.md"), role: "target" },
+    ]);
+    assert.deepEqual(benchmark.metadata.extensions.case_artifacts.compare.with_skill.mcp_tools, []);
 
     assert.equal(
       await readFile(path.join(caseArt.variants.with_skill.outputsDir, "variant.txt"), "utf8"),

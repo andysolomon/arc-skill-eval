@@ -28,7 +28,7 @@ export function renderHelp(): string {
     "Notes:",
     "  - <skill-dir-or-repo> is either a skill directory containing evals/evals.json,",
     "    or a repo root; in the repo case the CLI discovers every SKILL.md + evals/evals.json pair.",
-    "  - run writes per-case assistant.md + outputs/ + timing.json + grading.json under",
+    "  - run writes per-case assistant.md + outputs/ + timing.json + grading.json + observability artifacts under",
     "    <skillDir>/evals-runs/<runId>/eval-<id>/ (overridable via --output-dir).",
     "  - run exits with code 1 when any assertion fails or any case errors out.",
     "  - Format reference: https://platform.claude.com/docs/en/agents-and-tools/agent-skills",

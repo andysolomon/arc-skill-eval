@@ -19,6 +19,12 @@ import type {
   PiSdkCaseRunResult,
   PiSdkExecutionCase,
 } from "../pi/types.js";
+import {
+  buildIsolatedContextManifest,
+  buildToolSummary,
+  enrichContextManifestWithTrace,
+} from "../observability/artifacts.js";
+import type { ContextManifestJson, ToolSummaryJson } from "../observability/types.js";
 import { normalizePiSdkCaseRunResult } from "../traces/normalize-sdk.js";
 import type { EvalTrace } from "../traces/types.js";
 
@@ -67,6 +73,10 @@ export interface EvalCaseRunResult {
   timing: TimingJson;
   /** Normalized trace for downstream grading / reporting. */
   trace: EvalTrace;
+  /** Manifest describing what skills/tools/context were exposed to the model. */
+  contextManifest: ContextManifestJson;
+  /** Aggregated tool/context activity observed during the run. */
+  toolSummary: ToolSummaryJson;
   /** Idempotent cleanup for the workspace + underlying agent dir. */
   cleanup: () => Promise<void>;
 }
@@ -134,6 +144,15 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
       context_window_used_percent: piResult.usage.contextWindowUsedPercent,
     };
     const trace = normalizePiSdkCaseRunResult(piResult);
+    const contextManifest = enrichContextManifestWithTrace(
+      buildIsolatedContextManifest({
+        targetSkillName: path.basename(options.skill.skillDir),
+        targetSkillPath: options.skill.skillDefinitionPath,
+        attachTargetSkill: options.attachSkill ?? true,
+      }),
+      trace,
+    );
+    const toolSummary = buildToolSummary(trace, contextManifest);
 
     const cleanup = async () => {
       if (!workspaceCleaned) {
@@ -150,6 +169,8 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
       workspaceDir,
       timing,
       trace,
+      contextManifest,
+      toolSummary,
       cleanup,
     };
   } catch (error) {

@@ -4,7 +4,7 @@
 This doc describes the runtime entities `arc-skill-eval` operates on after the pivot to [Anthropic's `evals/evals.json` standard](https://platform.claude.com/docs/en/agents-and-tools/agent-skills). It tracks what lives in `src/` today. The pre-pivot lane / profile / scorer architecture is gone; see [evals-json-pivot.md](evals-json-pivot.md) for what moved and why.
 
 ## Status
-- **Implemented now:** `evals/evals.json` loading + validation, SKILL.md adjacency discovery, per-case Pi SDK execution with the skill attached, workspace materialization via legacy `files` or explicit `setup`, assertion grading (LLM-judge + legacy scripts + intent-based output/workspace assertions), per-case `assistant.md` + `outputs/` + `grading.json` + `timing.json` artifacts, CLI `run` command with per-case artifact layout, opt-in `with_skill` vs `without_skill` comparison via `--compare`, `benchmark.json` aggregation for compare runs, and explicit iteration buckets via `--iteration`.
+- **Implemented now:** `evals/evals.json` loading + validation, SKILL.md adjacency discovery, per-case Pi SDK execution with the skill attached, workspace materialization via legacy `files` or explicit `setup`, assertion grading (LLM-judge + legacy scripts + intent-based output/workspace assertions), per-case `assistant.md` + `outputs/` + `grading.json` + `timing.json` + observability artifacts, CLI `run` command with per-case artifact layout, opt-in `with_skill` vs `without_skill` comparison via `--compare`, `benchmark.json` aggregation for compare runs, and explicit iteration buckets via `--iteration`.
 - **Deferred post-MVP:** automatic iteration selection, cross-iteration comparison, optional evaluated `SKILL.md` snapshots, and human-review `feedback.json`.
 
 ## Pipeline
@@ -25,17 +25,17 @@ EvalsJsonFile (+ EvalCase[])
          ↓ gradeEvalCase
 GradingJson ({ assertion_results, summary })
          ↓ write to disk
-<skillDir>/evals-runs/<runId>/eval-<id>/{assistant.md, outputs, timing.json, grading.json}
+<skillDir>/evals-runs/<runId>/eval-<id>/{assistant.md, outputs, timing.json, grading.json, trace.json, tool-summary.json, context-manifest.json}
 ```
 
 Opt-in comparison pipeline extension:
 
 ```text
 EvalCase
-  ├── with_skill     → runEvalCase → gradeEvalCase → with_skill/{assistant.md, grading.json}
-  └── without_skill  → runEvalCase → gradeEvalCase → without_skill/{assistant.md, grading.json}
+  ├── with_skill     → runEvalCase → gradeEvalCase → with_skill/{assistant.md, grading.json, trace.json, tool-summary.json, context-manifest.json}
+  └── without_skill  → runEvalCase → gradeEvalCase → without_skill/{assistant.md, grading.json, trace.json, tool-summary.json, context-manifest.json}
           ↓ aggregate
-benchmark.json ({ per-case pass rates, skill deltas, timing/token summaries })
+benchmark.json ({ per-case pass rates, skill deltas, timing/token/tool/context summaries })
 ```
 
 ## Core entities
@@ -75,7 +75,7 @@ Discriminated union:
   - `kind: "behavior"` and `kind: "safety"` for trace-aware checks. These validate now; deterministic grading for them is still deferred.
 
 ### Eval Case Runner (`src/evals/run-case.ts`)
-`runEvalCase({ skill, case, evalsDir, model?, createSession? })` → `{ caseId, assistantText, workspaceDir, timing, trace, cleanup }`. Materializes `case.setup` and legacy `case.files` into a temp workspace before invoking Pi. Caller owns `cleanup()`.
+`runEvalCase({ skill, case, evalsDir, model?, createSession? })` → `{ caseId, assistantText, workspaceDir, timing, trace, contextManifest, toolSummary, cleanup }`. Materializes `case.setup` and legacy `case.files` into a temp workspace before invoking Pi. Caller owns `cleanup()`.
 
 ### Grader (`src/evals/grade.ts`)
 `gradeEvalCase({ case, workspaceDir, assistantText, judge?, judgeModel? })` → `GradingJson`. Batches legacy string assertions and `output/judge` assertions into one LLM-judge call; runs legacy scripts plus `output/regex`, `output/exact`, and workspace intent assertions synchronously. Path-traversal guard remains on every workspace path.
@@ -83,12 +83,15 @@ Discriminated union:
 ### Run Command (`src/cli/run-evals-command.ts`)
 `runEvalsCommand({ input, skillNames?, caseIds?, outputDirOverride?, ... })` — the top-level CLI handler. Discovers, loops over cases, writes artifacts, aggregates a summary. Per-case failures are captured in `skill.errors[]` rather than aborting the run.
 
-### Run Artifacts (`assistant.md`, `outputs/`, `grading.json`, `timing.json`)
+### Run Artifacts (`assistant.md`, `outputs/`, `grading.json`, `timing.json`, `trace.json`, `tool-summary.json`, `context-manifest.json`)
 Per-case artifacts preserve both the assistant response and the workspace evidence used for grading:
 - `assistant.md` — final assistant response text for the run variant.
 - `outputs/` — final workspace filesystem snapshot after the run.
 - `grading.json` — Anthropic-style `assertion_results[]` with `text`, `passed`, `evidence`, the originating `assertion`, plus a `summary` block.
 - `timing.json` — runtime observability: duration, model provider/id, thinking level, input/output/cache/total tokens, estimated cost in USD, context-window size, and percentage of the context window used.
+- `trace.json` — normalized runtime trace with assistant text, tool calls/results, file touches, skill reads, external calls, and raw telemetry references.
+- `tool-summary.json` — compact counts by tool name, tool errors, skill reads by skill name, written/edited files, external calls, and MCP-looking tool call counts.
+- `context-manifest.json` — skills, tools, MCP-looking tools, ambient-resource flags, and context mode exposed to the model.
 
 ## Comparison and planned post-MVP entities
 
@@ -104,11 +107,11 @@ A case-level aggregate that points at both variant grading outputs and computes:
 - `with_skill` pass rate
 - `without_skill` pass rate
 - delta = `with_skill.pass_rate - without_skill.pass_rate`
-- timing/token/model/cost/context summaries per variant
+- timing/token/model/cost/context/tool summaries per variant
 - runtime or grading errors per variant
 
 ### Benchmark JSON (`benchmark.json`)
-An opt-in `--compare` run-level aggregate over all cases in a skill. It answers the product question: “does this skill improve results?” The core artifact stays Anthropic-compatible: per-case results, overall pass rates, overall delta, and error summaries. Pi-specific artifact paths, assistant response paths, token counts, timings, model/thinking metadata, estimated cost, and context-window usage live under `metadata.extensions` so the artifact remains portable while preserving debugging detail. Single-run mode does not emit `benchmark.json` yet.
+An opt-in `--compare` run-level aggregate over all cases in a skill. It answers the product question: “does this skill improve results?” The core artifact stays Anthropic-compatible: per-case results, overall pass rates, overall delta, and error summaries. Pi-specific artifact paths, assistant response paths, trace/tool/context artifact paths, token counts, timings, model/thinking metadata, estimated cost, context-window usage, tool-call counts, MCP-looking tool counts, and attached-skill summaries live under `metadata.extensions` so the artifact remains portable while preserving debugging detail. Single-run mode does not emit `benchmark.json` yet.
 
 ### Iteration Workspace
 A durable grouping for repeated eval cycles, e.g. `iteration-1/`, `iteration-2/`. In the initial implementation, iterations are runner artifacts only: they group outputs without proposing or applying `SKILL.md` edits. Passing `--iteration 1` writes artifacts under `<skillDir>/evals-runs/iteration-1/<runId>/`; string names are normalized the same way, e.g. `baseline` → `iteration-baseline`. Iterations should keep prior artifacts immutable and may optionally include the evaluated `SKILL.md` snapshot. Generated feedback or improvement proposals can layer on later.

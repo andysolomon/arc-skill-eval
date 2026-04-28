@@ -154,9 +154,19 @@ export interface PiSessionExternalCallSummary {
 
 export type PiSessionTelemetryExternalCall = PiSessionExternalCallSummary;
 
+export interface PiSessionTelemetryToolInfo {
+  name: string;
+  source?: string;
+  sourcePath?: string;
+  sourceScope?: string;
+  sourceOrigin?: string;
+}
+
 export interface PiSessionTelemetryRunStart {
   kind: PiSdkRunnableCase["kind"];
   relativeSkillDir: string;
+  activeTools?: string[];
+  allTools?: PiSessionTelemetryToolInfo[];
 }
 
 interface PiSessionTelemetryEntryBase<TKind extends PiSessionTelemetryKind, TData> {

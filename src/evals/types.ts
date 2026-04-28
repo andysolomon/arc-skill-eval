@@ -12,6 +12,7 @@ import type {
   ThinkingLevel,
   WorkspaceSetup,
 } from "../contracts/types.js";
+import type { ContextManifestJson, ToolSummaryJson } from "../observability/types.js";
 
 /** Top-level shape of a `<skill-dir>/evals/evals.json` file. */
 export interface EvalsJsonFile {
@@ -233,6 +234,9 @@ export interface BenchmarkVariantArtifacts {
   outputs_dir: string;
   timing_path: string;
   grading_path: string;
+  trace_path: string;
+  tool_summary_path: string;
+  context_manifest_path: string;
   total_tokens: number;
   duration_ms: number;
   model: ModelSelection | null;
@@ -240,7 +244,14 @@ export interface BenchmarkVariantArtifacts {
   estimated_cost_usd: number;
   context_window_tokens: number | null;
   context_window_used_percent: number | null;
+  tool_call_count: number;
+  tool_error_count: number;
+  mcp_tool_call_count: number;
+  attached_skills: ContextManifestJson["attached_skills"];
+  mcp_tools: ContextManifestJson["mcp_tools"];
 }
+
+export type { ContextManifestJson, ToolSummaryJson };
 
 export interface TokenUsageJson {
   input_tokens: number;

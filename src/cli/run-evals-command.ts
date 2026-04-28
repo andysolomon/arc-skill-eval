@@ -18,6 +18,7 @@ import type {
   GradingJson,
   TimingJson,
 } from "../evals/types.js";
+import type { ContextManifestJson, ToolSummaryJson } from "../observability/types.js";
 import type { PiSdkSessionFactory } from "../pi/sdk-runner.js";
 
 export interface RunEvalsCommandOptions {
@@ -53,8 +54,13 @@ export interface VariantRunArtifacts {
   outputsDir: string;
   timingPath: string;
   gradingPath: string;
+  tracePath: string;
+  toolSummaryPath: string;
+  contextManifestPath: string;
   timing: TimingJson;
   grading: GradingJson;
+  toolSummary: ToolSummaryJson;
+  contextManifest: ContextManifestJson;
 }
 
 export interface CaseRunComparison {
@@ -104,7 +110,8 @@ export interface RunEvalsCommandResult {
 /**
  * Discover skills at `input`, load each `evals/evals.json`, run every
  * selected case through the Pi-backed runner, grade the outputs, and
- * write per-case `outputs/` + `timing.json` + `grading.json`. The
+ * write per-case `assistant.md` + `outputs/` + `timing.json` +
+ * `grading.json` + observability artifacts. The
  * command never throws on per-case failures — they are recorded in
  * `errors[]` so a partial run still produces artifacts for the cases
  * that succeeded.
@@ -268,12 +275,18 @@ async function runOneCaseVariant(args: {
     const outputsDir = path.join(args.variantDir, "outputs");
     const timingPath = path.join(args.variantDir, "timing.json");
     const gradingPath = path.join(args.variantDir, "grading.json");
+    const tracePath = path.join(args.variantDir, "trace.json");
+    const toolSummaryPath = path.join(args.variantDir, "tool-summary.json");
+    const contextManifestPath = path.join(args.variantDir, "context-manifest.json");
 
     await mkdir(outputsDir, { recursive: true });
     await writeFile(assistantPath, formatAssistantArtifact(run.assistantText), "utf-8");
     await cp(run.workspaceDir, outputsDir, { recursive: true, force: true });
-    await writeFile(timingPath, `${JSON.stringify(run.timing, null, 2)}\n`, "utf-8");
-    await writeFile(gradingPath, `${JSON.stringify(grading, null, 2)}\n`, "utf-8");
+    await writeJsonArtifact(timingPath, run.timing);
+    await writeJsonArtifact(gradingPath, grading);
+    await writeJsonArtifact(tracePath, run.trace);
+    await writeJsonArtifact(toolSummaryPath, run.toolSummary);
+    await writeJsonArtifact(contextManifestPath, run.contextManifest);
 
     return {
       variant: args.variant,
@@ -281,8 +294,13 @@ async function runOneCaseVariant(args: {
       outputsDir,
       timingPath,
       gradingPath,
+      tracePath,
+      toolSummaryPath,
+      contextManifestPath,
       timing: run.timing,
       grading,
+      toolSummary: run.toolSummary,
+      contextManifest: run.contextManifest,
     };
   } finally {
     await run.cleanup().catch(() => undefined);
@@ -291,6 +309,31 @@ async function runOneCaseVariant(args: {
 
 function formatAssistantArtifact(assistantText: string): string {
   return assistantText.endsWith("\n") ? assistantText : `${assistantText}\n`;
+}
+
+async function writeJsonArtifact(pathname: string, value: unknown): Promise<void> {
+  await writeFile(pathname, `${JSON.stringify(value, createSafeJsonReplacer(), 2)}\n`, "utf-8");
+}
+
+function createSafeJsonReplacer(): (key: string, value: unknown) => unknown {
+  const seen = new WeakSet<object>();
+
+  return (_key, value) => {
+    if (typeof value === "bigint") {
+      return value.toString();
+    }
+
+    if (typeof value !== "object" || value === null) {
+      return value;
+    }
+
+    if (seen.has(value)) {
+      return "[Circular]";
+    }
+
+    seen.add(value);
+    return value;
+  };
 }
 
 function compareVariantPassRates(withSkill: GradingJson, withoutSkill: GradingJson): CaseRunComparison {
@@ -396,6 +439,9 @@ function toBenchmarkVariantArtifacts(artifacts: VariantRunArtifacts): BenchmarkV
     outputs_dir: artifacts.outputsDir,
     timing_path: artifacts.timingPath,
     grading_path: artifacts.gradingPath,
+    trace_path: artifacts.tracePath,
+    tool_summary_path: artifacts.toolSummaryPath,
+    context_manifest_path: artifacts.contextManifestPath,
     total_tokens: artifacts.timing.total_tokens,
     duration_ms: artifacts.timing.duration_ms,
     model: artifacts.timing.model,
@@ -403,6 +449,11 @@ function toBenchmarkVariantArtifacts(artifacts: VariantRunArtifacts): BenchmarkV
     estimated_cost_usd: artifacts.timing.estimated_cost_usd,
     context_window_tokens: artifacts.timing.context_window_tokens,
     context_window_used_percent: artifacts.timing.context_window_used_percent,
+    tool_call_count: artifacts.toolSummary.tool_call_count,
+    tool_error_count: artifacts.toolSummary.tool_error_count,
+    mcp_tool_call_count: artifacts.toolSummary.mcp_tool_call_count,
+    attached_skills: artifacts.contextManifest.attached_skills,
+    mcp_tools: artifacts.contextManifest.mcp_tools,
   };
 }
 

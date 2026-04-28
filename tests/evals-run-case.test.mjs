@@ -145,6 +145,13 @@ test("runEvalCase returns assistantText + timing when case has no files", async 
       assert.ok(result.timing.duration_ms >= 0);
       assert.equal(result.trace.identity.runtime, "pi-sdk");
       assert.equal(result.trace.observations.assistantText, "hello there");
+      assert.equal(result.contextManifest.runtime, "pi");
+      assert.equal(result.contextManifest.mode, "isolated");
+      assert.deepEqual(result.contextManifest.attached_skills, [
+        { name: "sample", path: path.join(skill.skillDir, "SKILL.md"), role: "target" },
+      ]);
+      assert.equal(result.toolSummary.tool_call_count, 0);
+      assert.equal(result.toolSummary.mcp_tool_call_count, 0);
     } finally {
       await result.cleanup();
     }
