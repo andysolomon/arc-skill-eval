@@ -20,11 +20,10 @@ import type {
   PiSdkExecutionCase,
 } from "../pi/types.js";
 import {
-  buildIsolatedContextManifest,
   buildToolSummary,
   enrichContextManifestWithTrace,
 } from "../observability/artifacts.js";
-import type { ContextManifestJson, ToolSummaryJson } from "../observability/types.js";
+import type { ContextManifestJson, EvalContextMode, ToolSummaryJson } from "../observability/types.js";
 import { normalizePiSdkCaseRunResult } from "../traces/normalize-sdk.js";
 import type { EvalTrace } from "../traces/types.js";
 
@@ -50,6 +49,10 @@ export interface RunEvalCaseOptions {
   model?: ModelSelection;
   /** Attach the target skill to the Pi session. Defaults to true. */
   attachSkill?: boolean;
+  /** Additional explicit skill paths to load as conflict/distractor context. */
+  extraSkillPaths?: string[];
+  /** Context isolation mode. Defaults to isolated. */
+  contextMode?: EvalContextMode;
   /**
    * Test-injection hook. When provided, replaces the real Pi SDK session
    * so tests can assert on prompt flow without calling the API.
@@ -125,6 +128,8 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
       model: options.model,
       createSession: options.createSession,
       attachSkill: options.attachSkill,
+      extraSkillPaths: options.extraSkillPaths,
+      contextMode: options.contextMode,
     });
 
     const timing: TimingJson = {
@@ -144,14 +149,7 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
       context_window_used_percent: piResult.usage.contextWindowUsedPercent,
     };
     const trace = normalizePiSdkCaseRunResult(piResult);
-    const contextManifest = enrichContextManifestWithTrace(
-      buildIsolatedContextManifest({
-        targetSkillName: path.basename(options.skill.skillDir),
-        targetSkillPath: options.skill.skillDefinitionPath,
-        attachTargetSkill: options.attachSkill ?? true,
-      }),
-      trace,
-    );
+    const contextManifest = enrichContextManifestWithTrace(piResult.contextManifest, trace);
     const toolSummary = buildToolSummary(trace, contextManifest);
 
     const cleanup = async () => {

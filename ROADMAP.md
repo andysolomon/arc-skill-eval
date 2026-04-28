@@ -109,7 +109,7 @@ The slim MVP is complete: discovery, loading/validation, workspace setup, Pi exe
 
 **Work items**
 - Ensure each pilot skill has meaningful `evals/evals.json` coverage.
-- Use `assistant.md`, `trace.json`, `tool-summary.json`, `context-manifest.json`, and model/token/cost/context timing metadata to explain pilot pass/fail deltas.
+- Use `assistant.md`, `trace.json`, `tool-summary.json`, `context-manifest.json`, explicit `--extra-skill` conflict loadouts, optional `--context-mode ambient`, and model/token/cost/context timing metadata to explain pilot pass/fail deltas.
 - Add or tighten fixtures for repo-mutation cases.
 - Identify any live API requirements and gate them explicitly.
 - Run the pilot cohort with dual-run + benchmark aggregation once P1/P2 are available.

@@ -30,7 +30,7 @@ export function formatRunEvalsResult(result: RunEvalsCommandResult, options: Cli
       const comparison = caseArt.comparison
         ? `, delta ${formatSignedFractionPercent(caseArt.comparison.delta)}`
         : "";
-      lines.push(`  [${verdict}] ${caseArt.caseId}: ${s.passed}/${s.total} assertions (${formatTimingSummary(caseArt.timing)}, ${formatToolSummary(caseArt.toolSummary)}${comparison})`);
+      lines.push(`  [${verdict}] ${caseArt.caseId}: ${s.passed}/${s.total} assertions (${formatTimingSummary(caseArt.timing)}, ${formatToolSummary(caseArt.toolSummary)}, ${formatContextSummary(caseArt.contextManifest)}${comparison})`);
     }
     for (const err of skill.errors) {
       lines.push(`  [ERROR] ${err.caseId}: ${err.message}`);
@@ -51,6 +51,14 @@ function formatTimingSummary(timing: { duration_ms: number; total_tokens: number
   if (timing.model) {
     const thinking = timing.thinking_level ? `, thinking ${timing.thinking_level}` : "";
     parts.push(`${timing.model.provider}/${timing.model.id}${thinking}`);
+  }
+  return parts.join(", ");
+}
+
+function formatContextSummary(contextManifest: { mode: string; attached_skills: unknown[]; mcp_tools: unknown[] }): string {
+  const parts = [`context ${contextManifest.mode}`, `${contextManifest.attached_skills.length} skills`];
+  if (contextManifest.mcp_tools.length > 0) {
+    parts.push(`${contextManifest.mcp_tools.length} mcp tools`);
   }
   return parts.join(", ");
 }

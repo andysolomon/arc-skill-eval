@@ -7,6 +7,7 @@ import type {
   ParityCase,
   RoutingCase,
 } from "../contracts/types.js";
+import type { ContextManifestJson, EvalContextMode } from "../observability/types.js";
 import type { MaterializedFixtureDetails, FixtureCleanupResult } from "../fixtures/types.js";
 import type { RepoSourceDescriptor, ValidatedSkillDiscovery } from "../load/source-types.js";
 
@@ -86,6 +87,10 @@ export interface RunPiSdkCaseOptions {
   appendSystemPrompt?: string[];
   /** Attach the target skill to the Pi session. Defaults to true. */
   attachSkill?: boolean;
+  /** Additional explicit skill paths to load as conflict/distractor context. */
+  extraSkillPaths?: string[];
+  /** Context isolation mode. Defaults to isolated. */
+  contextMode?: EvalContextMode;
 }
 
 export interface RunValidatedSkillViaPiSdkOptions {
@@ -100,6 +105,10 @@ export interface RunValidatedSkillViaPiSdkOptions {
   appendSystemPrompt?: string[];
   /** Attach the target skill to the Pi session. Defaults to true. */
   attachSkill?: boolean;
+  /** Additional explicit skill paths to load as conflict/distractor context. */
+  extraSkillPaths?: string[];
+  /** Context isolation mode. Defaults to isolated. */
+  contextMode?: EvalContextMode;
 }
 
 export const PI_SESSION_TELEMETRY_CUSTOM_TYPE = "arc-skill-eval.telemetry";
@@ -252,6 +261,7 @@ export interface PiSdkCaseRunResult {
   durationMs: number;
   session: PiSdkSessionArtifact;
   usage: PiSdkUsageMetrics;
+  contextManifest: ContextManifestJson;
   telemetry: PiSessionTelemetrySnapshot | null;
   cleanup: () => Promise<PiSdkCaseCleanupResult>;
 }

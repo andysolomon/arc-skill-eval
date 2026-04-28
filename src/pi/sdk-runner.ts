@@ -24,6 +24,13 @@ import type {
   ParityCase,
   RoutingCase,
 } from "../contracts/types.js";
+import { PI_BUILTIN_TOOLS, PI_DEFAULT_ACTIVE_TOOLS } from "../observability/artifacts.js";
+import type {
+  ContextManifestJson,
+  ContextSkillAttachment,
+  ContextSkillRole,
+  EvalContextMode,
+} from "../observability/types.js";
 import { materializeFixture, type MaterializedFixture } from "../fixtures/index.js";
 import type { DiscoveredSkillFiles, ValidatedSkillDiscovery } from "../load/source-types.js";
 import type {
@@ -72,11 +79,14 @@ export interface PiSdkSessionFactoryOptions {
   appendSystemPrompt: string[];
   env: Record<string, string>;
   attachSkill: boolean;
+  extraSkillPaths: string[];
+  contextMode: EvalContextMode;
 }
 
 export interface PiSdkSessionFactoryResult {
   session: PiSdkSessionLike;
   model: ModelSelection | null;
+  contextManifest?: ContextManifestJson;
 }
 
 export type PiSdkSessionFactory = (
@@ -155,6 +165,8 @@ export async function runPiSdkCase(
   const requestedModel = resolveRequestedModel(options.skill.contract, options.caseDefinition, options.model);
   const appendSystemPrompt = [...(options.appendSystemPrompt ?? [])];
   const attachSkill = options.attachSkill ?? true;
+  const extraSkillPaths = [...(options.extraSkillPaths ?? [])];
+  const contextMode = options.contextMode ?? "isolated";
   const materializedFixture = await maybeMaterializeCaseFixture(options.skill, options.caseDefinition);
   const caseWorkspaceDir = materializedFixture?.workspaceDir ?? environment.workspaceDir;
   const caseEnv = materializedFixture?.env ?? {};
@@ -174,6 +186,8 @@ export async function runPiSdkCase(
       appendSystemPrompt,
       env: caseEnv,
       attachSkill,
+      extraSkillPaths,
+      contextMode,
     });
   } catch (error) {
     await cleanup().catch(() => undefined);
@@ -205,6 +219,12 @@ export async function runPiSdkCase(
   const telemetry = await loadTelemetryIfAvailable(session.sessionFile);
   const finishedAt = new Date();
   const usage = collectPiSdkUsageMetrics(session, sessionResult.model);
+  const contextManifest = sessionResult.contextManifest ?? buildRequestedContextManifest({
+    skillFiles: options.skill.files,
+    attachSkill,
+    extraSkillPaths,
+    contextMode,
+  });
   const result: PiSdkCaseRunResult = {
     source: options.source,
     skill: {
@@ -230,6 +250,7 @@ export async function runPiSdkCase(
       events,
     },
     usage,
+    contextManifest,
     telemetry,
     cleanup,
   };
@@ -269,6 +290,9 @@ export async function runValidatedSkillViaPiSdk(
         environment,
         model: options.model,
         appendSystemPrompt: options.appendSystemPrompt,
+        attachSkill: options.attachSkill,
+        extraSkillPaths: options.extraSkillPaths,
+        contextMode: options.contextMode,
         createSession: options.createSession,
       }),
     );
@@ -294,7 +318,7 @@ async function createDefaultPiSdkSession(
   const credentialsAgentDir = getAgentDir();
   const authStorage = AuthStorage.create(path.join(credentialsAgentDir, "auth.json"));
   const modelRegistry = ModelRegistry.create(authStorage, path.join(credentialsAgentDir, "models.json"));
-  const resourceLoader = await createPiSdkResourceLoader({
+  const { resourceLoader, contextManifest } = await createPiSdkResourceLoader({
     workspaceDir: options.workspaceDir,
     agentDir: options.agentDir,
     settingsManager,
@@ -303,6 +327,8 @@ async function createDefaultPiSdkSession(
     skillFiles: options.skillFiles,
     appendSystemPrompt: options.appendSystemPrompt,
     attachSkill: options.attachSkill,
+    extraSkillPaths: options.extraSkillPaths,
+    contextMode: options.contextMode,
   });
   const resolvedModel = resolveSdkModelSelection(modelRegistry, options.requestedModel);
 
@@ -322,6 +348,7 @@ async function createDefaultPiSdkSession(
   return {
     session,
     model: normalizeSessionModel(session.model, session.thinkingLevel) ?? resolvedModel?.selection ?? null,
+    contextManifest,
   };
 }
 
@@ -448,6 +475,11 @@ function numericValue(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+interface LoadedContextSkill {
+  skill: Skill;
+  role: ContextSkillRole;
+}
+
 async function createPiSdkResourceLoader(options: {
   workspaceDir: string;
   agentDir: string;
@@ -457,32 +489,186 @@ async function createPiSdkResourceLoader(options: {
   skillFiles: DiscoveredSkillFiles;
   appendSystemPrompt: string[];
   attachSkill: boolean;
-}): Promise<ResourceLoader> {
+  extraSkillPaths: string[];
+  contextMode: EvalContextMode;
+}): Promise<{ resourceLoader: ResourceLoader; contextManifest: ContextManifestJson }> {
+  const ambientEnabled = options.contextMode === "ambient";
   const baseLoader = new DefaultResourceLoader({
     cwd: options.workspaceDir,
     agentDir: options.agentDir,
     settingsManager: options.settingsManager,
-    noExtensions: true,
+    noExtensions: !ambientEnabled,
     extensionFactories: [createPiSessionTelemetryObserverExtension({ skill: options.skill, caseDefinition: options.caseDefinition })],
-    noSkills: true,
-    noPromptTemplates: true,
-    noThemes: true,
-    noContextFiles: true,
+    noSkills: !ambientEnabled,
+    noPromptTemplates: !ambientEnabled,
+    noThemes: !ambientEnabled,
+    noContextFiles: !ambientEnabled,
   });
   await baseLoader.reload();
 
-  const loadedSkill = options.attachSkill ? loadSdkSkill(options.skillFiles) : null;
+  const explicitSkills = loadExplicitContextSkills({
+    skillFiles: options.skillFiles,
+    attachSkill: options.attachSkill,
+    extraSkillPaths: options.extraSkillPaths,
+  });
+  const contextManifest = buildActualContextManifest({
+    mode: options.contextMode,
+    explicitSkills,
+    ambientSkills: ambientEnabled ? baseLoader.getSkills().skills : [],
+  });
 
   return {
-    getExtensions: () => baseLoader.getExtensions(),
-    getSkills: () => ({ skills: loadedSkill ? [loadedSkill] : [], diagnostics: [] }),
-    getPrompts: () => baseLoader.getPrompts(),
-    getThemes: () => baseLoader.getThemes(),
-    getAgentsFiles: () => ({ agentsFiles: [] }),
-    getSystemPrompt: () => baseLoader.getSystemPrompt(),
-    getAppendSystemPrompt: () => [...options.appendSystemPrompt],
-    extendResources: () => {},
-    reload: async () => {},
+    resourceLoader: {
+      getExtensions: () => baseLoader.getExtensions(),
+      getSkills: () => {
+        const base = ambientEnabled ? baseLoader.getSkills() : { skills: [], diagnostics: [] };
+        const skills = dedupeLoadedContextSkills([
+          ...explicitSkills,
+          ...base.skills.map((skill): LoadedContextSkill => ({ skill, role: "ambient" })),
+        ]).map((entry) => entry.skill);
+
+        return { skills, diagnostics: base.diagnostics };
+      },
+      getPrompts: () => baseLoader.getPrompts(),
+      getThemes: () => baseLoader.getThemes(),
+      getAgentsFiles: () => ambientEnabled ? baseLoader.getAgentsFiles() : { agentsFiles: [] },
+      getSystemPrompt: () => baseLoader.getSystemPrompt(),
+      getAppendSystemPrompt: () => [
+        ...(ambientEnabled ? baseLoader.getAppendSystemPrompt() : []),
+        ...options.appendSystemPrompt,
+      ],
+      extendResources: (paths) => baseLoader.extendResources(paths),
+      reload: async () => { await baseLoader.reload(); },
+    },
+    contextManifest,
+  };
+}
+
+function loadExplicitContextSkills(options: {
+  skillFiles: DiscoveredSkillFiles;
+  attachSkill: boolean;
+  extraSkillPaths: string[];
+}): LoadedContextSkill[] {
+  const explicitSkills: LoadedContextSkill[] = [];
+
+  if (options.attachSkill) {
+    explicitSkills.push({ skill: loadSdkSkill(options.skillFiles), role: "target" });
+  }
+
+  for (const skillPath of options.extraSkillPaths) {
+    for (const skill of loadSdkSkillsFromPath(skillPath)) {
+      explicitSkills.push({ skill, role: "extra" });
+    }
+  }
+
+  return dedupeLoadedContextSkills(explicitSkills);
+}
+
+function loadSdkSkillsFromPath(skillPath: string): Skill[] {
+  const resolvedPath = path.resolve(skillPath);
+  const skillDir = path.basename(resolvedPath) === "SKILL.md" ? path.dirname(resolvedPath) : resolvedPath;
+  const loaded = loadSkillsFromDir({
+    dir: skillDir,
+    source: "arc-skill-eval-extra",
+  });
+
+  if (loaded.skills.length === 0) {
+    throw new Error(`Unable to load extra Pi skill from ${skillPath}. Expected a skill directory, SKILL.md file, or directory containing skills.`);
+  }
+
+  return loaded.skills;
+}
+
+function buildActualContextManifest(args: {
+  mode: EvalContextMode;
+  explicitSkills: LoadedContextSkill[];
+  ambientSkills: Skill[];
+}): ContextManifestJson {
+  const attachedSkills = dedupeLoadedContextSkills([
+    ...args.explicitSkills,
+    ...args.ambientSkills.map((skill): LoadedContextSkill => ({ skill, role: "ambient" })),
+  ]).map(toContextSkillAttachment);
+
+  return {
+    runtime: "pi",
+    mode: args.mode,
+    attached_skills: attachedSkills,
+    available_tools: [...PI_BUILTIN_TOOLS],
+    active_tools: [...PI_DEFAULT_ACTIVE_TOOLS],
+    mcp_tools: [],
+    mcp_servers: [],
+    ambient: {
+      extensions: args.mode === "ambient",
+      skills: args.mode === "ambient",
+      prompt_templates: args.mode === "ambient",
+      themes: args.mode === "ambient",
+      context_files: args.mode === "ambient",
+    },
+  };
+}
+
+function buildRequestedContextManifest(args: {
+  skillFiles: DiscoveredSkillFiles;
+  attachSkill: boolean;
+  extraSkillPaths: string[];
+  contextMode: EvalContextMode;
+}): ContextManifestJson {
+  const attachedSkills: ContextSkillAttachment[] = [];
+
+  if (args.attachSkill) {
+    attachedSkills.push({
+      name: args.skillFiles.skillName,
+      path: args.skillFiles.skillDefinitionPath,
+      role: "target",
+    });
+  }
+
+  for (const extraSkillPath of args.extraSkillPaths) {
+    const resolvedPath = path.resolve(extraSkillPath);
+    const skillPath = path.basename(resolvedPath) === "SKILL.md"
+      ? resolvedPath
+      : path.join(resolvedPath, "SKILL.md");
+    const skillName = path.basename(path.basename(resolvedPath) === "SKILL.md" ? path.dirname(resolvedPath) : resolvedPath);
+    attachedSkills.push({ name: skillName, path: skillPath, role: "extra" });
+  }
+
+  return {
+    runtime: "pi",
+    mode: args.contextMode,
+    attached_skills: attachedSkills,
+    available_tools: [...PI_BUILTIN_TOOLS],
+    active_tools: [...PI_DEFAULT_ACTIVE_TOOLS],
+    mcp_tools: [],
+    mcp_servers: [],
+    ambient: {
+      extensions: args.contextMode === "ambient",
+      skills: args.contextMode === "ambient",
+      prompt_templates: args.contextMode === "ambient",
+      themes: args.contextMode === "ambient",
+      context_files: args.contextMode === "ambient",
+    },
+  };
+}
+
+function dedupeLoadedContextSkills(skills: LoadedContextSkill[]): LoadedContextSkill[] {
+  const seen = new Set<string>();
+  const deduped: LoadedContextSkill[] = [];
+
+  for (const entry of skills) {
+    const key = path.resolve(entry.skill.filePath);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(entry);
+  }
+
+  return deduped;
+}
+
+function toContextSkillAttachment(entry: LoadedContextSkill): ContextSkillAttachment {
+  return {
+    name: entry.skill.name,
+    path: entry.skill.filePath,
+    role: entry.role,
   };
 }
 
