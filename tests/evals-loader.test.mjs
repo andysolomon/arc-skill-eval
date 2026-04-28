@@ -34,6 +34,68 @@ test("readEvalsJson parses the alpha fixture", async () => {
   assert.deepEqual(second.assertions[1].target, { file: "notes.txt" });
 });
 
+test("readEvalsJson parses explicit workspace setup and intent assertions", async () => {
+  const tmp = path.join(__dirname, "tmp-evals-domain.json");
+  const { writeFile, unlink } = await import("node:fs/promises");
+  await writeFile(
+    tmp,
+    JSON.stringify({
+      version: "1",
+      skill_name: "alpha",
+      evals: [
+        {
+          id: "domain-case",
+          description: "Uses the richer domain model.",
+          prompt: "Configure this repo.",
+          setup: {
+            kind: "seeded",
+            sources: [{ from: "files/clean-repo", to: "." }],
+            mountMode: "flatten-contents",
+          },
+          metadata: {
+            tags: ["execution"],
+            difficulty: "medium",
+            intent: "golden path",
+            environment: {
+              workspace: { kind: "seeded", writable: true },
+              git: { required: false },
+              network: { mode: "none" },
+            },
+          },
+          assertions: [
+            {
+              id: "package-json-exists",
+              kind: "workspace",
+              method: "file-exists",
+              path: "package.json",
+              mustPass: true,
+            },
+            {
+              id: "setup-explained",
+              kind: "output",
+              method: "judge",
+              prompt: "The assistant explains the setup.",
+            },
+          ],
+        },
+      ],
+    }),
+    "utf-8",
+  );
+
+  try {
+    const file = await readEvalsJson(tmp);
+    assert.equal(file.version, "1");
+    assert.equal(file.evals[0].setup.kind, "seeded");
+    assert.equal(file.evals[0].setup.mountMode, "flatten-contents");
+    assert.equal(file.evals[0].metadata.environment.network.mode, "none");
+    assert.equal(file.evals[0].assertions[0].kind, "workspace");
+    assert.equal(file.evals[0].assertions[1].method, "judge");
+  } finally {
+    await unlink(tmp).catch(() => undefined);
+  }
+});
+
 test("readEvalsJson throws EvalsJsonValidationError with issue list on missing skill_name", async () => {
   const tmp = path.join(__dirname, "tmp-evals.json");
   const { writeFile, unlink } = await import("node:fs/promises");
