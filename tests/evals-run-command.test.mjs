@@ -301,6 +301,60 @@ test("runEvalsCommand compare mode writes with_skill and without_skill variant a
   }
 });
 
+test("runEvalsCommand loads extra skills into context manifests for conflict evals", async () => {
+  const { repoRoot, skillDir } = await createSkillFixture({
+    evals: [
+      { id: "conflict", prompt: "Do the task.", assertions: ["The response succeeds"] },
+    ],
+  });
+  const extraSkillDir = path.join(repoRoot, "skills", "release-distractor");
+  await mkdir(extraSkillDir, { recursive: true });
+  await writeFile(
+    path.join(extraSkillDir, "SKILL.md"),
+    "---\nname: release-distractor\ndescription: Distractor skill.\n---\n\n# release-distractor\n",
+    "utf8",
+  );
+
+  try {
+    const received = [];
+    const result = await runEvalsCommand({
+      input: skillDir,
+      runId: "run-conflict",
+      compare: true,
+      extraSkillPaths: [extraSkillDir],
+      contextMode: "isolated",
+      createSession: async ({ attachSkill, extraSkillPaths, contextMode }) => {
+        received.push({ attachSkill, extraSkillPaths, contextMode });
+        return {
+          model: null,
+          session: createInjectedSession(attachSkill ? "with target" : "without target"),
+        };
+      },
+      judge: STUB_JUDGE_PASS,
+    });
+
+    assert.deepEqual(received, [
+      { attachSkill: true, extraSkillPaths: [extraSkillDir], contextMode: "isolated" },
+      { attachSkill: false, extraSkillPaths: [extraSkillDir], contextMode: "isolated" },
+    ]);
+
+    const caseArt = result.skills[0].cases[0];
+    const withContext = JSON.parse(await readFile(caseArt.variants.with_skill.contextManifestPath, "utf8"));
+    const withoutContext = JSON.parse(await readFile(caseArt.variants.without_skill.contextManifestPath, "utf8"));
+
+    assert.deepEqual(withContext.attached_skills, [
+      { name: "sample", path: path.join(skillDir, "SKILL.md"), role: "target" },
+      { name: "release-distractor", path: path.join(extraSkillDir, "SKILL.md"), role: "extra" },
+    ]);
+    assert.deepEqual(withoutContext.attached_skills, [
+      { name: "release-distractor", path: path.join(extraSkillDir, "SKILL.md"), role: "extra" },
+    ]);
+    assert.equal(withContext.ambient.extensions, false);
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
 test("runEvalsCommand surfaces failing assertions in the summary", async () => {
   const { repoRoot, skillDir } = await createSkillFixture({
     evals: [

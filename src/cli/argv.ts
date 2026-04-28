@@ -23,13 +23,15 @@ export function renderHelp(): string {
     "arc-skill-eval",
     "",
     "Usage:",
-    "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--output-dir <path>] [--iteration <name>] [--compare] [--json]",
+    "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--compare] [--json]",
     "",
     "Notes:",
     "  - <skill-dir-or-repo> is either a skill directory containing evals/evals.json,",
     "    or a repo root; in the repo case the CLI discovers every SKILL.md + evals/evals.json pair.",
     "  - run writes per-case assistant.md + outputs/ + timing.json + grading.json + observability artifacts under",
     "    <skillDir>/evals-runs/<runId>/eval-<id>/ (overridable via --output-dir).",
+    "  - --extra-skill loads explicit distractor/conflict skills for every variant.",
+    "  - --context-mode ambient opts into normal Pi ambient resources; default is isolated.",
     "  - run exits with code 1 when any assertion fails or any case errors out.",
     "  - Format reference: https://platform.claude.com/docs/en/agents-and-tools/agent-skills",
   ].join("\n");
@@ -43,6 +45,8 @@ function parseRunCommandArgs(args: string[]) {
   let compare = false;
   let outputDir: string | undefined;
   let iteration: string | undefined;
+  const extraSkillPaths: string[] = [];
+  let contextMode: "isolated" | "ambient" | undefined;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
@@ -78,6 +82,23 @@ function parseRunCommandArgs(args: string[]) {
       continue;
     }
 
+    if (arg === "--extra-skill" || arg.startsWith("--extra-skill=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      extraSkillPaths.push(parsed.value);
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
+    if (arg === "--context-mode" || arg.startsWith("--context-mode=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      if (parsed.value !== "isolated" && parsed.value !== "ambient") {
+        throw new CliUsageError(`Invalid --context-mode: ${parsed.value}. Expected isolated or ambient.`);
+      }
+      contextMode = parsed.value;
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
     if (arg === "--iteration" || arg.startsWith("--iteration=")) {
       const parsed = readFlagValue(arg, args[index + 1]);
       iteration = parsed.value;
@@ -100,7 +121,7 @@ function parseRunCommandArgs(args: string[]) {
     throw new CliUsageError("Missing required <skill-dir-or-repo> argument.");
   }
 
-  return { input, skillNames, caseIds, outputDir, iteration, compare, json };
+  return { input, skillNames, caseIds, outputDir, iteration, extraSkillPaths, contextMode, compare, json };
 }
 
 function readFlagValue(arg: string, nextArg: string | undefined): { value: string; consumedNext: boolean } {

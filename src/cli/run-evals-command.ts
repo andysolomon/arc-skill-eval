@@ -18,7 +18,7 @@ import type {
   GradingJson,
   TimingJson,
 } from "../evals/types.js";
-import type { ContextManifestJson, ToolSummaryJson } from "../observability/types.js";
+import type { ContextManifestJson, EvalContextMode, ToolSummaryJson } from "../observability/types.js";
 import type { PiSdkSessionFactory } from "../pi/sdk-runner.js";
 
 export interface RunEvalsCommandOptions {
@@ -43,6 +43,10 @@ export interface RunEvalsCommandOptions {
   iteration?: string;
   /** Opt into with_skill vs without_skill variant comparison. */
   compare?: boolean;
+  /** Explicit extra skill paths to load as distractor/conflict context. */
+  extraSkillPaths?: string[];
+  /** Context resource mode. Defaults to isolated. */
+  contextMode?: EvalContextMode;
   /** Test-injection points. */
   createSession?: PiSdkSessionFactory;
   judge?: LlmJudgeFn;
@@ -155,6 +159,8 @@ export async function runEvalsCommand(
           model: options.model,
           judgeModel: options.judgeModel,
           compare: options.compare ?? false,
+          extraSkillPaths: options.extraSkillPaths ?? [],
+          contextMode: options.contextMode ?? "isolated",
           createSession: options.createSession,
           judge: options.judge,
         });
@@ -197,6 +203,8 @@ async function runOneCase(args: {
   model: ModelSelection | undefined;
   judgeModel: ModelSelection | undefined;
   compare: boolean;
+  extraSkillPaths: string[];
+  contextMode: EvalContextMode;
   createSession: PiSdkSessionFactory | undefined;
   judge: LlmJudgeFn | undefined;
 }): Promise<CaseRunArtifacts> {
@@ -252,6 +260,8 @@ async function runOneCaseVariant(args: {
   variant: EvalRunVariant;
   variantDir: string;
   attachSkill: boolean;
+  extraSkillPaths: string[];
+  contextMode: EvalContextMode;
 }): Promise<VariantRunArtifacts> {
   const run = await runEvalCase({
     skill: args.skill,
@@ -260,6 +270,8 @@ async function runOneCaseVariant(args: {
     model: args.model,
     createSession: args.createSession,
     attachSkill: args.attachSkill,
+    extraSkillPaths: args.extraSkillPaths,
+    contextMode: args.contextMode,
   });
 
   try {

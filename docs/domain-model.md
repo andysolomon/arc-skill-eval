@@ -4,7 +4,7 @@
 This doc describes the runtime entities `arc-skill-eval` operates on after the pivot to [Anthropic's `evals/evals.json` standard](https://platform.claude.com/docs/en/agents-and-tools/agent-skills). It tracks what lives in `src/` today. The pre-pivot lane / profile / scorer architecture is gone; see [evals-json-pivot.md](evals-json-pivot.md) for what moved and why.
 
 ## Status
-- **Implemented now:** `evals/evals.json` loading + validation, SKILL.md adjacency discovery, per-case Pi SDK execution with the skill attached, workspace materialization via legacy `files` or explicit `setup`, assertion grading (LLM-judge + legacy scripts + intent-based output/workspace assertions), per-case `assistant.md` + `outputs/` + `grading.json` + `timing.json` + observability artifacts, CLI `run` command with per-case artifact layout, opt-in `with_skill` vs `without_skill` comparison via `--compare`, `benchmark.json` aggregation for compare runs, and explicit iteration buckets via `--iteration`.
+- **Implemented now:** `evals/evals.json` loading + validation, SKILL.md adjacency discovery, per-case Pi SDK execution with the skill attached, workspace materialization via legacy `files` or explicit `setup`, assertion grading (LLM-judge + legacy scripts + intent-based output/workspace assertions), per-case `assistant.md` + `outputs/` + `grading.json` + `timing.json` + observability artifacts, CLI `run` command with per-case artifact layout, opt-in `with_skill` vs `without_skill` comparison via `--compare`, `benchmark.json` aggregation for compare runs, explicit iteration buckets via `--iteration`, and opt-in context loadouts via `--extra-skill` / `--context-mode ambient`.
 - **Deferred post-MVP:** automatic iteration selection, cross-iteration comparison, optional evaluated `SKILL.md` snapshots, and human-review `feedback.json`.
 
 ## Pipeline
@@ -100,7 +100,7 @@ A run variant is the execution strategy for one eval case. Single-run remains th
 - **`with_skill`** — current behavior: run through Pi with the target skill attached.
 - **`without_skill`** — baseline behavior: run the same prompt/model/workspace setup without attaching the target skill.
 
-Both variants should materialize equivalent fresh workspaces before execution so pass-rate deltas reflect skill value rather than workspace contamination.
+Both variants materialize equivalent fresh workspaces before execution so pass-rate deltas reflect skill value rather than workspace contamination. When `--extra-skill` is supplied, extras are loaded into both variants; `with_skill` receives target + extras, while `without_skill` receives extras only. This supports explicit conflict/distractor tests without contaminating the no-target baseline.
 
 ### Case Comparison Result
 A case-level aggregate that points at both variant grading outputs and computes:
@@ -109,6 +109,9 @@ A case-level aggregate that points at both variant grading outputs and computes:
 - delta = `with_skill.pass_rate - without_skill.pass_rate`
 - timing/token/model/cost/context/tool summaries per variant
 - runtime or grading errors per variant
+
+### Context Loadout
+Default runs are isolated: ambient Pi skills, extensions, prompt templates, themes, and context files are disabled. `--extra-skill <path>` explicitly adds one or more skill directories or `SKILL.md` files as distractor/conflict context. `--context-mode ambient` opts into normal Pi ambient resources, including configured extension tools/MCP-like tools when present. Every variant writes `context-manifest.json` so reviewers can see which skills/tools/context were exposed, and `tool-summary.json` records which tools were actually called.
 
 ### Benchmark JSON (`benchmark.json`)
 An opt-in `--compare` run-level aggregate over all cases in a skill. It answers the product question: “does this skill improve results?” The core artifact stays Anthropic-compatible: per-case results, overall pass rates, overall delta, and error summaries. Pi-specific artifact paths, assistant response paths, trace/tool/context artifact paths, token counts, timings, model/thinking metadata, estimated cost, context-window usage, tool-call counts, MCP-looking tool counts, and attached-skill summaries live under `metadata.extensions` so the artifact remains portable while preserving debugging detail. Single-run mode does not emit `benchmark.json` yet.

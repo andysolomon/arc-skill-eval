@@ -80,11 +80,28 @@ arc-skill-eval run . --compare
 
 # Group artifacts under an iteration bucket
 arc-skill-eval run . --iteration 1
+
+# Add explicit distractor/conflict skills to the model context
+arc-skill-eval run ./skills/arc-conventional-commits \
+  --compare \
+  --extra-skill ./skills/release-please \
+  --iteration conflict-1
+
+# Opt into normal Pi ambient resources such as configured extensions/tools
+# while recording the resulting loadout in context-manifest.json
+arc-skill-eval run ./skills/arc-conventional-commits \
+  --context-mode ambient \
+  --iteration ambient-1
 ```
 
 The positional `<skill-dir-or-repo>` is resolved as:
 - a skill directory if it contains `evals/evals.json`,
 - otherwise a repo whose tree is walked for SKILL.md + evals/evals.json pairs.
+
+Context options:
+- `--extra-skill <path>` can be repeated to add explicit skill directories or `SKILL.md` files as distractor/conflict context. In `--compare`, `with_skill` receives the target + extras, while `without_skill` receives extras only.
+- `--context-mode isolated` is the default: no ambient Pi skills, extensions, prompt templates, themes, or context files are loaded.
+- `--context-mode ambient` opts into normal Pi ambient resources so extension tools/MCP-like tools and other configured resources can enter the context. The resolved loadout is recorded in `context-manifest.json`.
 
 Exit code: `0` when every case has no failing assertions, `1` otherwise.
 

@@ -146,6 +146,8 @@ test("runPiSdkCase captures prompt output, events, and session artifacts from in
     thinking: "minimal",
   });
   assert.deepEqual(receivedOptions.env, {});
+  assert.deepEqual(receivedOptions.extraSkillPaths, []);
+  assert.equal(receivedOptions.contextMode, "isolated");
   assert.equal(result.fixture, null);
   assert.equal(result.session.assistantText, "done");
   assert.deepEqual(result.session.messages, [{ role: "assistant", content: "done" }]);

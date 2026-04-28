@@ -8,6 +8,8 @@ export interface RunEvalsCliOptions extends CommandSelectionOptions {
   outputDir?: string;
   iteration?: string;
   compare?: boolean;
+  extraSkillPaths?: string[];
+  contextMode?: "isolated" | "ambient";
 }
 
 export interface CliRenderOptions {

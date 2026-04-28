@@ -107,6 +107,7 @@ The pivot starts as a minimum-viable shape: **single run per case, assertion gra
 - **Explicit iteration output layout** — implemented as `--iteration <name>`, writing under `<skillDir>/evals-runs/iteration-<name>/<runId>/` while leaving default layout unchanged.
 - **Response and usage artifacts** — implemented per run variant: `assistant.md` stores the final assistant response, and `timing.json` records duration, model, thinking level, token usage, estimated cost, context-window size, and context-window percentage used.
 - **Tool/context observability artifacts** — implemented per run variant: `trace.json`, `tool-summary.json`, and `context-manifest.json` capture tool-call counts, skill reads, MCP-looking tool activity, external calls, and the skills/tools/context exposed to the model.
+- **Context loadout / conflict mode** — implemented as opt-in flags: `--extra-skill <path>` loads explicit distractor skills for conflict evals, and `--context-mode ambient` allows normal Pi ambient resources while recording the resulting loadout.
 
 ## Sequencing guidance
 - Each milestone ships as its own PR against `main`.

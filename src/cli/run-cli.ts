@@ -22,6 +22,8 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
           outputDirOverride: parsed.outputDir,
           iteration: parsed.iteration,
           compare: parsed.compare,
+          extraSkillPaths: parsed.extraSkillPaths,
+          contextMode: parsed.contextMode,
         });
         const failed = result.summary.failedCases > 0 || result.summary.failedAssertions > 0;
         return {
