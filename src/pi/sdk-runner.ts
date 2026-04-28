@@ -64,6 +64,7 @@ export interface PiSdkSessionFactoryOptions {
   requestedModel: ModelSelection | undefined;
   appendSystemPrompt: string[];
   env: Record<string, string>;
+  attachSkill: boolean;
 }
 
 export interface PiSdkSessionFactoryResult {
@@ -146,6 +147,7 @@ export async function runPiSdkCase(
   const createSession = options.createSession ?? createDefaultPiSdkSession;
   const requestedModel = resolveRequestedModel(options.skill.contract, options.caseDefinition, options.model);
   const appendSystemPrompt = [...(options.appendSystemPrompt ?? [])];
+  const attachSkill = options.attachSkill ?? true;
   const materializedFixture = await maybeMaterializeCaseFixture(options.skill, options.caseDefinition);
   const caseWorkspaceDir = materializedFixture?.workspaceDir ?? environment.workspaceDir;
   const caseEnv = materializedFixture?.env ?? {};
@@ -164,6 +166,7 @@ export async function runPiSdkCase(
       requestedModel,
       appendSystemPrompt,
       env: caseEnv,
+      attachSkill,
     });
   } catch (error) {
     await cleanup().catch(() => undefined);
@@ -290,6 +293,7 @@ async function createDefaultPiSdkSession(
     caseDefinition: options.caseDefinition,
     skillFiles: options.skillFiles,
     appendSystemPrompt: options.appendSystemPrompt,
+    attachSkill: options.attachSkill,
   });
   const resolvedModel = resolveSdkModelSelection(modelRegistry, options.requestedModel);
 
@@ -320,6 +324,7 @@ async function createPiSdkResourceLoader(options: {
   caseDefinition: PiSdkRunnableCase;
   skillFiles: DiscoveredSkillFiles;
   appendSystemPrompt: string[];
+  attachSkill: boolean;
 }): Promise<ResourceLoader> {
   const baseLoader = new DefaultResourceLoader({
     cwd: options.workspaceDir,
@@ -334,11 +339,11 @@ async function createPiSdkResourceLoader(options: {
   });
   await baseLoader.reload();
 
-  const loadedSkill = loadSdkSkill(options.skillFiles);
+  const loadedSkill = options.attachSkill ? loadSdkSkill(options.skillFiles) : null;
 
   return {
     getExtensions: () => baseLoader.getExtensions(),
-    getSkills: () => ({ skills: [loadedSkill], diagnostics: [] }),
+    getSkills: () => ({ skills: loadedSkill ? [loadedSkill] : [], diagnostics: [] }),
     getPrompts: () => baseLoader.getPrompts(),
     getThemes: () => baseLoader.getThemes(),
     getAgentsFiles: () => ({ agentsFiles: [] }),

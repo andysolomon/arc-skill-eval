@@ -23,7 +23,7 @@ export function renderHelp(): string {
     "arc-skill-eval",
     "",
     "Usage:",
-    "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--output-dir <path>] [--json]",
+    "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--output-dir <path>] [--compare] [--json]",
     "",
     "Notes:",
     "  - <skill-dir-or-repo> is either a skill directory containing evals/evals.json,",
@@ -40,6 +40,7 @@ function parseRunCommandArgs(args: string[]) {
   const caseIds: string[] = [];
   let input: string | undefined;
   let json = false;
+  let compare = false;
   let outputDir: string | undefined;
 
   for (let index = 0; index < args.length; index += 1) {
@@ -47,6 +48,11 @@ function parseRunCommandArgs(args: string[]) {
 
     if (arg === "--json") {
       json = true;
+      continue;
+    }
+
+    if (arg === "--compare") {
+      compare = true;
       continue;
     }
 
@@ -86,7 +92,7 @@ function parseRunCommandArgs(args: string[]) {
     throw new CliUsageError("Missing required <skill-dir-or-repo> argument.");
   }
 
-  return { input, skillNames, caseIds, outputDir, json };
+  return { input, skillNames, caseIds, outputDir, compare, json };
 }
 
 function readFlagValue(arg: string, nextArg: string | undefined): { value: string; consumedNext: boolean } {

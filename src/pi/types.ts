@@ -83,6 +83,8 @@ export interface RunPiSdkCaseOptions {
   sessionDir?: string;
   model?: ModelSelection;
   appendSystemPrompt?: string[];
+  /** Attach the target skill to the Pi session. Defaults to true. */
+  attachSkill?: boolean;
 }
 
 export interface RunValidatedSkillViaPiSdkOptions {
@@ -95,6 +97,8 @@ export interface RunValidatedSkillViaPiSdkOptions {
   sessionDir?: string;
   model?: ModelSelection;
   appendSystemPrompt?: string[];
+  /** Attach the target skill to the Pi session. Defaults to true. */
+  attachSkill?: boolean;
 }
 
 export const PI_SESSION_TELEMETRY_CUSTOM_TYPE = "arc-skill-eval.telemetry";
