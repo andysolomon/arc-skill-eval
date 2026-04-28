@@ -89,13 +89,14 @@ The pivot starts as a minimum-viable shape: **single run per case, assertion gra
 **Actual delivery: ~3 focused days, 8 PRs (#14 direction, #15 M1, #16 M2A, #17 M2B, #18 M3a, #19 M3b, this M3c; plus #10 docs-only divergence note).**
 
 ## Deferred to post-MVP
-- **Iteration workspaces** (`<skill>-workspace/iteration-N/`, per-iteration LLM-proposed SKILL.md diffs). Once the MVP is answering real questions, this becomes the natural "improve the skill" loop.
+- **Automatic iteration selection and improvement loops** (`<skill>-workspace/iteration-N/`, per-iteration LLM-proposed SKILL.md diffs). Explicit runner-only iteration buckets are implemented via `--iteration`.
 - **Cross-run / cross-iteration benchmark comparison.** Builds on the per-run `benchmark.json` artifact.
 - **Human-review `feedback.json`.** Authoring ergonomic; nice to have, not structural.
 
 ## Post-MVP progress
 - **`with_skill` vs `without_skill` dual-run** — implemented as opt-in `--compare`. This emits per-case `with_skill/` and `without_skill/` artifacts and computes case-level pass-rate deltas.
 - **`benchmark.json` aggregation** — implemented for `--compare` runs only. The artifact keeps an Anthropic-compatible core and stores Pi-specific artifact paths/timing under `metadata.extensions`.
+- **Explicit iteration output layout** — implemented as `--iteration <name>`, writing under `<skillDir>/evals-runs/iteration-<name>/<runId>/` while leaving default layout unchanged.
 
 ## Sequencing guidance
 - Each milestone ships as its own PR against `main`.

@@ -107,7 +107,7 @@ A case-level aggregate that points at both variant grading outputs and computes:
 An opt-in `--compare` run-level aggregate over all cases in a skill. It answers the product question: “does this skill improve results?” The core artifact stays Anthropic-compatible: per-case results, overall pass rates, overall delta, and error summaries. Pi-specific artifact paths, token counts, and timings live under `metadata.extensions` so the artifact remains portable while preserving debugging detail. Single-run mode does not emit `benchmark.json` yet.
 
 ### Iteration Workspace
-A durable grouping for repeated eval cycles, e.g. `iteration-1/`, `iteration-2/`. In the initial implementation, iterations are runner artifacts only: they group outputs without proposing or applying `SKILL.md` edits. Iterations should keep prior artifacts immutable and may optionally include the evaluated `SKILL.md` snapshot. Generated feedback or improvement proposals can layer on later.
+A durable grouping for repeated eval cycles, e.g. `iteration-1/`, `iteration-2/`. In the initial implementation, iterations are runner artifacts only: they group outputs without proposing or applying `SKILL.md` edits. Passing `--iteration 1` writes artifacts under `<skillDir>/evals-runs/iteration-1/<runId>/`; string names are normalized the same way, e.g. `baseline` → `iteration-baseline`. Iterations should keep prior artifacts immutable and may optionally include the evaluated `SKILL.md` snapshot. Generated feedback or improvement proposals can layer on later.
 
 ## Runtime adapters (kept from pre-pivot)
 - **`src/pi/`** — Pi SDK runner + CLI JSON runner. `runPiSdkCase` is what the case runner wraps internally.

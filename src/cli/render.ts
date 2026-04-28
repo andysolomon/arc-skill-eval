@@ -8,6 +8,7 @@ export function formatRunEvalsResult(result: RunEvalsCommandResult, options: Cli
 
   const lines = [
     `Run: ${result.runId}`,
+    ...(result.iteration ? [`Iteration: ${result.iteration}`] : []),
     `Skills evaluated: ${result.skills.length}`,
     `Cases: ${result.summary.totalCases} (passed ${result.summary.passedCases}, failed ${result.summary.failedCases})`,
     `Assertions: ${result.summary.totalAssertions} (passed ${result.summary.passedAssertions}, failed ${result.summary.failedAssertions})`,

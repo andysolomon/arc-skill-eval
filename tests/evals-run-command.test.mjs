@@ -139,6 +139,43 @@ test("runEvalsCommand runs every case, writes per-case artifacts, aggregates pas
   }
 });
 
+test("runEvalsCommand supports iteration-scoped output directories", async () => {
+  const { repoRoot, skillDir } = await createSkillFixture({
+    evals: [
+      { id: "iter", prompt: "Say hello.", assertions: ["The response contains 'hello'"] },
+    ],
+  });
+
+  try {
+    const result = await runEvalsCommand({
+      input: skillDir,
+      runId: "run-iteration",
+      iteration: "1",
+      createSession: async () => ({
+        model: null,
+        session: createInjectedSession("hello"),
+      }),
+      judge: STUB_JUDGE_PASS,
+    });
+
+    assert.equal(result.iteration, "iteration-1");
+    assert.equal(result.skills[0].iteration, "iteration-1");
+    assert.equal(
+      result.skills[0].outputDir,
+      path.join(skillDir, "evals-runs", "iteration-1", "run-iteration"),
+    );
+    assert.equal(
+      result.skills[0].cases[0].gradingPath,
+      path.join(skillDir, "evals-runs", "iteration-1", "run-iteration", "eval-iter", "grading.json"),
+    );
+
+    const grading = JSON.parse(await readFile(result.skills[0].cases[0].gradingPath, "utf8"));
+    assert.equal(grading.summary.passed, 1);
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
 test("runEvalsCommand compare mode writes with_skill and without_skill variant artifacts", async () => {
   const { repoRoot, skillDir } = await createSkillFixture({
     evals: [
@@ -151,6 +188,7 @@ test("runEvalsCommand compare mode writes with_skill and without_skill variant a
     const result = await runEvalsCommand({
       input: skillDir,
       runId: "run-compare",
+      iteration: "baseline",
       compare: true,
       createSession: async ({ attachSkill, workspaceDir }) => {
         attachSkillValues.push(attachSkill);
@@ -175,7 +213,8 @@ test("runEvalsCommand compare mode writes with_skill and without_skill variant a
     assert.equal(caseArt.comparison.withSkillPassRate, 1);
     assert.equal(caseArt.comparison.withoutSkillPassRate, 0);
     assert.equal(caseArt.comparison.delta, 1);
-    assert.ok(result.skills[0].benchmarkPath.endsWith("benchmark.json"));
+    assert.equal(result.iteration, "iteration-baseline");
+    assert.ok(result.skills[0].benchmarkPath.endsWith("iteration-baseline/run-compare/benchmark.json"));
 
     const benchmark = JSON.parse(await readFile(result.skills[0].benchmarkPath, "utf8"));
     assert.equal(benchmark.benchmark_version, "1");
@@ -187,6 +226,7 @@ test("runEvalsCommand compare mode writes with_skill and without_skill variant a
     assert.equal(benchmark.cases[0].case_id, "compare");
     assert.equal(benchmark.metadata.runtime, "pi");
     assert.equal(benchmark.metadata.extensions.variants[0], "with_skill");
+    assert.ok(benchmark.metadata.extensions.artifact_root.endsWith("iteration-baseline/run-compare"));
     assert.ok(benchmark.metadata.extensions.case_artifacts.compare.with_skill.grading_path.endsWith("with_skill/grading.json"));
 
     assert.equal(
