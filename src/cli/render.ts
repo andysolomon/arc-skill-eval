@@ -16,6 +16,9 @@ export function formatRunEvalsResult(result: RunEvalsCommandResult, options: Cli
 
   for (const skill of result.skills) {
     lines.push("", `${skill.skillName}  →  ${skill.outputDir}`);
+    if (skill.benchmark) {
+      lines.push(`  Benchmark delta: ${formatSignedFractionPercent(skill.benchmark.summary.delta)} (${skill.benchmarkPath})`);
+    }
     if (skill.cases.length === 0 && skill.errors.length === 0) {
       lines.push("  (no cases selected)");
       continue;

@@ -7,7 +7,12 @@ import { readEvalsJson } from "../evals/loader.js";
 import { gradeEvalCase, type LlmJudgeFn } from "../evals/grade.js";
 import { runEvalCase } from "../evals/run-case.js";
 import type {
+  BenchmarkCaseResult,
+  BenchmarkJson,
+  BenchmarkVariantArtifacts,
+  BenchmarkVariantSummary,
   EvalCase,
+  EvalCaseId,
   EvalRunVariant,
   EvalsJsonFile,
   GradingJson,
@@ -66,6 +71,8 @@ export interface SkillRunResult {
   skillName: string;
   skillDir: string;
   outputDir: string;
+  benchmarkPath?: string;
+  benchmark?: BenchmarkJson;
   cases: CaseRunArtifacts[];
   errors: Array<{ caseId: string; message: string }>;
 }
@@ -143,6 +150,21 @@ export async function runEvalsCommand(
           message: error instanceof Error ? error.message : String(error),
         });
       }
+    }
+
+    if (options.compare) {
+      const benchmark = buildBenchmarkJson({
+        runId,
+        skillName: result.skillName,
+        outputDir: skillOutputDir,
+        cases: result.cases,
+        errors: result.errors,
+      });
+      const benchmarkPath = path.join(skillOutputDir, "benchmark.json");
+      await mkdir(skillOutputDir, { recursive: true });
+      await writeFile(benchmarkPath, `${JSON.stringify(benchmark, null, 2)}\n`, "utf-8");
+      result.benchmarkPath = benchmarkPath;
+      result.benchmark = benchmark;
     }
 
     skillResults.push(result);
@@ -264,6 +286,103 @@ function compareVariantPassRates(withSkill: GradingJson, withoutSkill: GradingJs
     : withSkillPassRate - withoutSkillPassRate;
 
   return { withSkillPassRate, withoutSkillPassRate, delta };
+}
+
+function buildBenchmarkJson(args: {
+  runId: string;
+  skillName: string;
+  outputDir: string;
+  cases: CaseRunArtifacts[];
+  errors: Array<{ caseId: string; message: string }>;
+}): BenchmarkJson {
+  const cases: BenchmarkCaseResult[] = [];
+  const caseArtifacts: Record<EvalCaseId, Partial<Record<EvalRunVariant, BenchmarkVariantArtifacts>>> = {};
+  let withPassed = 0;
+  let withTotal = 0;
+  let withoutPassed = 0;
+  let withoutTotal = 0;
+  let casesWithDelta = 0;
+
+  for (const caseRun of args.cases) {
+    const withSkill = caseRun.variants?.with_skill;
+    const withoutSkill = caseRun.variants?.without_skill;
+    if (!withSkill || !withoutSkill) continue;
+
+    const withSummary = toBenchmarkVariantSummary(withSkill.grading);
+    const withoutSummary = toBenchmarkVariantSummary(withoutSkill.grading);
+    const delta = withSummary.pass_rate === null || withoutSummary.pass_rate === null
+      ? null
+      : withSummary.pass_rate - withoutSummary.pass_rate;
+
+    if (delta !== null) casesWithDelta += 1;
+    withPassed += withSummary.passed;
+    withTotal += withSummary.total;
+    withoutPassed += withoutSummary.passed;
+    withoutTotal += withoutSummary.total;
+
+    cases.push({
+      case_id: caseRun.caseId,
+      with_skill: withSummary,
+      without_skill: withoutSummary,
+      delta,
+    });
+    caseArtifacts[caseRun.caseId] = {
+      with_skill: toBenchmarkVariantArtifacts(withSkill),
+      without_skill: toBenchmarkVariantArtifacts(withoutSkill),
+    };
+  }
+
+  const withSkillPassRate = withTotal === 0 ? null : withPassed / withTotal;
+  const withoutSkillPassRate = withoutTotal === 0 ? null : withoutPassed / withoutTotal;
+
+  return {
+    benchmark_version: "1",
+    run_id: args.runId,
+    skill_name: args.skillName,
+    generated_at: new Date().toISOString(),
+    summary: {
+      total_cases: args.cases.length + args.errors.length,
+      errored_cases: args.errors.length,
+      cases_with_delta: casesWithDelta,
+      with_skill_pass_rate: withSkillPassRate,
+      without_skill_pass_rate: withoutSkillPassRate,
+      delta: withSkillPassRate === null || withoutSkillPassRate === null
+        ? null
+        : withSkillPassRate - withoutSkillPassRate,
+    },
+    cases,
+    errors: args.errors.map((error) => ({
+      case_id: error.caseId,
+      message: error.message,
+    })),
+    metadata: {
+      runtime: "pi",
+      extensions: {
+        artifact_root: args.outputDir,
+        variants: ["with_skill", "without_skill"],
+        case_artifacts: caseArtifacts,
+      },
+    },
+  };
+}
+
+function toBenchmarkVariantSummary(artifacts: GradingJson): BenchmarkVariantSummary {
+  return {
+    passed: artifacts.summary.passed,
+    failed: artifacts.summary.failed,
+    total: artifacts.summary.total,
+    pass_rate: artifacts.summary.pass_rate,
+  };
+}
+
+function toBenchmarkVariantArtifacts(artifacts: VariantRunArtifacts): BenchmarkVariantArtifacts {
+  return {
+    outputs_dir: artifacts.outputsDir,
+    timing_path: artifacts.timingPath,
+    grading_path: artifacts.gradingPath,
+    total_tokens: artifacts.timing.total_tokens,
+    duration_ms: artifacts.timing.duration_ms,
+  };
 }
 
 async function discoverInput(input: string): Promise<DiscoveredEvalSkill[]> {

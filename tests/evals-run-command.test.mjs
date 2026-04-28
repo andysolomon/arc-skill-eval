@@ -113,6 +113,7 @@ test("runEvalsCommand runs every case, writes per-case artifacts, aggregates pas
     assert.equal(skillResult.skillName, "sample");
     assert.equal(skillResult.cases.length, 2);
     assert.equal(skillResult.errors.length, 0);
+    assert.equal(skillResult.benchmarkPath, undefined);
 
     for (const caseArt of skillResult.cases) {
       const grading = JSON.parse(await readFile(caseArt.gradingPath, "utf8"));
@@ -174,6 +175,19 @@ test("runEvalsCommand compare mode writes with_skill and without_skill variant a
     assert.equal(caseArt.comparison.withSkillPassRate, 1);
     assert.equal(caseArt.comparison.withoutSkillPassRate, 0);
     assert.equal(caseArt.comparison.delta, 1);
+    assert.ok(result.skills[0].benchmarkPath.endsWith("benchmark.json"));
+
+    const benchmark = JSON.parse(await readFile(result.skills[0].benchmarkPath, "utf8"));
+    assert.equal(benchmark.benchmark_version, "1");
+    assert.equal(benchmark.skill_name, "sample");
+    assert.equal(benchmark.summary.total_cases, 1);
+    assert.equal(benchmark.summary.with_skill_pass_rate, 1);
+    assert.equal(benchmark.summary.without_skill_pass_rate, 0);
+    assert.equal(benchmark.summary.delta, 1);
+    assert.equal(benchmark.cases[0].case_id, "compare");
+    assert.equal(benchmark.metadata.runtime, "pi");
+    assert.equal(benchmark.metadata.extensions.variants[0], "with_skill");
+    assert.ok(benchmark.metadata.extensions.case_artifacts.compare.with_skill.grading_path.endsWith("with_skill/grading.json"));
 
     assert.equal(
       await readFile(path.join(caseArt.variants.with_skill.outputsDir, "variant.txt"), "utf8"),

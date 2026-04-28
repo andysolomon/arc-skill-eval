@@ -33,7 +33,7 @@ The slim MVP is complete: discovery, loading/validation, workspace setup, Pi exe
 
 ---
 
-### P1 — Dual-run skill delta: `with_skill` vs `without_skill` 🚧
+### P1 — Dual-run skill delta: `with_skill` vs `without_skill` ✅
 
 **Goal:** measure whether a skill adds value by running each case twice and comparing pass rates.
 
@@ -42,7 +42,7 @@ The slim MVP is complete: discovery, loading/validation, workspace setup, Pi exe
 - [x] Execute both variants against equivalent fresh workspaces.
 - [x] Grade each variant independently.
 - [x] Compute per-case pass-rate delta.
-- [ ] Compute per-skill pass-rate delta in `benchmark.json` during P2.
+- [x] Compute per-skill pass-rate delta in `benchmark.json` during P2.
 - [x] Keep current single-run behavior as the default.
 - [x] Add dual-run as an opt-in mode first via `--compare`.
 
@@ -59,22 +59,22 @@ The slim MVP is complete: discovery, loading/validation, workspace setup, Pi exe
 
 ---
 
-### P2 — `benchmark.json` aggregation
+### P2 — `benchmark.json` aggregation ✅
 
 **Goal:** emit a standard aggregate artifact that summarizes skill value across cases and variants.
 
 **Work items**
-- Define `BenchmarkJson` TypeScript types.
-- Aggregate per-case `with_skill` / `without_skill` grading summaries.
-- Include an Anthropic-compatible core with totals, pass rates, deltas, and failures.
-- Include Pi-specific trace refs, token counts, model info, and artifact paths under a metadata/extensions section.
-- Write `benchmark.json` at the run root.
-- Add JSON schema/shape tests.
+- [x] Define `BenchmarkJson` TypeScript types.
+- [x] Aggregate per-case `with_skill` / `without_skill` grading summaries.
+- [x] Include an Anthropic-compatible core with totals, pass rates, deltas, and failures.
+- [x] Include Pi-specific token counts, timings, and artifact paths under a metadata/extensions section.
+- [x] Write `benchmark.json` at the run root for `--compare` runs only.
+- [x] Add JSON shape tests.
 
 **Acceptance criteria**
-- A full run writes a machine-readable `benchmark.json`.
-- The aggregate distinguishes assertion failures from runtime errors.
-- The artifact can answer: “does this skill improve results, and by how much?”
+- [x] A `--compare` run writes a machine-readable `benchmark.json`.
+- [x] The aggregate distinguishes assertion failures from runtime errors.
+- [x] The artifact can answer: “does this skill improve results, and by how much?”
 
 ---
 

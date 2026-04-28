@@ -95,10 +95,11 @@ For each default single-variant run:
 │   └── grading.json          # per-assertion passed + evidence
 ```
 
-With `--compare`, each case writes isolated variant artifacts:
+With `--compare`, each case writes isolated variant artifacts and the skill run root includes `benchmark.json`:
 
 ```
 <skillDir>/evals-runs/<runId>/
+├── benchmark.json            # with_skill vs without_skill aggregate
 ├── eval-<case-id>/
 │   ├── with_skill/
 │   │   ├── outputs/

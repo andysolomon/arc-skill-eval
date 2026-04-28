@@ -90,11 +90,12 @@ The pivot starts as a minimum-viable shape: **single run per case, assertion gra
 
 ## Deferred to post-MVP
 - **Iteration workspaces** (`<skill>-workspace/iteration-N/`, per-iteration LLM-proposed SKILL.md diffs). Once the MVP is answering real questions, this becomes the natural "improve the skill" loop.
-- **`benchmark.json` aggregation across eval sets.** Pairs with the dual-run feature.
+- **Cross-run / cross-iteration benchmark comparison.** Builds on the per-run `benchmark.json` artifact.
 - **Human-review `feedback.json`.** Authoring ergonomic; nice to have, not structural.
 
 ## Post-MVP progress
-- **`with_skill` vs `without_skill` dual-run** — implemented as opt-in `--compare`. This emits per-case `with_skill/` and `without_skill/` artifacts and computes case-level pass-rate deltas in memory. `benchmark.json` aggregation remains deferred.
+- **`with_skill` vs `without_skill` dual-run** — implemented as opt-in `--compare`. This emits per-case `with_skill/` and `without_skill/` artifacts and computes case-level pass-rate deltas.
+- **`benchmark.json` aggregation** — implemented for `--compare` runs only. The artifact keeps an Anthropic-compatible core and stores Pi-specific artifact paths/timing under `metadata.extensions`.
 
 ## Sequencing guidance
 - Each milestone ships as its own PR against `main`.
