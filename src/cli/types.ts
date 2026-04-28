@@ -6,6 +6,7 @@ export interface RunEvalsCliOptions extends CommandSelectionOptions {
   input: string;
   caseIds?: string[];
   outputDir?: string;
+  iteration?: string;
   compare?: boolean;
 }
 

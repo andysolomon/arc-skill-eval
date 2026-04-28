@@ -75,6 +75,9 @@ arc-skill-eval run . --json
 
 # Opt into with_skill vs without_skill comparison
 arc-skill-eval run . --compare
+
+# Group artifacts under an iteration bucket
+arc-skill-eval run . --iteration 1
 ```
 
 The positional `<skill-dir-or-repo>` is resolved as:
@@ -94,6 +97,8 @@ For each default single-variant run:
 │   ├── timing.json           # { total_tokens, duration_ms }
 │   └── grading.json          # per-assertion passed + evidence
 ```
+
+Use `--iteration <name>` to group artifacts under `<skillDir>/evals-runs/iteration-<name>/<runId>/`; for example `--iteration 1` writes to `iteration-1/<runId>/`.
 
 With `--compare`, each case writes isolated variant artifacts and the skill run root includes `benchmark.json`:
 
@@ -133,8 +138,7 @@ Use the bundled **`arc-creating-evals`** skill in `skills/arc-creating-evals/`. 
 
 ## Deferred, not dropped
 The current release is the slim MVP of the pivot to the Anthropic format. Planned follow-ups:
-- `with_skill` vs `without_skill` dual-run for pass-rate *delta* — the canonical "does this skill add value" signal.
-- `iteration-N/` workspaces and `benchmark.json` aggregation for iterate-and-compare flows.
+- Cross-iteration benchmark comparison for iterate-and-compare flows.
 - Human-review `feedback.json`.
 
 See `docs/evals-json-pivot.md` for the full plan.

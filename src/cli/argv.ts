@@ -23,7 +23,7 @@ export function renderHelp(): string {
     "arc-skill-eval",
     "",
     "Usage:",
-    "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--output-dir <path>] [--compare] [--json]",
+    "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--output-dir <path>] [--iteration <name>] [--compare] [--json]",
     "",
     "Notes:",
     "  - <skill-dir-or-repo> is either a skill directory containing evals/evals.json,",
@@ -42,6 +42,7 @@ function parseRunCommandArgs(args: string[]) {
   let json = false;
   let compare = false;
   let outputDir: string | undefined;
+  let iteration: string | undefined;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
@@ -77,6 +78,13 @@ function parseRunCommandArgs(args: string[]) {
       continue;
     }
 
+    if (arg === "--iteration" || arg.startsWith("--iteration=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      iteration = parsed.value;
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
     if (arg.startsWith("-")) {
       throw new CliUsageError(`Unknown flag: ${arg}.`);
     }
@@ -92,7 +100,7 @@ function parseRunCommandArgs(args: string[]) {
     throw new CliUsageError("Missing required <skill-dir-or-repo> argument.");
   }
 
-  return { input, skillNames, caseIds, outputDir, compare, json };
+  return { input, skillNames, caseIds, outputDir, iteration, compare, json };
 }
 
 function readFlagValue(arg: string, nextArg: string | undefined): { value: string; consumedNext: boolean } {

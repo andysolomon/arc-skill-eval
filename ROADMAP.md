@@ -78,21 +78,23 @@ The slim MVP is complete: discovery, loading/validation, workspace setup, Pi exe
 
 ---
 
-### P3 — Iteration workspaces
+### P3 — Iteration workspaces 🚧
 
 **Goal:** support repeated eval/improvement cycles without overwriting prior run evidence.
 
 **Work items**
-- Add iteration-aware output layout, e.g. `iteration-1/`, `iteration-2/`.
-- Keep current per-case artifacts nested under each iteration.
-- Treat iteration workspaces as runner artifacts only at first; do not add an auto-improvement loop yet.
-- Optionally record the evaluated `SKILL.md` snapshot per iteration.
-- Provide a deterministic way to select or create the next iteration.
+- [x] Add opt-in iteration-aware output layout, e.g. `iteration-1/`, `iteration-2/`.
+- [x] Keep current per-case artifacts nested under each iteration.
+- [x] Treat iteration workspaces as runner artifacts only at first; do not add an auto-improvement loop yet.
+- [ ] Optionally record the evaluated `SKILL.md` snapshot per iteration.
+- [x] Provide deterministic explicit iteration selection via `--iteration <name>`.
+- [ ] Add automatic next-iteration selection if needed after pilot usage.
 
 **Acceptance criteria**
-- Multiple iterations can coexist for the same skill.
-- `benchmark.json` can summarize one iteration and optionally compare across iterations.
-- Prior artifacts are not overwritten by later runs.
+- [x] Multiple explicit iterations can coexist for the same skill.
+- [x] `benchmark.json` can summarize one selected iteration.
+- [ ] Cross-iteration benchmark comparison remains deferred.
+- [x] Prior artifacts are not overwritten by later runs unless the same explicit run id is reused.
 
 ---
 

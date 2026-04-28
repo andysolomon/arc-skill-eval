@@ -38,6 +38,8 @@ export interface RunEvalsCommandOptions {
   judgeModel?: ModelSelection;
   /** Fixed runId; default is an ISO timestamp. */
   runId?: string;
+  /** Optional iteration bucket, e.g. `1` -> `iteration-1`. */
+  iteration?: string;
   /** Opt into with_skill vs without_skill variant comparison. */
   compare?: boolean;
   /** Test-injection points. */
@@ -71,6 +73,7 @@ export interface SkillRunResult {
   skillName: string;
   skillDir: string;
   outputDir: string;
+  iteration?: string;
   benchmarkPath?: string;
   benchmark?: BenchmarkJson;
   cases: CaseRunArtifacts[];
@@ -92,6 +95,7 @@ export interface RunEvalsCommandSummary {
 
 export interface RunEvalsCommandResult {
   runId: string;
+  iteration?: string;
   skills: SkillRunResult[];
   summary: RunEvalsCommandSummary;
 }
@@ -108,6 +112,7 @@ export async function runEvalsCommand(
   options: RunEvalsCommandOptions,
 ): Promise<RunEvalsCommandResult> {
   const runId = options.runId ?? buildRunId();
+  const iteration = normalizeIteration(options.iteration);
   const discovered = await discoverInput(options.input);
   const selectedSkills = filterSkills(discovered, options.skillNames);
 
@@ -119,6 +124,7 @@ export async function runEvalsCommand(
     const skillOutputDir = resolveSkillOutputDir({
       skill,
       runId,
+      iteration,
       outputDirOverride: options.outputDirOverride,
     });
 
@@ -126,6 +132,7 @@ export async function runEvalsCommand(
       skillName: evalsFile.skill_name,
       skillDir: skill.skillDir,
       outputDir: skillOutputDir,
+      iteration,
       cases: [],
       errors: [],
     };
@@ -171,7 +178,7 @@ export async function runEvalsCommand(
   }
 
   const summary = aggregateSummary(skillResults);
-  return { runId, skills: skillResults, summary };
+  return { runId, iteration, skills: skillResults, summary };
 }
 
 async function runOneCase(args: {
@@ -426,12 +433,17 @@ function filterCases(file: EvalsJsonFile, ids: string[] | undefined): EvalCase[]
 function resolveSkillOutputDir(args: {
   skill: DiscoveredEvalSkill;
   runId: string;
+  iteration: string | undefined;
   outputDirOverride: string | undefined;
 }): string {
   if (args.outputDirOverride) {
-    return path.resolve(args.outputDirOverride, path.basename(args.skill.skillDir), args.runId);
+    return args.iteration
+      ? path.resolve(args.outputDirOverride, path.basename(args.skill.skillDir), args.iteration, args.runId)
+      : path.resolve(args.outputDirOverride, path.basename(args.skill.skillDir), args.runId);
   }
-  return path.join(args.skill.skillDir, "evals-runs", args.runId);
+  return args.iteration
+    ? path.join(args.skill.skillDir, "evals-runs", args.iteration, args.runId)
+    : path.join(args.skill.skillDir, "evals-runs", args.runId);
 }
 
 function aggregateSummary(skills: SkillRunResult[]): RunEvalsCommandSummary {
@@ -472,6 +484,14 @@ function aggregateSummary(skills: SkillRunResult[]): RunEvalsCommandSummary {
 
 function buildRunId(): string {
   return new Date().toISOString().replace(/[:.]/g, "-").replace(/Z$/, "Z");
+}
+
+function normalizeIteration(iteration: string | undefined): string | undefined {
+  if (iteration === undefined) return undefined;
+  const trimmed = iteration.trim();
+  if (trimmed.length === 0) return undefined;
+  const normalized = trimmed.startsWith("iteration-") ? trimmed : `iteration-${trimmed}`;
+  return normalized.replace(/[^A-Za-z0-9_.-]/g, "-");
 }
 
 function sanitizeCaseId(id: string | number): string {
