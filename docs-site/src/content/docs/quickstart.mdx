@@ -1,0 +1,91 @@
+---
+title: Quickstart
+description: Install arc-skill-eval, run the hello-world reference skill, and read your first grading.json — in about five minutes.
+---
+
+This page gets you from zero to a green eval run on the bundled `hello-world` skill in about five minutes. Everything here uses Anthropic's `evals/evals.json` standard; nothing about the format is Skeval-specific.
+
+## Requirements
+
+- Node.js ≥ 20.
+- [Pi](https://github.com/mariozechner/pi) installed and configured with at least one provider API key (Anthropic, OpenAI, Google/Gemini, Mistral, xAI, etc.). The skill's assistant runs via [`@mariozechner/pi-coding-agent`](https://www.npmjs.com/package/@mariozechner/pi-coding-agent).
+
+## Install
+
+From a published package (recommended once it's on npm):
+
+```bash
+npm install --global arc-skill-eval
+arc-skill-eval --help
+```
+
+From a local checkout:
+
+```bash
+git clone https://github.com/andysolomon/arc-skill-eval
+cd arc-skill-eval
+npm install
+npm run build
+npm link
+arc-skill-eval --help
+```
+
+## Run the bundled `hello-world` skill
+
+The repo ships a deterministic reference skill at `skills/hello-world/`. It writes `greeting.txt` with one line of text and confirms by name. Three cases — default, named, and one that asserts the assistant's reply mentions the file:
+
+```bash
+arc-skill-eval run ./skills/hello-world
+```
+
+You'll see one stdout line per case (`PASS`/`FAIL` plus the case id), and a summary at the end with the total pass rate and total wall-clock time.
+
+## Inspect the artifacts
+
+Every run writes a per-case artifact tree:
+
+```text
+skills/hello-world/evals-runs/<runId>/
+├── eval-default-world/
+│   ├── assistant.md
+│   ├── outputs/greeting.txt
+│   ├── timing.json
+│   ├── grading.json
+│   ├── trace.json
+│   ├── tool-summary.json
+│   └── context-manifest.json
+├── eval-named-ada/
+│   └── ...
+└── eval-assistant-names-file/
+    └── ...
+```
+
+Open `grading.json` for any case to see the per-assertion verdict + evidence in [Anthropic's published format](https://platform.claude.com/docs/en/agents-and-tools/agent-skills):
+
+```json
+{
+  "case_id": "default-world",
+  "assertion_results": [
+    { "text": "file-exists: greeting.txt", "passed": true, "evidence": "Found greeting.txt (15 bytes)" },
+    { "text": "regex-match: Hello, world!", "passed": true, "evidence": "matched in greeting.txt" },
+    { "text": "The response mentions the file `greeting.txt` by name", "passed": true, "evidence": "\"I wrote greeting.txt with the requested message.\"" }
+  ],
+  "summary": { "passed": 3, "failed": 0, "total": 3, "pass_rate": 1.0 }
+}
+```
+
+## Compare against a no-skill baseline
+
+The pass-rate delta is the load-bearing signal. Add `--compare` to run each case twice — once with the skill attached, once without — and emit a top-level `benchmark.json`:
+
+```bash
+arc-skill-eval run ./skills/hello-world --compare
+```
+
+You now get sibling `with_skill/` and `without_skill/` directories under each `eval-<id>/`, and the run root contains `benchmark.json` with per-case deltas plus an overall delta. See [With/without skill](/arc-skill-eval/concepts/with-without-skill/) for why this comparison matters more than any absolute score.
+
+## Where next
+
+- **[CLI reference](/arc-skill-eval/cli-reference/)** — every flag of `arc-skill-eval run`.
+- **[Authoring evals](/arc-skill-eval/authoring-evals/)** — how to write `evals/evals.json` for your own skill.
+- **[Examples → hello-world](/arc-skill-eval/examples/hello-world/)** — the full walkthrough of the skill you just ran.

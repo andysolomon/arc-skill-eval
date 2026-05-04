@@ -1,0 +1,113 @@
+---
+title: "Why skill evals matter"
+description: Skills ship as markdown plus optional scripts and resist every form of change-detection we've built for code. Evals — and the with/without skill delta in particular — are the load-bearing infrastructure between "I think this works" and "I shipped this confidently."
+pubDate: 2026-04-28
+author: Andy Solomon
+draft: false
+sidebar:
+  order: 1
+---
+
+import Bio from './_bio.mdx';
+
+Skills are everywhere now. Every major agent vendor — Claude Code, Cursor, Codex, Gemini CLI, Pi, OpenCode, OpenHands, more — supports the [agentskills.io](https://agentskills.io) format: a `SKILL.md` file plus optional scripts and assets, dropped into a directory that the agent picks up automatically. The format is open, the ecosystem is growing, and skills are easy to write.
+
+They're also easy to ship without testing.
+
+*A note on lineage.* Most of the methodology in this series — the layered grader, the case-growth advice, the framing of an eval as a prompt + captured run + small set of checks — is borrowed almost wholesale from OpenAI's [Testing Agent Skills Systematically with Evals](https://developers.openai.com/blog/eval-skills) (Kundel & Chua, January 22, 2026). Anthropic's published `evals/evals.json` shape is what gives the methodology a portable on-disk form. And the runtime philosophy — *"an LLM, a loop, and enough tokens"* — comes from two posts that demystified the agentic harness, [Thorsten Ball's "How to Build an Agent"](https://ampcode.com/notes/how-to-build-an-agent) and [Mihail Eric's "The Emperor Has No Clothes"](https://www.mihaileric.com/The-Emperor-Has-No-Clothes/). The full attribution lives at [Inspiration & credits](/arc-skill-eval/inspiration/); this post stands on those shoulders.
+
+## The problem: skills ship without tests
+
+A skill is a markdown file. It changes model behavior in ways that are easy to *feel* — "this skill helps the model do X better" — and easy to ship — drop the file in `.claude/skills/` and reload. But almost none of them ship with a way to *prove* the claim. The result is a category of software that's growing fast and resists every form of change-detection we've built for code.
+
+A skill that subtly regresses doesn't throw a stack trace. It feels different — vaguer, slower, more verbose, less reliable on the edge cases the previous version handled cleanly. By the time you notice, you don't know what changed. The diff is a few words in `SKILL.md`. The behavior is several percentage points worse, on cases you can't enumerate.
+
+This is the gap evals fill.
+
+## What an eval actually is
+
+The framing varies by source, but the shape converges. OpenAI's developers blog defines an eval as **a prompt → a captured run (trace + artifacts) → a small set of checks → a score you can compare over time**. Anthropic's engineering blog adds the formal apparatus: graders come in three flavors (code-based, model-based, human-judged), each with different speed/accuracy tradeoffs; eval suites split into *capability* tests ("does this skill produce the right behavior?") and *regression* tests ("does it *still* produce it after I edited the prompt?").
+
+Both posts converge on the same point: evals are the load-bearing infrastructure between "I think this works" and "I shipped this confidently." For traditional code, that infrastructure is unit tests, integration tests, type checkers. For skills, it's eval suites. They're not optional.
+
+## Two failure modes evals catch
+
+### Capability — does it ever work?
+
+The capability question is a *pass@k* one. Run the case k times. How often does the skill produce the right behavior?
+
+You don't need 100%. Models are non-deterministic; that's a fact of the medium. What you need is to *know*. If you ship a skill thinking it works 100% of the time and it actually works 70%, you'll find out when a user complains, not when you tested it.
+
+For the hello-world reference skill: does it write `greeting.txt` with the literal string `Hello, world!` and confirm the filename in its reply? Run that case ten times. If nine pass, you have a working skill. If two pass, you have a broken skill. The number matters; the answer is empirical.
+
+### Regression — does it still work?
+
+The regression question is a *pass^k* one — not "did at least one of k succeed" but "did all k succeed." This is what you check after every meaningful edit to `SKILL.md`. A regression in skill-land looks like: the previous version passed nine of ten runs, the new version passes seven of ten. You can't see that without an eval suite. You can't even *describe* it without one.
+
+Capability evals catch new bugs. Regression evals catch reintroduced bugs. The same case can serve both — what changes is when you run it and what you compare against.
+
+## Why "with vs without skill" is the load-bearing comparison
+
+This is the part `arc-skill-eval` (and Anthropic's published methodology) treat as the canonical metric. A case that passes 100% of the time *with* the skill attached is meaningless if it would also pass 100% of the time *without* it. The model would have done the right thing on its own; the skill contributed nothing.
+
+The signal a skill author wants isn't the absolute pass rate. It's the *delta*: how much does attaching this skill change the outcome?
+
+For hello-world, this is concrete. Run "Create a greeting" against a modern Claude or GPT model. With the skill attached, it writes `greeting.txt` containing exactly `Hello, world!` and confirms the filename. Without the skill — same prompt, same model, same fresh workspace — modern agents usually write *some* greeting file, but they pick a different filename (`hello.txt`, `world.txt`), use a slightly different format ("Greetings!", "Hello world."), or skip the file entirely and reply in prose. The case's pass rate plummets.
+
+That delta is the proof that the skill is doing something. It isolates the skill's contribution from the base model's competence. The OpenAI post mentions baselines; Anthropic's methodology makes them the headline. `arc-skill-eval` makes the delta the central artifact — every `--compare` run produces a `benchmark.json` whose top-level number is the per-case and overall delta.
+
+If a skill's delta is zero, the skill isn't doing anything. That's not a bug in the eval — it's information. Maybe the model has gotten good enough that the skill is redundant. Maybe the skill's instructions don't actually move the needle. Either way, you'd want to know.
+
+## A minimum viable eval suite
+
+Don't try for comprehensive coverage. OpenAI's post lands on a useful number: **10–20 cases**. Aim for a small set that catches the regressions you care about, and grow from real failures.
+
+What goes in those cases?
+
+- **3–5 trigger cases** — does the skill activate when it should? Includes one or two "adjacent negative" prompts that look like the skill's domain but ask for something else, so you can confirm the skill *doesn't* fire on them.
+- **1–3 execution cases** — does the skill do real work? Each backed by a fixture under `evals/files/` if it needs pre-existing state.
+- **1–2 edge / negative cases** — does it handle malformed input, ambiguity, or conflict gracefully?
+
+For each case, layer assertions in priority order:
+
+- **Script assertions first** — `file-exists`, `regex-match`, `json-valid`. Cheap, deterministic, fail honestly. They cover the mechanical facts: did the file exist, did it contain the right text, did the JSON parse.
+- **String assertions for prose** — what a script can't check. Anthropic's grader prompt requires concrete evidence for a PASS — a quoted passage from the assistant's reply or a workspace file. Don't give the benefit of the doubt; if the judge can't cite evidence, the assertion fails.
+
+Budget 2–5 assertions per case. More than that and one of them will start failing for the wrong reasons (paraphrasing, formatting drift, a regex that was too strict). Better to have a tight, honest set than a long, noisy one.
+
+This is also the practical reason to grow your suite from real failures: every time you debug a regression by hand, you've discovered a case the suite didn't have. Add it. The next time the same regression appears, the suite will catch it before you do.
+
+## What I built and what's next
+
+`arc-skill-eval` — branded **Skeval** for the docs — is a runner for exactly this loop. You author `evals/evals.json` next to your `SKILL.md` (Anthropic's published format, no extension required). The CLI discovers it, materializes any fixtures into a fresh temp workspace, runs each case with the skill attached, grades the output, and writes a tree of artifacts (`assistant.md`, `outputs/`, `grading.json`, `timing.json`, `trace.json`, `tool-summary.json`, `context-manifest.json`) you can inspect, diff, or feed into CI.
+
+Add `--compare` and every case runs twice — once with the skill attached, once without — producing a `benchmark.json` aggregate that answers the question that actually matters: *does this skill improve results?*
+
+Three more posts follow this one:
+
+- **Part 2 — Anatomy of `evals/evals.json`.** The format end to end. The case shape, assertion families, fixtures and workspace setup, the artifact tree, and the worked hello-world example as a template.
+- **Part 3 — Building `arc-skill-eval`: design choices and what I deprecated.** The pivot from a custom TypeScript contract format to Anthropic's published standard, what survived (Pi runtime, fixture materialization, the canonical trace shape), what didn't (lanes, profiles, scorer packs, custom report formats), and why the with/without delta turned out to be a forcing function for the rest of the design.
+- **Part 4 — What I learned running it.** Where the methodology is honest, where it's a fig leaf, and where it breaks down — multi-turn skills, stateful agent loops, skills whose value is hard to localize to one case. Sets up future work.
+
+If you want to try it now, the [Quickstart](/arc-skill-eval/quickstart/) gets you to a green run on the bundled `hello-world` skill in about five minutes. The repo is at [github.com/andysolomon/arc-skill-eval](https://github.com/andysolomon/arc-skill-eval).
+
+## Further reading
+
+The eval methodology:
+
+- OpenAI Developers Blog, **["Testing Agent Skills Systematically with Evals"](https://developers.openai.com/blog/eval-skills)** by Dominik Kundel and Gabriel Chua (2026-01-22) — the JSONL-trace + layered-grader framing this series builds on.
+- Anthropic Engineering Blog, **["Demystifying evals for AI agents"](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)** (2026-01-09) — graders by category, capability vs regression, *pass@k* vs *pass^k*, the Swiss-cheese model of layered evaluation.
+- Anthropic Platform Docs, **["Using the Evaluation Tool"](https://platform.claude.com/docs/en/test-and-evaluate/eval-tool)** — the Console-based tool for prompt-level evals with dynamic variables and side-by-side comparison.
+
+The runtime philosophy:
+
+- Thorsten Ball, **["How to Build an Agent"](https://ampcode.com/notes/how-to-build-an-agent)** (Ampcode, 2025-04-15) — *"It's an LLM, a loop, and enough tokens."* The clearest single statement of what an agent runtime actually is.
+- Mihail Eric, **["The Emperor Has No Clothes: How to Code Claude Code in 200 Lines of Code"](https://www.mihaileric.com/The-Emperor-Has-No-Clothes/)** (2026-01) — same thesis at the level of agent harnesses, with the tool-registry / parser / inner-loop pattern made explicit.
+
+Inspiration only:
+
+- The agents-v2 vault on Obsidian Publish has notes on [single-turn evals](https://publish.obsidian.md/agents-v2/03-Single-Turn-Evals) and [multi-turn evals](https://publish.obsidian.md/agents-v2/05-Multi-turn-Evals) — they extend the framing into multi-turn agent loops, which is where Part 4 picks up.
+
+For the full attribution and reading order, see [Inspiration & credits](/arc-skill-eval/inspiration/).
+
+<Bio />

@@ -10,3 +10,13 @@ dist/
 # content (SKILL.md, evals/evals.json, evals/files/) stays tracked.
 **/evals-runs/
 skills-lock.json
+# Skeval docs site (Astro Starlight) — its own npm project under docs-site/
+docs-site/node_modules/
+docs-site/dist/
+docs-site/.astro/
+# Local secrets (OpenAI key for audio:build, etc.). Never committed.
+.env
+.env.local
+.env.*.local
+docs-site/.env
+docs-site/.env.local

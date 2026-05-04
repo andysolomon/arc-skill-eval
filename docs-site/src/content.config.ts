@@ -1,0 +1,17 @@
+import { defineCollection, z } from 'astro:content';
+import { docsLoader } from '@astrojs/starlight/loaders';
+import { docsSchema } from '@astrojs/starlight/schema';
+
+export const collections = {
+	docs: defineCollection({
+		loader: docsLoader(),
+		schema: docsSchema({
+			extend: z.object({
+				pubDate: z.coerce.date().optional(),
+				author: z.string().optional(),
+				draft: z.boolean().optional(),
+				audio: z.boolean().optional(),
+			}),
+		}),
+	}),
+};

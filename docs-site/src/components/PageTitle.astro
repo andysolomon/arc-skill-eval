@@ -1,0 +1,24 @@
+---
+import ArticleReader from './ArticleReader.astro';
+
+const { starlightRoute } = Astro.locals;
+const page = starlightRoute.entry.data as typeof starlightRoute.entry.data & {
+	audio?: boolean;
+};
+const audioEnabled = page.audio !== false;
+---
+
+<h1 id="_top">{page.title}</h1>
+{audioEnabled && <ArticleReader />}
+
+<style>
+	@layer starlight.core {
+		h1 {
+			margin-top: 1rem;
+			font-size: var(--sl-text-h1);
+			line-height: var(--sl-line-height-headings);
+			font-weight: 600;
+			color: var(--sl-color-white);
+		}
+	}
+</style>

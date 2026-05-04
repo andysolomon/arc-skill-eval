@@ -1,0 +1,328 @@
+---
+title: "Anatomy of evals/evals.json"
+description: A walkthrough of Anthropic's evals/evals.json format, the assertion families, fixtures and workspace setup, and the artifact tree — using the hello-world worked example end to end.
+pubDate: 2026-05-05
+author: Andy Solomon
+draft: true
+sidebar:
+  order: 2
+---
+
+import Bio from './_bio.mdx';
+
+[Part 1](/arc-skill-eval/blog/01-why-skill-evals-matter/) made the case for skill evals — what they are, why the with/without skill delta is the load-bearing comparison, and why a small targeted suite beats a sprawling one. This post is the format walkthrough. By the end you'll be able to read any `evals/evals.json` file fluently and write your own without referring back to the spec.
+
+## Where the file lives
+
+Adjacent to `SKILL.md`. That's the rule:
+
+```text
+<your-skill>/
+├── SKILL.md                    # agentskills.io format
+└── evals/
+    ├── evals.json              # Anthropic skill-eval format
+    └── files/<fixture-name>/   # optional per-case input fixtures
+```
+
+`arc-skill-eval` discovers a skill by walking a repo and yielding every directory that ships *both* `SKILL.md` and `evals/evals.json`. If you only have one, the runner doesn't see the skill — that's deliberate. The framework is for evaluating skills that have committed to being evaluable.
+
+Two practical implications:
+
+1. The eval suite travels with the skill. If you publish your skill to a registry or vendor it into another repo, the eval suite comes along automatically. Anyone running it gets the same trust signal you ran with.
+2. You can mix in one repo. Point the CLI at the repo root and every skill with an `evals/evals.json` runs; point at a single skill directory and only that one runs.
+
+## The top-level shape
+
+```ts
+type EvalsJsonFile = {
+  version?: string;
+  skill_name: string;
+  evals: EvalCase[];
+};
+```
+
+Three fields:
+
+- **`version`** — optional, reserved for future format evolution. Today's loader accepts whatever's there or its absence; you can leave it off.
+- **`skill_name`** — should match the `name` field in the adjacent `SKILL.md`'s frontmatter. Used for identification in logs and aggregates.
+- **`evals`** — the array of cases. The actual content.
+
+That's it for the wrapper. Almost everything you care about is inside the `EvalCase` shape.
+
+## The case shape
+
+```ts
+type EvalCase = {
+  id: string | number;
+  description?: string;
+  prompt: string;
+  expected_output?: string;
+  setup?: WorkspaceSetup;
+  files?: string[];           // legacy shorthand for setup
+  assertions?: EvalAssertion[];
+  metadata?: Record<string, unknown>;
+};
+```
+
+Field by field:
+
+- **`id`** — string or number. Lowercase kebab-case slugs are recommended (`default-world`, `assistant-names-file`, `release-please-conflict`). Numbers also work. The CLI sanitizes IDs into filesystem paths under `eval-<id>/`, but readable IDs make the artifact tree self-documenting.
+- **`description`** — optional. Free-text note for the author and for whoever reads the suite later. Not used by the runner or the grader.
+- **`prompt`** — exactly what you'd type into your agent. One realistic user message per case. Don't engineer this; describe a real-world ask.
+- **`expected_output`** — optional. A human-readable description of what success looks like. Like `description`, this is a comment, not a check. It's a place to write down what *you* think the skill should do, so when an assertion fails you have a reference for whether the assertion was wrong or the skill was.
+- **`setup`** — workspace preparation. See below.
+- **`files`** — legacy shorthand that compiles to a `seeded` setup. Still supported; prefer `setup` for new cases.
+- **`assertions`** — the load-bearing list. See [The three assertion families](#the-three-assertion-families).
+- **`metadata`** — opaque to the runner. Use this for tags, owner annotations, or anything the runner doesn't need to interpret but you might want to grep for later.
+
+## Workspace setup
+
+`WorkspaceSetup` is a discriminated union over how a case prepares its execution workspace:
+
+```ts
+type WorkspaceSetup =
+  | { kind: "empty" }
+  | { kind: "seeded"; sources: string[]; mountMode?: "preserve-path" | "flatten" }
+  | { kind: "fixture"; fixture: FixtureRef };
+```
+
+Three flavors, picked by what the case needs:
+
+### `{ kind: "empty" }`
+
+Start with a fresh, empty temp workspace. Best for skills that produce files from scratch (the hello-world reference skill is the archetype). Nothing to set up; the model's environment is just an empty directory.
+
+### `{ kind: "seeded", sources, mountMode? }`
+
+Copy files from your `evals/` tree into the temp workspace before the run. `sources` is a list of paths inside `evals/` (typically under `evals/files/<fixture-name>/`). `mountMode` controls how:
+
+- `"preserve-path"` *(default)* — preserves the source's directory structure. If `sources: ["files/clean-repo/package.json"]`, the resulting workspace has `package.json` at the root. If `sources: ["files/clean-repo"]`, the entire `clean-repo/` directory's contents land at the workspace root.
+- `"flatten"` — every source's contents are placed at the workspace root regardless of where they lived under `evals/`. Useful for cases where you want to assemble a workspace from multiple unrelated fixtures.
+
+The legacy `files: ["..."]` shorthand compiles to `{ kind: "seeded", sources: [...], mountMode: "preserve-path" }`. New cases should use `setup` for clarity.
+
+### `{ kind: "fixture", fixture: FixtureRef }`
+
+The most powerful option. Uses `arc-skill-eval`'s fixture materializer, which supports git initialization, pre-run commits, hooks, and other state that a flat file copy can't express. Use this when the case needs to start from a non-trivial repo state (e.g., "the repo has an existing `.releaserc.json` from a previous release tool, and the skill is supposed to migrate it").
+
+## The three assertion families
+
+Assertions are the load-bearing part of an eval case. Each assertion is graded independently and contributes one row to the case's `grading.json`. Three families:
+
+```ts
+type EvalAssertion =
+  | string                                                              // (1) bare LLM-judged
+  | { type: "file-exists" | "regex-match" | "json-valid"; ...args }    // (2) legacy script
+  | { id: string; kind: "output" | "workspace" | "behavior" | "safety"; method: ...; ... }; // (3) intent
+```
+
+### (1) Bare LLM-judged string assertions
+
+The simplest form — and the one Anthropic's published spec uses:
+
+```json
+"The response summarizes the semantic-release plugins it installed."
+```
+
+A bare string is graded by an LLM-judge. The judge's prompt instructs it to require **concrete evidence for a PASS** — a quoted passage from the assistant's reply or a workspace file. Verdict and evidence both end up in `grading.json`.
+
+**Use this for:**
+- Claims about prose properties: summaries, intent, tone, structure of natural-language output.
+- Anything a script can't reliably detect.
+
+**Avoid this for:**
+- Mechanical facts: file presence, exact regex, JSON validity. Scripts are faster, cheaper, and not subject to paraphrase.
+
+### (2) Legacy script assertions
+
+Three deterministic types, no LLM call:
+
+**`file-exists`**
+```json
+{ "type": "file-exists", "path": ".releaserc.json" }
+```
+Path is relative to the workspace root. There's a path-traversal guard, so a malformed `path` can't escape the temp workspace.
+
+**`regex-match`**
+```json
+{ "type": "regex-match", "pattern": "conventionalcommits", "target": { "file": ".releaserc.json" } }
+```
+Target is either `{ "file": "<relative-path>" }` (regex against file content) or the literal string `"assistant-text"` (regex against the assistant's reply). The pattern is a JavaScript regex source string — escape backslashes accordingly (`"\\.txt"`, not `"\.txt"`).
+
+**`json-valid`**
+```json
+{ "type": "json-valid", "path": ".releaserc.json" }
+```
+True if the file parses as JSON. Evidence reports either a parsed type summary or the parse error.
+
+### (3) Intent assertions
+
+A newer, structured shape with explicit `id`, `kind`, and `method`:
+
+```json
+{
+  "id": "assistant-mentions-filename",
+  "kind": "output",
+  "method": "judge",
+  "claim": "The response mentions the file `greeting.txt` by name."
+}
+```
+
+Three things this gives you over the legacy shapes:
+
+1. **A stable id** — useful when diffing assertion results across runs. *"This same assertion failed in iteration-2 and passed in iteration-3"* requires stable identity.
+2. **Explicit kind** — `output` (about the assistant's reply), `workspace` (about workspace state after the run), `behavior` (about the trace/tool calls), `safety` (about safety properties). Each maps cleanly onto the artifact the grader needs to read.
+3. **Explicit method** — `judge`, `regex`, `exact` for output; `file-exists`, `file-contains`, `json-valid`, `snapshot-diff` for workspace; deferred for behavior/safety.
+
+For now, start with the legacy shapes. They're shorter and the framework supports both. The intent shape is what you'll graduate to once you want stable cross-run diffs.
+
+## How the grader fits these together
+
+The grader (in `src/evals/grade.ts`) is a single function that takes a case, a workspace directory, and the assistant's text, and produces a `GradingJson` record:
+
+```json
+{
+  "case_id": "1",
+  "assertion_results": [
+    {
+      "text": "file-exists: .releaserc.json",
+      "passed": true,
+      "evidence": "Found .releaserc.json (182 bytes)",
+      "assertion": { "type": "file-exists", "path": ".releaserc.json" }
+    },
+    {
+      "text": "The response summarizes the semantic-release plugins it installed.",
+      "passed": true,
+      "evidence": "\"installs @semantic-release/commit-analyzer + release-notes-generator\"",
+      "assertion": "The response summarizes the semantic-release plugins it installed."
+    }
+  ],
+  "summary": { "passed": 2, "failed": 0, "total": 2, "pass_rate": 1.0 }
+}
+```
+
+Two implementation details worth knowing:
+
+- **Batched judge calls.** The grader collects all bare-string assertions and `kind: "output"` + `method: "judge"` assertions into a *single* LLM-judge call per case. Cost is proportional to the number of prose claims, not the total assertion count.
+- **Synchronous scripts.** All script-type assertions and intent assertions with deterministic methods run synchronously, no LLM call. They finish in milliseconds.
+
+The result is that a case with 5 assertions — say, 4 script + 1 string — costs the same model dollars as a case with 1 string. The other 4 are free.
+
+## The artifact tree
+
+A case run produces seven artifacts:
+
+```text
+<skillDir>/evals-runs/<runId>/eval-<case-id>/
+├── assistant.md           # final assistant response text
+├── outputs/               # workspace filesystem snapshot
+├── grading.json           # per-assertion verdict + evidence
+├── timing.json            # duration, model, tokens, cost, context-window
+├── trace.json             # normalized runtime trace
+├── tool-summary.json      # tool calls, errors, skill reads
+└── context-manifest.json  # skills/tools/context exposed to the model
+```
+
+What each is for:
+
+- **`assistant.md`** — what the model said back. Plain markdown.
+- **`outputs/`** — workspace snapshot after the run. If the skill wrote `greeting.txt`, you'll find it here. Empty directory if the skill produced no files.
+- **`grading.json`** — per-assertion truth, with evidence. Anthropic-compatible.
+- **`timing.json`** — duration, model, thinking level, token counts (input/output/cache-read/cache-write/total), estimated cost, context-window size, percent used. Enough to answer "how expensive was this case?" and "did the skill blow the context window?" without re-running.
+- **`trace.json`** — the normalized runtime trace. Same shape whether the case ran via the Pi SDK or the CLI JSON runner. Useful for debugging without replaying.
+- **`tool-summary.json`** — compact behavior counters (`tool_call_count`, `tool_calls_by_name`, `skill_read_count`, `external_call_count`, `mcp_tool_call_count`). Made for grepping. If a skill should never run shell and `bash: 3` shows up, that's a red flag without opening the trace.
+- **`context-manifest.json`** — what was actually exposed to the model. Critical for `--compare` runs: a reviewer can confirm that the *only* difference between `with_skill` and `without_skill` was the target skill itself.
+
+## The hello-world example, end to end
+
+The skill's `SKILL.md` says:
+
+> When invoked, follow these steps exactly:
+>
+> 1. Read the prompt and extract the intended greeter name.
+> 2. Use the **Write** tool to create a file called **`greeting.txt`** in the workspace root. The file content is exactly one line: `Hello, <name>!`
+> 3. Reply with a **single sentence** that confirms the file was written and mentions the filename `greeting.txt` explicitly.
+
+And `evals/evals.json`:
+
+```json
+{
+  "skill_name": "hello-world",
+  "evals": [
+    {
+      "id": "default-world",
+      "prompt": "Create a greeting.",
+      "expected_output": "greeting.txt exists in the workspace with 'Hello, world!' and the assistant reply names the file.",
+      "assertions": [
+        { "type": "file-exists", "path": "greeting.txt" },
+        { "type": "regex-match", "pattern": "Hello, world!", "target": { "file": "greeting.txt" } },
+        "The response mentions the file `greeting.txt` by name"
+      ]
+    },
+    {
+      "id": "named-ada",
+      "prompt": "Create a greeting for Ada.",
+      "expected_output": "greeting.txt contains 'Hello, Ada!' and the assistant reply confirms it greeted Ada.",
+      "assertions": [
+        { "type": "file-exists", "path": "greeting.txt" },
+        { "type": "regex-match", "pattern": "Hello, Ada!", "target": { "file": "greeting.txt" } },
+        "The response confirms the greeting was written for Ada"
+      ]
+    },
+    {
+      "id": "assistant-names-file",
+      "prompt": "Please generate a greeting for Grace Hopper.",
+      "expected_output": "greeting.txt exists; assistant text mentions 'greeting.txt' literally.",
+      "assertions": [
+        { "type": "file-exists", "path": "greeting.txt" },
+        { "type": "regex-match", "pattern": "greeting\\.txt", "target": "assistant-text" },
+        { "type": "regex-match", "pattern": "Hello, Grace Hopper!", "target": { "file": "greeting.txt" } }
+      ]
+    }
+  ]
+}
+```
+
+Three cases, each with two or three assertions. Why these specific choices?
+
+- **No `setup`, no `files`.** Every case runs in an empty workspace. Hello-world isn't testing repo state; it's testing one skill's effect on an empty directory.
+- **`file-exists` first.** The cheapest possible script assertion. If this fails, nothing else matters — the skill didn't even write a file.
+- **`regex-match` second.** Confirms the file body is what it should be. The literal punctuation (`Hello, world!` with comma + exclamation mark) is something the model can't paraphrase.
+- **The third case asserts on `target: "assistant-text"`.** Same `regex-match` machinery, but checks the assistant's reply for the literal string `greeting.txt`. This is how you assert that the model named the file in its confirmation.
+- **`Hello, Grace Hopper!`** — the third case proves multi-word names round-trip. If the skill mangles the name, the regex fails.
+- **The bare-string LLM-judged assertion** appears once per case. It checks something a script can't: does the response *summarize* what happened, or *confirm* the action.
+
+If you're authoring evals for your first skill, copying this case structure is a reasonable starting point: 2–3 assertions per case, scripts first, one LLM-judged claim about the prose.
+
+## What's *not* in the format
+
+Things people ask about that aren't here, and where each one lives instead:
+
+- **Rubric scoring (1–5 quality scales).** Not part of the format. If you want subjective-quality signals, write them as assertions or capture them in a separate `feedback.json` (the post-MVP human-review artifact). Anthropic's published methodology doesn't use rubric lanes either.
+- **Multi-turn case definitions.** A `prompt` is a single user message; there's no notion of a conversation. Multi-turn evals are a frontier topic — see [Part 4](/arc-skill-eval/blog/04-what-we-learned/) for where this breaks down and what's planned.
+- **Per-case model pinning.** No `model` field on `EvalCase`. The skill's assistant runs on whatever your Pi default is. To override at the suite level, set the judge model via `~/.pi/agent/settings.json` or pass it at the CLI invocation layer.
+- **Target tiers / quality bars.** Not in the format. Pass-rate thresholds for "ship-ready" are out of scope; if you want them, gate at the CI layer on the `pass_rate` from `grading.json` or `benchmark.json`.
+- **Fixture references to other skills.** A case can't say "depend on the output of another case." Each case is standalone. If you want chained behavior, model it as a single case with a `setup: { kind: "fixture" }` that pre-stages the chain's intermediate state.
+
+## What this means for you
+
+If you've read this far, you have everything you need to author a real eval suite. The shortest path:
+
+1. **Copy `skills/hello-world/`** as a template. Rename. Edit `SKILL.md` to your skill's logic. Edit `evals/evals.json` to your cases.
+2. **Aim for 6–10 cases.** Three trigger cases, one or two execution cases, one edge case. Layer 2–5 assertions per case, scripts first.
+3. **Dry-run one case.** `arc-skill-eval run <your-skill> --case <id>` — confirm it completes end-to-end and at least one assertion grades honestly.
+4. **Iterate.** Tighten any string assertion that fails on paraphrase. Replace string assertions with script assertions wherever you can.
+5. **Run the full suite.** Then run `--compare` to see the with/without delta. That's your trust signal.
+
+Or use the bundled `arc-creating-evals` skill — it interviews you across Anthropic's four success dimensions and emits the file. See [Authoring evals](/arc-skill-eval/authoring-evals/).
+
+[Part 3](/arc-skill-eval/blog/03-design-choices-and-pivots/) digs into the framework's own design — what I started with, what I deprecated, and how the with/without skill delta turned out to be a forcing function for everything else.
+
+## Further reading
+
+- [Anthropic Skills docs (eval methodology)](https://platform.claude.com/docs/en/agents-and-tools/agent-skills) — the canonical schema and assertion conventions.
+- [Concepts → Eval cases](/arc-skill-eval/concepts/eval-cases/) and [Concepts → Assertions](/arc-skill-eval/concepts/assertions/) — the reference docs for the format.
+- [Examples → hello-world](/arc-skill-eval/examples/hello-world/) — full walkthrough of the worked example.
+- [Authoring evals](/arc-skill-eval/authoring-evals/) — the interview-skill path and the by-hand path side by side.
+
+<Bio />

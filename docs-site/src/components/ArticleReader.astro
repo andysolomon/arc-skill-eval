@@ -1,0 +1,415 @@
+---
+// ArticleReader.astro
+// Native browser text-to-speech reader using the Web Speech API.
+---
+
+<div class="article-reader" data-article-reader data-pagefind-ignore data-ar-state="idle" hidden>
+	<div class="ar-controls">
+		<button type="button" class="ar-btn ar-btn-primary" data-ar-play aria-label="Listen to this article">
+			<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+				<path d="M3 1.5v13l11-6.5z" fill="currentColor"></path>
+			</svg>
+			<span>Listen</span>
+		</button>
+		<button type="button" class="ar-btn" data-ar-pause hidden aria-label="Pause reading">
+			<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+				<path d="M3 2h4v12H3zM9 2h4v12H9z" fill="currentColor"></path>
+			</svg>
+			<span>Pause</span>
+		</button>
+		<button type="button" class="ar-btn ar-btn-primary" data-ar-resume hidden aria-label="Resume reading">
+			<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+				<path d="M3 1.5v13l11-6.5z" fill="currentColor"></path>
+			</svg>
+			<span>Resume</span>
+		</button>
+		<button type="button" class="ar-btn" data-ar-stop hidden aria-label="Stop reading">
+			<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+				<rect x="3" y="3" width="10" height="10" fill="currentColor"></rect>
+			</svg>
+			<span>Stop</span>
+		</button>
+		<label class="ar-select-group">
+			<span class="ar-select-label">Voice</span>
+			<select class="ar-select" data-ar-voice>
+				<option value="">System default</option>
+			</select>
+		</label>
+		<label class="ar-select-group">
+			<span class="ar-select-label">Speed</span>
+			<select class="ar-select" data-ar-rate>
+				<option value="0.85">0.85×</option>
+				<option value="1" selected>1×</option>
+				<option value="1.15">1.15×</option>
+				<option value="1.3">1.3×</option>
+				<option value="1.5">1.5×</option>
+			</select>
+		</label>
+		<span class="ar-status" data-ar-status aria-live="polite"></span>
+	</div>
+	<div class="ar-progress" data-ar-progress hidden>
+		<div class="ar-progress-track">
+			<div class="ar-progress-fill" data-ar-progress-fill></div>
+		</div>
+		<span class="ar-progress-label" data-ar-progress-label></span>
+	</div>
+</div>
+
+<style>
+	.article-reader {
+		margin: 1.25rem 0 2rem;
+		padding: 0.625rem 0.875rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.5rem;
+		background: var(--sl-color-gray-6, transparent);
+		font-size: 0.875rem;
+	}
+
+	.article-reader[hidden],
+	.article-reader [hidden] {
+		display: none !important;
+	}
+
+	:root[data-theme='light'] .article-reader {
+		background: var(--sl-color-gray-7, #f6f6f6);
+	}
+
+	.ar-controls {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.ar-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.35rem 0.7rem;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 0.375rem;
+		background: var(--sl-color-bg);
+		color: var(--sl-color-text);
+		cursor: pointer;
+		font: inherit;
+		line-height: 1;
+		transition:
+			background 0.15s ease,
+			border-color 0.15s ease,
+			color 0.15s ease;
+	}
+
+	.ar-btn:hover {
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-accent-high);
+	}
+
+	.ar-btn-primary {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-white, #fff);
+	}
+
+	.ar-btn-primary:hover {
+		background: var(--sl-color-accent-high);
+		border-color: var(--sl-color-accent-high);
+		color: var(--sl-color-white, #fff);
+	}
+
+	.ar-btn:focus-visible {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 2px;
+	}
+
+	.ar-select-group {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-size: 0.8125rem;
+	}
+
+	.ar-select-label {
+		opacity: 0.75;
+	}
+
+	.ar-select {
+		max-width: 22rem;
+		padding: 0.25rem 0.4rem;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 0.25rem;
+		background: var(--sl-color-bg);
+		color: var(--sl-color-text);
+		font: inherit;
+		font-size: 0.8125rem;
+	}
+
+	.ar-status {
+		margin-left: auto;
+		font-size: 0.8125rem;
+		opacity: 0.75;
+	}
+
+	.ar-progress {
+		margin-top: 0.5rem;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.75rem;
+		opacity: 0.85;
+	}
+
+	.ar-progress-track {
+		flex: 1;
+		height: 4px;
+		background: var(--sl-color-gray-5);
+		border-radius: 999px;
+		overflow: hidden;
+	}
+
+	.ar-progress-fill {
+		height: 100%;
+		width: 0%;
+		background: var(--sl-color-accent);
+		transition: width 0.2s ease;
+	}
+</style>
+
+<script>
+	type EngineState = 'idle' | 'playing' | 'paused';
+
+	type Prefs = {
+		voiceURI?: string;
+		rate?: string;
+	};
+
+	const STORAGE_KEY = 'skeval-article-reader-web-speech';
+	let voices: SpeechSynthesisVoice[] = [];
+
+	function loadPrefs(): Prefs {
+		try {
+			return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') as Prefs;
+		} catch {
+			return {};
+		}
+	}
+
+	function savePrefs(patch: Prefs) {
+		try {
+			localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...loadPrefs(), ...patch }));
+		} catch {
+			/* localStorage unavailable; non-fatal */
+		}
+	}
+
+	function getArticleText(): string {
+		const article =
+			document.querySelector('main .sl-markdown-content') ?? document.querySelector('main');
+		if (!article) return '';
+		const clone = article.cloneNode(true) as HTMLElement;
+		clone
+			.querySelectorAll(
+				'[data-article-reader], pre, code, figure, table, nav, .sl-link-card, .expressive-code',
+			)
+			.forEach((el) => el.remove());
+		return (clone.textContent || '').replace(/\s+/g, ' ').trim();
+	}
+
+	// Keep chunks short. Chrome and Safari are much more reliable when long
+	// articles are spoken as a sequence of sentence-sized utterances.
+	function chunkText(text: string, maxLen = 240): string[] {
+		const sentences = text.match(/[^.!?]+[.!?]+(?:\s|$)|\S[^.!?]*$/g) ?? [text];
+		const chunks: string[] = [];
+		let current = '';
+		for (const raw of sentences) {
+			const sentence = raw.trim();
+			if (!sentence) continue;
+			if (current && (current + ' ' + sentence).length > maxLen) {
+				chunks.push(current);
+				current = sentence;
+			} else {
+				current = current ? `${current} ${sentence}` : sentence;
+			}
+		}
+		if (current) chunks.push(current);
+		return chunks;
+	}
+
+	function estimateMinutes(text: string, rate: number): number {
+		const words = Math.max(1, Math.round(text.length / 5));
+		return Math.max(1, Math.round(words / (180 * Math.max(rate, 0.1))));
+	}
+
+	function findVoice(voiceURI: string): SpeechSynthesisVoice | null {
+		return voices.find((voice) => voice.voiceURI === voiceURI) ?? null;
+	}
+
+	function initReader(reader: HTMLElement) {
+		const synthesis = window.speechSynthesis;
+		const playBtn = reader.querySelector<HTMLButtonElement>('[data-ar-play]')!;
+		const pauseBtn = reader.querySelector<HTMLButtonElement>('[data-ar-pause]')!;
+		const resumeBtn = reader.querySelector<HTMLButtonElement>('[data-ar-resume]')!;
+		const stopBtn = reader.querySelector<HTMLButtonElement>('[data-ar-stop]')!;
+		const voiceSelect = reader.querySelector<HTMLSelectElement>('[data-ar-voice]')!;
+		const rateSelect = reader.querySelector<HTMLSelectElement>('[data-ar-rate]')!;
+		const status = reader.querySelector<HTMLElement>('[data-ar-status]')!;
+		const progressEl = reader.querySelector<HTMLElement>('[data-ar-progress]')!;
+		const progressFill = reader.querySelector<HTMLElement>('[data-ar-progress-fill]')!;
+		const progressLabel = reader.querySelector<HTMLElement>('[data-ar-progress-label]')!;
+
+		const prefs = loadPrefs();
+		if (prefs.rate && Array.from(rateSelect.options).some((option) => option.value === prefs.rate)) {
+			rateSelect.value = prefs.rate;
+		}
+
+		let state: EngineState = 'idle';
+		let chunks: string[] = [];
+		let currentIndex = 0;
+		let cancelled = false;
+
+		const setState = (next: EngineState) => {
+			state = next;
+			reader.dataset.arState = next;
+			playBtn.hidden = next !== 'idle';
+			pauseBtn.hidden = next !== 'playing';
+			resumeBtn.hidden = next !== 'paused';
+			stopBtn.hidden = next === 'idle';
+		};
+		const setStatus = (msg: string) => {
+			status.textContent = msg;
+		};
+		const setProgress = () => {
+			if (!chunks.length || state === 'idle') {
+				progressEl.hidden = true;
+				progressFill.style.width = '0%';
+				progressLabel.textContent = '';
+				return;
+			}
+			progressEl.hidden = false;
+			const pct = Math.max(0, Math.min(100, Math.round((currentIndex / chunks.length) * 100)));
+			progressFill.style.width = `${pct}%`;
+			progressLabel.textContent = `${currentIndex}/${chunks.length}`;
+		};
+		const stop = () => {
+			cancelled = true;
+			synthesis.cancel();
+			chunks = [];
+			currentIndex = 0;
+			setState('idle');
+			setStatus('');
+			setProgress();
+		};
+		const finish = () => {
+			chunks = [];
+			currentIndex = 0;
+			setState('idle');
+			setStatus('');
+			setProgress();
+		};
+		const speakNext = () => {
+			if (cancelled) return;
+			if (currentIndex >= chunks.length) {
+				finish();
+				return;
+			}
+
+			const utterance = new SpeechSynthesisUtterance(chunks[currentIndex]);
+			const selectedVoice = findVoice(voiceSelect.value);
+			if (selectedVoice) utterance.voice = selectedVoice;
+			utterance.rate = parseFloat(rateSelect.value) || 1;
+			utterance.onend = () => {
+				currentIndex += 1;
+				setProgress();
+				speakNext();
+			};
+			utterance.onerror = (event) => {
+				if (cancelled || event.error === 'interrupted' || event.error === 'canceled') return;
+				console.warn('Browser speech synthesis failed:', event.error);
+				setState('idle');
+				setStatus(`Speech failed: ${event.error}`);
+				setProgress();
+			};
+
+			setState('playing');
+			setStatus(`Reading ${currentIndex + 1}/${chunks.length}`);
+			setProgress();
+			synthesis.speak(utterance);
+		};
+		const populateVoices = () => {
+			const selected = voiceSelect.value || prefs.voiceURI || '';
+			voices = synthesis.getVoices().sort((a, b) => {
+				const aScore = a.default ? -1 : a.lang.startsWith('en') ? 0 : 1;
+				const bScore = b.default ? -1 : b.lang.startsWith('en') ? 0 : 1;
+				return aScore - bScore || a.lang.localeCompare(b.lang) || a.name.localeCompare(b.name);
+			});
+
+			voiceSelect.replaceChildren(new Option('System default', ''));
+			for (const voice of voices) {
+				const suffix = [voice.lang, voice.localService ? 'local' : 'remote', voice.default ? 'default' : '']
+					.filter(Boolean)
+					.join(' · ');
+				voiceSelect.add(new Option(`${voice.name} (${suffix})`, voice.voiceURI));
+			}
+			if (selected && Array.from(voiceSelect.options).some((option) => option.value === selected)) {
+				voiceSelect.value = selected;
+			}
+		};
+
+		populateVoices();
+		synthesis.addEventListener('voiceschanged', populateVoices);
+		setState('idle');
+		reader.hidden = false;
+
+		playBtn.addEventListener('click', () => {
+			synthesis.cancel();
+			cancelled = false;
+			const text = getArticleText();
+			if (!text) {
+				setStatus('Nothing to read.');
+				return;
+			}
+			chunks = chunkText(text);
+			currentIndex = 0;
+			const minutes = estimateMinutes(text, parseFloat(rateSelect.value) || 1);
+			setStatus(`~${minutes} min`);
+			speakNext();
+		});
+
+		pauseBtn.addEventListener('click', () => {
+			synthesis.pause();
+			setState('paused');
+			setStatus('Paused');
+		});
+
+		resumeBtn.addEventListener('click', () => {
+			synthesis.resume();
+			setState('playing');
+			setStatus(`Reading ${Math.min(currentIndex + 1, chunks.length)}/${chunks.length}`);
+		});
+
+		stopBtn.addEventListener('click', stop);
+
+		voiceSelect.addEventListener('change', () => {
+			savePrefs({ voiceURI: voiceSelect.value });
+			if (state !== 'idle') setStatus('Voice changes on the next sentence.');
+		});
+
+		rateSelect.addEventListener('change', () => {
+			savePrefs({ rate: rateSelect.value });
+			if (state !== 'idle') setStatus('Speed changes on the next sentence.');
+		});
+
+		window.addEventListener('beforeunload', stop);
+	}
+
+	function boot() {
+		document.querySelectorAll<HTMLElement>('[data-article-reader]').forEach((reader) => {
+			if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
+				reader.hidden = true;
+				return;
+			}
+			initReader(reader);
+		});
+	}
+
+	boot();
+</script>

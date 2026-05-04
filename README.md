@@ -1,6 +1,6 @@
 # arc-skill-eval
 
-Pi-native library and CLI that runs [Anthropic-standard skill evals](https://platform.claude.com/docs/en/agents-and-tools/agent-skills) — `evals/evals.json` inside a skill directory, executed with the skill attached, graded with LLM-judged + script-based assertions.
+Pi-native library and CLI for running skill evals. Authoring format follows [Anthropic's published `evals/evals.json` standard](https://platform.claude.com/docs/en/agents-and-tools/agent-skills). The eval methodology — layered grading, small starter suites that grow from real failures, the with-skill / without-skill comparison as the load-bearing signal — is directly inspired by OpenAI's [Testing Agent Skills Systematically with Evals](https://developers.openai.com/blog/eval-skills) (Kundel & Chua, Jan 2026). The runtime philosophy ("an LLM, a loop, and enough tokens") borrows from Ampcode's [How to Build an Agent](https://ampcode.com/notes/how-to-build-an-agent) and Mihail Eric's [The Emperor Has No Clothes](https://www.mihaileric.com/The-Emperor-Has-No-Clothes/). See [Inspiration & credits](#inspiration--credits) for the full attribution.
 
 ## What it does
 Given a skill that ships `SKILL.md` and a sibling `evals/evals.json`, `arc-skill-eval`:
@@ -14,7 +14,7 @@ Given a skill that ships `SKILL.md` and a sibling `evals/evals.json`, `arc-skill
 7. records tool-call counts, skill reads, external calls, MCP-looking tool calls, and the context/tool manifest exposed to the model.
 8. optionally compares each case against a no-skill baseline with `--compare`.
 
-Assertion grading follows the guidance in [Anthropic's eval-skills methodology](https://platform.claude.com/docs/en/agents-and-tools/agent-skills) and the inspiration from [OpenAI's eval-skills blog post](https://developers.openai.com/blog/eval-skills).
+Assertion grading mirrors OpenAI's layered approach (deterministic checks first, model-assisted rubric for prose) and emits artifacts in Anthropic's published [`grading.json`](https://platform.claude.com/docs/en/agents-and-tools/agent-skills) shape.
 
 ## Input format
 `<skill-dir>/evals/evals.json`:
@@ -223,3 +223,15 @@ The current release is the slim MVP of the pivot to the Anthropic format. Planne
 - Human-review `feedback.json`.
 
 See `docs/evals-json-pivot.md` for the full plan.
+
+## Inspiration & credits
+
+`arc-skill-eval` exists because three pieces of writing made it clear what to build, in what shape, and with what philosophy. Each one shaped a different layer:
+
+- **The eval methodology** — *every workflow choice in the grader and the suite-growth advice in the docs* — comes from OpenAI's **[Testing Agent Skills Systematically with Evals](https://developers.openai.com/blog/eval-skills)** by Dominik Kundel and Gabriel Chua (January 22, 2026). The framing of an eval as *"a prompt → a captured run (trace + artifacts) → a small set of checks → a score you can compare over time"*, the layered-grading recipe (fast deterministic checks first, then model-assisted rubric), the multi-category success metrics (outcome / process / style / efficiency), and the guidance that *"a small set of 10–20 prompts is enough to surface regressions"* — these are OpenAI's, transposed onto Anthropic's published format.
+- **The eval format** — the on-disk `evals/evals.json` shape, the per-case `grading.json`, the aggregate `benchmark.json`, and the `with_skill` / `without_skill` comparison — comes from [Anthropic's documented skill-eval methodology](https://platform.claude.com/docs/en/agents-and-tools/agent-skills). The framework consumes Anthropic's format so a skill author can take their `evals.json` to any compatible runner.
+- **The runtime philosophy** — *the bias toward a small, legible runtime that's not afraid to call itself a loop* — owes a debt to two posts that demystified the agentic harness:
+  - Thorsten Ball's **[How to Build an Agent](https://ampcode.com/notes/how-to-build-an-agent)** (Ampcode, April 15, 2025) — *"It's an LLM, a loop, and enough tokens"* — and the demonstration that a useful code-editing agent fits in a few hundred lines.
+  - Mihail Eric's **[The Emperor Has No Clothes: How to Code Claude Code in 200 Lines of Code](https://www.mihaileric.com/The-Emperor-Has-No-Clothes/)** (January 2026), which makes the same point at the level of agent harnesses: the core is a tool registry, an inner loop, and a parser. *Production complexity is engineering, not architecture.*
+
+If you read only one of those before authoring an eval, read OpenAI's. If you read only one before extending the framework, read either of the harness pieces.

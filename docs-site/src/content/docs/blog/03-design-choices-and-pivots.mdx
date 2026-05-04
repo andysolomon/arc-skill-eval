@@ -1,0 +1,191 @@
+---
+title: "Building arc-skill-eval: design choices and what I deprecated"
+description: The pivot from a custom TypeScript contract format to Anthropic's published standard. What survived, what didn't, and why the with/without delta turned out to be a forcing function.
+pubDate: 2026-05-12
+author: Andy Solomon
+draft: true
+sidebar:
+  order: 3
+---
+
+import Bio from './_bio.mdx';
+
+This post is the framework's own pivot story. If you only care about authoring evals, skip it — [Part 2](/arc-skill-eval/blog/02-anatomy-of-evals-json/) is what you want. But if you're building tooling in this space, or you're tempted to design your own format, the lesson here is more useful than the format itself: **the standard already exists, and the comparison that matters is a delta.** Start there, even if you're starting now.
+
+*Lineage note before we start.* Almost every methodology decision in `arc-skill-eval` traces to OpenAI's [Testing Agent Skills Systematically with Evals](https://developers.openai.com/blog/eval-skills) (Kundel & Chua, January 2026). Anthropic provides the on-disk format the methodology is rendered into. The runtime — the *loop* underneath all of this — borrows its shape and posture from Thorsten Ball's [How to Build an Agent](https://ampcode.com/notes/how-to-build-an-agent) and Mihail Eric's [The Emperor Has No Clothes](https://www.mihaileric.com/The-Emperor-Has-No-Clothes/). Full credits at [Inspiration & credits](/arc-skill-eval/inspiration/).
+
+## What I started with
+
+The first version of `arc-skill-eval` had its own format. Not because Anthropic's wasn't published — it was — but because I thought I needed more expressiveness than the published shape allowed. I wrote a TypeScript file called `skill.eval.ts`, declared it next to `SKILL.md`, and made it the authoring surface:
+
+```ts
+// skill.eval.ts (deprecated)
+import { defineSkillEval } from "arc-skill-eval";
+
+export default defineSkillEval({
+  skillName: "arc-conventional-commits",
+  lanes: {
+    routing: { ... },         // does the skill activate?
+    execution: { ... },       // does it produce the right artifacts?
+    cliParity: { ... },       // does the SDK and CLI behave the same?
+    liveSmoke: { ... },       // do live external calls work?
+  },
+  profiles: {
+    primary: "repo-mutation",
+    secondary: ["external-api"],
+  },
+  scorers: [
+    { name: "outcome", pack: "repo-mutation@v1" },
+    { name: "process", pack: "tool-call-budget@v1" },
+  ],
+  rubric: { ... },
+  cases: [...],
+});
+```
+
+It looked like a serious framework. It had types, lanes, profiles, scorer packs, a rubric scaffold, all backed by a TypeScript contract called `SkillEvalContract`. It compiled cleanly, validated at load time, and gave authors a strongly-typed surface that the IDE could autocomplete.
+
+It was also weeks away from being usable. Each lane needed its own runner. Each scorer pack needed a profile-specific implementation. The rubric was supposed to feed into a weighted aggregate that I hadn't built. The author's path from "I have a skill" to "I have a passing eval" was longer than the path to writing the skill itself.
+
+That last point is what broke me out of it.
+
+## Why the pivot
+
+Three things changed my mind, fast.
+
+### 1. The SKILL.md half was already a standard
+
+[agentskills.io](https://agentskills.io) is an open format. It's supported by Claude Code, Cursor, Codex, Gemini CLI, Pi, OpenCode, OpenHands, and more. When I wrote my framework, I was already conforming to it — `SKILL.md` was the input, frontmatter shape and all. Free standardization on the input side.
+
+The cost of *not* conforming on the eval side was symmetric. Authors who'd already learned `SKILL.md` would have to learn a second format from me. I was making them pay twice.
+
+### 2. The eval half had a published methodology too
+
+Anthropic published the *format*: `evals/evals.json` next to `SKILL.md`, dual-runtime comparison (`with_skill` vs `without_skill`), assertion-based grading, and `benchmark.json` aggregation. A documented schema and a runtime model, not a vague blog post.
+
+OpenAI's developer blog published the *methodology* — and it was, frankly, better than what I'd been designing. Layered grading (deterministic checks first, model-assisted rubric only where needed). Multi-category metrics (outcome / process / style / efficiency). Starter suites of 10–20 prompts. Coverage that grows from real failures rather than synthesized checklists. *"An eval is: a prompt → a captured run (trace + artifacts) → a small set of checks → a score you can compare over time."* That sentence collapsed half my framework's complexity into one line.
+
+The two posts converged. Anthropic's format and OpenAI's methodology fit each other almost note-for-note. I'd been competing with both. That costs authoring friction (authors have to learn my shape) and ecosystem isolation (my output can't be consumed by anyone else's tooling). Both costs scale with adoption, and I was paying them at zero adoption.
+
+### 3. The user-stated goal was trust, not flexibility
+
+The point was *"every skill ships with an eval so users know it works well."*
+
+That's a single, simple question: does the skill move the needle? Pass-rate deltas against a no-skill baseline answer that question directly. Lanes, profiles, scorecards are *indirect* — they answer different questions and require more authoring effort to even begin. A skill author who wants the trust signal needs the delta, not a multi-dimensional scorecard.
+
+Once I named the goal correctly, the right structure was obvious. And it was already published.
+
+## What survived
+
+Three things from the pre-pivot framework carried over directly:
+
+### Pi SDK + Pi CLI JSON runners (`src/pi/`)
+
+The agent invocation layer was orthogonal to the format. Whether you author your case in TypeScript or JSON, *running* it means handing a prompt and a context to an agent runtime and capturing the result. That part didn't change. The runner code in `src/pi/sdk-runner.ts` is the same in the post-pivot world; it's just called from a different orchestrator now.
+
+The runtime's *posture* survived too — and the posture has provenance. Around the same time I was tearing out the scoring engine, I re-read Thorsten Ball's [How to Build an Agent](https://ampcode.com/notes/how-to-build-an-agent) and Mihail Eric's [The Emperor Has No Clothes](https://www.mihaileric.com/The-Emperor-Has-No-Clothes/). Both make the same case at different volumes: *"It's an LLM, a loop, and enough tokens"* (Ball); *"about 200 lines of straightforward Python"* (Eric). The runner under `arc-skill-eval` is no more elaborate than that. Once the format and methodology shifted to standards, *the runner had no business getting fancy*. The agent loop is the agent loop.
+
+### Fixture materialization (`src/fixtures/`)
+
+Some cases need a non-trivial workspace state — a partially-configured repo, an existing config file the skill is supposed to migrate, a git history with specific commits. The fixture materializer handles file copying, git initialization, and pre-run hooks. It pre-existed the format change and survived intact.
+
+The Anthropic format's `setup: { kind: "fixture", fixture: ... }` slot is a thin wrapper around this code. The shorthand `files: ["..."]` compiles to a `seeded` setup that the same materializer handles.
+
+### The canonical `EvalTrace` shape (`src/traces/`)
+
+`EvalTrace` is the normalized runtime trace — assistant text, tool calls, tool results, file touches, skill reads, external calls. It exists because both Pi runtime modes (SDK and CLI JSON) needed a unified output shape, and the grader needed something stable to read.
+
+In the pre-pivot framework, `EvalTrace` was the input to my scorer engine. In the post-pivot framework, it's still the input to grading — just to assertion grading instead of scorer-pack grading. The shape was the right abstraction independent of what consumed it.
+
+## What I deleted
+
+Five things came out of the codebase. Each deletion was a bet that the simpler thing was enough.
+
+### `SkillEvalContract` and `skill.eval.ts`
+
+Replaced by `evals/evals.json`. The deletion was clean — the loader, the validator, the type definitions, the example file all went. About 800 lines.
+
+### Lanes (routing / execution / cli-parity / live-smoke)
+
+Lanes were *categories* an author had to assign each case to, with different runners per lane. Useful in theory; ceremony in practice. Anthropic's format doesn't have lanes. Cases just have prompts, fixtures, and assertions; the runner figures out what to do.
+
+Lanes may survive *internally* as execution strategies — for example, routing-style cases might still run as a single-turn observation rather than a full agent loop — but authors don't name them. That layer is the framework's problem, not the user's.
+
+### Profiles (planning / repo-mutation / external-api / orchestration)
+
+Profiles were a parallel taxonomy: not "what is the case testing" but "what kind of skill is this." They drove which scorer packs got loaded.
+
+Same fate as lanes: out of the authoring surface. The skill domain types in `src/contracts/types.ts` (`SkillCategory`, `SkillCapabilities`, `SkillPolicy`) survive as classification metadata for tooling that wants to *understand* a skill, but they don't gate evaluation.
+
+### Custom `report.json` / `report.html` shape
+
+The original framework wrote its own report formats. They were perfectly fine — structured JSON for CI, HTML with sortable tables for humans — but they were a fork of what Anthropic publishes.
+
+Replaced by per-case `grading.json` (Anthropic-compatible) and aggregate `benchmark.json` (also Anthropic-compatible at the core, with Pi-specific fields under `metadata.extensions`). The HTML view, if I want it again, becomes a thin renderer over `benchmark.json` rather than its own data layer.
+
+### Scorer packs and the scoring engine (`src/scorers/`)
+
+The biggest deletion: about 2,000 lines of code that took rubrics + profiles + dimension scorecards and produced weighted scores. Replaced by assertion grading in `src/evals/grade.ts`, which is closer to 300 lines.
+
+The scoring engine answered a question I'd designed but no user had asked: *"How does this skill compare on a multi-dimensional scale?"* The actual question users ask is *"Does this work?"* Assertions answer that. The scorer engine was answering an essay question when the user wanted a yes/no.
+
+## The forcing function
+
+Once I committed to "the canonical signal is a delta against a no-skill baseline," several things fell out for free.
+
+### Workspace materialization had to be deterministic per variant
+
+You can't compare `with_skill` and `without_skill` if the workspace contamination differs between them. So both variants of every case have to materialize equivalent fresh workspaces before execution. The fixture materializer was already deterministic; what changed was that I ran it *twice* per case in compare mode.
+
+That's a small change and a big consequence: it removed the need for "test isolation" as a concept the author has to think about. The framework guarantees it.
+
+### Context manifests had to be observable
+
+The only difference between the two variants must be the target skill. If an ambient resource leaks in — an extension tool, a prompt template, a configured MCP server — the delta lies. Either with-skill gets a boost it shouldn't, or without-skill does, or worse, the leak is intermittent.
+
+Hence `context-manifest.json` as a per-variant artifact. Every variant writes one. A reviewer can confirm by inspection that the *only* difference between with-skill and without-skill was the target skill itself. If anything else differs, the manifest tells you in seconds.
+
+This wasn't on my pre-pivot list. The dual-run comparison made it necessary.
+
+### Tool/trace summaries had to be variant-scoped
+
+Different tool-call profiles between variants are evidence that the skill is doing something — even when the pass rate is the same. A skill that "doesn't change the pass rate but causes the model to call `bash` 3x less" is succeeding in a way the assertion suite isn't capturing.
+
+Hence `tool-summary.json` per variant, and `trace.json` per variant. They're the qualitative signal that complements the quantitative pass-rate delta.
+
+### Iteration buckets had to be opt-in
+
+I'd originally planned `iteration-1/`, `iteration-2/`, etc. as a first-class concept — every run gets an iteration index, the framework proposes SKILL.md edits between iterations, you compare across them.
+
+Once I committed to the delta as the headline metric, iterations became *bookkeeping*. They group multiple runs under a name (`iteration-baseline`, `iteration-conflict-1`, `iteration-after-rewrite`) without changing what happens inside a run. Cross-iteration aggregates are deferred; per-run `benchmark.json` is what most users actually need.
+
+The opt-in flag (`--iteration <name>`) is a four-line CLI change. The post-MVP cross-iteration story is bigger, but I don't have to pay the cost of building it before anyone needs it.
+
+## What I deferred
+
+A short list of things I *could* have built on top of the new format and chose not to, at least not yet:
+
+- **Cross-iteration aggregates.** A view that diffs the same case's pass rate across multiple SKILL.md versions. Useful once you have several iterations on a non-trivial skill.
+- **Automatic SKILL.md mutation suggestions.** When a case regresses on a specific assertion, propose a targeted edit to SKILL.md and re-run. Closes the iteration loop. Speculative; I want to see it work by hand on a real skill before automating.
+- **Per-iteration evaluated `SKILL.md` snapshots.** "This version of the skill, scored this delta." Useful for archival; not load-bearing for the trust signal.
+- **Human-review `feedback.json`.** A separate artifact for cases the judge couldn't grade with confidence. Keeps the human in the loop without slowing the suite. Authoring ergonomic, not structural.
+- **Rubric scoring.** Anthropic's methodology doesn't use a separate rubric lane — subjective-quality concerns show up as assertions or as human feedback. My stubbed rubric type went away with the TS contract; I don't miss it.
+
+All of these are useful eventually. None are load-bearing for the question "does this skill work?"
+
+## What this means for skill authors
+
+You don't need any of this context to use the framework. The authoring surface is `evals/evals.json` plus optional fixtures. Everything else is plumbing.
+
+But two takeaways are worth carrying:
+
+1. **The standard exists.** Don't write your own format. If you find yourself wanting to design a richer authoring shape, ask why. Most of the time the answer is "I'm reaching for ceremony I don't need," not "the standard is missing what I need."
+2. **The delta is the signal.** An eval that doesn't compare against a no-skill baseline is measuring something — but probably not the skill's contribution. The instinct to skip `--compare` because it doubles the cost is the instinct to skip the load-bearing measurement to save money. Don't.
+
+If you're building tooling in this space, the third takeaway is the one I learned the hard way:
+
+3. **Every layer of indirection is a tax.** Lanes, profiles, scorer packs, rubrics — each one was a reasonable abstraction in isolation. Together they made the framework hard to start using. The minimum viable shape (case → assertion → grading) is enough for the question users actually ask. Add layers when a real user asks for them, not before.
+
+[Part 4](/arc-skill-eval/blog/04-what-we-learned/) is the practitioner's account: where the methodology is honest, where it's a fig leaf, and where it breaks down.
+
+<Bio />

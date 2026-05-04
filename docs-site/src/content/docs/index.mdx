@@ -1,0 +1,44 @@
+---
+title: Skeval
+description: Anthropic-standard skill evaluations for Claude skills. Run evals/evals.json with the skill attached, grade with LLM-judged + script assertions, compare against a no-skill baseline.
+template: splash
+hero:
+  tagline: Skill Eval — Anthropic-standard skill evaluations for Claude skills.
+  actions:
+    - text: Get started
+      link: /arc-skill-eval/quickstart/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/andysolomon/arc-skill-eval
+      icon: external
+      variant: minimal
+---
+
+## What is Skeval?
+
+**Skeval** is the docs and blog home for [`arc-skill-eval`](https://github.com/andysolomon/arc-skill-eval) — a Pi-native CLI for running skill evals. You author `evals/evals.json` next to your `SKILL.md`. Skeval discovers it, runs each case with the skill attached, grades the output, and writes a tree of artifacts you can inspect or diff.
+
+The eval **methodology** — layered grading, small starter suites, growing the suite from real failures, the with-skill / without-skill comparison as the load-bearing signal — is taken directly from OpenAI's [Testing Agent Skills Systematically with Evals](https://developers.openai.com/blog/eval-skills) (Kundel & Chua, January 2026). The on-disk **format** — `evals/evals.json`, `grading.json`, `benchmark.json`, with-skill / without-skill variants — follows [Anthropic's published shape](https://platform.claude.com/docs/en/agents-and-tools/agent-skills) so artifacts travel cleanly to other consumers. The **runtime philosophy** ("an LLM, a loop, and enough tokens") borrows from [Ampcode's How to Build an Agent](https://ampcode.com/notes/how-to-build-an-agent) and Mihail Eric's [The Emperor Has No Clothes](https://www.mihaileric.com/The-Emperor-Has-No-Clothes/). See [Inspiration & credits](/arc-skill-eval/inspiration/) for the full story.
+
+The brand is Skeval. The package and the CLI binary are still `arc-skill-eval`.
+
+## Why it exists
+
+Skills are markdown files plus optional scripts. They change model behavior in ways that are easy to feel and hard to verify. Skeval makes the "does this skill work?" question answerable, and answers it with the comparison that matters: **the same prompt run with and without the skill attached, graded against the same assertions.** The pass-rate delta is the canonical signal.
+
+## What you get
+
+- `evals/evals.json` as the authoring format — the same shape Anthropic publishes.
+- LLM-judged assertions for prose claims, deterministic script assertions for file presence, regex, and JSON validity.
+- Opt-in `with_skill` vs `without_skill` dual runs and a `benchmark.json` aggregate.
+- Per-case observability: `assistant.md`, `outputs/`, `timing.json`, `trace.json`, `tool-summary.json`, `context-manifest.json`.
+- A first-class authoring skill ([`arc-creating-evals`](/arc-skill-eval/authoring-evals/)) that interviews you across Anthropic's four success dimensions and emits a real eval suite.
+
+## Where to start
+
+- **[Quickstart](/arc-skill-eval/quickstart/)** — install, run the `hello-world` skill, read your first `grading.json`.
+- **[Concepts](/arc-skill-eval/concepts/)** — the runtime entities: skills, eval cases, assertions, the with/without delta, grading, artifacts.
+- **[Authoring evals](/arc-skill-eval/authoring-evals/)** — how to write `evals/evals.json` for your own skill.
+- **[Blog](/arc-skill-eval/blog/)** — a multi-part series on why skill evals matter and what I learned building this.
+- **[Inspiration & credits](/arc-skill-eval/inspiration/)** — the three pieces of writing that shaped this project, with direct quotes and reading order.

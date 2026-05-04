@@ -1,0 +1,36 @@
+---
+title: Blog
+description: A multi-part series on skill evals — why they matter, how the Anthropic format works, what I built, and what I learned running it.
+sidebar:
+  order: 0
+audio: false
+---
+
+import { getCollection } from 'astro:content';
+import Bio from './_bio.mdx';
+
+A multi-part series on skill evals. Part 1 publishes at site launch; Parts 2–4 ship on a weekly cadence after.
+
+export const posts = (await getCollection('docs'))
+  .filter((entry) => entry.id.startsWith('blog/') && entry.id !== 'blog/index' && !entry.id.endsWith('_bio'))
+  .filter((entry) => !entry.data.draft)
+  .sort((a, b) => {
+    const aDate = a.data.pubDate ? new Date(a.data.pubDate).valueOf() : 0;
+    const bDate = b.data.pubDate ? new Date(b.data.pubDate).valueOf() : 0;
+    return bDate - aDate;
+  });
+
+## Posts
+
+<ul>
+  {posts.map((post) => (
+    <li key={post.id}>
+      <a href={`/arc-skill-eval/${post.id}/`}>{post.data.title}</a>
+      {post.data.pubDate && <> — <time dateTime={new Date(post.data.pubDate).toISOString()}>{new Date(post.data.pubDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</time></>}
+      {post.data.author && <> · {post.data.author}</>}
+      {post.data.description && <><br /><small>{post.data.description}</small></>}
+    </li>
+  ))}
+</ul>
+
+<Bio />

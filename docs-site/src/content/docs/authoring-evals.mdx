@@ -1,0 +1,83 @@
+---
+title: Authoring evals
+description: How to write evals/evals.json for your own skill, with the bundled `arc-creating-evals` interview-style skill or by hand.
+---
+
+You have two paths to a real eval suite for your skill: drive it through the bundled [`arc-creating-evals`](https://github.com/andysolomon/arc-skill-eval/tree/main/skills/arc-creating-evals) interview skill, or write `evals/evals.json` by hand. Both produce the same artifact: an `evals/` directory next to your `SKILL.md` containing `evals.json` and any required fixture files.
+
+## The interview path: `arc-creating-evals`
+
+`arc-creating-evals` is a skill that ships in this repo. Install it into your agent's skills directory (`.claude/skills/` for Claude Code, equivalent for other tools — see [`skills/README.md`](https://github.com/andysolomon/arc-skill-eval/blob/main/skills/README.md)) and trigger it with prompts like:
+
+- *"Write evals for this skill."*
+- *"Create evals.json for `arc-conventional-commits`."*
+- *"Make this skill testable."*
+
+It walks five phases and stops at each boundary for confirmation:
+
+1. **Locate and summarize the target skill.** Reads the skill's `SKILL.md`, extracts name, description, numbered phases, expected tools, and files the skill creates or edits. Asks: *"Did I capture the skill's behavior correctly?"*
+2. **Define success across Anthropic's four dimensions.**
+   - **Outcome** — what file state, response content, or artifact proves the skill worked?
+   - **Process** — which tools must (or must not) be called?
+   - **Style** — is tone, structure, or formatting material?
+   - **Efficiency** — any upper bound on tool calls or duration?
+3. **Draft 6–10 cases** across three classes:
+   - *Trigger cases* (3–5) — explicit invocations, implicit positives derived from trigger phrases, and one adjacent negative.
+   - *Execution cases* (1–3) — fixture-backed golden path plus alternate paths if the skill has meaningfully different code paths.
+   - *Edge / negative cases* (1–2) — malformed input, ambiguous request, conflict with existing state.
+4. **Layer assertions** — script assertions first (cheap, deterministic), then string assertions (LLM-judged) for prose properties scripts can't check. Budget: 2–5 assertions per case.
+5. **Write the files, validate, dry-run one case, summarize.**
+
+The phase boundaries are real stop points — the skill won't draft assertions until you've signed off on the four success dimensions, and it won't write files until you've signed off on the cases.
+
+## The by-hand path: write `evals/evals.json`
+
+The shape (also documented under [Concepts → Eval cases](/arc-skill-eval/concepts/eval-cases/) and [Concepts → Assertions](/arc-skill-eval/concepts/assertions/)):
+
+```json
+{
+  "skill_name": "arc-conventional-commits",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Set up semantic-release in this repo.",
+      "expected_output": "semantic-release configured with the Conventional Commits preset.",
+      "files": ["files/clean-repo"],
+      "assertions": [
+        { "type": "file-exists", "path": ".releaserc.json" },
+        { "type": "regex-match", "pattern": "conventionalcommits", "target": { "file": ".releaserc.json" } },
+        "The response summarizes the semantic-release plugins it installed."
+      ]
+    }
+  ]
+}
+```
+
+Place the file at `<your-skill>/evals/evals.json`. Fixtures, if any, go under `<your-skill>/evals/files/<fixture-name>/`.
+
+## Quality rules
+
+These come straight out of `arc-creating-evals`'s own guidance and are worth following whether or not you use the interview path:
+
+- **Don't invent cases the skill isn't built for.** A trigger case the skill wasn't designed to respond to is noise, not a bug.
+- **Don't write string assertions without testing them against a real run first.** Model paraphrasing will ambush you otherwise. Once you've seen a real assistant reply, you can tighten the assertion to cite specific tokens.
+- **Don't copy the skill's instructions into assertions verbatim.** If the skill says "the .releaserc.json MUST have the conventionalcommits preset," asserting that exact text won't distinguish skill output from regurgitation. Assert on the *effect* — `{ "type": "json-valid", "path": ".releaserc.json" }` plus a regex match for `conventionalcommits`.
+- **Prefer 1 execution case + strong script assertions over 3 execution cases + weak text matches.** Mechanical checks fail honestly; weak text matches fail for paraphrase reasons.
+- **Lowercase kebab-case slugs for `id`** (or numbers). The CLI sanitizes for filesystem paths, but readable IDs make `eval-<id>` directories self-documenting.
+- **When in doubt, stop and ask.** Authoring evals by guessing produces false-positive passes that teach you nothing.
+
+## Pinning a model and dry-running
+
+`evals.json` doesn't have a top-level `model` field; the skill's assistant uses whatever your Pi default is. If your global default is quota-capped (for example, `openai-codex` on a ChatGPT Plus account), set a `judgeModel` override at the CLI layer or update `~/.pi/agent/settings.json`.
+
+Dry-run one case against your cheapest available model before committing the suite:
+
+```bash
+arc-skill-eval run <your-skill> --case <first-case-id>
+```
+
+If the judge's evidence reads like it paraphrased the assertion instead of citing assistant text, tighten the assertion (more literal, more specific) or swap it for a script assertion.
+
+## Once it's running
+
+Add a new case every time you debug a real regression. Every manual fix is a signal. The eval suite is a living artifact — its job is to catch the next instance of whatever you just fixed by hand.

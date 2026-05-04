@@ -1,0 +1,147 @@
+---
+title: "What I learned running it"
+description: Where the skill-eval methodology is honest, where it's a fig leaf, and where it breaks down. Multi-turn skills, stateful agent loops, and the limits of single-prompt comparisons.
+pubDate: 2026-05-19
+author: Andy Solomon
+draft: true
+sidebar:
+  order: 4
+---
+
+import Bio from './_bio.mdx';
+
+[Part 1](/arc-skill-eval/blog/01-why-skill-evals-matter/) made the case. [Part 2](/arc-skill-eval/blog/02-anatomy-of-evals-json/) walked through the format. [Part 3](/arc-skill-eval/blog/03-design-choices-and-pivots/) was the framework's own design story. This post is the practitioner's account — what I've learned running `arc-skill-eval` on real skills, where the methodology has earned its place, and where I'd warn you against trusting it too far.
+
+## Where the methodology is honest
+
+A few claims the framework makes that hold up under use.
+
+### Mechanical assertions are the most reliable signal
+
+`file-exists`, `regex-match` against file content, `json-valid` — when these fail, the skill failed in a way no paraphrasing can cover. There's no judge to argue with, no model to interpret. The file is there or it isn't; the regex matches or it doesn't.
+
+The lesson I keep relearning: **whenever a string assertion would do, a script assertion would do better.** *"The response includes a `.releaserc.json` with the conventionalcommits preset"* is a string assertion that depends on the model writing prose about what it did. It can fail on paraphrase. The same claim as a script — `{ "type": "json-valid", "path": ".releaserc.json" }` plus `{ "type": "regex-match", "pattern": "conventionalcommits", "target": { "file": ".releaserc.json" } }` — fails only when the *effect* is wrong.
+
+Use string assertions when you have to. Reach for scripts whenever you can.
+
+### The with/without delta exposes redundancy
+
+The most useful surprise from real runs has been zero deltas. A skill I thought was load-bearing produced the same pass rate with and without itself attached. The model would have done the right thing on its own; the skill's instructions were redundant.
+
+That's information, not a bug in the eval. It tells me one of three things:
+
+1. The model has gotten good enough that the skill's contribution is dissolved by base capability.
+2. The skill's instructions don't actually move the needle the way I thought they did.
+3. My case set is too easy — it doesn't probe the parts of the skill that matter.
+
+In two out of three cases, the right response is to either delete the skill or rewrite the cases. Either way, the eval told me before a user did.
+
+### Per-case `tool-summary.json` catches behavior shifts
+
+The most useful artifact I didn't expect to need. `tool-summary.json` reports tool-call counts by name. Skills that should never run shell commands, that have a budget of tool calls, that should call particular tools — all of these have signatures in the summary that don't show up in the assistant text.
+
+A concrete instance: a skill I wrote was supposed to *only* read repo files, never write. Its assertions all passed; the response said the right things. `tool-summary.json` reported `write: 1`. The model had created a temp file mid-reasoning and immediately deleted it. The output was correct. The behavior was wrong. I would never have caught it without the summary.
+
+## Where it's a fig leaf
+
+A few claims I'd qualify if you took them at face value.
+
+### String assertions and paraphrase
+
+The most common failure mode for an honest assertion: the assistant produces something that *looks* responsive but doesn't actually demonstrate the property. *"The response explains why X"* passes whenever the model writes *some* explanation, even a wrong one. The judge cites evidence; the cited evidence isn't necessarily evaluative.
+
+The fix is mechanical: name proper nouns and effects, not vibes. *"The response names the conventionalcommits preset"* gives the judge a literal token to find. *"The response explains the migration steps"* doesn't.
+
+But the fix isn't always available. Some claims are intrinsically vague. For those, accept that the assertion is a fuzzy signal — read the evidence the judge cites. If the evidence isn't a citation, the assertion didn't really pass.
+
+### The evidence requirement is only as strict as the judge model
+
+The judge prompt says *"require concrete evidence for a PASS, don't give the benefit of the doubt."* A weak judge will rationalize a PASS with weak evidence. A strong judge won't. The assertion's reliability is bounded by the judge's strictness.
+
+In practice: pin a strong judge. The cost difference between Claude Opus and a much smaller model on grading is small relative to the cost of a misleading PASS. If you're going to run on a budget, run with a smaller assistant model and grade with a strong judge — the assistant generates a lot of tokens, the judge reads a few.
+
+### A green suite isn't a working skill
+
+It's a skill that passes the cases you wrote.
+
+Adversarial prompts you didn't think of, edge cases the suite doesn't probe, latent regressions when the model behind the skill changes — all of these are out there. Evals are necessary, not sufficient.
+
+The closest you get to "trust" with a small suite: keep adding cases from real failures. Every time you debug a regression by hand, you've discovered a case the suite didn't have. Add it. Over time, the suite catches the kinds of regressions that have actually happened to *you* — which is more useful than a synthetic case the framework's docs suggested.
+
+## Where it breaks down
+
+The methodology has limits. These aren't bugs in `arc-skill-eval`; they're places where the single-prompt → captured-run → assertion shape doesn't capture what the skill is actually doing.
+
+### Multi-turn skills
+
+A planning skill that operates across several user turns can't be evaluated by a single prompt → captured run. Each turn affects the next; the eval has to capture the whole conversation. The current format has one `prompt` field per case — there's no way to express "user says A, assistant responds, user says B given that response, etc."
+
+Multi-turn evals are the obvious next step. The Obsidian agents-v2 notes on [single-turn](https://publish.obsidian.md/agents-v2/03-Single-Turn-Evals) and [multi-turn](https://publish.obsidian.md/agents-v2/05-Multi-turn-Evals) evals point at the framing: a multi-turn case is a *transcript-shaped* prompt — a sequence of user turns with the assistant filling in between, and assertions span the whole transcript rather than one reply.
+
+`arc-skill-eval` doesn't support these yet. It's on the post-MVP list, but the design is non-trivial — fixtures, workspace state across turns, what counts as the "with-skill" vs "without-skill" comparison when a turn's response shapes the next user turn.
+
+### Stateful agent loops
+
+Some skills are loop-shaped: read → reason → act → observe → re-read. The trace they produce isn't naturally summarized into "did it pass?" The skill's value might be in *converging* faster, not in reaching a different end state. The current pass-rate metric doesn't capture that.
+
+`tool-summary.json` and `timing.json` partially capture it — fewer tool calls and shorter duration *is* a signal. But "the skill makes the loop converge in 3 steps instead of 7" isn't a binary assertion. It's a continuous metric, and the framework treats continuous metrics as second-class.
+
+A future direction here is per-case behavioral budgets that compare deltas — *"the loop terminated at most N steps faster with the skill attached"* as a behavioral assertion. The plumbing exists in `tool-summary.json`; the assertion shape doesn't yet.
+
+### Skills whose value is hard to localize
+
+Some skills shift the model's *style* rather than its outcome. The pass rate barely moves. The user experience changes. A skill that makes the model write more concisely, or use fewer hedges, or structure responses with particular headings — these are real value-adds that don't show up in script assertions and that the LLM-judge doesn't reliably grade.
+
+The honest answer is: write style assertions if you have to, but expect them to be noisier than outcome assertions. Better: capture style as a `metadata` annotation (e.g., a token count, a heading count, a hedge-word count) and look at *distributions* across runs rather than per-case PASS/FAIL.
+
+The framework doesn't do this yet. `tool-summary.json` is the closest thing to a behavioral metric stream, but it's tool-call-shaped, not response-shaped. A response-summary artifact (`response-summary.json`?) is on my mental list.
+
+## What I'd want next
+
+If I had a week to extend the framework, in priority order:
+
+1. **Multi-turn cases.** A `prompt` field that accepts an array of user turns, with the runner threading the conversation. The biggest single capability gap.
+2. **Cross-iteration aggregates.** A view that diffs the same case's pass rate across multiple SKILL.md versions. Right now iterations are runner-only artifact buckets; you can grep across them by hand. Worth elevating.
+3. **Behavioral assertions on `tool-summary.json` deltas.** *"With the skill, tool-call count is at most N"* and *"compared to without-skill, the skill reduces tool-call count by at least M%"* as first-class assertion shapes.
+4. **Response-summary artifact.** Token count, heading structure, hedge-word count, response length — captured as a side artifact, available for distributional analysis. Doesn't replace assertions; complements them.
+5. **Automatic SKILL.md mutation proposals.** When a case regresses on a specific assertion, propose a targeted edit to SKILL.md and re-run. Closes the iterate-and-compare loop. Speculative; want to see it work by hand on a real skill before automating.
+
+Notably, none of these require breaking the format. They all layer on top of `evals/evals.json` + the existing artifact tree.
+
+## What I'd tell someone starting now
+
+Five things, in order of how often I've found myself repeating them:
+
+### 1. Don't write your own format
+
+Anthropic's `evals/evals.json` is the standard. OpenAI converges on a related shape. Your runner can be opinionated; your authoring format shouldn't be. Authors who already know the standard should be able to point your runner at their existing suite and have it work.
+
+### 2. Don't write more than 20 cases up front
+
+Grow from real failures. Your initial 10–15 cases are guesses; the cases that catch real regressions are the ones you add *after* a regression slips through. A small suite that grows from real evidence beats a large suite that was synthesized from a checklist.
+
+### 3. Don't trust the absolute pass rate
+
+It's the wrong metric. The with/without delta is the load-bearing signal. A skill that passes 100% of cases without contributing anything is a useless skill, and the absolute pass rate doesn't tell you that. The delta does.
+
+### 4. Don't skip `--compare` because it doubles cost
+
+The first time the delta is near zero on a skill you thought was important, you'll want the data. Run with `--compare` from the start, especially while authoring. You can stop running it once the skill is stable and you trust the signal — but most skills aren't stable yet.
+
+### 5. Don't write string assertions you haven't seen pass on a real run
+
+Model paraphrasing will ambush you. Run the case once, look at the assistant's actual response, then write the assertion that names a specific token in *that* response. Otherwise you're writing assertions against an imaginary response that the actual response only kind-of resembles.
+
+## The bigger point
+
+Evals for skills are a young practice. The methodology I've described in this series is the result of about six weeks of designing, building, deleting, and rebuilding. Some of it will look obvious in retrospect. Some of it will look wrong — the multi-turn gap, the limits on style assertions, the lack of cross-iteration aggregates. Future versions of this post will probably qualify some of what I've written here.
+
+But the load-bearing claim — *that the with/without skill delta is the canonical signal* — feels like it'll hold. Every other piece of evidence about whether a skill is contributing comes from somewhere; the delta is a measurement. Measurements don't go out of fashion.
+
+If you're building a skill, ship it with an eval. If you're using a skill someone else built, ask for its eval. Either way, you're closer to "I know this works" than you'd be without it.
+
+---
+
+That's the series. Thanks for reading. Comments and corrections via the [GitHub repo](https://github.com/andysolomon/arc-skill-eval/issues).
+
+<Bio />
