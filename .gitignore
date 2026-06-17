@@ -20,3 +20,4 @@ docs-site/.astro/
 .env.*.local
 docs-site/.env
 docs-site/.env.local
+.firecrawl/
