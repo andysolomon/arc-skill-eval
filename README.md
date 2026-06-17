@@ -214,6 +214,7 @@ With `--compare`, each case writes isolated variant artifacts and the skill run 
 Use the bundled **`arc-creating-evals`** skill in `skills/arc-creating-evals/`. It interviews you across Anthropic's four success dimensions (outcome, process, style, efficiency) and emits `evals/evals.json` + fixtures. Install the skill into your agent's skills directory (`.claude/skills/` or the equivalent for your tool) — see `skills/README.md` for the recipe.
 
 ## Docs
+- `docs/skill-eval-authoring-debrief.md` — detailed research debrief and playbook for creating evals for skills, including the `arc-skills` mastery roadmap.
 - `docs/evals-json-pivot.md` — direction, milestone log, and what stays vs what was deprecated.
 - `docs/domain-model.md` — runtime + grading entities.
 
