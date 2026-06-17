@@ -1,3 +1,4 @@
+import { THINKING_LEVEL_VALUES, type ModelSelection, type ThinkingLevel } from "../contracts/types.js";
 import { CliUsageError, type ParsedCliCommand } from "./types.js";
 
 export function parseCliArgs(argv: string[]): ParsedCliCommand {
@@ -23,13 +24,15 @@ export function renderHelp(): string {
     "arc-skill-eval",
     "",
     "Usage:",
-    "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--compare] [--json]",
+    "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--compare] [--json]",
     "",
     "Notes:",
     "  - <skill-dir-or-repo> is either a skill directory containing evals/evals.json,",
     "    or a repo root; in the repo case the CLI discovers every SKILL.md + evals/evals.json pair.",
     "  - run writes per-case assistant.md + outputs/ + timing.json + grading.json + observability artifacts under",
     "    <skillDir>/evals-runs/<runId>/eval-<id>/ (overridable via --output-dir).",
+    "  - --model pins the skill runner model; --judge-model pins the LLM assertion judge.",
+    "  - Model values use Pi's provider/model form, optionally with :thinking (for example openai-codex/gpt-5.5:medium).",
     "  - --extra-skill loads explicit distractor/conflict skills for every variant.",
     "  - --context-mode ambient opts into normal Pi ambient resources; default is isolated.",
     "  - run exits with code 1 when any assertion fails or any case errors out.",
@@ -47,6 +50,8 @@ function parseRunCommandArgs(args: string[]) {
   let iteration: string | undefined;
   const extraSkillPaths: string[] = [];
   let contextMode: "isolated" | "ambient" | undefined;
+  let model: ModelSelection | undefined;
+  let judgeModel: ModelSelection | undefined;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
@@ -78,6 +83,20 @@ function parseRunCommandArgs(args: string[]) {
     if (arg === "--output-dir" || arg.startsWith("--output-dir=")) {
       const parsed = readFlagValue(arg, args[index + 1]);
       outputDir = parsed.value;
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
+    if (arg === "--model" || arg.startsWith("--model=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      model = parseModelSelectionFlag("--model", parsed.value);
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
+    if (arg === "--judge-model" || arg.startsWith("--judge-model=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      judgeModel = parseModelSelectionFlag("--judge-model", parsed.value);
       index += parsed.consumedNext ? 1 : 0;
       continue;
     }
@@ -121,7 +140,7 @@ function parseRunCommandArgs(args: string[]) {
     throw new CliUsageError("Missing required <skill-dir-or-repo> argument.");
   }
 
-  return { input, skillNames, caseIds, outputDir, iteration, extraSkillPaths, contextMode, compare, json };
+  return { input, skillNames, caseIds, outputDir, iteration, extraSkillPaths, contextMode, model, judgeModel, compare, json };
 }
 
 function readFlagValue(arg: string, nextArg: string | undefined): { value: string; consumedNext: boolean } {
@@ -136,4 +155,33 @@ function readFlagValue(arg: string, nextArg: string | undefined): { value: strin
   }
 
   return { value: nextArg, consumedNext: true };
+}
+
+function parseModelSelectionFlag(flagName: string, rawValue: string): ModelSelection {
+  const [modelPart, thinkingPart, ...extraParts] = rawValue.split(":");
+  if (!modelPart || extraParts.length > 0) {
+    throw new CliUsageError(`Invalid ${flagName}: ${rawValue}. Expected provider/model or provider/model:thinking.`);
+  }
+
+  const slashIndex = modelPart.indexOf("/");
+  if (slashIndex <= 0 || slashIndex === modelPart.length - 1) {
+    throw new CliUsageError(`Invalid ${flagName}: ${rawValue}. Expected provider/model or provider/model:thinking.`);
+  }
+
+  const provider = modelPart.slice(0, slashIndex);
+  const id = modelPart.slice(slashIndex + 1);
+
+  if (!thinkingPart) return { provider, id };
+
+  if (!isThinkingLevel(thinkingPart)) {
+    throw new CliUsageError(
+      `Invalid ${flagName} thinking level: ${thinkingPart}. Expected one of ${THINKING_LEVEL_VALUES.join(", ")}.`,
+    );
+  }
+
+  return { provider, id, thinking: thinkingPart };
+}
+
+function isThinkingLevel(value: string): value is ThinkingLevel {
+  return (THINKING_LEVEL_VALUES as readonly string[]).includes(value);
 }

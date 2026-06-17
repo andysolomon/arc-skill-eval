@@ -1,3 +1,5 @@
+import type { ModelSelection } from "../contracts/types.js";
+
 export interface CommandSelectionOptions {
   skillNames?: string[];
 }
@@ -10,6 +12,8 @@ export interface RunEvalsCliOptions extends CommandSelectionOptions {
   compare?: boolean;
   extraSkillPaths?: string[];
   contextMode?: "isolated" | "ambient";
+  model?: ModelSelection;
+  judgeModel?: ModelSelection;
 }
 
 export interface CliRenderOptions {

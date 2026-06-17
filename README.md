@@ -69,6 +69,11 @@ arc-skill-eval run ./skills/arc-conventional-commits
 # Run one case inside one skill
 arc-skill-eval run ./skills/arc-conventional-commits --case 1
 
+# Pin the skill runner model and LLM-judge model
+arc-skill-eval run ./skills/arc-conventional-commits \
+  --model openai-codex/gpt-5.5:medium \
+  --judge-model mistral/ministral-8b-latest
+
 # Retarget output to a different workspace root
 arc-skill-eval run . --output-dir ./evals-runs
 
@@ -97,6 +102,10 @@ arc-skill-eval run ./skills/arc-conventional-commits \
 The positional `<skill-dir-or-repo>` is resolved as:
 - a skill directory if it contains `evals/evals.json`,
 - otherwise a repo whose tree is walked for SKILL.md + evals/evals.json pairs.
+
+Model options:
+- `--model <provider/model[:thinking]>` pins the skill runner model instead of using Pi's default. Example: `openai-codex/gpt-5.5:medium`.
+- `--judge-model <provider/model[:thinking]>` pins the model used for LLM-judged string assertions. Deterministic assertions do not use the judge.
 
 Context options:
 - `--extra-skill <path>` can be repeated to add explicit skill directories or `SKILL.md` files as distractor/conflict context. In `--compare`, `with_skill` receives the target + extras, while `without_skill` receives extras only.
