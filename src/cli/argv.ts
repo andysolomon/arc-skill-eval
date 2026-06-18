@@ -158,28 +158,28 @@ function readFlagValue(arg: string, nextArg: string | undefined): { value: strin
 }
 
 function parseModelSelectionFlag(flagName: string, rawValue: string): ModelSelection {
-  const [modelPart, thinkingPart, ...extraParts] = rawValue.split(":");
-  if (!modelPart || extraParts.length > 0) {
+  const slashIndex = rawValue.indexOf("/");
+  if (slashIndex <= 0 || slashIndex === rawValue.length - 1) {
     throw new CliUsageError(`Invalid ${flagName}: ${rawValue}. Expected provider/model or provider/model:thinking.`);
   }
 
-  const slashIndex = modelPart.indexOf("/");
-  if (slashIndex <= 0 || slashIndex === modelPart.length - 1) {
+  const provider = rawValue.slice(0, slashIndex);
+  const modelAndMaybeThinking = rawValue.slice(slashIndex + 1);
+  const lastColonIndex = modelAndMaybeThinking.lastIndexOf(":");
+
+  if (lastColonIndex < 0) return { provider, id: modelAndMaybeThinking };
+
+  const suffix = modelAndMaybeThinking.slice(lastColonIndex + 1);
+  if (!isThinkingLevel(suffix)) {
+    return { provider, id: modelAndMaybeThinking };
+  }
+
+  const id = modelAndMaybeThinking.slice(0, lastColonIndex);
+  if (!id) {
     throw new CliUsageError(`Invalid ${flagName}: ${rawValue}. Expected provider/model or provider/model:thinking.`);
   }
 
-  const provider = modelPart.slice(0, slashIndex);
-  const id = modelPart.slice(slashIndex + 1);
-
-  if (!thinkingPart) return { provider, id };
-
-  if (!isThinkingLevel(thinkingPart)) {
-    throw new CliUsageError(
-      `Invalid ${flagName} thinking level: ${thinkingPart}. Expected one of ${THINKING_LEVEL_VALUES.join(", ")}.`,
-    );
-  }
-
-  return { provider, id, thinking: thinkingPart };
+  return { provider, id, thinking: suffix };
 }
 
 function isThinkingLevel(value: string): value is ThinkingLevel {

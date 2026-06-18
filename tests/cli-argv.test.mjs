@@ -40,6 +40,20 @@ test("parseCliArgs rejects invalid context mode", () => {
   );
 });
 
+test("parseCliArgs treats Ollama-style colon tags as part of the model id", () => {
+  const parsed = parseCliArgs(["run", "./skill", "--model", "ollama/glm-5.2:cloud"]);
+
+  assert.equal(parsed.command, "run");
+  assert.deepEqual(parsed.model, { provider: "ollama", id: "glm-5.2:cloud" });
+});
+
+test("parseCliArgs supports thinking suffixes after colon-tagged model ids", () => {
+  const parsed = parseCliArgs(["run", "./skill", "--model", "ollama/qwen3.5:cloud:medium"]);
+
+  assert.equal(parsed.command, "run");
+  assert.deepEqual(parsed.model, { provider: "ollama", id: "qwen3.5:cloud", thinking: "medium" });
+});
+
 test("parseCliArgs rejects model pins without provider", () => {
   assert.throws(
     () => parseCliArgs(["run", "./skill", "--model", "gpt-5.5"]),
