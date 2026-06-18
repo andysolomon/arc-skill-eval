@@ -326,7 +326,7 @@ Current inventory from `andysolomon/arc-skills`:
 | Skill | Archetype | Existing evals? | First eval focus |
 | --- | --- | ---: | --- |
 | `arc-conventional-commits` | Repo mutation | Yes | Use as reference suite; improve with fixtures committed if missing and compare runs. |
-| `arc-creating-evals` | Meta/eval authoring | No in arc-skills; present in this repo | Dogfood heavily: it should generate a valid suite for 2-3 representative skills. |
+| `arc-creating-evals` | Meta/eval authoring | Yes | Dogfood suite exists in `arc-skills`; recent GPT 5.5 compare run passed the golden path with a `+16.7%` with-skill delta after tightening a behavior-specific assertion. |
 | `arc-implementation-plan-progress` | Planning + file generation | No | Golden path creates/updates `progress.txt` and follows output contract. |
 | `arc-ideabrowser-openclaw-flow` | Browser/data extraction + specs | No | Offline fixture from scraped idea page -> deterministic scaffold spec. |
 | `arc-project-deploy-portfolio-sync` | Deployment workflow | No | Dry-run plan verifies Vercel + portfolio update sequence without credentials. |
@@ -561,10 +561,11 @@ A skill is "eval-ready" when:
 ## Immediate next steps
 
 1. Use `arc-conventional-commits` as the canonical reference and ensure its fixtures are committed and runnable from a fresh clone.
-2. Write evals for `arc-creating-evals` itself. This is the compounding test.
+2. Expand the existing `arc-creating-evals` dogfood suite from one proven golden path into the full 5-case suite under `arc-skills`.
 3. Add `arc-skill-eval create` or a documented wrapper that invokes the bundled authoring skill.
-4. Implement trace-aware behavior/safety assertions.
-5. Add tags/skip support for live-smoke separation.
-6. Start Wave 1 coverage for `arc-implementation-plan-progress`, `arc-prd-to-issues`, and `arc-defining-work`.
+4. Document and test low-cost model lanes, especially Ollama local/cloud through Pi's Ollama provider.
+5. Implement trace-aware behavior/safety assertions.
+6. Add tags/skip support for live-smoke separation.
+7. Start Wave 1 coverage for `arc-implementation-plan-progress`, `arc-prd-to-issues`, and `arc-defining-work`.
 
 The north-star demo should be simple: clone `arc-skills`, run one command, and get a table showing which ARC skills are proven, where they beat baseline, and exactly which assertion failed when they don't.

@@ -99,6 +99,30 @@ arc-skill-eval run ./skills/arc-conventional-commits \
   --iteration ambient-1
 ```
 
+### Recommended first dogfood run
+
+The companion [`andysolomon/arc-skills`](https://github.com/andysolomon/arc-skills) repo ships a dogfood suite for `arc-creating-evals`, the meta-skill that authors eval suites for other skills. After cloning both repos locally, this is the best end-to-end smoke test:
+
+```bash
+arc-skill-eval run /path/to/arc-skills/arc-creating-evals \
+  --case execution-golden-path-file-skill \
+  --model openai-codex/gpt-5.5:medium \
+  --judge-model openai-codex/gpt-5.5:medium
+```
+
+For the with-skill / without-skill signal:
+
+```bash
+arc-skill-eval run /path/to/arc-skills/arc-creating-evals \
+  --case execution-golden-path-file-skill \
+  --compare \
+  --iteration dogfood-1 \
+  --model openai-codex/gpt-5.5:medium \
+  --judge-model openai-codex/gpt-5.5:medium
+```
+
+A recent dogfood run passed the golden-path case and showed a positive `+16.7%` with-skill delta after tightening the suite to assert behavior unique to `arc-creating-evals`.
+
 The positional `<skill-dir-or-repo>` is resolved as:
 - a skill directory if it contains `evals/evals.json`,
 - otherwise a repo whose tree is walked for SKILL.md + evals/evals.json pairs.
@@ -106,6 +130,31 @@ The positional `<skill-dir-or-repo>` is resolved as:
 Model options:
 - `--model <provider/model[:thinking]>` pins the skill runner model instead of using Pi's default. Example: `openai-codex/gpt-5.5:medium`.
 - `--judge-model <provider/model[:thinking]>` pins the model used for LLM-judged string assertions. Deterministic assertions do not use the judge.
+
+### Ollama / low-cost local runs
+
+`arc-skill-eval` inherits model support from Pi. Ollama's Pi integration can configure an `ollama` provider for local or Ollama Cloud models:
+
+```bash
+# Let Ollama install/configure Pi and launch an interactive session
+ollama launch pi
+
+# Configure Pi for Ollama without launching
+ollama launch pi --config
+
+# Example cloud model launch through Ollama
+ollama launch pi --model qwen3.5:cloud
+```
+
+After Pi lists Ollama models, use the same provider/model pinning flags:
+
+```bash
+arc-skill-eval run ./skills/hello-world \
+  --model ollama/qwen3.5:cloud \
+  --judge-model ollama/qwen3.5:cloud
+```
+
+For manual Pi setup, add an Ollama-compatible provider to `~/.pi/agent/models.json` using `http://localhost:11434/v1` and set `defaultProvider` / `defaultModel` in `~/.pi/agent/settings.json`. Ollama Cloud direct API access requires `OLLAMA_API_KEY`; local models do not.
 
 Context options:
 - `--extra-skill <path>` can be repeated to add explicit skill directories or `SKILL.md` files as distractor/conflict context. In `--compare`, `with_skill` receives the target + extras, while `without_skill` receives extras only.
