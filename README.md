@@ -131,9 +131,19 @@ Model options:
 - `--model <provider/model[:thinking]>` pins the skill runner model instead of using Pi's default. Example: `openai-codex/gpt-5.5:medium`.
 - `--judge-model <provider/model[:thinking]>` pins the model used for LLM-judged string assertions. Deterministic assertions do not use the judge.
 
-### Ollama / low-cost local runs
+### Ollama / low-cost cloud and local runs
 
-`arc-skill-eval` inherits model support from Pi. Ollama's Pi integration can configure an `ollama` provider for local or Ollama Cloud models:
+`arc-skill-eval` inherits model support from Pi. Ollama Cloud is a useful low-cost provider lane for smoke tests. A verified working example is:
+
+```bash
+arc-skill-eval run ./skills/hello-world \
+  --model ollama-cloud/gpt-oss:20b \
+  --judge-model ollama-cloud/gpt-oss:20b
+```
+
+A recent run with `ollama-cloud/gpt-oss:20b` passed 2/3 `hello-world` cases. The failed case was model behavior on an ambiguous prompt, not provider failure: the model asked which name to use instead of defaulting to `Hello, world!`.
+
+Pi can also be configured through Ollama's integration for local or proxied cloud models:
 
 ```bash
 # Let Ollama install/configure Pi and launch an interactive session
@@ -154,7 +164,28 @@ arc-skill-eval run ./skills/hello-world \
   --judge-model ollama/qwen3.5:cloud
 ```
 
-For manual Pi setup, add an Ollama-compatible provider to `~/.pi/agent/models.json` using `http://localhost:11434/v1` and set `defaultProvider` / `defaultModel` in `~/.pi/agent/settings.json`. Ollama Cloud direct API access requires `OLLAMA_API_KEY`; local models do not.
+For direct Ollama Cloud access, set `OLLAMA_API_KEY` and add an `ollama-cloud` provider to Pi's `models.json`:
+
+```json
+{
+  "providers": {
+    "ollama-cloud": {
+      "baseUrl": "https://ollama.com/v1",
+      "api": "openai-completions",
+      "apiKey": "OLLAMA_API_KEY",
+      "models": [
+        { "id": "gpt-oss:20b" },
+        { "id": "ministral-3:3b" },
+        { "id": "gemma3:4b" }
+      ]
+    }
+  }
+}
+```
+
+For local Ollama setup, add an Ollama-compatible provider to `~/.pi/agent/models.json` using `http://localhost:11434/v1` and set `defaultProvider` / `defaultModel` in `~/.pi/agent/settings.json`. Local models do not require `OLLAMA_API_KEY`.
+
+For the runtime roadmap — a tiny eval-owned Pi config vs a future custom agent — see `docs/agent-runtime-strategy.md`.
 
 Context options:
 - `--extra-skill <path>` can be repeated to add explicit skill directories or `SKILL.md` files as distractor/conflict context. In `--compare`, `with_skill` receives the target + extras, while `without_skill` receives extras only.
@@ -273,6 +304,7 @@ Use the bundled **`arc-creating-evals`** skill in `skills/arc-creating-evals/`. 
 
 ## Docs
 - `docs/skill-eval-authoring-debrief.md` — detailed research debrief and playbook for creating evals for skills, including the `arc-skills` mastery roadmap.
+- `docs/agent-runtime-strategy.md` — runtime strategy for Pi-backed evals, tiny eval-owned Pi config, Ollama Cloud, and a possible future custom agent.
 - `docs/evals-json-pivot.md` — direction, milestone log, and what stays vs what was deprecated.
 - `docs/domain-model.md` — runtime + grading entities.
 

@@ -563,7 +563,7 @@ A skill is "eval-ready" when:
 1. Use `arc-conventional-commits` as the canonical reference and ensure its fixtures are committed and runnable from a fresh clone.
 2. Expand the existing `arc-creating-evals` dogfood suite from one proven golden path into the full 5-case suite under `arc-skills`.
 3. Add `arc-skill-eval create` or a documented wrapper that invokes the bundled authoring skill.
-4. Document and test low-cost model lanes, especially Ollama local/cloud through Pi's Ollama provider.
+4. Continue hardening low-cost model lanes. Ollama Cloud via `ollama-cloud/gpt-oss:20b` is verified as an infrastructure path; see `docs/agent-runtime-strategy.md` for setup and runtime strategy.
 5. Implement trace-aware behavior/safety assertions.
 6. Add tags/skip support for live-smoke separation.
 7. Start Wave 1 coverage for `arc-implementation-plan-progress`, `arc-prd-to-issues`, and `arc-defining-work`.
