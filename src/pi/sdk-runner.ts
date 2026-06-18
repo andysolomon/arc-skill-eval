@@ -312,10 +312,11 @@ export async function runValidatedSkillViaPiSdk(
 async function createDefaultPiSdkSession(
   options: PiSdkSessionFactoryOptions,
 ): Promise<PiSdkSessionFactoryResult> {
-  const settingsManager = SettingsManager.inMemory({
+  const credentialsAgentDir = getAgentDir();
+  const settingsManager = SettingsManager.create(options.workspaceDir, credentialsAgentDir);
+  settingsManager.applyOverrides({
     compaction: { enabled: false },
   });
-  const credentialsAgentDir = getAgentDir();
   const authStorage = AuthStorage.create(path.join(credentialsAgentDir, "auth.json"));
   const modelRegistry = ModelRegistry.create(authStorage, path.join(credentialsAgentDir, "models.json"));
   const { resourceLoader, contextManifest } = await createPiSdkResourceLoader({

@@ -128,8 +128,9 @@ The positional `<skill-dir-or-repo>` is resolved as:
 - otherwise a repo whose tree is walked for SKILL.md + evals/evals.json pairs.
 
 Model options:
-- `--model <provider/model[:thinking]>` pins the skill runner model instead of using Pi's default. Example: `openai-codex/gpt-5.5:medium`.
+- `--model <provider/model[:thinking]>` pins the skill runner model instead of using Pi's configured default. Example: `openai-codex/gpt-5.5:medium`.
 - `--judge-model <provider/model[:thinking]>` pins the model used for LLM-judged string assertions. Deterministic assertions do not use the judge.
+- When no model flags are supplied, `arc-skill-eval` inherits Pi's default provider/model/thinking level from `~/.pi/agent/settings.json`.
 
 ### Ollama / low-cost cloud and local runs
 
