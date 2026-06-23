@@ -306,6 +306,8 @@ Use the bundled **`arc-creating-evals`** skill in `skills/arc-creating-evals/`. 
 ## Docs
 - `docs/skill-eval-authoring-debrief.md` — detailed research debrief and playbook for creating evals for skills, including the `arc-skills` mastery roadmap.
 - `docs/agent-runtime-strategy.md` — runtime strategy for Pi-backed evals, tiny eval-owned Pi config, Ollama Cloud, and a possible future custom agent.
+- `docs/skill-creator-parity-plan.md` — user stories and implementation plan for Claude skill-creator parity features.
+- `docs/skill-creator-parity-progress.txt` — checkbox tracker for the skill-creator parity roadmap.
 - `docs/evals-json-pivot.md` — direction, milestone log, and what stays vs what was deprecated.
 - `docs/domain-model.md` — runtime + grading entities.
 
