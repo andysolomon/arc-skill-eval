@@ -10,8 +10,10 @@
 // resolves.
 
 import { runEvalsCommand } from '../cli/run-evals-command.js';
-import type { RunEvalsCommandResult } from '../cli/run-evals-command.js';
+import type { RunEvalsCommandOptions, RunEvalsCommandResult } from '../cli/run-evals-command.js';
 import { readEvalsJson } from '../evals/loader.js';
+import type { EvalContextMode } from '../observability/types.js';
+import { THINKING_LEVEL_VALUES, type ModelSelection, type ThinkingLevel } from '../contracts/types.js';
 import * as path from 'node:path';
 
 export type CasePhase = 'queued' | 'running' | 'pass' | 'fail';
@@ -25,7 +27,7 @@ export interface RunCaseState {
 }
 
 export type RunEvent =
-  | { type: 'init'; skill: string; compare: boolean; cases: RunCaseState[] }
+  | { type: 'init'; skill: string; compare: boolean; extraArgs?: string; cases: RunCaseState[] }
   | { type: 'case-start'; id: string }
   | { type: 'case-progress'; id: string; assertPass: number }
   | { type: 'case-done'; id: string; phase: 'pass' | 'fail'; assertPass: number; assertTotal: number; message?: string }
@@ -36,6 +38,7 @@ export interface RunRequest {
   skillDir: string;
   caseId: string | null;   // null = whole skill
   compare: boolean;
+  extraArgs?: string;
 }
 
 // Progress payload shape we expect the repo hook to emit (kept structural so a
@@ -47,6 +50,69 @@ interface ProgressEvent {
   assertionsTotal?: number;
   passed?: boolean;
   message?: string;
+}
+
+const THINKING_LEVELS = new Set<ThinkingLevel>(THINKING_LEVEL_VALUES);
+
+function parseModel(raw: string, flag: string): ModelSelection {
+  const slash = raw.indexOf('/');
+  if (slash <= 0 || slash === raw.length - 1) throw new Error(`Invalid ${flag}: ${raw}. Expected provider/model or provider/model:thinking.`);
+  const provider = raw.slice(0, slash);
+  const modelAndMaybeThinking = raw.slice(slash + 1);
+  const colon = modelAndMaybeThinking.lastIndexOf(':');
+  if (colon < 0) return { provider, id: modelAndMaybeThinking };
+  const suffix = modelAndMaybeThinking.slice(colon + 1);
+  if (!THINKING_LEVELS.has(suffix as ThinkingLevel)) return { provider, id: modelAndMaybeThinking };
+  const id = modelAndMaybeThinking.slice(0, colon);
+  if (!id) throw new Error(`Invalid ${flag}: ${raw}. Expected provider/model or provider/model:thinking.`);
+  return { provider, id, thinking: suffix as ThinkingLevel };
+}
+
+function splitArgs(raw = ''): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let quote: '"' | "'" | null = null;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i]!;
+    if (quote) {
+      if (ch === quote) quote = null;
+      else cur += ch;
+      continue;
+    }
+    if (ch === '"' || ch === "'") { quote = ch; continue; }
+    if (/\s/.test(ch)) { if (cur) { out.push(cur); cur = ''; } continue; }
+    cur += ch;
+  }
+  if (quote) throw new Error('Unclosed quote in run flags.');
+  if (cur) out.push(cur);
+  return out;
+}
+
+function parseExtraRunArgs(raw?: string): Partial<RunEvalsCommandOptions> {
+  const args = splitArgs(raw);
+  const opts: Partial<RunEvalsCommandOptions> = {};
+  const take = (i: number, flag: string): string => {
+    const v = args[i + 1];
+    if (!v || v.startsWith('--')) throw new Error(`Missing value for ${flag}.`);
+    return v;
+  };
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    const eq = arg.indexOf('=');
+    const flag = eq >= 0 ? arg.slice(0, eq) : arg;
+    const inline = eq >= 0 ? arg.slice(eq + 1) : undefined;
+    const value = inline ?? (flag.startsWith('--') && flag !== '--compare' ? take(i, flag) : undefined);
+    if (inline == null && flag.startsWith('--') && flag !== '--compare') i++;
+    if (flag === '--model') opts.model = parseModel(value!, flag);
+    else if (flag === '--judge-model') opts.judgeModel = parseModel(value!, flag);
+    else if (flag === '--iteration') opts.iteration = value;
+    else if (flag === '--agent-dir') opts.agentDir = value;
+    else if (flag === '--context-mode') opts.contextMode = value as EvalContextMode;
+    else if (flag === '--extra-skill') opts.extraSkillPaths = [...(opts.extraSkillPaths ?? []), value!];
+    else if (flag === '--compare') opts.compare = true;
+    else if (flag) throw new Error(`Unsupported in-TUI run flag: ${flag}`);
+  }
+  return opts;
 }
 
 /**
@@ -68,7 +134,7 @@ export async function runInProcess(req: RunRequest, emit: (ev: RunEvent) => void
   } catch {
     if (req.caseId) seeded = [{ id: req.caseId, phase: 'queued', assertTotal: 0, assertPass: 0 }];
   }
-  emit({ type: 'init', skill: skillName, compare: req.compare, cases: seeded });
+  emit({ type: 'init', skill: skillName, compare: req.compare, extraArgs: req.extraArgs, cases: seeded });
 
   const started = Date.now();
   try {
@@ -76,6 +142,7 @@ export async function runInProcess(req: RunRequest, emit: (ev: RunEvent) => void
       input: req.skillDir,
       caseIds: req.caseId ? [req.caseId] : [],
       compare: req.compare,
+      ...parseExtraRunArgs(req.extraArgs),
       // The hook is optional in the type (added by the patch). Cast keeps this
       // file compiling against either version of the command options.
       ...( { onProgress: (ev: ProgressEvent) => {

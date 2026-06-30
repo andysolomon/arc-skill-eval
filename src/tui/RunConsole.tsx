@@ -17,6 +17,7 @@ interface RunState {
   done: boolean;
   skill: string;
   compare: boolean;
+  extraArgs?: string;
   cases: RunCaseState[];
   passed: number;
   failed: number;
@@ -28,7 +29,7 @@ const initialRun: RunState = { active: false, done: false, skill: '', compare: f
 function reducer(state: RunState, ev: RunEvent | { type: 'reset' }): RunState {
   switch (ev.type) {
     case 'reset': return initialRun;
-    case 'init': return { ...initialRun, active: true, skill: ev.skill, compare: ev.compare, cases: ev.cases };
+    case 'init': return { ...initialRun, active: true, skill: ev.skill, compare: ev.compare, extraArgs: ev.extraArgs, cases: ev.cases };
     case 'case-start': return { ...state, cases: state.cases.map((c) => (c.id === ev.id ? { ...c, phase: 'running' } : c)) };
     case 'case-progress': return { ...state, cases: state.cases.map((c) => (c.id === ev.id ? { ...c, assertPass: ev.assertPass } : c)) };
     case 'case-done': return { ...state, cases: state.cases.map((c) => (c.id === ev.id ? { ...c, phase: ev.phase, assertPass: ev.assertPass, assertTotal: ev.assertTotal || c.assertTotal, message: ev.message } : c)) };
@@ -88,7 +89,7 @@ export function RunConsole({ state, elapsed, frame }: { state: RunState; elapsed
           <Text color={COLORS.comment}>{'   ' + t}</Text>
         </Text>
       )}
-      <Text color={COLORS.comment}>{'$ arc-skill-eval run ./skills/' + state.skill + (state.compare ? ' --compare' : '')}</Text>
+      <Text color={COLORS.comment}>{'$ arc-skill-eval run ./skills/' + state.skill + (state.compare ? ' --compare' : '') + (state.extraArgs ? ' ' + state.extraArgs : '')}</Text>
       <Box height={1} />
 
       {/* per-case rows */}

@@ -376,7 +376,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
     }
     if (opting) {
       if (key.return) {
-        if (sk) onAction({ type: 'rerun', skillDir: sk.dir, caseId: focused === 'cases' && cs ? cs.id : null, state: { focused, sel, caseMode }, extraArgs: opts.trim() });
+        if (sk) runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' && cs ? cs.id : null, compare: false, extraArgs: opts.trim() });
         setOpting(false); return;
       }
       if (key.escape) { setOpting(false); return; }
