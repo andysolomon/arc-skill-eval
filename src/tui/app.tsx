@@ -70,6 +70,29 @@ export type AppAction =
 const clampIdx = (i: number, len: number): number => Math.max(0, Math.min(Math.max(0, len - 1), i));
 
 interface DisplayLine { segs: Seg[]; bg?: string }
+interface TerminalSize { cols: number; rows: number }
+
+function readTerminalSize(stdout?: NodeJS.WriteStream): TerminalSize {
+  return { cols: stdout?.columns ?? 120, rows: stdout?.rows ?? 40 };
+}
+
+function useTerminalSize(): TerminalSize {
+  const { stdout } = useStdout();
+  const [size, setSize] = useState<TerminalSize>(() => readTerminalSize(stdout));
+
+  useEffect(() => {
+    const update = () => {
+      const next = readTerminalSize(stdout);
+      setSize((prev) => (prev.cols === next.cols && prev.rows === next.rows ? prev : next));
+    };
+
+    update();
+    stdout?.on('resize', update);
+    return () => { stdout?.off('resize', update); };
+  }, [stdout]);
+
+  return size;
+}
 
 // ------------------------------------------------------------------ rows
 
@@ -282,9 +305,7 @@ function HelpView() {
 // ------------------------------------------------------------------ app
 
 export function App({ skills, runs, onAction, initial, showWithout }: { skills: Skill[]; runs: Run[]; onAction: (a: AppAction) => void; initial?: AppState; showWithout?: boolean }) {
-  const { stdout } = useStdout();
-  const cols = stdout?.columns ?? 120;
-  const rowsT = stdout?.rows ?? 40;
+  const { cols, rows: rowsT } = useTerminalSize();
 
   const [focused, setFocused] = useState<Focus>(initial?.focused ?? 'cases');
   const [sel, setSel] = useState<Sel>(initial?.sel ?? { skills: 0, cases: 0, assertions: 0, runs: 0 });
