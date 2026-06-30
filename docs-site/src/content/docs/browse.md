@@ -46,29 +46,7 @@ When a case is selected, the detail pane is tabbed. Cycle the tabs with `[` / `]
 
 ## Keybindings
 
-| Key | Action |
-| --- | --- |
-| `↑ ↓` / `j k` | Move selection in the focused panel |
-| `Tab` / `⇧Tab` | Focus next / previous panel |
-| `1`–`4` | Jump to Skills / Cases / Assertions / Runs |
-| `→` / `l` / `↵` | Enter the detail-pane cursor |
-| `↵` *(in pane)* | Drill the cursor item into its side panel |
-| `←` / `h` / `Esc` | Leave the detail-pane cursor |
-| `[` / `]` | Cycle the case detail mode (Overview / Response / Diff / Trace / Context / Raw) |
-| `v` | Jump to raw `grading.json` (Cases) |
-| `PgUp`/`PgDn` · `⌃u`/`⌃d` | Scroll the detail pane |
-| `r` | Run evals for the selected skill (or case) **in-TUI** with a live spinner, then reload in place |
-| `R` | Same, with `--compare` (with/without baseline) |
-| `n` | Scaffold a new eval case → `evals.json` (Skills/Cases) |
-| `o` | Re-run with custom flags (typed prompt, prefilled `--model`/`--iteration`) |
-| `/` | Filter skills / cases by name (type to filter, `↵` accept, `Esc` clear) |
-| `F` | Toggle failures-only |
-| `s` | Cycle skill sort (name / pass / delta / cost) |
-| `f` | Write a `feedback.json` note for the selected case |
-| `c` | Pin the selected run as the cross-iteration baseline (Runs panel) |
-| `g` / `G` | Top / bottom |
-| `?` | Help overlay |
-| `q` / `Ctrl-C` | Quit |
+The full keymap lives on the **[Keybindings reference](/arc-skill-eval/keymap/)** page. It's generated from [`src/tui/keymap.ts`](https://github.com/andysolomon/arc-skill-eval/blob/main/src/tui/keymap.ts) by `scripts/gen-keymap-docs.mjs`, and the in-TUI `?` overlay renders from the same source — so this doc, the overlay, and the code can't drift. The sections below explain the behaviours that need more than a one-line description.
 
 ### Filtering and sorting
 

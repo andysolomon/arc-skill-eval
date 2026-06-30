@@ -30,8 +30,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "release": "semantic-release",
     "test": "npm run build && node --test tests/*.test.mjs",
+    "docs:keymap": "npm run build && node scripts/gen-keymap-docs.mjs",
     "docs:dev": "npm --prefix docs-site run dev",
-    "docs:build": "npm --prefix docs-site run build",
+    "docs:build": "npm run docs:keymap && npm --prefix docs-site run build",
     "docs:preview": "npm --prefix docs-site run preview",
     "docs:check": "npm --prefix docs-site run check"
   },

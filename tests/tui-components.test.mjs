@@ -12,6 +12,8 @@ import test from 'node:test';
 
 import { PALETTES, bar, statusGlyph, deltaColor, rateColor, passFrac, segLen, trunc } from '../dist/tui/theme.js';
 import { GLYPH_SETS, GLYPHS } from '../dist/tui/caps.js';
+import { KEYMAP, KEY_IDS, keymapToMarkdown } from '../dist/tui/keymap.js';
+import { HANDLED_KEY_IDS } from '../dist/tui/app.js';
 
 const TOKEN_KEYS = [
   'bg', 'bgDark', 'bgHi', 'fg', 'fgDark', 'comment', 'blue', 'cyan', 'green',
@@ -104,4 +106,57 @@ test('passFrac / segLen / trunc behave', () => {
   assert.equal(segLen([{ t: 'ab', c: 'x' }, { t: 'cde', c: 'y' }]), 5);
   assert.equal(trunc('hello world', 5), 'hell…');
   assert.equal(trunc('hi', 5), 'hi');
+});
+
+// ---------------------------------------------------------------- keymap
+// The help overlay (app.tsx) and the docs page (gen-keymap-docs.mjs) both render
+// from KEYMAP. These guards keep that single source honest and in lockstep with
+// the input handler, so a binding can never be documented-but-unhandled (or
+// handled-but-undocumented) without failing CI.
+
+test('KEYMAP entries are well-formed with unique ids', () => {
+  const seen = new Set();
+  for (const section of KEYMAP) {
+    assert.ok(section.title && typeof section.title === 'string', 'section title');
+    assert.ok(Array.isArray(section.bindings) && section.bindings.length >= 1, `${section.title} has bindings`);
+    for (const b of section.bindings) {
+      assert.ok(b.id && typeof b.id === 'string', 'binding id');
+      assert.ok(!seen.has(b.id), `duplicate binding id: ${b.id}`);
+      seen.add(b.id);
+      assert.ok(Array.isArray(b.keys) && b.keys.length >= 1, `${b.id} has keys`);
+      for (const k of b.keys) assert.ok(typeof k === 'string' && k.length >= 1, `${b.id} key non-empty`);
+      assert.ok(b.desc && typeof b.desc === 'string', `${b.id} has desc`);
+    }
+  }
+  assert.deepEqual([...KEY_IDS].sort(), [...seen].sort(), 'KEY_IDS mirrors the flattened bindings');
+});
+
+test('every documented key id is handled in app.tsx, and vice-versa', () => {
+  const documented = [...KEY_IDS].sort();
+  const handled = [...HANDLED_KEY_IDS].sort();
+  // Two-way: a binding without a handler (or a handler for an undocumented id) fails here.
+  assert.deepEqual(handled, documented, 'HANDLED_KEY_IDS (app.tsx) must equal KEY_IDS (keymap.ts)');
+});
+
+test('keymapToMarkdown renders a section header + table per section', () => {
+  const md = keymapToMarkdown();
+  for (const section of KEYMAP) {
+    assert.ok(md.includes(`### ${section.title}`), `markdown has "${section.title}" header`);
+    for (const b of section.bindings) {
+      assert.ok(md.includes(`\`${b.keys.join(' ')}\``), `markdown lists keys for ${b.id}`);
+    }
+  }
+  assert.ok(md.includes('| Key | Action |'), 'markdown has table header');
+});
+
+test('committed keymap.md is up to date with the generator', async () => {
+  // The drift guard: if keymap.ts changed without re-running
+  // `node scripts/gen-keymap-docs.mjs`, the published page would lag. Fail here.
+  const { readFile } = await import('node:fs/promises');
+  const url = new URL('../docs-site/src/content/docs/keymap.md', import.meta.url);
+  const page = await readFile(url, 'utf8');
+  assert.ok(
+    page.includes(keymapToMarkdown().trimEnd()),
+    'docs-site/.../keymap.md is stale — run `npm run docs:keymap`',
+  );
 });
