@@ -1,3 +1,4 @@
+import { auditCommand, renderAuditMarkdown } from "./audit-command.js";
 import { browseCommand } from "./browse-command.js";
 import { createCommand, type CreateCommandResult } from "./create-command.js";
 import { improveCommand, type ImproveCommandResult } from "./improve-command.js";
@@ -174,6 +175,16 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
         return {
           exitCode: code === 0 ? 0 : 1,
           stdout: "",
+          stderr: "",
+        };
+      }
+      case "audit": {
+        const result = await auditCommand({ input: parsed.input, json: parsed.json, output: parsed.output });
+        const stdout = parsed.json ? `${JSON.stringify(result, null, 2)}\n` : renderAuditMarkdown(result);
+        const outputNote = result.outputPath ? `\nWrote audit report: ${result.outputPath}\n` : "";
+        return {
+          exitCode: 0,
+          stdout: `${stdout}${outputNote}`,
           stderr: "",
         };
       }

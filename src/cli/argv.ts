@@ -39,6 +39,11 @@ export function parseCliArgs(argv: string[]): ParsedCliCommand {
         command: "browse",
         ...parseBrowseCommandArgs(rest),
       };
+    case "audit":
+      return {
+        command: "audit",
+        ...parseAuditCommandArgs(rest),
+      };
     default:
       throw new CliUsageError(`Unknown command: ${commandName}. Run \`arc-skill-eval --help\` for usage.`);
   }
@@ -55,6 +60,7 @@ export function renderHelp(): string {
     "  arc-skill-eval improve --from-feedback <feedback.json> [--dry-run] [--summary] [--apply]",
     "  arc-skill-eval create <skill-dir> [--guided] [--interactive] [--model <provider/model[:thinking]>] [--agent-dir <path>] [--dry-run] [--summary] [--force]",
     "  arc-skill-eval browse [<skill-dir-or-repo>]",
+    "  arc-skill-eval audit <skill-dir-or-repo> [--json] [--output <path>]",
     "",
     "Notes:",
     "  - <skill-dir-or-repo> is either a skill directory containing evals/evals.json,",
@@ -72,6 +78,7 @@ export function renderHelp(): string {
     "  - improve proposes eval suite changes from review feedback; --apply writes validated metadata updates.",
     "  - create scaffolds a starter evals/evals.json next to a SKILL.md file; --guided asks a configured model to propose cases first and --interactive lets you review, edit, and select proposed cases before writing.",
     "  - browse opens an interactive terminal run browser (Ink TUI) over the artifacts under evals-runs/; defaults to the current directory.",
+    "  - audit performs deterministic skill-quality checks: frontmatter, sprawl, eval coverage, local links, and duplicate families.",
     "  - Format reference: https://platform.claude.com/docs/en/agents-and-tools/agent-skills",
   ].join("\n");
 }
@@ -394,6 +401,41 @@ function parseBrowseCommandArgs(args: string[]) {
   }
 
   return { input };
+}
+
+function parseAuditCommandArgs(args: string[]) {
+  let input: string | undefined;
+  let json = false;
+  let output: string | undefined;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+
+    if (arg === "--output" || arg.startsWith("--output=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      output = parsed.value;
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
+    if (arg.startsWith("-")) {
+      throw new CliUsageError(`Unknown flag: ${arg}.`);
+    }
+
+    if (input !== undefined) {
+      throw new CliUsageError("Only one <skill-dir-or-repo> positional argument is allowed.");
+    }
+
+    input = arg;
+  }
+
+  if (!input) throw new CliUsageError("Missing required <skill-dir-or-repo> argument.");
+  return { input, json, output };
 }
 
 function readFlagValue(arg: string, nextArg: string | undefined): { value: string; consumedNext: boolean } {

@@ -52,6 +52,12 @@ export interface BrowseCliOptions {
   input?: string;
 }
 
+export interface AuditCliOptions {
+  input: string;
+  json?: boolean;
+  output?: string;
+}
+
 export interface CliRenderOptions {
   json?: boolean;
 }
@@ -73,7 +79,8 @@ export type ParsedCliCommand =
   | ({ command: "review" } & ReviewCliOptions)
   | ({ command: "improve" } & ImproveCliOptions)
   | ({ command: "create" } & CreateCliOptions)
-  | ({ command: "browse" } & BrowseCliOptions);
+  | ({ command: "browse" } & BrowseCliOptions)
+  | ({ command: "audit" } & AuditCliOptions);
 
 export class CliUsageError extends Error {
   constructor(message: string) {
