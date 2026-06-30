@@ -3,7 +3,36 @@ title: Authoring evals
 description: How to write evals/evals.json for your own skill, with the bundled `arc-creating-evals` interview-style skill or by hand.
 ---
 
-You have two paths to a real eval suite for your skill: drive it through the bundled [`arc-creating-evals`](https://github.com/andysolomon/arc-skill-eval/tree/main/skills/arc-creating-evals) interview skill, or write `evals/evals.json` by hand. Both produce the same artifact: an `evals/` directory next to your `SKILL.md` containing `evals.json` and any required fixture files.
+You have four paths to a real eval suite for your skill: use deterministic `arc-skill-eval create`, use guided `arc-skill-eval create --guided`, drive the task through the bundled [`arc-creating-evals`](https://github.com/andysolomon/arc-skill-eval/tree/main/skills/arc-creating-evals) interview skill, or write `evals/evals.json` by hand. All paths produce the same artifact: an `evals/` directory next to your `SKILL.md` containing `evals.json` and any required fixture files.
+
+## Choose deterministic or guided create
+
+Start with deterministic create when the skill has obvious mechanical outcomes:
+
+```bash
+arc-skill-eval create ./skills/my-skill --dry-run --summary
+arc-skill-eval create ./skills/my-skill
+```
+
+This mode is fast, free, repeatable, and CI-safe. It reads `SKILL.md`, creates trigger/golden-path/adjacent-negative cases, infers fixture inputs, and adds deterministic assertions for files, JSON, and regexes when the skill mentions concrete artifacts.
+
+Use guided create when the eval design itself needs judgment:
+
+```bash
+arc-skill-eval create ./skills/my-skill --guided --interactive
+```
+
+Guided mode is useful for conceptual skills, planning/review skills, routing behavior, and skills whose success is mostly semantic. Treat its output as a proposal: review rationale, remove weak cases, edit assertion language, and keep deterministic assertions anywhere the skill has concrete artifacts.
+
+### Conceptual example: `grill-me`
+
+A `grill-me` skill promises a relentless interview to sharpen a plan. It probably has no `report.json` or `plan.md` output to check. A good suite therefore emphasizes:
+
+- explicit trigger cases such as "grill me on this launch plan"
+- adjacent negatives such as "summarize this launch plan" or "rewrite this plan more clearly"
+- judge assertions that the assistant asks pointed follow-up questions, challenges assumptions, explores tradeoffs, and avoids solving the plan for the user too early
+
+That is better than inventing fake file assertions. Deterministic assertions are strongest when there are real artifacts; judge assertions are appropriate for tone, reasoning shape, interview behavior, and other semantic properties.
 
 ## The interview path: `arc-creating-evals`
 
