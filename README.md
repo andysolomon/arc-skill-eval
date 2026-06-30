@@ -216,6 +216,17 @@ Use `review.html` to inspect assistant output, grading evidence, artifacts, and 
 
 The command reads human notes plus failing assertion summaries and proposes prompt, assertion, fixture, or adjacent-negative changes with rationale. It does not change files unless you pass `--apply`. Applied changes annotate matching eval cases with validated improvement metadata so the suite remains loadable by `run`.
 
+### Browse runs interactively
+
+Open an interactive terminal run browser (an Ink TUI) over the artifacts under `evals-runs/`:
+
+```bash
+arc-skill-eval browse ./skills/arc-conventional-commits   # one skill
+arc-skill-eval browse .                                    # whole repo
+```
+
+It renders a lazygit-style four-panel layout — Skills, Cases, Assertions, Runs — with the selected case's prompt, grading evidence, metrics, and with/without-skill comparison in the main pane. `v`/`↵` toggles rendered ⇄ raw `grading.json`; `Tab`/`1`–`4` move between panels; `?` opens help; `q` quits. It is read-only and reads the same per-case `grading.json` / `timing.json` artifacts that `run` emits, so no extra setup is needed.
+
 Model options:
 - `--model <provider/model[:thinking]>` pins the skill runner model instead of using Pi's configured default. Example: `openai-codex/gpt-5.5:medium`.
 - `--judge-model <provider/model[:thinking]>` pins the model used for LLM-judged string assertions. Deterministic assertions do not use the judge.
