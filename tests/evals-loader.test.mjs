@@ -220,12 +220,18 @@ test("hello-world bundled skill evals.json parses and carries the expected cases
   const ids = file.evals.map((c) => String(c.id));
   assert.deepEqual(ids, ["default-world", "named-ada", "assistant-names-file"]);
 
-  const lastCase = file.evals[2];
-  const assistantTargetAssertion = lastCase.assertions?.find(
-    (a) => typeof a !== "string" && a.type === "regex-match" && a.target === "assistant-text",
-  );
-  assert.ok(
-    assistantTargetAssertion,
-    "expected assistant-names-file case to carry an assistant-text regex-match assertion",
-  );
+  for (const evalCase of file.evals) {
+    assert.ok(
+      evalCase.assertions?.every((a) => typeof a !== "string"),
+      `${evalCase.id} should use deterministic assertions only`,
+    );
+    assert.ok(
+      evalCase.assertions?.some((a) => typeof a !== "string" && a.type === "regex-match" && a.target === "assistant-text"),
+      `${evalCase.id} should assert that the assistant names greeting.txt deterministically`,
+    );
+  }
+
+  const namedAda = file.evals.find((c) => c.id === "named-ada");
+  assert.match(namedAda?.expected_output ?? "", /reply names the file/);
+  assert.doesNotMatch(namedAda?.expected_output ?? "", /confirms it greeted Ada/);
 });
