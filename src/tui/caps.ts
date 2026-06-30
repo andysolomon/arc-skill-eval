@@ -67,3 +67,7 @@ const ASCII: GlyphSet = {
 };
 
 export const GLYPHS: GlyphSet = UNICODE ? UNI : ASCII;
+
+/** Both glyph sets, exposed so the component-gallery conformance test can verify
+ *  the unicode set and its ASCII fallback stay key-complete and in sync. */
+export const GLYPH_SETS: { unicode: GlyphSet; ascii: GlyphSet } = { unicode: UNI, ascii: ASCII };
