@@ -1,0 +1,99 @@
+{
+  "skill_name": "arc-conventional-commits",
+  "evals": [
+    {
+      "id": "trigger-explicit-named",
+      "prompt": "Use the arc-conventional-commits skill to set up automated semver in this project.",
+      "expected_output": "The assistant sets up semantic-release for automated semver and references Conventional Commits or the conventionalcommits preset. It may mention the skill workflow, but the evaluation focuses on the actual setup behavior rather than requiring phase-announcement wording.",
+      "assertions": [
+        {
+          "id": "setup-behavior-not-generic-advice",
+          "kind": "output",
+          "method": "judge",
+          "prompt": "Pass only if the assistant clearly performs or starts the project-specific setup for automated semantic versioning/release automation, such as inspecting the repo, creating or updating semantic-release configuration, adding release scripts/plugins, or otherwise taking concrete setup steps. Fail if the assistant merely gives generic advice about semantic versioning or says what could be done without performing or clearly initiating setup. Do not require the response to mention any phase names, detection step wording, or the arc-conventional-commits skill name."
+        },
+        "The response names semantic-release as the tool being configured",
+        "The response references the conventionalcommits preset or the Conventional Commits specification by name"
+      ]
+    },
+    {
+      "id": "trigger-implicit-release-automation",
+      "prompt": "I want to add release automation and an auto-generated changelog to this repo.",
+      "expected_output": "The assistant proposes semantic-release with the Conventional Commits preset and walks through the setup, even though the user did not name the skill.",
+      "assertions": [
+        "The response identifies semantic-release as the recommended tool for release automation",
+        "The response describes generating a CHANGELOG via the @semantic-release/changelog plugin or an equivalent named plugin",
+        "The response begins by checking for existing versioning tooling rather than immediately writing config files"
+      ]
+    },
+    {
+      "id": "trigger-implicit-version-bump",
+      "prompt": "How do I get automatic version bumps based on my commit messages?",
+      "expected_output": "The assistant describes the Conventional Commits + semantic-release pattern and offers to set it up.",
+      "assertions": [
+        "The response explains that commit message prefixes like feat: and fix: drive the version bump (minor, patch)",
+        "The response names semantic-release (or arc-conventional-commits) as the mechanism that reads commits and bumps the version",
+        "The response offers to set up the tooling rather than only describing it abstractly"
+      ]
+    },
+    {
+      "id": "trigger-negative-single-commit-message",
+      "prompt": "Write me a single conventional commit message for a bug fix that resolves a null pointer in the user lookup function.",
+      "expected_output": "The assistant returns one suggested conventional commit message and does NOT begin the multi-phase semantic-release setup.",
+      "assertions": [
+        { "type": "regex-match", "pattern": "^fix(\\(.+\\))?:", "flags": "m", "target": "assistant-text" },
+        "The response provides a single commit message in conventional commits format and does not propose installing npm packages, writing .releaserc.json, or running a multi-phase setup"
+      ]
+    },
+    {
+      "id": "execution-clean-repo",
+      "prompt": "Set up semantic-release with conventional commits in this repo.",
+      "setup": {
+        "kind": "seeded",
+        "sources": [{ "from": "files/clean-repo", "to": "." }],
+        "mountMode": "flatten-contents"
+      },
+      "expected_output": ".releaserc.json is created with the conventionalcommits preset and the canonical plugin chain. package.json gains a release script. No prior tooling is detected.",
+      "assertions": [
+        { "type": "file-exists", "path": ".releaserc.json" },
+        { "type": "json-valid", "path": ".releaserc.json" },
+        { "type": "regex-match", "pattern": "conventionalcommits", "target": { "file": ".releaserc.json" } },
+        { "type": "regex-match", "pattern": "@semantic-release/commit-analyzer", "target": { "file": ".releaserc.json" } },
+        { "type": "regex-match", "pattern": "\"release\"\\s*:\\s*\"semantic-release\"", "target": { "file": "package.json" } },
+        "The response confirms that no pre-existing versioning tooling (standard-version, changesets, lerna, release-please) was detected"
+      ]
+    },
+    {
+      "id": "execution-migrate-standard-version",
+      "prompt": "Replace standard-version with semantic-release in this repo.",
+      "setup": {
+        "kind": "seeded",
+        "sources": [{ "from": "files/standard-version", "to": "." }],
+        "mountMode": "flatten-contents"
+      },
+      "expected_output": "Pre-existing standard-version config is identified and removed (with confirmation), .releaserc.json is created with the conventionalcommits preset, package.json no longer references standard-version, and the release script points at semantic-release.",
+      "assertions": [
+        { "type": "file-exists", "path": ".releaserc.json" },
+        { "type": "regex-match", "pattern": "conventionalcommits", "target": { "file": ".releaserc.json" } },
+        { "type": "regex-match", "pattern": "\"release\"\\s*:\\s*\"semantic-release\"", "target": { "file": "package.json" } },
+        "The response identifies standard-version (and the existing .versionrc.json) as the pre-existing versioning tool before proposing changes",
+        "The response describes removing the standard-version config and uninstalling the standard-version package, not silently overwriting it"
+      ]
+    },
+    {
+      "id": "edge-monorepo-warning",
+      "prompt": "Set up semantic-release in this repo.",
+      "setup": {
+        "kind": "seeded",
+        "sources": [{ "from": "files/monorepo", "to": "." }],
+        "mountMode": "flatten-contents"
+      },
+      "expected_output": "The assistant detects the npm workspaces field, warns that semantic-release has limited monorepo support out of the box, and recommends semantic-release-monorepo or multi-semantic-release.",
+      "assertions": [
+        { "type": "regex-match", "pattern": "(semantic-release-monorepo|multi-semantic-release)", "target": "assistant-text" },
+        "The response identifies the repo as a monorepo by referencing the workspaces field in package.json",
+        "The response warns that semantic-release has limited monorepo support and points the user at semantic-release-monorepo or multi-semantic-release for per-package versioning"
+      ]
+    }
+  ]
+}
