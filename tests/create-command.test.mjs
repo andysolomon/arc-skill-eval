@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { CliCommandError, createCommand, readEvalsJson, runCli } from "../dist/index.js";
+import { buildGuidedCreatePrompt, CliCommandError, createCommand, parseCliArgs, readEvalsJson, runCli } from "../dist/index.js";
 
 async function createSkillFixture({ name = "demo-skill", description = "Helps write demo files." } = {}) {
   const root = await mkdtemp(path.join(tmpdir(), "arc-skill-eval-create-"));
@@ -163,6 +163,35 @@ test("createCommand generates domain-aware adjacent negative cases", async () =>
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("buildGuidedCreatePrompt embeds arc-creating-evals instructions when supplied", () => {
+  const prompt = buildGuidedCreatePrompt(
+    {
+      skillDir: "/tmp/skills/sample",
+      skillPath: "/tmp/skills/sample/SKILL.md",
+      skillText: "---\nname: sample\ndescription: Sample skill.\n---\n\n# Sample",
+      starterEvals: { version: "1", skill_name: "sample", evals: [] },
+    },
+    {
+      authoringSkill: {
+        path: "/repo/arc-skills/arc-creating-evals/SKILL.md",
+        markdown: "# Creating Evals for a Skill\n\n## Phase 2 — Define success upfront",
+      },
+    },
+  );
+
+  assert.match(prompt, /Follow the arc-creating-evals skill below as the authoritative eval-authoring procedure/);
+  assert.match(prompt, /=== arc-creating-evals skill \(\/repo\/arc-skills\/arc-creating-evals\/SKILL\.md\) ===/);
+  assert.match(prompt, /Phase 2 — Define success upfront/);
+  assert.match(prompt, /=== TARGET SKILL\.md ===/);
+});
+
+test("parseCliArgs accepts create authoring-skill override", () => {
+  const parsed = parseCliArgs(["create", "./skills/sample", "--guided", "--authoring-skill", "../arc-skills/arc-creating-evals/SKILL.md"]);
+  assert.equal(parsed.command, "create");
+  assert.equal(parsed.guided, true);
+  assert.equal(parsed.authoringSkillPath, "../arc-skills/arc-creating-evals/SKILL.md");
 });
 
 test("createCommand uses guided designer in dry-run without writing files", async () => {

@@ -40,6 +40,7 @@ arc-skill-eval create <skill-dir>
                       [--interactive]
                       [--model <provider/model[:thinking]>]
                       [--agent-dir <path>]
+                      [--authoring-skill <path>]
                       [--dry-run]
                       [--summary]
                       [--force]
@@ -75,7 +76,7 @@ When obvious output artifacts are mentioned in `SKILL.md`, such as `plan.md` or 
 
 Use deterministic `create` when a repeatable starter suite is enough: file-writing skills, JSON/config skills, CLI automation, or CI fixtures where the obvious assertions are mechanical. Use guided create when case design is the hard part: conceptual skills, planning/review skills, routing behavior, and subtle adjacent negatives. Guided suggestions are proposals, not authority; review them before committing.
 
-Guided mode asks a configured Pi model to act as an eval designer before files are written:
+Guided mode asks a configured Pi model to act as an eval designer using the bundled `skills/arc-creating-evals/SKILL.md` procedure before files are written:
 
 ```bash
 arc-skill-eval create ./skills/my-skill --guided --dry-run --summary
@@ -97,6 +98,7 @@ Options:
 - `--interactive`: launch a lightweight prompt flow for guided create. You can include/skip cases and assertions, and edit case prompts, expected output, and judge/regex assertion text before writing.
 - `--model <provider/model[:thinking]>`: pin the guided eval designer model. Without this flag, guided mode uses the configured Pi default.
 - `--agent-dir <path>`: load model registry, settings, and auth from an eval-owned Pi agent directory for guided mode.
+- `--authoring-skill <path>`: override the bundled `arc-creating-evals` instructions, useful when dogfooding a revised eval-authoring skill.
 - `--dry-run`: print the proposed JSON without writing files.
 - `--summary`: print a human-readable review of generated cases, fixtures, rationale, deterministic assertions, and judge assertions. With `--dry-run`, this prints the summary instead of raw JSON.
 - `--force`: overwrite an existing `evals/evals.json`.

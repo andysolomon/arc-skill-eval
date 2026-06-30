@@ -137,6 +137,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
           interactive: parsed.interactive,
           model: parsed.model,
           agentDir: parsed.agentDir,
+          authoringSkillPath: parsed.authoringSkillPath,
         });
         if (result.dryRun && !parsed.summary) {
           return { exitCode: 0, stdout: `${JSON.stringify(result.evals, null, 2)}\n`, stderr: "" };
