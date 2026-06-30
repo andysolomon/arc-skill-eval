@@ -33,12 +33,17 @@ Skills are markdown files plus optional scripts. They change model behavior in w
 - LLM-judged assertions for prose claims, deterministic script assertions for file presence, regex, and JSON validity.
 - Opt-in `with_skill` vs `without_skill` dual runs and a `benchmark.json` aggregate.
 - Per-case observability: `assistant.md`, `outputs/`, `timing.json`, `trace.json`, `tool-summary.json`, `context-manifest.json`.
+- Model pinning for runner and judge models, including GPT 5.5 and Ollama Cloud through Pi.
 - A first-class authoring skill ([`arc-creating-evals`](/arc-skill-eval/authoring-evals/)) that interviews you across Anthropic's four success dimensions and emits a real eval suite.
+- A public roadmap toward Claude skill-creator-style runtime setup, review reports, feedback-driven improvement, and description optimization.
 
 ## Where to start
 
 - **[Quickstart](/arc-skill-eval/quickstart/)** — install, run the `hello-world` skill, read your first `grading.json`.
 - **[Concepts](/arc-skill-eval/concepts/)** — the runtime entities: skills, eval cases, assertions, the with/without delta, grading, artifacts.
 - **[Authoring evals](/arc-skill-eval/authoring-evals/)** — how to write `evals/evals.json` for your own skill.
+- **[Dogfooding & Authoring Loop](/arc-skill-eval/dogfooding/)** — how to use `--compare`, iterations, and artifacts to improve a skill.
+- **[Runtime & Models](/arc-skill-eval/runtime-and-models/)** — Pi defaults, model pinning, GPT 5.5, Ollama Cloud, and eval-owned runtime plans.
+- **[Skill Creator Roadmap](/arc-skill-eval/skill-creator-roadmap/)** — planned commands and product direction for Claude skill-creator parity.
 - **[Blog](/arc-skill-eval/blog/)** — a multi-part series on why skill evals matter and what I learned building this.
 - **[Inspiration & credits](/arc-skill-eval/inspiration/)** — the three pieces of writing that shaped this project, with direct quotes and reading order.

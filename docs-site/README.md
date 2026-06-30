@@ -38,6 +38,9 @@ src/content/docs/
 │   ├── grading.md
 │   └── artifacts.md
 ├── authoring-evals.mdx
+├── dogfooding.md
+├── runtime-and-models.md
+├── skill-creator-roadmap.md
 ├── cli-reference.md
 ├── examples/                # auto-generated sidebar section
 │   ├── index.md

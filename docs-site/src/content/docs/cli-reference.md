@@ -1,9 +1,9 @@
 ---
 title: CLI reference
-description: Every flag of `arc-skill-eval run`, with examples and exit-code semantics.
+description: Every flag of `arc-skill-eval run`, with model pinning, compare mode, and exit-code semantics.
 ---
 
-The CLI surface is intentionally small: one command, one positional argument, a handful of flags.
+The current stable CLI centers on one command: `run`. It discovers skills, materializes fixtures, runs cases through Pi, grades assertions, and writes artifacts.
 
 ## Synopsis
 
@@ -11,6 +11,8 @@ The CLI surface is intentionally small: one command, one positional argument, a 
 arc-skill-eval run <skill-dir-or-repo>
                    [--skill <name>]...
                    [--case <id>]...
+                   [--model <provider/model[:thinking]>]
+                   [--judge-model <provider/model[:thinking]>]
                    [--output-dir <path>]
                    [--iteration <name>]
                    [--extra-skill <path>]...
@@ -21,7 +23,7 @@ arc-skill-eval run <skill-dir-or-repo>
 
 The positional `<skill-dir-or-repo>` is resolved as a skill directory if it contains `evals/evals.json`, otherwise as a repo whose tree is walked for `SKILL.md` + `evals/evals.json` pairs.
 
-Exit code: `0` when every case has no failing assertions; `1` otherwise (any assertion fail, any case error).
+Exit code: `0` when every case has no failing assertions; `1` otherwise.
 
 ## Flags
 
@@ -35,12 +37,41 @@ arc-skill-eval run . --skill arc-conventional-commits
 
 ### `--case <id>` *(repeatable)*
 
-Restrict the run to a specific case by id. Combine with `--skill` to drill all the way down to a single case.
+Restrict the run to one or more cases by id. Combine with `--skill` to drill all the way down to a single case.
 
 ```bash
 arc-skill-eval run ./skills/hello-world --case default-world
 arc-skill-eval run . --skill hello-world --case named-ada --case assistant-names-file
 ```
+
+### `--model <provider/model[:thinking]>`
+
+Pin the model used by the skill-running agent. Without this flag, Skeval inherits Pi's configured default provider, model, and thinking level from the active Pi agent settings.
+
+```bash
+arc-skill-eval run ./skills/arc-conventional-commits \
+  --model openai-codex/gpt-5.5:medium
+```
+
+### `--judge-model <provider/model[:thinking]>`
+
+Pin the model used for LLM-judged string assertions. Deterministic assertions such as `file-exists`, `regex-match`, and `json-valid` do not use the judge model.
+
+```bash
+arc-skill-eval run ./skills/arc-conventional-commits \
+  --model openai-codex/gpt-5.5:medium \
+  --judge-model mistral/ministral-8b-latest
+```
+
+Model IDs may contain colons. Ollama-style IDs like `gpt-oss:20b` are treated as model IDs unless the final suffix is a known thinking level.
+
+```bash
+arc-skill-eval run ./skills/hello-world \
+  --model ollama-cloud/gpt-oss:20b \
+  --judge-model ollama-cloud/gpt-oss:20b
+```
+
+See [Runtime & Models](/arc-skill-eval/runtime-and-models/) for provider setup, Pi defaults, and Ollama Cloud examples.
 
 ### `--output-dir <path>`
 
@@ -52,7 +83,7 @@ arc-skill-eval run . --output-dir ./evals-runs
 
 ### `--iteration <name>`
 
-Group artifacts under an iteration bucket: `<skillDir>/evals-runs/iteration-<name>/<runId>/`. String names are normalized — `baseline` becomes `iteration-baseline`. Useful for repeated cycles where you want previous iterations' artifacts to stay immutable.
+Group artifacts under an iteration bucket: `<skillDir>/evals-runs/iteration-<name>/<runId>/`. String names are normalized — `baseline` becomes `iteration-baseline`. Useful for repeated improvement cycles.
 
 ```bash
 arc-skill-eval run ./skills/hello-world --iteration 1
@@ -61,7 +92,7 @@ arc-skill-eval run ./skills/hello-world --iteration baseline
 
 ### `--extra-skill <path>` *(repeatable)*
 
-Load explicit distractor or conflict skills into the model's context — either a skill directory or a path to a `SKILL.md`. With `--compare`, `with_skill` receives the target plus extras while `without_skill` receives extras only. This makes it possible to test whether an extra skill conflicts with the target without contaminating the no-target baseline.
+Load explicit distractor or conflict skills into the model's context — either a skill directory or a path to a `SKILL.md`. With `--compare`, `with_skill` receives the target plus extras while `without_skill` receives extras only.
 
 ```bash
 arc-skill-eval run ./skills/arc-conventional-commits \
@@ -72,10 +103,10 @@ arc-skill-eval run ./skills/arc-conventional-commits \
 
 ### `--context-mode isolated|ambient`
 
-- `isolated` *(default)* — no ambient Pi skills, extensions, prompt templates, themes, or context files are loaded. Only the target skill (and any `--extra-skill` paths) are exposed to the model.
+- `isolated` *(default)* — no ambient Pi skills, extensions, prompt templates, themes, or context files are loaded. Only the target skill and any `--extra-skill` paths are exposed to the model.
 - `ambient` — opt into normal Pi ambient resources, including configured extension tools and MCP-like tools when present.
 
-The resolved loadout is recorded in each variant's `context-manifest.json` so reviewers can see which skills, tools, and context were exposed.
+The resolved loadout is recorded in each variant's `context-manifest.json`.
 
 ```bash
 arc-skill-eval run ./skills/arc-conventional-commits \
@@ -90,6 +121,8 @@ Opt into `with_skill` vs `without_skill` dual runs. Each case runs twice, isolat
 ```bash
 arc-skill-eval run . --compare
 ```
+
+See [Dogfooding & Authoring Loop](/arc-skill-eval/dogfooding/) for how to interpret the delta.
 
 ### `--json`
 
@@ -111,10 +144,20 @@ arc-skill-eval run ./skills/arc-conventional-commits
 # Run one case inside one skill.
 arc-skill-eval run ./skills/arc-conventional-commits --case 1
 
+# Pin GPT 5.5 for both runner and judge.
+arc-skill-eval run ./skills/arc-conventional-commits \
+  --model openai-codex/gpt-5.5:medium \
+  --judge-model openai-codex/gpt-5.5:medium
+
+# Use the verified Ollama Cloud smoke-test lane.
+arc-skill-eval run ./skills/hello-world \
+  --model ollama-cloud/gpt-oss:20b \
+  --judge-model ollama-cloud/gpt-oss:20b
+
 # Retarget output.
 arc-skill-eval run . --output-dir ./evals-runs
 
-# Compare with vs without the skill, group under an iteration bucket.
+# Compare with vs without the skill, grouped under an iteration bucket.
 arc-skill-eval run ./skills/arc-conventional-commits --compare --iteration 1
 
 # Add a distractor skill for conflict testing.
@@ -122,6 +165,11 @@ arc-skill-eval run ./skills/arc-conventional-commits \
   --compare \
   --extra-skill ./skills/release-please \
   --iteration conflict-1
+
+# Opt into normal Pi ambient resources and record the loadout.
+arc-skill-eval run ./skills/arc-conventional-commits \
+  --context-mode ambient \
+  --iteration ambient-1
 ```
 
 ## Help

@@ -74,6 +74,26 @@ Open `grading.json` for any case to see the per-assertion verdict + evidence in 
 }
 ```
 
+## Pin a model when you need reproducibility
+
+By default, Skeval inherits Pi's configured provider/model from your Pi settings. For dogfood runs, CI, or provider experiments, pin the runner and judge explicitly:
+
+```bash
+arc-skill-eval run ./skills/hello-world \
+  --model openai-codex/gpt-5.5:medium \
+  --judge-model openai-codex/gpt-5.5:medium
+```
+
+For a low-cost Ollama Cloud smoke test:
+
+```bash
+arc-skill-eval run ./skills/hello-world \
+  --model ollama-cloud/gpt-oss:20b \
+  --judge-model ollama-cloud/gpt-oss:20b
+```
+
+See [Runtime & Models](/arc-skill-eval/runtime-and-models/) for provider setup and Pi default behavior.
+
 ## Compare against a no-skill baseline
 
 The pass-rate delta is the load-bearing signal. Add `--compare` to run each case twice — once with the skill attached, once without — and emit a top-level `benchmark.json`:
@@ -82,10 +102,12 @@ The pass-rate delta is the load-bearing signal. Add `--compare` to run each case
 arc-skill-eval run ./skills/hello-world --compare
 ```
 
-You now get sibling `with_skill/` and `without_skill/` directories under each `eval-<id>/`, and the run root contains `benchmark.json` with per-case deltas plus an overall delta. See [With/without skill](/arc-skill-eval/concepts/with-without-skill/) for why this comparison matters more than any absolute score.
+You now get sibling `with_skill/` and `without_skill/` directories under each `eval-<id>/`, and the run root contains `benchmark.json` with per-case deltas plus an overall delta. See [With/without skill](/arc-skill-eval/concepts/with-without-skill/) for why this comparison matters more than any absolute score, and [Dogfooding & Authoring Loop](/arc-skill-eval/dogfooding/) for a practical iteration workflow.
 
 ## Where next
 
 - **[CLI reference](/arc-skill-eval/cli-reference/)** — every flag of `arc-skill-eval run`.
+- **[Runtime & Models](/arc-skill-eval/runtime-and-models/)** — model pinning, Pi defaults, GPT 5.5, and Ollama Cloud.
 - **[Authoring evals](/arc-skill-eval/authoring-evals/)** — how to write `evals/evals.json` for your own skill.
+- **[Dogfooding & Authoring Loop](/arc-skill-eval/dogfooding/)** — how to iterate using `--compare` and run artifacts.
 - **[Examples → hello-world](/arc-skill-eval/examples/hello-world/)** — the full walkthrough of the skill you just ran.

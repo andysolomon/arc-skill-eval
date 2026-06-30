@@ -32,6 +32,9 @@ export default defineConfig({
 					autogenerate: { directory: 'concepts' },
 				},
 				{ label: 'Authoring evals', link: '/authoring-evals/' },
+				{ label: 'Dogfooding & Authoring Loop', link: '/dogfooding/' },
+				{ label: 'Runtime & Models', link: '/runtime-and-models/' },
+				{ label: 'Skill Creator Roadmap', link: '/skill-creator-roadmap/' },
 				{ label: 'CLI reference', link: '/cli-reference/' },
 				{
 					label: 'Examples',
