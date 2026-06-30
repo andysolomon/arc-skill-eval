@@ -67,10 +67,33 @@ function parseSkillFrontmatter(skillText: string, skillDir: string): SkillFrontm
 }
 
 function readYamlString(frontmatter: string, key: string): string | undefined {
+  const blockValue = readYamlBlockScalar(frontmatter, key);
+  if (blockValue !== undefined) return blockValue;
+
   const pattern = new RegExp(`^${escapeRegExp(key)}\\s*:\\s*(.+?)\\s*$`, "m");
   const match = frontmatter.match(pattern);
   if (!match) return undefined;
   return unquoteYamlScalar(match[1]!.trim());
+}
+
+function readYamlBlockScalar(frontmatter: string, key: string): string | undefined {
+  const lines = frontmatter.split(/\r?\n/);
+  const startIndex = lines.findIndex((line) => new RegExp(`^${escapeRegExp(key)}\\s*:\\s*[>|]\\s*$`).test(line));
+  if (startIndex === -1) return undefined;
+
+  const blockLines: string[] = [];
+  for (const line of lines.slice(startIndex + 1)) {
+    if (/^\S[^:]*:\s*/.test(line)) break;
+    if (line.trim() === "") {
+      blockLines.push("");
+      continue;
+    }
+    if (!/^\s+/.test(line)) break;
+    blockLines.push(line.replace(/^\s{2}/, ""));
+  }
+
+  const value = blockLines.join("\n").trim();
+  return value ? value.replace(/\n+/g, " ") : undefined;
 }
 
 function unquoteYamlScalar(value: string): string {
@@ -182,22 +205,38 @@ function inferDeterministicAssertions(skillText: string): { paths: string[]; ass
 
 function inferOutputPaths(skillText: string): string[] {
   const candidates = new Set<string>();
+  const searchableText = stripAdvisorySections(stripFencedCodeBlocks(skillText));
   const codeSpanPattern = /`([^`]+)`/g;
   let match: RegExpExecArray | null;
 
-  while ((match = codeSpanPattern.exec(skillText)) !== null) {
+  while ((match = codeSpanPattern.exec(searchableText)) !== null) {
     for (const candidate of extractPathCandidates(match[1]!)) {
       if (isLikelyOutputPath(candidate)) candidates.add(candidate);
     }
   }
 
   const quotedPathPattern = /["']([^"'\n]+\.(?:md|markdown|txt|json|ya?ml|csv|tsv|html|xml))["']/gi;
-  while ((match = quotedPathPattern.exec(skillText)) !== null) {
+  while ((match = quotedPathPattern.exec(searchableText)) !== null) {
     const normalized = normalizePathCandidate(match[1]!);
     if (normalized && isLikelyOutputPath(normalized)) candidates.add(normalized);
   }
 
-  return Array.from(candidates).slice(0, 5);
+  return removeDuplicateBasenamePaths(Array.from(candidates)).slice(0, 5);
+}
+
+function stripFencedCodeBlocks(value: string): string {
+  return value.replace(/````?[\s\S]*?````?/g, "");
+}
+
+function stripAdvisorySections(value: string): string {
+  return value.split(/^##\s+(?:Quality rules|Examples?|Anti-patterns?)\b/im)[0] ?? value;
+}
+
+function removeDuplicateBasenamePaths(paths: string[]): string[] {
+  return paths.filter((candidate) => {
+    if (candidate.includes("/")) return true;
+    return !paths.some((other) => other !== candidate && other.endsWith(`/${candidate}`));
+  });
 }
 
 function extractPathCandidates(value: string): string[] {
