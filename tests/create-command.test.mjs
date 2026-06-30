@@ -165,6 +165,61 @@ test("createCommand generates domain-aware adjacent negative cases", async () =>
   }
 });
 
+test("createCommand uses guided designer in dry-run without writing files", async () => {
+  const { root, skillDir } = await createSkillFixture({
+    name: "concept-skill",
+    description: "Helps reason about conceptual tradeoffs.",
+  });
+
+  try {
+    let designerCalled = false;
+    const result = await createCommand({
+      skillDir,
+      guided: true,
+      dryRun: true,
+      designer: async ({ skillText, starterEvals }) => {
+        designerCalled = true;
+        assert.match(skillText, /concept-skill/);
+        assert.equal(starterEvals.skill_name, "concept-skill");
+        return {
+          fixtureInputs: ["brief.md"],
+          rationale: ["Covers conceptual guidance and adjacent routing."],
+          evals: {
+            version: "1",
+            skill_name: "concept-skill",
+            evals: [
+              {
+                id: "guided-conceptual-tradeoff",
+                prompt: "Help compare two architecture tradeoffs for a team decision.",
+                expected_output: "A concrete tradeoff analysis.",
+                assertions: [
+                  {
+                    id: "tradeoff-analysis",
+                    kind: "output",
+                    method: "judge",
+                    prompt: "The response weighs concrete tradeoffs rather than giving generic advice.",
+                  },
+                ],
+              },
+            ],
+          },
+        };
+      },
+    });
+
+    assert.equal(designerCalled, true);
+    assert.equal(result.guided, true);
+    assert.equal(result.interactive, false);
+    assert.equal(result.written, false);
+    assert.deepEqual(result.fixtureInputs, ["brief.md"]);
+    assert.deepEqual(result.rationale, ["Covers conceptual guidance and adjacent routing."]);
+    assert.deepEqual(result.evals.evals.map((item) => item.id), ["guided-conceptual-tradeoff"]);
+    await assert.rejects(() => readFile(path.join(skillDir, "evals", "evals.json")), /ENOENT/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("createCommand supports guided interactive selection and prompt edits", async () => {
   const { root, skillDir } = await createSkillFixture({
     name: "grill-me",
@@ -183,6 +238,11 @@ test("createCommand supports guided interactive selection and prompt edits", asy
       skillDir,
       guided: true,
       interactive: true,
+      designer: async ({ starterEvals }) => ({
+        evals: starterEvals,
+        fixtureInputs: [],
+        rationale: ["Review the proposed guided eval suite before writing evals.json."],
+      }),
       interactivePrompt: {
         message(text) {
           messages.push(text);
@@ -245,6 +305,28 @@ test("createCommand preserves overwrite protection before guided interactive pro
     );
     assert.equal(prompted, false);
     assert.equal(await readFile(path.join(evalsDir, "evals.json"), "utf8"), "existing");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("createCommand rejects invalid guided eval JSON without writing files", async () => {
+  const { root, skillDir } = await createSkillFixture({ name: "bad-guided-skill" });
+
+  try {
+    await assert.rejects(
+      () => createCommand({
+        skillDir,
+        guided: true,
+        designer: async () => ({
+          fixtureInputs: [],
+          rationale: ["Invalid on purpose."],
+          evals: { skill_name: "bad-guided-skill", evals: [{ id: "missing-prompt" }] },
+        }),
+      }),
+      /failed validation|invalid evals\.json|`prompt`/,
+    );
+    await assert.rejects(() => readFile(path.join(skillDir, "evals", "evals.json")), /ENOENT/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -36,6 +36,9 @@ function formatCreateSummary(result: CreateCommandResult): string {
     "Adjacent negative assumption:",
     `- ${result.adjacentNegativeAssumption}`,
     "",
+    "Rationale:",
+    ...(result.rationale.length > 0 ? result.rationale.map((item) => `- ${item}`) : ["- none provided"]),
+    "",
     "Deterministic assertions:",
     ...(deterministicAssertions.length > 0 ? deterministicAssertions.map((item) => `- ${item}`) : ["- none inferred yet"]),
     "",
@@ -94,6 +97,8 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
           dryRun: parsed.dryRun,
           guided: parsed.guided,
           interactive: parsed.interactive,
+          model: parsed.model,
+          agentDir: parsed.agentDir,
         });
         if (result.dryRun && !parsed.summary) {
           return { exitCode: 0, stdout: `${JSON.stringify(result.evals, null, 2)}\n`, stderr: "" };

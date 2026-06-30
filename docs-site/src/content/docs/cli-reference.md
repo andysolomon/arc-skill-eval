@@ -33,6 +33,8 @@ arc-skill-eval review <run-dir>
 arc-skill-eval create <skill-dir>
                       [--guided]
                       [--interactive]
+                      [--model <provider/model[:thinking]>]
+                      [--agent-dir <path>]
                       [--dry-run]
                       [--summary]
                       [--force]
@@ -61,6 +63,14 @@ When obvious output artifacts are mentioned in `SKILL.md`, such as `plan.md` or 
 
 Use deterministic `create` when a repeatable starter suite is enough: file-writing skills, JSON/config skills, CLI automation, or CI fixtures where the obvious assertions are mechanical. Use guided create when case design is the hard part: conceptual skills, planning/review skills, routing behavior, and subtle adjacent negatives. Guided suggestions are proposals, not authority; review them before committing.
 
+Guided mode asks a configured Pi model to act as an eval designer before files are written:
+
+```bash
+arc-skill-eval create ./skills/my-skill --guided --dry-run --summary
+```
+
+The guided proposal is validated through the same eval loader/schema used by `run`. Invalid model output fails with a clear validation error instead of writing files.
+
 For a conceptual `grill-me` skill, prefer judge assertions and adjacent negatives over fake file assertions:
 
 ```bash
@@ -71,10 +81,12 @@ The useful assertions ask whether the assistant challenges assumptions, asks sha
 
 Options:
 
-- `--guided`: ask for a richer proposal aimed at case design, conceptual assertions, fixture ideas, and rationale.
+- `--guided`: ask the configured model to propose cases, fixture inputs, assertions, and rationale.
 - `--interactive`: launch a lightweight prompt flow for guided create. You can include/skip cases and assertions, and edit case prompts, expected output, and judge/regex assertion text before writing.
+- `--model <provider/model[:thinking]>`: pin the guided eval designer model. Without this flag, guided mode uses the configured Pi default.
+- `--agent-dir <path>`: load model registry, settings, and auth from an eval-owned Pi agent directory for guided mode.
 - `--dry-run`: print the proposed JSON without writing files.
-- `--summary`: print a human-readable review of generated cases, deterministic assertions, and judge assertions. With `--dry-run`, this prints the summary instead of raw JSON.
+- `--summary`: print a human-readable review of generated cases, fixtures, rationale, deterministic assertions, and judge assertions. With `--dry-run`, this prints the summary instead of raw JSON.
 - `--force`: overwrite an existing `evals/evals.json`.
 
 Interactive guided mode:
@@ -270,6 +282,9 @@ arc-skill-eval create ./skills/my-skill --dry-run
 
 # Review generated cases and assertions as text.
 arc-skill-eval create ./skills/my-skill --dry-run --summary
+
+# Ask an LLM eval designer for a richer dry-run proposal.
+arc-skill-eval create ./skills/my-skill --guided --dry-run --summary
 
 # Run every eval in every discovered skill under the current repo.
 arc-skill-eval run .
