@@ -103,8 +103,9 @@ arc-skill-eval run ./skills/hello-world \
 # Generate a static HTML review report and feedback template from run artifacts
 arc-skill-eval review ./skills/hello-world/evals-runs/<runId>
 
-# Turn review feedback into a targeted improvement plan when available
-arc-skill-eval improve ./skills/hello-world --from-feedback ./skills/hello-world/evals-runs/<runId>/feedback.json
+# Propose eval improvements from review feedback without writing files
+arc-skill-eval improve --from-feedback ./skills/hello-world/evals-runs/<runId>/feedback.json \
+  --dry-run --summary
 
 # Retarget output to a different workspace root
 arc-skill-eval run . --output-dir ./evals-runs
@@ -204,11 +205,16 @@ arc-skill-eval create ./skills/my-skill --guided --interactive
 arc-skill-eval run ./skills/my-skill --case execution-golden-path
 arc-skill-eval run ./skills/my-skill --compare --iteration dogfood-1
 arc-skill-eval review ./skills/my-skill/evals-runs/iteration-dogfood-1/<runId>
-arc-skill-eval improve ./skills/my-skill \
-  --from-feedback ./skills/my-skill/evals-runs/iteration-dogfood-1/<runId>/feedback.json
+arc-skill-eval improve \
+  --from-feedback ./skills/my-skill/evals-runs/iteration-dogfood-1/<runId>/feedback.json \
+  --dry-run --summary
 ```
 
 Use `review.html` to inspect assistant output, grading evidence, artifacts, and with/without-skill deltas. Capture human notes in `feedback.json`; feedback-driven improvement can then turn those notes into a focused plan for changing the skill, tightening assertions, or adding cases.
+
+### Improve from feedback
+
+The command reads human notes plus failing assertion summaries and proposes prompt, assertion, fixture, or adjacent-negative changes with rationale. It does not change files unless you pass `--apply`. Applied changes annotate matching eval cases with validated improvement metadata so the suite remains loadable by `run`.
 
 Model options:
 - `--model <provider/model[:thinking]>` pins the skill runner model instead of using Pi's configured default. Example: `openai-codex/gpt-5.5:medium`.

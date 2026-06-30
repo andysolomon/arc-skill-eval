@@ -1,10 +1,30 @@
 import { createCommand, type CreateCommandResult } from "./create-command.js";
+import { improveCommand, type ImproveCommandResult } from "./improve-command.js";
 import { initRuntimeCommand } from "./init-runtime-command.js";
 import { reviewCommand } from "./review-command.js";
 import { runEvalsCommand } from "./run-evals-command.js";
 import { renderHelp, parseCliArgs } from "./argv.js";
 import { formatRunEvalsResult } from "./render.js";
 import { CliCommandError, CliUsageError, type CliInvocationResult } from "./types.js";
+
+function formatImproveSummary(result: ImproveCommandResult): string {
+  const lines = [
+    `${result.applied ? "Applied" : "Proposed"} ${result.suggestions.length} eval improvement suggestion${result.suggestions.length === 1 ? "" : "s"}`,
+    "",
+    `Feedback: ${result.feedbackPath}`,
+    `Eval suite: ${result.evalsJsonPath}`,
+    "",
+    "Suggestions:",
+    ...(result.suggestions.length > 0
+      ? result.suggestions.map((suggestion) => `- ${suggestion.caseId} [${suggestion.kind}]: ${suggestion.recommendation}\n  Why: ${suggestion.rationale}`)
+      : ["- none"]),
+    "",
+    result.applied ? "Updated evals/evals.json and validated it." : "No files changed. Re-run with --apply to write validated improvement metadata.",
+    "",
+  ];
+
+  return `${lines.join("\n")}\n`;
+}
 
 function formatCreateSummary(result: CreateCommandResult): string {
   const deterministicAssertions: string[] = [];
@@ -87,6 +107,22 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
         return {
           exitCode: 0,
           stdout: `Created review for ${result.caseCount} case(s) at ${result.reviewPath}\nFeedback template: ${result.feedbackPath}\n`,
+          stderr: "",
+        };
+      }
+      case "improve": {
+        const result = await improveCommand({
+          feedbackPath: parsed.feedbackPath,
+          dryRun: parsed.dryRun,
+          summary: parsed.summary,
+          apply: parsed.apply,
+        });
+        if (!parsed.summary) {
+          return { exitCode: 0, stdout: `${JSON.stringify(result, null, 2)}\n`, stderr: "" };
+        }
+        return {
+          exitCode: 0,
+          stdout: formatImproveSummary(result),
           stderr: "",
         };
       }
