@@ -54,6 +54,19 @@ export interface RunEvalsCommandOptions {
   /** Test-injection points. */
   createSession?: PiSdkSessionFactory;
   judge?: LlmJudgeFn;
+  /**
+   * Optional per-case progress callback. Purely additive — used by the in-TUI
+   * run console (`browse` → `r`/`R`) to animate live progress without scraping
+   * stdout. The `assertion` phase is optional and only fires if a grader emits it.
+   */
+  onProgress?: (ev: {
+    phase: "case-start" | "assertion" | "case-done";
+    caseId: string;
+    assertionsPassed?: number;
+    assertionsTotal?: number;
+    passed?: boolean;
+    message?: string;
+  }) => void;
 }
 
 export interface VariantRunArtifacts {
@@ -168,6 +181,7 @@ export async function runEvalsCommand(
     };
 
     for (const evalCase of selectedCases) {
+      options.onProgress?.({ phase: "case-start", caseId: String(evalCase.id) });
       try {
         const artifacts = await runOneCase({
           skill,
@@ -184,11 +198,18 @@ export async function runEvalsCommand(
           judge: options.judge,
         });
         result.cases.push(artifacts);
-      } catch (error) {
-        result.errors.push({
+        const g = artifacts.grading.summary;
+        options.onProgress?.({
+          phase: "case-done",
           caseId: String(evalCase.id),
-          message: error instanceof Error ? error.message : String(error),
+          assertionsPassed: g.passed,
+          assertionsTotal: g.total,
+          passed: g.failed === 0 && g.total > 0,
         });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        result.errors.push({ caseId: String(evalCase.id), message });
+        options.onProgress?.({ phase: "case-done", caseId: String(evalCase.id), passed: false, message });
       }
     }
 

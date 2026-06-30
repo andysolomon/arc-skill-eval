@@ -57,8 +57,9 @@ When a case is selected, the detail pane is tabbed. Cycle the tabs with `[` / `]
 | `[` / `]` | Cycle the case detail mode (Overview / Response / Diff / Trace / Context / Raw) |
 | `v` | Jump to raw `grading.json` (Cases) |
 | `PgUp`/`PgDn` · `⌃u`/`⌃d` | Scroll the detail pane |
-| `r` | Re-run evals for the selected skill (or case), then reload |
-| `R` | Re-run the selected skill with `--compare` (with/without baseline) |
+| `r` | Run evals for the selected skill (or case) **in-TUI** with a live spinner, then reload in place |
+| `R` | Same, with `--compare` (with/without baseline) |
+| `n` | Scaffold a new eval case → `evals.json` (Skills/Cases) |
 | `o` | Re-run with custom flags (typed prompt, prefilled `--model`/`--iteration`) |
 | `/` | Filter skills / cases by name (type to filter, `↵` accept, `Esc` clear) |
 | `F` | Toggle failures-only |
@@ -83,7 +84,13 @@ The detail pane free-scrolls by default. Press `→` / `l` / `↵` to drop a cur
 
 ### Re-running (`r`, `R`, `o`)
 
-`r` runs `arc-skill-eval run <skillDir> [--case <id>]` with live output, then reloads only that skill's artifacts and drops you back exactly where you were. On the Skills panel it runs the whole skill; on the Cases panel it adds `--case`. `R` runs the same skill with `--compare`, so the next view has fresh with/without-skill numbers. `o` opens a one-line flag prompt (prefilled with `--model ` on Cases, `--iteration ` on Runs) — type any `run` flags (`--model …`, `--iteration …`, `--extra-skill …`, `--context-mode ambient`), press `↵`, and it runs `arc-skill-eval run …` with your flags appended, then reloads; `Esc` cancels. The `arc-skill-eval` binary must be on `PATH` (override with `ARC_SKILL_EVAL_BIN`).
+`r` runs the selected skill (or case) **in-process, inside the TUI** — `browse` and `run` are the same package, so it calls the runner directly instead of shelling out. Ink never unmounts and the terminal is never handed off: a run console overlays the browser with a live spinner, an elapsed timer, and per-case pass bars driven by real per-case events. When the run finishes, `↵` reloads the affected skill's artifacts in place and closes the console; `Esc` aborts. On the Skills panel it runs the whole skill; on the Cases panel it scopes to `--case`. `R` is the same with `--compare`, so the next view has fresh with/without-skill numbers.
+
+`o` covers custom flags that the in-TUI runner doesn't take directly: it opens a one-line prompt (prefilled with `--model ` on Cases, `--iteration ` on Runs) — type any `run` flags (`--model …`, `--iteration …`, `--extra-skill …`, `--context-mode ambient`), press `↵`, and `arc-skill-eval run …` runs with your flags appended (this one briefly leaves the TUI for the subprocess), then reloads. `Esc` cancels. The `arc-skill-eval` binary must be on `PATH` for `o` (override with `ARC_SKILL_EVAL_BIN`).
+
+### New eval case (`n`)
+
+On the Skills or Cases panel, `n` opens a three-field form (id · prompt · expected). On save it appends a structurally-valid skeleton case to the skill's `evals/evals.json` (with a placeholder `file-exists` assertion) and reloads — then open the file in your editor to author the detailed assertions, matching how `arc-creating-evals` structures cases.
 
 ### Cross-iteration comparison (`c`)
 

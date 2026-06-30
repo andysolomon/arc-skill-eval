@@ -7,6 +7,8 @@ import { GLYPHS } from './caps.js';
 import type { Seg } from './theme.js';
 import type { Skill, Run, Case, Focus, Sel, CaseMode } from './types.js';
 import { skillRows, caseRows, assertionRows, runRows, buildMain, modesFor } from './view-model.js';
+import { useRunController, RunConsole } from './RunConsole.js';
+import { NewCaseForm } from './NewCaseForm.js';
 
 type SortMode = 'name' | 'pass' | 'delta' | 'cost';
 
@@ -275,8 +277,9 @@ function HelpView() {
     ['[  ]', 'cycle case detail mode (Overview/Response/Diff/Trace/Context/Raw)'],
     ['v', 'jump to raw grading.json (Cases)'],
     [`PgUp/PgDn · ${GLYPHS.ctrl}u/${GLYPHS.ctrl}d`, 'scroll the detail pane'],
-    ['r', 'run evals for the selected skill/case, then reload'],
-    ['R', 're-run with --compare (with_skill vs without_skill)'],
+    ['r', 'run evals in-TUI (live spinner), then reload in place'],
+    ['R', 'run in-TUI with --compare (with_skill vs without_skill)'],
+    ['n', 'scaffold a new eval case → evals.json (Skills/Cases)'],
     ['o', 're-run with custom flags (--model, --iteration, --extra-skill…)'],
     ['g  /  G', 'jump to top / bottom'],
     ['/', 'filter skills + cases (type, ↵ apply, esc clear)'],
@@ -304,7 +307,7 @@ function HelpView() {
 
 // ------------------------------------------------------------------ app
 
-export function App({ skills, runs, onAction, initial, showWithout }: { skills: Skill[]; runs: Run[]; onAction: (a: AppAction) => void; initial?: AppState; showWithout?: boolean }) {
+export function App({ skills, runs, onAction, onReload, initial, showWithout }: { skills: Skill[]; runs: Run[]; onAction: (a: AppAction) => void; onReload?: (skillDir: string) => void | Promise<void>; initial?: AppState; showWithout?: boolean }) {
   const { cols, rows: rowsT } = useTerminalSize();
 
   const [focused, setFocused] = useState<Focus>(initial?.focused ?? 'cases');
@@ -324,6 +327,8 @@ export function App({ skills, runs, onAction, initial, showWithout }: { skills: 
   const [compareBase, setCompareBase] = useState<Run | null>(null);
   const [opting, setOpting] = useState(false);   // capturing extra run flags
   const [opts, setOpts] = useState('');
+  const runCtl = useRunController();              // in-process run console (r / R)
+  const [creating, setCreating] = useState(false); // new-eval-case form (n)
 
   const viewSkills = applySkillView(skills, filter, failOnly, sortMode);
   const sk = viewSkills[clampIdx(sel.skills, viewSkills.length)];
@@ -346,6 +351,13 @@ export function App({ skills, runs, onAction, initial, showWithout }: { skills: 
   const scrollToLine = (cl: number) => setScroll((s) => (cl < s ? cl : cl >= s + maxRows ? cl - maxRows + 1 : s));
 
   useInput((input, key) => {
+    // In-process run console owns the screen while a run is active. Ink never
+    // unmounts; on completion, enter/esc reload the affected skill in place.
+    if (runCtl.state.active) {
+      if (runCtl.state.done && (key.return || key.escape)) { runCtl.close(); if (sk) void onReload?.(sk.dir); }
+      return;
+    }
+    if (creating) return; // NewCaseForm owns input via its own useInput
     if (noting) {
       if (key.return) {
         if (sk && cs) {
@@ -386,8 +398,9 @@ export function App({ skills, runs, onAction, initial, showWithout }: { skills: 
     if (input === 'F') { setFailOnly((v) => !v); setSel((s) => ({ ...s, skills: 0, cases: 0, assertions: 0 })); return; }
     if (input === 's') { setSortMode((m) => (m === 'name' ? 'pass' : m === 'pass' ? 'delta' : m === 'delta' ? 'cost' : 'name')); setSel((s) => ({ ...s, skills: 0 })); return; }
     if (input === 'c' && focused === 'runs') { setCompareBase((b) => (b && run && b.runId === run.runId ? null : run ?? null)); return; }
-    if (input === 'r') { onAction({ type: 'rerun', skillDir: sk.dir, caseId: focused === 'cases' ? cs.id : null, state: { focused, sel, caseMode } }); return; }
-    if (input === 'R') { onAction({ type: 'rerun', skillDir: sk.dir, caseId: focused === 'cases' ? cs.id : null, state: { focused, sel, caseMode }, compare: true }); return; }
+    if (input === 'r') { runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' ? cs.id : null, compare: false }); return; }
+    if (input === 'R') { runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' ? cs.id : null, compare: true }); return; }
+    if (input === 'n' && (focused === 'skills' || focused === 'cases')) { setCreating(true); return; }
     if (input === 'o') { setOpts(focused === 'cases' ? '--model ' : '--iteration '); setOpting(true); return; }
     if (input === 'v') { if (focused === 'cases') { setCaseMode((m) => (m === 'raw' ? 'overview' : 'raw')); setPane(false); } return; }
     if (focused === 'cases' && (input === ']' || input === '[')) {
@@ -460,6 +473,16 @@ export function App({ skills, runs, onAction, initial, showWithout }: { skills: 
     );
   }
   if (showHelp) return <HelpView />;
+  // Overlays render in place of the layout (mirrors the help overlay) — Ink
+  // stays mounted, so no terminal handoff. Run console takes priority.
+  if (runCtl.state.active) return <RunConsole state={runCtl.state} elapsed={runCtl.elapsed} frame={runCtl.frame} />;
+  if (creating) return (
+    <NewCaseForm
+      skillDir={sk.dir}
+      skillName={sk.id}
+      onClose={(msg) => { setCreating(false); if (msg) setFlash(msg); void onReload?.(sk.dir); }}
+    />
+  );
 
   if (cols < 72 || rowsT < 18) {
     return (

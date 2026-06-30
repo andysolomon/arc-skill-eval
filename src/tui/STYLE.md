@@ -45,6 +45,7 @@ Unicode on UTF-8 locales; ASCII fallback otherwise (or with `ARC_TUI_ASCII=1`). 
 | `up` / `down` / `arrowR` / `arrowL` | `↑` `↓` `→` `←` | `^` `v` `->` `<-` | Navigation hints |
 | `enter` / `shift` / `ctrl` | `↵` `⇧` `⌃` | `ent` `shift+` `^` | Key labels |
 | `play` / `sigma` / `compare` / `delta` / `bullet` | `▶` `Σ` `⇄` `Δ` `●` | `>` `sum` `<>` `d` `*` | Status bar / run markers |
+| `spinner` (`string[]`) | `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏` (braille frames) | `\| / - \\` | Run-console activity animation |
 
 ## Components
 
@@ -55,6 +56,8 @@ Unicode on UTF-8 locales; ASCII fallback otherwise (or with `ARC_TUI_ASCII=1`). 
 - **Bars** — `bar(frac, color, width)` renders a `barFull`/`barEmpty` run; used for pass-rate and context-window usage.
 - **Diff renderer** — LCS line diff of `without_skill` → `with_skill` responses, with `+`/`-` gutters and add/remove wash colors (green/red).
 - **Badges** — status glyphs + `passed/total` fractions, colored by `rateColor` / `deltaColor`.
+- **RunConsole** — overlay shown while `r`/`R` run evals in-process (Ink never unmounts): a `spinner` header, an elapsed timer, per-case rows that fill a pass bar, and a `running → ✓ run complete` summary.
+- **NewCaseForm** — overlay for `n`: three fields (id · prompt · expected) that append a skeleton case to `evals.json`.
 
 ## Spacing
 
