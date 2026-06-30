@@ -7,6 +7,8 @@ import { reviewCommand } from "./review-command.js";
 import { runEvalsCommand } from "./run-evals-command.js";
 import { renderHelp, parseCliArgs } from "./argv.js";
 import { formatRunEvalsResult } from "./render.js";
+import { resolveLaminarConfig } from "./laminar-config.js";
+import { createLaminarSink } from "../observability/sinks/laminar.js";
 import { CliCommandError, CliUsageError, type CliInvocationResult } from "./types.js";
 
 function formatImproveSummary(result: ImproveCommandResult): string {
@@ -149,6 +151,11 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
         };
       }
       case "run": {
+        // Resolve Laminar config before running so missing credentials fail
+        // fast (resolveLaminarConfig throws CliUsageError naming the key).
+        const laminarConfig = resolveLaminarConfig({ enabled: parsed.laminar, env: process.env });
+        const observabilitySinks = laminarConfig ? [createLaminarSink(laminarConfig)] : undefined;
+
         const result = await runEvalsCommand({
           input: parsed.input,
           skillNames: parsed.skillNames,
@@ -160,13 +167,15 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
           extraSkillPaths: parsed.extraSkillPaths,
           contextMode: parsed.contextMode,
           sandbox: parsed.sandbox,
+          observabilitySinks,
           model: parsed.model,
           judgeModel: parsed.judgeModel,
         });
         const failed = result.summary.failedCases > 0 || result.summary.failedAssertions > 0;
+        const laminarNote = laminarConfig && !parsed.json ? "Laminar export: enabled (sink: laminar)\n" : "";
         return {
           exitCode: failed ? 1 : 0,
-          stdout: formatRunEvalsResult(result, { json: parsed.json }),
+          stdout: `${formatRunEvalsResult(result, { json: parsed.json })}${laminarNote}`,
           stderr: "",
         };
       }
