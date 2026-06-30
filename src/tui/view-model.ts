@@ -20,6 +20,10 @@ const blank = (): Line => ({ segs: [seg(' ', COLORS.fg)] });
 const typeColor = (a: Assertion): string => (a.det ? COLORS.cyan : COLORS.magenta);
 const typeTag = (a: Assertion): string => (a.det ? a.type : 'judge');
 
+function wrapColored(text: string, w: number, color: string, indent = '  '): Line[] {
+  return wrap(text, w, indent).map((l) => ({ ...l, segs: l.segs.map((s) => ({ ...s, c: color })) }));
+}
+
 // ---------------------------------------------------------------- list rows
 
 export function skillRows(skills: Skill[]): Seg[][] {
@@ -165,8 +169,9 @@ function caseView(cs: Case, showWithout: boolean): MainView {
   for (const a of cs.assertions) {
     const [g, gc] = statusGlyph(a.passed ? 'pass' : 'fail');
     anchors.push(lines.length); // cursor lands on the assertion header; index == assertion index
-    lines.push(row([seg('  ' + g + ' ', gc, true), seg(pad(typeTag(a), 11), typeColor(a)), seg(a.label + (a.target ? '  ' + GLYPHS.arrowR + ' ' + a.target : ''), COLORS.fg)]));
-    lines.push(row([seg('      ', COLORS.fg), seg(trunc(a.evidence, 62), a.passed ? COLORS.comment : COLORS.red)]));
+    lines.push(row([seg('  ' + g + ' ', gc, true), seg(pad(typeTag(a), 11), typeColor(a))]));
+    lines.push(...wrapColored(a.label + (a.target ? '  ' + GLYPHS.arrowR + ' ' + a.target : ''), 74, COLORS.fg, '      '));
+    lines.push(...wrapColored(a.evidence, 74, a.passed ? COLORS.comment : COLORS.red, '      '));
   }
   lines.push(blank());
   lines.push(sectionRow('METRICS'));
