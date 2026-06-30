@@ -18,6 +18,7 @@ arc-skill-eval run <skill-dir-or-repo>
                    [--iteration <name>]
                    [--extra-skill <path>]...
                    [--context-mode isolated|ambient]
+                   [--sandbox none|just-bash]
                    [--compare]
                    [--laminar]
                    [--json]
@@ -310,6 +311,17 @@ The resolved loadout is recorded in each variant's `context-manifest.json`.
 arc-skill-eval run ./skills/arc-conventional-commits \
   --context-mode ambient \
   --iteration ambient-1
+```
+
+### `--sandbox none|just-bash`
+
+- `none` *(default)* — run each case through the standard temp-workspace runner with the host shell and real filesystem.
+- `just-bash` — route the agent's `bash` tool through an in-process [`just-bash`](https://www.npmjs.com/package/just-bash) virtual shell whose filesystem is rooted at the case workspace. Commands run without the host shell, the repository working tree is never touched, and generated files are still captured under `outputs/`. `npm`/`npx`/`git` resolve to deterministic mocks (no-op success by default).
+
+This flag overrides each case's own `sandbox` field. Per-case `sandbox` selection and `sandboxMocks` (to return specific stdout/exit codes and file effects) are configured in `evals.json` — see [Eval cases](/arc-skill-eval/concepts/eval-cases/).
+
+```bash
+arc-skill-eval run . --sandbox just-bash
 ```
 
 ### `--compare`
