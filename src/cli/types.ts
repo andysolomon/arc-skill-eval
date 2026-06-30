@@ -48,6 +48,10 @@ export interface CreateCliOptions {
   agentDir?: string;
 }
 
+export interface BrowseCliOptions {
+  input?: string;
+}
+
 export interface CliRenderOptions {
   json?: boolean;
 }
@@ -68,7 +72,8 @@ export type ParsedCliCommand =
   | ({ command: "init-runtime" } & InitRuntimeCliOptions)
   | ({ command: "review" } & ReviewCliOptions)
   | ({ command: "improve" } & ImproveCliOptions)
-  | ({ command: "create" } & CreateCliOptions);
+  | ({ command: "create" } & CreateCliOptions)
+  | ({ command: "browse" } & BrowseCliOptions);
 
 export class CliUsageError extends Error {
   constructor(message: string) {

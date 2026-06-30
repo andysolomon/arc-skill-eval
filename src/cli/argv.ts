@@ -34,6 +34,11 @@ export function parseCliArgs(argv: string[]): ParsedCliCommand {
         command: "create",
         ...parseCreateCommandArgs(rest),
       };
+    case "browse":
+      return {
+        command: "browse",
+        ...parseBrowseCommandArgs(rest),
+      };
     default:
       throw new CliUsageError(`Unknown command: ${commandName}. Run \`arc-skill-eval --help\` for usage.`);
   }
@@ -49,6 +54,7 @@ export function renderHelp(): string {
     "  arc-skill-eval review <run-dir> [--output <dir>] [--force]",
     "  arc-skill-eval improve --from-feedback <feedback.json> [--dry-run] [--summary] [--apply]",
     "  arc-skill-eval create <skill-dir> [--guided] [--interactive] [--model <provider/model[:thinking]>] [--agent-dir <path>] [--dry-run] [--summary] [--force]",
+    "  arc-skill-eval browse [<skill-dir-or-repo>]",
     "",
     "Notes:",
     "  - <skill-dir-or-repo> is either a skill directory containing evals/evals.json,",
@@ -65,6 +71,7 @@ export function renderHelp(): string {
     "  - review writes static review.html and feedback.json files for an eval run directory.",
     "  - improve proposes eval suite changes from review feedback; --apply writes validated metadata updates.",
     "  - create scaffolds a starter evals/evals.json next to a SKILL.md file; --guided asks a configured model to propose cases first and --interactive lets you review, edit, and select proposed cases before writing.",
+    "  - browse opens an interactive terminal run browser (Ink TUI) over the artifacts under evals-runs/; defaults to the current directory.",
     "  - Format reference: https://platform.claude.com/docs/en/agents-and-tools/agent-skills",
   ].join("\n");
 }
@@ -369,6 +376,24 @@ function parseReviewCommandArgs(args: string[]) {
 
   if (!runDir) throw new CliUsageError("Missing required <run-dir> argument.");
   return { runDir, output, force };
+}
+
+function parseBrowseCommandArgs(args: string[]) {
+  let input: string | undefined;
+
+  for (const arg of args) {
+    if (arg.startsWith("-")) {
+      throw new CliUsageError(`Unknown flag: ${arg}.`);
+    }
+
+    if (input !== undefined) {
+      throw new CliUsageError("Only one <skill-dir-or-repo> positional argument is allowed.");
+    }
+
+    input = arg;
+  }
+
+  return { input };
 }
 
 function readFlagValue(arg: string, nextArg: string | undefined): { value: string; consumedNext: boolean } {

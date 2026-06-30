@@ -1,3 +1,4 @@
+import { browseCommand } from "./browse-command.js";
 import { createCommand, type CreateCommandResult } from "./create-command.js";
 import { improveCommand, type ImproveCommandResult } from "./improve-command.js";
 import { initRuntimeCommand } from "./init-runtime-command.js";
@@ -163,6 +164,16 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
         return {
           exitCode: failed ? 1 : 0,
           stdout: formatRunEvalsResult(result, { json: parsed.json }),
+          stderr: "",
+        };
+      }
+      case "browse": {
+        // Interactive: the Ink TUI renders directly to the terminal and owns
+        // stdout for its lifetime, so it bypasses the buffered stdout/stderr path.
+        const code = await browseCommand({ input: parsed.input });
+        return {
+          exitCode: code === 0 ? 0 : 1,
+          stdout: "",
           stderr: "",
         };
       }
