@@ -24,6 +24,11 @@ export function parseCliArgs(argv: string[]): ParsedCliCommand {
         command: "review",
         ...parseReviewCommandArgs(rest),
       };
+    case "create":
+      return {
+        command: "create",
+        ...parseCreateCommandArgs(rest),
+      };
     default:
       throw new CliUsageError(`Unknown command: ${commandName}. Run \`arc-skill-eval --help\` for usage.`);
   }
@@ -37,6 +42,7 @@ export function renderHelp(): string {
     "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--agent-dir <path>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--compare] [--json]",
     "  arc-skill-eval init-runtime <agent-dir> --provider <provider> --model <model> [--force]",
     "  arc-skill-eval review <run-dir> [--output <dir>] [--force]",
+    "  arc-skill-eval create <skill-dir> [--dry-run] [--force]",
     "",
     "Notes:",
     "  - <skill-dir-or-repo> is either a skill directory containing evals/evals.json,",
@@ -51,6 +57,7 @@ export function renderHelp(): string {
     "  - run exits with code 1 when any assertion fails or any case errors out.",
     "  - init-runtime writes a minimal Pi models.json and settings.json for eval-owned runtime config.",
     "  - review writes static review.html and feedback.json files for an eval run directory.",
+    "  - create scaffolds a starter evals/evals.json next to a SKILL.md file.",
     "  - Format reference: https://platform.claude.com/docs/en/agents-and-tools/agent-skills",
   ].join("\n");
 }
@@ -210,6 +217,37 @@ function parseInitRuntimeCommandArgs(args: string[]) {
   if (!model) throw new CliUsageError("Missing required --model flag.");
 
   return { targetDir, provider, model, force };
+}
+
+function parseCreateCommandArgs(args: string[]) {
+  let skillDir: string | undefined;
+  let force = false;
+  let dryRun = false;
+
+  for (const arg of args) {
+    if (arg === "--force") {
+      force = true;
+      continue;
+    }
+
+    if (arg === "--dry-run") {
+      dryRun = true;
+      continue;
+    }
+
+    if (arg.startsWith("-")) {
+      throw new CliUsageError(`Unknown flag: ${arg}.`);
+    }
+
+    if (skillDir !== undefined) {
+      throw new CliUsageError("Only one <skill-dir> positional argument is allowed.");
+    }
+
+    skillDir = arg;
+  }
+
+  if (!skillDir) throw new CliUsageError("Missing required <skill-dir> argument.");
+  return { skillDir, force, dryRun };
 }
 
 function parseReviewCommandArgs(args: string[]) {

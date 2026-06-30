@@ -384,12 +384,12 @@ Deliverables:
 
 Tasks:
 
-- [ ] 2.1 Define create command contract and non-overwrite policy
-- [ ] 2.2 Add a bundled prompt/resource that invokes `arc-creating-evals` behavior
-- [ ] 2.3 Generate trigger, execution, and adjacent-negative cases
-- [ ] 2.4 Validate generated JSON with existing parser
-- [ ] 2.5 Add dry-run option for one generated case
-- [ ] 2.6 Add docs and examples
+- [x] 2.1 Define create command contract and non-overwrite policy
+- [x] 2.2 Add built-in starter generator from `SKILL.md` frontmatter
+- [x] 2.3 Generate trigger, execution, and adjacent-negative cases
+- [x] 2.4 Validate generated JSON with existing parser
+- [x] 2.5 Add dry-run option for generated suite preview
+- [x] 2.6 Add docs and examples
 
 Test Strategy:
 

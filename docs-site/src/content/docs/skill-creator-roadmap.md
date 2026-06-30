@@ -20,6 +20,7 @@ Skeval can already:
 - create eval-owned Pi config/runtime directories with `init-runtime`
 - use eval-owned Pi config/runtime directories with `--agent-dir`
 - generate static run reports and feedback templates with `review`
+- scaffold starter eval suites with `create`
 
 Those pieces make the eval signal real. The roadmap below focuses on making the skill improvement loop easier to drive.
 
@@ -37,7 +38,7 @@ arc-skill-eval init-runtime ./.arc-skill-eval/pi-agent \
 
 This writes minimal `models.json` and `settings.json` files while keeping secrets in environment variables such as `OLLAMA_API_KEY`.
 
-### `create`
+### `create` ✅
 
 Generate a starter eval suite for an existing skill:
 
@@ -45,7 +46,7 @@ Generate a starter eval suite for an existing skill:
 arc-skill-eval create ./skills/my-skill
 ```
 
-The first version should inspect `SKILL.md`, draft trigger cases, execution cases, adjacent negatives, fixture stubs, and deterministic assertions where possible.
+The first version inspects `SKILL.md` frontmatter and writes trigger, execution, and adjacent-negative starter cases. Richer fixture stubs and deterministic assertion inference remain future improvements.
 
 ### `review` ✅
 

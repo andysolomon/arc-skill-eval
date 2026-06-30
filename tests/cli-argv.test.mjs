@@ -3,6 +3,17 @@ import test from "node:test";
 
 import { CliUsageError, parseCliArgs } from "../dist/index.js";
 
+test("parseCliArgs accepts create options", () => {
+  const parsed = parseCliArgs(["create", "./skills/demo", "--dry-run", "--force"]);
+
+  assert.deepEqual(parsed, {
+    command: "create",
+    skillDir: "./skills/demo",
+    dryRun: true,
+    force: true,
+  });
+});
+
 test("parseCliArgs accepts review options", () => {
   const parsed = parseCliArgs(["review", "./evals-runs/run-1", "--output", "./review", "--force"]);
 

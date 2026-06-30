@@ -1,3 +1,4 @@
+import { createCommand } from "./create-command.js";
 import { initRuntimeCommand } from "./init-runtime-command.js";
 import { reviewCommand } from "./review-command.js";
 import { runEvalsCommand } from "./run-evals-command.js";
@@ -35,6 +36,17 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
         return {
           exitCode: 0,
           stdout: `Created review for ${result.caseCount} case(s) at ${result.reviewPath}\nFeedback template: ${result.feedbackPath}\n`,
+          stderr: "",
+        };
+      }
+      case "create": {
+        const result = await createCommand({ skillDir: parsed.skillDir, force: parsed.force, dryRun: parsed.dryRun });
+        if (result.dryRun) {
+          return { exitCode: 0, stdout: `${JSON.stringify(result.evals, null, 2)}\n`, stderr: "" };
+        }
+        return {
+          exitCode: 0,
+          stdout: `Created starter eval suite with ${result.evals.evals.length} case(s) at ${result.evalsJsonPath}\n`,
           stderr: "",
         };
       }

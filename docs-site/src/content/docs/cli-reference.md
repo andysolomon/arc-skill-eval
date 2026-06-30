@@ -3,7 +3,7 @@ title: CLI reference
 description: Every flag of `arc-skill-eval run`, `init-runtime`, and `review`, with model pinning, compare mode, and exit-code semantics.
 ---
 
-The current stable CLI centers on `run` for executing evals, `init-runtime` for creating tiny eval-owned Pi runtime config, and `review` for static run reports.
+The current stable CLI centers on `create` for starter suites, `run` for executing evals, `init-runtime` for creating tiny eval-owned Pi runtime config, and `review` for static run reports.
 
 ## Synopsis
 
@@ -29,9 +29,32 @@ arc-skill-eval init-runtime <agent-dir>
 arc-skill-eval review <run-dir>
                       [--output <dir>]
                       [--force]
+
+arc-skill-eval create <skill-dir>
+                      [--dry-run]
+                      [--force]
 ```
 
 ## Commands
+
+### `create <skill-dir>`
+
+Scaffold a starter `evals/evals.json` next to a `SKILL.md` file:
+
+```bash
+arc-skill-eval create ./skills/my-skill
+```
+
+The command reads `SKILL.md` frontmatter and writes three starter cases:
+
+- `trigger-explicit`
+- `execution-golden-path`
+- `adjacent-negative`
+
+Options:
+
+- `--dry-run`: print the proposed JSON without writing files.
+- `--force`: overwrite an existing `evals/evals.json`.
 
 ### `init-runtime <agent-dir>`
 
@@ -198,6 +221,12 @@ arc-skill-eval run . --json
 ## Examples
 
 ```bash
+# Scaffold a starter eval suite.
+arc-skill-eval create ./skills/my-skill
+
+# Preview a starter suite without writing files.
+arc-skill-eval create ./skills/my-skill --dry-run
+
 # Run every eval in every discovered skill under the current repo.
 arc-skill-eval run .
 

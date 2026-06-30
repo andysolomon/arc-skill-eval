@@ -26,13 +26,13 @@ Milestone SCP-1 — Eval-owned Pi runtime
 
 Milestone SCP-2 — Guided eval creation
 
-[ ] W-000021 Scaffold starter evals for an existing skill [HITL]
-    [ ] 3.1 Define create command contract and overwrite policy
-    [ ] 3.2 Bundle or invoke arc-creating-evals workflow
-    [ ] 3.3 Generate trigger, execution, and adjacent-negative cases
-    [ ] 3.4 Validate generated evals.json
-    [ ] 3.5 Add optional dry-run flow
-    [ ] 3.6 Document create workflow
+[x] W-000021 Scaffold starter evals for an existing skill [HITL]
+    [x] 3.1 Define create command contract and overwrite policy
+    [x] 3.2 Implement built-in starter generator from SKILL.md frontmatter
+    [x] 3.3 Generate trigger, execution, and adjacent-negative cases
+    [x] 3.4 Validate generated evals.json
+    [x] 3.5 Add optional dry-run flow
+    [x] 3.6 Document create workflow
 
 [ ] W-000022 Prefer deterministic assertions in generated evals [AFK]
     [ ] 4.1 Detect expected file outputs from skill instructions

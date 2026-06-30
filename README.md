@@ -60,6 +60,12 @@ arc-skill-eval --help
 ## Usage
 
 ```bash
+# Scaffold a starter eval suite next to a SKILL.md
+arc-skill-eval create ./skills/my-skill
+
+# Preview the generated evals.json without writing it
+arc-skill-eval create ./skills/my-skill --dry-run
+
 # Run every eval in every discovered skill under the current repo
 arc-skill-eval run .
 
@@ -137,7 +143,23 @@ arc-skill-eval run /path/to/arc-skills/arc-creating-evals \
 
 A recent dogfood run passed the golden-path case and showed a positive `+16.7%` with-skill delta after tightening the suite to assert behavior unique to `arc-creating-evals`.
 
-The positional `<skill-dir-or-repo>` is resolved as:
+### Create starter evals
+
+Generate a valid starter suite for a skill directory:
+
+```bash
+arc-skill-eval create ./skills/my-skill
+```
+
+The command reads `SKILL.md` frontmatter, writes `evals/evals.json`, and includes three starter cases:
+
+- `trigger-explicit`
+- `execution-golden-path`
+- `adjacent-negative`
+
+Use `--dry-run` to print the proposed JSON without writing files, and `--force` to overwrite an existing `evals/evals.json`.
+
+The positional `<skill-dir-or-repo>` for `run` is resolved as:
 - a skill directory if it contains `evals/evals.json`,
 - otherwise a repo whose tree is walked for SKILL.md + evals/evals.json pairs.
 

@@ -30,6 +30,12 @@ export interface ReviewCliOptions {
   force?: boolean;
 }
 
+export interface CreateCliOptions {
+  skillDir: string;
+  force?: boolean;
+  dryRun?: boolean;
+}
+
 export interface CliRenderOptions {
   json?: boolean;
 }
@@ -48,7 +54,8 @@ export type ParsedCliCommand =
   | { command: "help" }
   | ({ command: "run"; json?: boolean } & RunEvalsCliOptions)
   | ({ command: "init-runtime" } & InitRuntimeCliOptions)
-  | ({ command: "review" } & ReviewCliOptions);
+  | ({ command: "review" } & ReviewCliOptions)
+  | ({ command: "create" } & CreateCliOptions);
 
 export class CliUsageError extends Error {
   constructor(message: string) {
