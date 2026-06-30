@@ -4,11 +4,12 @@ import path from "node:path";
 import {
   FIXTURE_KIND_VALUES,
   NETWORK_MODE_VALUES,
+  SANDBOX_MODE_VALUES,
   TOOL_REQUIREMENT_MODE_VALUES,
   WORKSPACE_KIND_VALUES,
   WORKSPACE_MOUNT_MODE_VALUES,
 } from "../contracts/types.js";
-import type { WorkspaceSetup } from "../contracts/types.js";
+import type { SandboxMode, WorkspaceSetup } from "../contracts/types.js";
 
 import type {
   EvalAssertion,
@@ -195,6 +196,13 @@ function validateCase(value: unknown, index: number, issues: string[]): EvalCase
     }
   }
 
+  if (
+    value.sandbox !== undefined &&
+    (typeof value.sandbox !== "string" || !includesReadonly(SANDBOX_MODE_VALUES, value.sandbox))
+  ) {
+    issues.push(`\`sandbox\`, if present, must be one of [${SANDBOX_MODE_VALUES.join(", ")}]`);
+  }
+
   if (value.metadata !== undefined) {
     validateMetadata(value.metadata, issues);
   }
@@ -209,6 +217,7 @@ function validateCase(value: unknown, index: number, issues: string[]): EvalCase
     setup: value.setup as WorkspaceSetup | undefined,
     files: value.files as string[] | undefined,
     assertions: value.assertions as EvalAssertion[] | undefined,
+    sandbox: value.sandbox as SandboxMode | undefined,
     metadata: value.metadata as EvalCase["metadata"],
   });
 }

@@ -156,6 +156,34 @@ test("parseCliArgs rejects invalid context mode", () => {
   );
 });
 
+test("parseCliArgs accepts --sandbox just-bash", () => {
+  const parsed = parseCliArgs(["run", "./skill", "--sandbox", "just-bash"]);
+
+  assert.equal(parsed.command, "run");
+  assert.equal(parsed.sandbox, "just-bash");
+});
+
+test("parseCliArgs accepts --sandbox=just-bash inline form", () => {
+  const parsed = parseCliArgs(["run", "./skill", "--sandbox=just-bash"]);
+
+  assert.equal(parsed.command, "run");
+  assert.equal(parsed.sandbox, "just-bash");
+});
+
+test("parseCliArgs leaves sandbox undefined when flag omitted", () => {
+  const parsed = parseCliArgs(["run", "./skill"]);
+
+  assert.equal(parsed.command, "run");
+  assert.equal(parsed.sandbox, undefined);
+});
+
+test("parseCliArgs rejects invalid --sandbox value", () => {
+  assert.throws(
+    () => parseCliArgs(["run", "./skill", "--sandbox", "docker"]),
+    CliUsageError,
+  );
+});
+
 test("parseCliArgs treats Ollama-style colon tags as part of the model id", () => {
   const parsed = parseCliArgs(["run", "./skill", "--model", "ollama/glm-5.2:cloud"]);
 

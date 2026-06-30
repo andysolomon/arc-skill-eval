@@ -1,4 +1,10 @@
-import { THINKING_LEVEL_VALUES, type ModelSelection, type ThinkingLevel } from "../contracts/types.js";
+import {
+  SANDBOX_MODE_VALUES,
+  THINKING_LEVEL_VALUES,
+  type ModelSelection,
+  type SandboxMode,
+  type ThinkingLevel,
+} from "../contracts/types.js";
 import { CliUsageError, type ParsedCliCommand } from "./types.js";
 
 export function parseCliArgs(argv: string[]): ParsedCliCommand {
@@ -54,7 +60,7 @@ export function renderHelp(): string {
     "arc-skill-eval",
     "",
     "Usage:",
-    "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--agent-dir <path>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--compare] [--json]",
+    "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--agent-dir <path>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--sandbox none|just-bash] [--compare] [--json]",
     "  arc-skill-eval init-runtime <agent-dir> --provider <provider> --model <model> [--force]",
     "  arc-skill-eval review <run-dir> [--output <dir>] [--force]",
     "  arc-skill-eval improve --from-feedback <feedback.json> [--dry-run] [--summary] [--apply]",
@@ -72,6 +78,7 @@ export function renderHelp(): string {
     "  - --agent-dir points Pi config/auth/model lookup at an eval-owned agent directory.",
     "  - --extra-skill loads explicit distractor/conflict skills for every variant.",
     "  - --context-mode ambient opts into normal Pi ambient resources; default is isolated.",
+    "  - --sandbox just-bash runs eligible cases in an isolated just-bash environment and overrides each case's `sandbox` field; default is none (the temp-workspace runner).",
     "  - run exits with code 1 when any assertion fails or any case errors out.",
     "  - init-runtime writes a minimal Pi models.json and settings.json for eval-owned runtime config.",
     "  - review writes static review.html and feedback.json files for an eval run directory.",
@@ -95,6 +102,7 @@ function parseRunCommandArgs(args: string[]) {
   let agentDir: string | undefined;
   const extraSkillPaths: string[] = [];
   let contextMode: "isolated" | "ambient" | undefined;
+  let sandbox: SandboxMode | undefined;
   let model: ModelSelection | undefined;
   let judgeModel: ModelSelection | undefined;
 
@@ -170,6 +178,18 @@ function parseRunCommandArgs(args: string[]) {
       continue;
     }
 
+    if (arg === "--sandbox" || arg.startsWith("--sandbox=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      if (!isSandboxMode(parsed.value)) {
+        throw new CliUsageError(
+          `Invalid --sandbox: ${parsed.value}. Expected ${SANDBOX_MODE_VALUES.join(" or ")}.`,
+        );
+      }
+      sandbox = parsed.value;
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
     if (arg === "--iteration" || arg.startsWith("--iteration=")) {
       const parsed = readFlagValue(arg, args[index + 1]);
       iteration = parsed.value;
@@ -192,7 +212,7 @@ function parseRunCommandArgs(args: string[]) {
     throw new CliUsageError("Missing required <skill-dir-or-repo> argument.");
   }
 
-  return { input, skillNames, caseIds, outputDir, iteration, agentDir, extraSkillPaths, contextMode, model, judgeModel, compare, json };
+  return { input, skillNames, caseIds, outputDir, iteration, agentDir, extraSkillPaths, contextMode, sandbox, model, judgeModel, compare, json };
 }
 
 function parseInitRuntimeCommandArgs(args: string[]) {
@@ -494,4 +514,8 @@ function parseModelSelectionFlag(flagName: string, rawValue: string): ModelSelec
 
 function isThinkingLevel(value: string): value is ThinkingLevel {
   return (THINKING_LEVEL_VALUES as readonly string[]).includes(value);
+}
+
+function isSandboxMode(value: string): value is SandboxMode {
+  return (SANDBOX_MODE_VALUES as readonly string[]).includes(value);
 }

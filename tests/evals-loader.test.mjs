@@ -115,6 +115,47 @@ test("readEvalsJson throws EvalsJsonValidationError with issue list on missing s
   }
 });
 
+test("readEvalsJson accepts a just-bash sandbox field", async () => {
+  const tmp = path.join(__dirname, "tmp-evals-sandbox.json");
+  const { writeFile, unlink } = await import("node:fs/promises");
+  await writeFile(
+    tmp,
+    JSON.stringify({
+      skill_name: "alpha",
+      evals: [{ id: 1, prompt: "p", sandbox: "just-bash" }],
+    }),
+    "utf-8",
+  );
+  try {
+    const file = await readEvalsJson(tmp);
+    assert.equal(file.evals[0].sandbox, "just-bash");
+  } finally {
+    await unlink(tmp).catch(() => undefined);
+  }
+});
+
+test("readEvalsJson rejects an unknown sandbox value", async () => {
+  const tmp = path.join(__dirname, "tmp-evals-sandbox-bad.json");
+  const { writeFile, unlink } = await import("node:fs/promises");
+  await writeFile(
+    tmp,
+    JSON.stringify({
+      skill_name: "alpha",
+      evals: [{ id: 1, prompt: "p", sandbox: "docker" }],
+    }),
+    "utf-8",
+  );
+  try {
+    await readEvalsJson(tmp);
+    assert.fail("expected EvalsJsonValidationError");
+  } catch (error) {
+    assert.ok(error instanceof EvalsJsonValidationError);
+    assert.ok(error.issues.some((issue) => issue.includes("sandbox")));
+  } finally {
+    await unlink(tmp).catch(() => undefined);
+  }
+});
+
 test("readEvalsJson flags duplicate ids", async () => {
   const tmp = path.join(__dirname, "tmp-evals-dup.json");
   const { writeFile, unlink } = await import("node:fs/promises");

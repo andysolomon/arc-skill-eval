@@ -2,7 +2,7 @@ import { cp, lstat, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import type { ModelSelection, SeededWorkspaceSetup, WorkspaceSetup } from "../contracts/types.js";
+import type { ModelSelection, SandboxMode, SeededWorkspaceSetup, WorkspaceSetup } from "../contracts/types.js";
 import { normalizeSkillEvalContract } from "../contracts/normalize.js";
 import { materializeFixture } from "../fixtures/materialize.js";
 import type { MaterializedFixture } from "../fixtures/types.js";
@@ -55,6 +55,13 @@ export interface RunEvalCaseOptions {
   extraSkillPaths?: string[];
   /** Context isolation mode. Defaults to isolated. */
   contextMode?: EvalContextMode;
+  /**
+   * Resolved execution isolation for this case. Defaults to `"none"`.
+   * Accepted here for forward-compatibility; the `just-bash` execution
+   * path is wired in W-000021 — this runner currently ignores the value
+   * and always uses the temp-workspace path.
+   */
+  sandbox?: SandboxMode;
   /**
    * Test-injection hook. When provided, replaces the real Pi SDK session
    * so tests can assert on prompt flow without calling the API.
