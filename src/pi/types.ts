@@ -3,6 +3,7 @@ import type {
   LiveSmokeCase,
   ModelSelection,
   NormalizedSkillEvalContract,
+  SandboxCommandMock,
   SandboxMode,
   ThinkingLevel,
   ParityCase,
@@ -94,6 +95,8 @@ export interface RunPiSdkCaseOptions {
   contextMode?: EvalContextMode;
   /** Execution isolation mode. Defaults to "none" (host shell + real FS). */
   sandbox?: SandboxMode;
+  /** Deterministic external-command mocks for the just-bash sandbox. */
+  sandboxMocks?: SandboxCommandMock[];
 }
 
 export interface RunValidatedSkillViaPiSdkOptions {

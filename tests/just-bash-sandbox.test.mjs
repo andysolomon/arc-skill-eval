@@ -67,7 +67,7 @@ test("sandboxed bash does not require host npm/git (no heavyweight setup)", asyn
   await withWorkspace(async (workspaceDir) => {
     const bash = bashTool(workspaceDir);
     // just-bash provides core unix builtins; this proves the agent can run
-    // shell logic without the host shell. (npm/git mocks arrive in W-000022.)
+    // shell logic without the host shell.
     const result = await bash.execute("call-1", {
       command: "mkdir -p nested && echo built > nested/file.txt && cat nested/file.txt",
     });
@@ -75,5 +75,60 @@ test("sandboxed bash does not require host npm/git (no heavyweight setup)", asyn
     assert.match(toolText(result), /built/);
     const onDisk = await readFile(path.join(workspaceDir, "nested", "file.txt"), "utf8");
     assert.equal(onDisk.trim(), "built");
+  });
+});
+
+test("npm/npx/git have default no-op success mocks without configuration", async () => {
+  await withWorkspace(async (workspaceDir) => {
+    const bash = bashTool(workspaceDir);
+    for (const command of ["npm install", "npx tsc", "git status"]) {
+      const result = await bash.execute("call", { command: `${command}; echo "exit=$?"` });
+      assert.match(toolText(result), /exit=0/, `${command} should exit 0 by default`);
+    }
+  });
+});
+
+test("a sandboxMock returns configured stdout/exit code and writes file effects", async () => {
+  await withWorkspace(async (workspaceDir) => {
+    const tools = createJustBashCodingTools(workspaceDir, {}, [
+      {
+        command: "npm",
+        stdout: "added 1 package\n",
+        exitCode: 0,
+        files: [{ path: "node_modules/.installed", content: "ok" }],
+      },
+    ]);
+    const bash = tools.find((tool) => tool.name === "bash");
+    const result = await bash.execute("call-1", { command: "npm install && echo done" });
+
+    assert.match(toolText(result), /added 1 package/);
+    assert.match(toolText(result), /done/);
+    const effect = await readFile(path.join(workspaceDir, "node_modules", ".installed"), "utf8");
+    assert.equal(effect, "ok");
+  });
+});
+
+test("a sandboxMock can model a non-zero exit code", async () => {
+  await withWorkspace(async (workspaceDir) => {
+    const tools = createJustBashCodingTools(workspaceDir, {}, [
+      { command: "npm", stderr: "boom\n", exitCode: 1 },
+    ]);
+    const bash = tools.find((tool) => tool.name === "bash");
+    const result = await bash.execute("call-1", { command: 'npm ci; echo "exit=$?"' });
+
+    assert.match(toolText(result), /boom/);
+    assert.match(toolText(result), /exit=1/);
+  });
+});
+
+test("a per-case mock overrides the default mock for the same command", async () => {
+  await withWorkspace(async (workspaceDir) => {
+    const tools = createJustBashCodingTools(workspaceDir, {}, [
+      { command: "git", stdout: "On branch main\n", exitCode: 0 },
+    ]);
+    const bash = tools.find((tool) => tool.name === "bash");
+    const result = await bash.execute("call-1", { command: "git status" });
+
+    assert.match(toolText(result), /On branch main/);
   });
 });

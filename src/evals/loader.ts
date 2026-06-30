@@ -9,7 +9,7 @@ import {
   WORKSPACE_KIND_VALUES,
   WORKSPACE_MOUNT_MODE_VALUES,
 } from "../contracts/types.js";
-import type { SandboxMode, WorkspaceSetup } from "../contracts/types.js";
+import type { SandboxCommandMock, SandboxMode, WorkspaceSetup } from "../contracts/types.js";
 
 import type {
   EvalAssertion,
@@ -203,6 +203,10 @@ function validateCase(value: unknown, index: number, issues: string[]): EvalCase
     issues.push(`\`sandbox\`, if present, must be one of [${SANDBOX_MODE_VALUES.join(", ")}]`);
   }
 
+  if (value.sandboxMocks !== undefined) {
+    validateSandboxMocks(value.sandboxMocks, issues);
+  }
+
   if (value.metadata !== undefined) {
     validateMetadata(value.metadata, issues);
   }
@@ -218,6 +222,7 @@ function validateCase(value: unknown, index: number, issues: string[]): EvalCase
     files: value.files as string[] | undefined,
     assertions: value.assertions as EvalAssertion[] | undefined,
     sandbox: value.sandbox as SandboxMode | undefined,
+    sandboxMocks: value.sandboxMocks as SandboxCommandMock[] | undefined,
     metadata: value.metadata as EvalCase["metadata"],
   });
 }
@@ -428,6 +433,54 @@ function validateFixtureRef(value: unknown, label: string, issues: string[]): vo
   }
   if (value.initGit !== undefined && typeof value.initGit !== "boolean") {
     issues.push(`\`${label}.initGit\`, if present, must be a boolean`);
+  }
+}
+
+function validateSandboxMocks(value: unknown, issues: string[]): void {
+  if (!Array.isArray(value)) {
+    issues.push("`sandboxMocks`, if present, must be an array");
+    return;
+  }
+
+  for (let i = 0; i < value.length; i++) {
+    const mock = value[i];
+    const label = `sandboxMocks[${i}]`;
+    if (!isRecord(mock)) {
+      issues.push(`\`${label}\` must be an object`);
+      continue;
+    }
+    if (typeof mock.command !== "string" || mock.command.length === 0) {
+      issues.push(`\`${label}.command\` must be a non-empty string`);
+    }
+    if (mock.stdout !== undefined && typeof mock.stdout !== "string") {
+      issues.push(`\`${label}.stdout\`, if present, must be a string`);
+    }
+    if (mock.stderr !== undefined && typeof mock.stderr !== "string") {
+      issues.push(`\`${label}.stderr\`, if present, must be a string`);
+    }
+    if (mock.exitCode !== undefined && !Number.isInteger(mock.exitCode)) {
+      issues.push(`\`${label}.exitCode\`, if present, must be an integer`);
+    }
+    if (mock.files !== undefined) {
+      if (!Array.isArray(mock.files)) {
+        issues.push(`\`${label}.files\`, if present, must be an array`);
+      } else {
+        for (let f = 0; f < mock.files.length; f++) {
+          const file = mock.files[f];
+          const fileLabel = `${label}.files[${f}]`;
+          if (!isRecord(file)) {
+            issues.push(`\`${fileLabel}\` must be an object`);
+            continue;
+          }
+          if (typeof file.path !== "string" || file.path.length === 0) {
+            issues.push(`\`${fileLabel}.path\` must be a non-empty string`);
+          }
+          if (typeof file.content !== "string") {
+            issues.push(`\`${fileLabel}.content\` must be a string`);
+          }
+        }
+      }
+    }
   }
 }
 

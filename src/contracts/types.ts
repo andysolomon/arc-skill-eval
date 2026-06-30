@@ -82,6 +82,33 @@ export type NetworkMode = (typeof NETWORK_MODE_VALUES)[number];
 export type SandboxMode = (typeof SANDBOX_MODE_VALUES)[number];
 export type ToolRequirementMode = (typeof TOOL_REQUIREMENT_MODE_VALUES)[number];
 
+/** A file the mocked command writes into the sandbox when invoked. */
+export interface SandboxMockFile {
+  /** Path relative to the sandbox workspace root. */
+  path: string;
+  /** UTF-8 file contents. */
+  content: string;
+}
+
+/**
+ * Deterministic stand-in for an external command (e.g. `npm`, `npx`,
+ * `git`) inside the `just-bash` sandbox. When the skill invokes
+ * `command`, the sandbox returns the configured output/exit code and
+ * writes any declared file effects instead of running a real binary.
+ */
+export interface SandboxCommandMock {
+  /** Command name to intercept, e.g. `"npm"` or `"git"`. */
+  command: string;
+  /** Bytes written to stdout. Defaults to empty. */
+  stdout?: string;
+  /** Bytes written to stderr. Defaults to empty. */
+  stderr?: string;
+  /** Process exit code. Defaults to 0. */
+  exitCode?: number;
+  /** Files the command materializes into the workspace when invoked. */
+  files?: SandboxMockFile[];
+}
+
 export interface SkillEvalContract {
   skill: string;
   /** @deprecated Use `classification.primary` on `SkillDefinition` for new domain objects. */

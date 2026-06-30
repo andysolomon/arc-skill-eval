@@ -8,6 +8,7 @@
 import type {
   EnvironmentRequirements,
   ModelSelection,
+  SandboxCommandMock,
   SandboxMode,
   SkillDefinition,
   ThinkingLevel,
@@ -58,16 +59,21 @@ export interface EvalCase {
   assertions?: EvalAssertion[];
   /**
    * Execution isolation for this case. Defaults to `"none"` (the
-   * temp-workspace runner). `"just-bash"` selects the virtual bash
-   * sandbox — selection only; the sandbox execution path is added in
-   * W-000021.
+   * temp-workspace runner). `"just-bash"` runs the case inside an
+   * in-process virtual bash sandbox.
    */
   sandbox?: SandboxMode;
+  /**
+   * Deterministic mocks for external commands (e.g. `npm`, `npx`,
+   * `git`) when running under the `just-bash` sandbox. Ignored when
+   * `sandbox` is not `"just-bash"`.
+   */
+  sandboxMocks?: SandboxCommandMock[];
   /** Optional metadata for filtering/reporting. */
   metadata?: EvalCaseMetadata;
 }
 
-export type { SandboxMode };
+export type { SandboxCommandMock, SandboxMode };
 
 export interface EvalCaseMetadata {
   tags?: string[];

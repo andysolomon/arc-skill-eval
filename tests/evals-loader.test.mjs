@@ -156,6 +156,55 @@ test("readEvalsJson rejects an unknown sandbox value", async () => {
   }
 });
 
+test("readEvalsJson accepts sandboxMocks with file effects", async () => {
+  const tmp = path.join(__dirname, "tmp-evals-mocks.json");
+  const { writeFile, unlink } = await import("node:fs/promises");
+  await writeFile(
+    tmp,
+    JSON.stringify({
+      skill_name: "alpha",
+      evals: [{
+        id: 1,
+        prompt: "p",
+        sandbox: "just-bash",
+        sandboxMocks: [
+          { command: "npm", stdout: "ok\n", exitCode: 0, files: [{ path: "out.txt", content: "x" }] },
+        ],
+      }],
+    }),
+    "utf-8",
+  );
+  try {
+    const file = await readEvalsJson(tmp);
+    assert.equal(file.evals[0].sandboxMocks[0].command, "npm");
+    assert.equal(file.evals[0].sandboxMocks[0].files[0].path, "out.txt");
+  } finally {
+    await unlink(tmp).catch(() => undefined);
+  }
+});
+
+test("readEvalsJson rejects a sandboxMock missing its command", async () => {
+  const tmp = path.join(__dirname, "tmp-evals-mocks-bad.json");
+  const { writeFile, unlink } = await import("node:fs/promises");
+  await writeFile(
+    tmp,
+    JSON.stringify({
+      skill_name: "alpha",
+      evals: [{ id: 1, prompt: "p", sandboxMocks: [{ stdout: "no command" }] }],
+    }),
+    "utf-8",
+  );
+  try {
+    await readEvalsJson(tmp);
+    assert.fail("expected EvalsJsonValidationError");
+  } catch (error) {
+    assert.ok(error instanceof EvalsJsonValidationError);
+    assert.ok(error.issues.some((issue) => issue.includes("sandboxMocks[0].command")));
+  } finally {
+    await unlink(tmp).catch(() => undefined);
+  }
+});
+
 test("readEvalsJson flags duplicate ids", async () => {
   const tmp = path.join(__dirname, "tmp-evals-dup.json");
   const { writeFile, unlink } = await import("node:fs/promises");
