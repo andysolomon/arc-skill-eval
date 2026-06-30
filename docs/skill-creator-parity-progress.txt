@@ -64,7 +64,7 @@ Milestone SCP-4 — Description optimization
 [ ] W-000025 Generate trigger/non-trigger eval queries [HITL]
     [ ] 7.1 Define trigger eval schema
     [ ] 7.2 Generate realistic should-trigger prompts
-    [ ] 7.3 Generate adjacent should-not-trigger prompts
+    [x] 7.3 Generate adjacent should-not-trigger prompts
     [ ] 7.4 Write eval set to disk for human review
     [ ] 7.5 Add docs and examples
 

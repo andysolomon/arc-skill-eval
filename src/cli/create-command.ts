@@ -18,6 +18,7 @@ export interface CreateCommandResult {
   written: boolean;
   evals: EvalsJsonFile;
   fixtureInputs: string[];
+  adjacentNegativeAssumption: string;
 }
 
 interface SkillFrontmatter {
@@ -37,7 +38,15 @@ export async function createCommand(options: CreateCommandOptions): Promise<Crea
   const evals = starter.evals;
 
   if (options.dryRun) {
-    return { skillDir, evalsJsonPath, dryRun: true, written: false, evals, fixtureInputs: starter.fixtureInputs };
+    return {
+      skillDir,
+      evalsJsonPath,
+      dryRun: true,
+      written: false,
+      evals,
+      fixtureInputs: starter.fixtureInputs,
+      adjacentNegativeAssumption: starter.adjacentNegativeAssumption,
+    };
   }
 
   if (!options.force && await fileExists(evalsJsonPath)) {
@@ -50,7 +59,15 @@ export async function createCommand(options: CreateCommandOptions): Promise<Crea
 
   // Validate the written file through the same loader used by `run`.
   const validated = await readEvalsJson(evalsJsonPath);
-  return { skillDir, evalsJsonPath, dryRun: false, written: true, evals: validated, fixtureInputs: starter.fixtureInputs };
+  return {
+    skillDir,
+    evalsJsonPath,
+    dryRun: false,
+    written: true,
+    evals: validated,
+    fixtureInputs: starter.fixtureInputs,
+    adjacentNegativeAssumption: starter.adjacentNegativeAssumption,
+  };
 }
 
 async function readSkillMd(skillPath: string): Promise<string> {
@@ -106,7 +123,7 @@ function unquoteYamlScalar(value: string): string {
   return value;
 }
 
-function buildStarterEvals(skill: SkillFrontmatter, skillText: string): { evals: EvalsJsonFile; fixtureInputs: string[] } {
+function buildStarterEvals(skill: SkillFrontmatter, skillText: string): { evals: EvalsJsonFile; fixtureInputs: string[]; adjacentNegativeAssumption: string } {
   const description = skill.description ?? `Use the ${skill.name} skill correctly.`;
   const shortDescription = description.endsWith(".") ? description.slice(0, -1) : description;
   const deterministicSignals = inferDeterministicAssertions(skillText);
@@ -117,9 +134,11 @@ function buildStarterEvals(skill: SkillFrontmatter, skillText: string): { evals:
   const fixtureInputsText = fixtureInputs.length > 0
     ? ` Use the seeded input fixture(s): ${fixtureInputs.map((item) => `\`${item}\``).join(", ")}.`
     : "";
+  const adjacentNegative = inferAdjacentNegativeCase(skill, skillText);
 
   return {
     fixtureInputs,
+    adjacentNegativeAssumption: adjacentNegative.assumption,
     evals: {
       version: "1",
       skill_name: skill.name,
@@ -185,7 +204,7 @@ function buildStarterEvals(skill: SkillFrontmatter, skillText: string): { evals:
       {
         id: "adjacent-negative",
         description: "Adjacent negative case: nearby request that should not over-trigger the skill.",
-        prompt: `I need help with a nearby but different task. Give general guidance about organizing my work, but do not assume I need the ${skill.name} workflow unless it clearly applies.`,
+        prompt: adjacentNegative.prompt,
         expected_output: "The assistant should answer the adjacent request without forcing the target skill into an unrelated task.",
         assertions: [
           {
@@ -205,6 +224,55 @@ function buildStarterEvals(skill: SkillFrontmatter, skillText: string): { evals:
       ],
     },
   };
+}
+
+interface AdjacentNegativeCase {
+  assumption: string;
+  prompt: string;
+}
+
+function inferAdjacentNegativeCase(skill: SkillFrontmatter, skillText: string): AdjacentNegativeCase {
+  const haystack = `${skill.name}\n${skill.description ?? ""}\n${stripFencedCodeBlocks(skillText)}`.toLowerCase();
+  const generic = {
+    assumption: "generic adjacent work request",
+    prompt: `I need help with a nearby but different task. Give general guidance about organizing my work, but do not assume I need the ${skill.name} workflow unless it clearly applies.`,
+  };
+
+  const domains: Array<{ keywords: RegExp[]; assumption: string; prompt: string }> = [
+    {
+      keywords: [/\bevals?\b/, /\bevaluation\b/, /\btest cases?\b/, /\bskill eval/],
+      assumption: "unit-test or QA request adjacent to eval-authoring",
+      prompt: `I need help improving the unit tests for a regular application module. Suggest useful test cases and edge cases, but do not create the ${skill.name} eval suite unless skill-eval authoring is explicitly needed.`,
+    },
+    {
+      keywords: [/\bplanning\b/, /\bplan\b/, /\broadmap\b/, /\bmilestone\b/],
+      assumption: "meeting-note organization request adjacent to planning",
+      prompt: `I have rough meeting notes and want a concise summary with action items. Help organize the notes, but do not turn this into the full ${skill.name} workflow unless a formal implementation plan is requested.`,
+    },
+    {
+      keywords: [/\brelease\b/, /\bpublish\b/, /\bchangelog\b/, /\bversion\b/, /\bsemver\b/],
+      assumption: "SemVer explanation request adjacent to release automation",
+      prompt: `Explain how SemVer works for a teammate and give examples of patch, minor, and major changes. Do not run or recommend the ${skill.name} release workflow unless publishing or version bumping is explicitly requested.`,
+    },
+    {
+      keywords: [/\bdocs?\b/, /\bdocumentation\b/, /\breadme\b/, /\bguide\b/],
+      assumption: "code-review request adjacent to documentation writing",
+      prompt: `Review this API design at a high level and point out maintainability risks. Mention where documentation might help, but do not start the ${skill.name} documentation workflow unless writing docs is the user's primary goal.`,
+    },
+    {
+      keywords: [/\bauth\b/, /\bauthentication\b/, /\blogin\b/, /\bwebhook\b/, /\bclerk\b/],
+      assumption: "security concept question adjacent to auth implementation",
+      prompt: `Explain the difference between authentication and authorization for a product discussion. Keep it conceptual and do not assume the ${skill.name} implementation workflow is needed unless the user asks to build or configure auth.`,
+    },
+  ];
+
+  for (const domain of domains) {
+    if (domain.keywords.some((keyword) => keyword.test(haystack))) {
+      return { assumption: domain.assumption, prompt: domain.prompt };
+    }
+  }
+
+  return generic;
 }
 
 function inferDeterministicAssertions(skillText: string): { paths: string[]; assertions: EvalAssertion[] } {

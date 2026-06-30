@@ -146,6 +146,25 @@ test("createCommand scaffolds inferred fixture inputs", async () => {
   }
 });
 
+test("createCommand generates domain-aware adjacent negative cases", async () => {
+  const { root, skillDir } = await createSkillFixture({
+    name: "arc-creating-evals",
+    description: "Creates skill eval suites and eval cases for agent skills.",
+  });
+
+  try {
+    const result = await createCommand({ skillDir, dryRun: true });
+    const negativeCase = result.evals.evals.find((item) => item.id === "adjacent-negative");
+
+    assert(negativeCase);
+    assert.equal(result.adjacentNegativeAssumption, "unit-test or QA request adjacent to eval-authoring");
+    assert.match(negativeCase.prompt, /unit tests for a regular application module/);
+    assert.match(negativeCase.prompt, /do not create the arc-creating-evals eval suite/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("createCommand refuses to overwrite existing evals without force", async () => {
   const { root, skillDir } = await createSkillFixture();
   const evalsDir = path.join(skillDir, "evals");
@@ -219,6 +238,7 @@ test("runCli handles create summary", async () => {
     assert.match(result.stdout, /Generated starter eval suite for summary-skill/);
     assert.match(result.stdout, /Cases:\n- trigger-explicit\n- execution-golden-path\n- adjacent-negative/);
     assert.match(result.stdout, /Fixture inputs:[\s\S]*- none inferred yet/);
+    assert.match(result.stdout, /Adjacent negative assumption:[\s\S]*- generic adjacent work request/);
     assert.match(result.stdout, /Deterministic assertions:[\s\S]*execution-golden-path: file-exists report\.json/);
     assert.match(result.stdout, /Deterministic assertions:[\s\S]*execution-golden-path: json-valid report\.json/);
     assert.match(result.stdout, /Judge assertions:[\s\S]*trigger-explicit: explicit-trigger-relevance/);

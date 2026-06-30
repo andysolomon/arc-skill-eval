@@ -46,7 +46,7 @@ Generate a starter eval suite for an existing skill:
 arc-skill-eval create ./skills/my-skill
 ```
 
-The first version inspects `SKILL.md` frontmatter and writes trigger, execution, and adjacent-negative starter cases. It also infers deterministic `file-exists` and `json-valid` assertions from obvious artifact paths such as `plan.md` or `report.json`, scaffolds likely input fixtures such as `notes/input.md` under `evals/files/starter-inputs/`, and `--summary` prints a human-readable review of generated cases and assertions.
+The first version inspects `SKILL.md` frontmatter and writes trigger, execution, and adjacent-negative starter cases. It also infers deterministic `file-exists` and `json-valid` assertions from obvious artifact paths such as `plan.md` or `report.json`, scaffolds likely input fixtures such as `notes/input.md` under `evals/files/starter-inputs/`, generates domain-aware adjacent-negative prompts for common skill types, and `--summary` prints a human-readable review of generated cases and assertions.
 
 ### `review` ✅
 
