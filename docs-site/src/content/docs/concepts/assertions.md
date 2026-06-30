@@ -76,6 +76,8 @@ A path-traversal guard runs on every workspace path before any file read, so a m
 
 - **Script assertions first.** They're cheap, deterministic, and fail honestly. Only reach for the judge when you need to assert about prose.
 - **Budget 2–5 assertions per case.** More than that and one will start failing for the wrong reasons.
-- **Avoid literal-quote assertions.** *"The response says 'Hello, world!'"* will pass on paraphrase. Assert on the effect (a regex on the produced file) instead.
+- **Prefer behavior over wording.** Assertions should describe the observable outcome: a file exists, JSON contains the expected plugin, the assistant starts the setup instead of giving generic advice, or an adjacent negative does not trigger the workflow.
+- **Avoid literal-quote assertions unless the quote is the contract.** *"The response says 'Hello, world!'"* is brittle if the skill only promises a greeting; assert on the produced file instead. Literal checks are appropriate for required CLI output, public copy, commit messages, email subjects, or mandatory safety language.
+- **Make legitimate wording requirements explicit.** If exact phrasing matters, put that requirement in `expected_output` and use a deterministic `regex-match` or intent `kind: "output", method: "exact"` assertion so the failure points to the missing text.
 - **Don't copy the skill's instructions verbatim into assertions.** If `SKILL.md` says "the .releaserc.json must use the conventionalcommits preset," asserting that exact text won't distinguish skill output from regurgitation.
 - **Prefer action verbs and proper nouns.** *"The response names the conventionalcommits preset"* is checkable. *"You should explain it"* is not.

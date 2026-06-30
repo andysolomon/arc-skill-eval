@@ -34,6 +34,37 @@ A `grill-me` skill promises a relentless interview to sharpen a plan. It probabl
 
 That is better than inventing fake file assertions. Deterministic assertions are strongest when there are real artifacts; judge assertions are appropriate for tone, reasoning shape, interview behavior, and other semantic properties.
 
+## Prefer behavior-focused assertions
+
+Good evals check what the skill actually promises: files created, JSON shape, commands avoided, tools used, routing decisions, and the semantic behavior of the assistant. They should not fail just because a correct answer used different prose.
+
+Brittle examples:
+
+```json
+"The response says exactly: Phase 1 — detection complete."
+"The response uses the heading ## Recommended Fix."
+"The response mentions the arc-conventional-commits skill name."
+```
+
+Improved behavior-focused alternatives:
+
+```json
+{ "type": "file-exists", "path": ".releaserc.json" }
+{ "type": "regex-match", "pattern": "conventionalcommits", "target": { "file": ".releaserc.json" } }
+"The response names semantic-release and describes configuring release automation for this repository rather than giving generic advice."
+```
+
+Exact wording is still valid when the words are the feature. Commit messages, CLI output, public copy, email subjects, and mandatory safety text may all need literal checks. In those cases, say so in `expected_output` and prefer deterministic assertions:
+
+```json
+{
+  "expected_output": "The assistant returns exactly one conventional commit message beginning with fix:",
+  "assertions": [
+    { "type": "regex-match", "pattern": "^fix(\\(.+\\))?:", "flags": "m", "target": "assistant-text" }
+  ]
+}
+```
+
 ## The interview path: `arc-creating-evals`
 
 `arc-creating-evals` is a skill that ships in this repo. Install it into your agent's skills directory (`.claude/skills/` for Claude Code, equivalent for other tools — see [`skills/README.md`](https://github.com/andysolomon/arc-skill-eval/blob/main/skills/README.md)) and trigger it with prompts like:

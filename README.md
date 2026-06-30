@@ -184,6 +184,26 @@ The lightweight prompt flow presents the rationale, cases, fixture inputs, and a
 
 For example, a conceptual `grill-me` skill that conducts a relentless interview may not create files at all. Its suite should lean on judge assertions such as "asks direct follow-up questions about assumptions and tradeoffs" plus adjacent negatives that should *not* trigger the skill, rather than fake `file-exists` checks. That makes the eval measure the behavior the skill actually promises.
 
+### Prefer behavior-focused assertions
+
+Write assertions against observable behavior and artifacts, not incidental wording. Brittle wording checks fail when a correct assistant paraphrases, changes a heading, or omits a phrase the skill never promised.
+
+Prefer:
+
+```json
+{ "type": "file-exists", "path": ".releaserc.json" },
+{ "type": "regex-match", "pattern": "conventionalcommits", "target": { "file": ".releaserc.json" } },
+"The response names semantic-release and explains that it configured release automation for this repository."
+```
+
+Avoid unless the words are truly the product requirement:
+
+```json
+"The response says exactly: Phase 1 — detection complete."
+```
+
+Exact wording is appropriate for user-facing contracts such as a required commit message, CLI output, email subject, or safety disclaimer. When wording is required, make it explicit in `expected_output` and use a deterministic `regex-match` or `exact` output assertion so failures explain the missing text directly.
+
 The positional `<skill-dir-or-repo>` for `run` is resolved as:
 - a skill directory if it contains `evals/evals.json`,
 - otherwise a repo whose tree is walked for SKILL.md + evals/evals.json pairs.
