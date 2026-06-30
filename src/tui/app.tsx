@@ -64,8 +64,8 @@ export interface AppState {
 
 /** Actions the App hands back to the controller loop (browse-command.ts). */
 export type AppAction =
-  | { type: 'quit' }
-  | { type: 'rerun'; skillDir: string; caseId: string | null; state: AppState };
+  | { type: 'quit'; state?: AppState }
+  | { type: 'rerun'; skillDir: string; caseId: string | null; state: AppState; compare?: boolean };
 
 const clampIdx = (i: number, len: number): number => Math.max(0, Math.min(Math.max(0, len - 1), i));
 
@@ -205,7 +205,7 @@ function StatusBar({ focused, caseMode, pane, sk, filter, filtering, failOnly, s
         ? [[ud, 'case'], [GLYPHS.arrowR, 'inspect'], ['[ ]', caseMode], ['f', 'note'], ['/', 'filter'], ['?', 'help']]
         : focused === 'assertions'
           ? [[ud, 'assertion'], [GLYPHS.arrowR, 'sections'], ['tab', 'panel'], ['?', 'help']]
-          : [[ud, 'run'], [GLYPHS.arrowR, 'sections'], ['tab', 'panel'], ['?', 'help']];
+          : [[ud, 'run'], [GLYPHS.arrowR, 'sections'], ['c', 'pin base'], ['tab', 'panel'], ['?', 'help']];
   return (
     <Box height={1} justifyContent="space-between" paddingX={1}>
       <Box>
@@ -251,11 +251,13 @@ function HelpView() {
     ['v', 'jump to raw grading.json (Cases)'],
     [`PgUp/PgDn · ${GLYPHS.ctrl}u/${GLYPHS.ctrl}d`, 'scroll the detail pane'],
     ['r', 'run evals for the selected skill/case, then reload'],
+    ['R', 're-run with --compare (with_skill vs without_skill)'],
     ['g  /  G', 'jump to top / bottom'],
     ['/', 'filter skills + cases (type, ↵ apply, esc clear)'],
     ['F', 'toggle failures-only'],
     ['s', 'cycle skill sort (name / pass / delta / cost)'],
     ['f', 'write a feedback.json note for the case (feeds improve)'],
+    ['c', 'pin a run as the cross-iteration baseline (Runs)'],
     ['q  /  ctrl-c', 'quit'],
   ];
   return (
@@ -295,6 +297,7 @@ export function App({ skills, runs, onAction, initial, showWithout }: { skills: 
   const [noting, setNoting] = useState(false);
   const [note, setNote] = useState('');
   const [flash, setFlash] = useState('');
+  const [compareBase, setCompareBase] = useState<Run | null>(null);
 
   const viewSkills = applySkillView(skills, filter, failOnly, sortMode);
   const sk = viewSkills[clampIdx(sel.skills, viewSkills.length)];
@@ -308,7 +311,7 @@ export function App({ skills, runs, onAction, initial, showWithout }: { skills: 
   useEffect(() => { setScroll(0); setPane(false); setCursor(0); }, [viewKey]);
 
   const maxRows = Math.max(4, rowsT - 7);
-  const main = sk && cs ? buildMain(focused, sk, cs, asrt!, run, caseMode, showWithout ?? true) : { title: '', sub: [] as Seg[], lines: [] as DisplayLine[], anchors: [] as number[] };
+  const main = sk && cs ? buildMain(focused, sk, cs, asrt!, run, caseMode, showWithout ?? true, compareBase ?? undefined) : { title: '', sub: [] as Seg[], lines: [] as DisplayLine[], anchors: [] as number[] };
   const anchors = main.anchors;
   const scrollMax = Math.max(0, main.lines.length - maxRows);
   const cursorLine = pane && anchors.length ? (anchors[clampIdx(cursor, anchors.length)] ?? -1) : -1;
@@ -340,13 +343,15 @@ export function App({ skills, runs, onAction, initial, showWithout }: { skills: 
     if (flash) setFlash('');
     if (!sk || !cs) { if (input === 'q') onAction({ type: 'quit' }); if (input === '/') setFiltering(true); return; }
     if (showHelp) { setShowHelp(false); return; }
-    if (input === 'q') { onAction({ type: 'quit' }); return; }
+    if (input === 'q') { onAction({ type: 'quit', state: { focused, sel, caseMode } }); return; }
     if (input === '?') { setShowHelp(true); return; }
     if (input === '/') { setFiltering(true); return; }
     if (input === 'f' && focused === 'cases') { setNote(''); setNoting(true); return; }
     if (input === 'F') { setFailOnly((v) => !v); setSel((s) => ({ ...s, skills: 0, cases: 0, assertions: 0 })); return; }
     if (input === 's') { setSortMode((m) => (m === 'name' ? 'pass' : m === 'pass' ? 'delta' : m === 'delta' ? 'cost' : 'name')); setSel((s) => ({ ...s, skills: 0 })); return; }
+    if (input === 'c' && focused === 'runs') { setCompareBase((b) => (b && run && b.runId === run.runId ? null : run ?? null)); return; }
     if (input === 'r') { onAction({ type: 'rerun', skillDir: sk.dir, caseId: focused === 'cases' ? cs.id : null, state: { focused, sel, caseMode } }); return; }
+    if (input === 'R') { onAction({ type: 'rerun', skillDir: sk.dir, caseId: focused === 'cases' ? cs.id : null, state: { focused, sel, caseMode }, compare: true }); return; }
     if (input === 'v') { if (focused === 'cases') { setCaseMode((m) => (m === 'raw' ? 'overview' : 'raw')); setPane(false); } return; }
     if (focused === 'cases' && (input === ']' || input === '[')) {
       const modes = modesFor(cs);
@@ -419,6 +424,15 @@ export function App({ skills, runs, onAction, initial, showWithout }: { skills: 
   }
   if (showHelp) return <HelpView />;
 
+  if (cols < 72 || rowsT < 18) {
+    return (
+      <Box padding={1} flexDirection="column">
+        <Text color={COLORS.orange}>Terminal too small.</Text>
+        <Text color={COLORS.comment}>{`Resize to at least 72×18 (currently ${cols}×${rowsT}).`}</Text>
+      </Box>
+    );
+  }
+
   const railWidth = Math.max(34, Math.min(48, Math.floor(cols * 0.4)));
   const innerRail = railWidth - 2;
   const mainInner = Math.max(10, cols - railWidth - 2);
@@ -437,7 +451,7 @@ export function App({ skills, runs, onAction, initial, showWithout }: { skills: 
           <Panel n={1} name="Skills" grow={grows.skills} count={String(viewSkills.length)} rows={skillRows(viewSkills)} selected={clampIdx(sel.skills, viewSkills.length)} focused={!pane && focused === 'skills'} innerWidth={innerRail} maxRows={cap(grows.skills)} />
           <Panel n={2} name="Cases" grow={grows.cases} count={String(viewCases.length)} rows={caseRows(viewCases)} selected={clampIdx(sel.cases, viewCases.length)} focused={!pane && focused === 'cases'} innerWidth={innerRail} maxRows={cap(grows.cases)} />
           <Panel n={3} name="Assertions" grow={grows.assertions} count={String(cs.assertions.length)} rows={assertionRows(cs)} selected={clampIdx(sel.assertions, cs.assertions.length)} focused={!pane && focused === 'assertions'} innerWidth={innerRail} maxRows={cap(grows.assertions)} />
-          <Panel n={4} name="Runs" grow={grows.runs} count={String(runs.length)} rows={runRows(runs)} selected={sel.runs} focused={!pane && focused === 'runs'} innerWidth={innerRail} maxRows={cap(grows.runs)} />
+          <Panel n={4} name="Runs" grow={grows.runs} count={String(runs.length)} rows={runRows(runs, compareBase?.runId)} selected={sel.runs} focused={!pane && focused === 'runs'} innerWidth={innerRail} maxRows={cap(grows.runs)} />
         </Box>
         <MainPane title={main.title} sub={main.sub} lines={main.lines} scroll={scroll} maxRows={maxRows} innerWidth={mainInner} cursorLine={cursorLine} paneFocused={pane} />
       </Box>

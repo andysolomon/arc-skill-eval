@@ -49,8 +49,28 @@ const ANSI: Record<keyof typeof HEX, string> = {
   dim: 'gray',
 };
 
+type Palette = Record<keyof typeof HEX, string>;
+
+// Alternate palettes from style.md (selectable via ARC_TUI_THEME).
+const GRUVBOX: Palette = {
+  bg: '#282828', bgDark: '#1d2021', bgHi: '#3c3836', fg: '#ebdbb2', fgDark: '#d5c4a1',
+  comment: '#928374', blue: '#83a598', cyan: '#8ec07c', green: '#b8bb26', magenta: '#d3869b',
+  red: '#fb4934', orange: '#fe8019', yellow: '#fabd2f', teal: '#8ec07c',
+  selection: '#504945', border: '#3c3836', borderActive: '#fabd2f', dim: '#665c54',
+};
+const NORD: Palette = {
+  bg: '#2e3440', bgDark: '#272c36', bgHi: '#3b4252', fg: '#d8dee9', fgDark: '#e5e9f0',
+  comment: '#4c566a', blue: '#81a1c1', cyan: '#88c0d0', green: '#a3be8c', magenta: '#b48ead',
+  red: '#bf616a', orange: '#d08770', yellow: '#ebcb8b', teal: '#8fbcbb',
+  selection: '#434c5e', border: '#3b4252', borderActive: '#88c0d0', dim: '#4c566a',
+};
+
+const PALETTES: Record<string, Palette> = { tokyonight: { ...HEX }, gruvbox: GRUVBOX, nord: NORD };
+const THEME = (process.env.ARC_TUI_THEME || 'tokyonight').toLowerCase();
+const PICKED: Palette = PALETTES[THEME] ?? { ...HEX };
+
 export type Color = string;
-export const COLORS: Record<keyof typeof HEX, Color> = colorLevel >= 2 ? { ...HEX } : ANSI;
+export const COLORS: Palette = colorLevel >= 2 ? PICKED : ANSI;
 
 export interface Seg { t: string; c: Color; b?: boolean }
 export interface Line { segs: Seg[]; bg?: Color }
