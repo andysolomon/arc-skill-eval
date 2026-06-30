@@ -17,6 +17,7 @@ export interface CreateCommandResult {
   dryRun: boolean;
   written: boolean;
   evals: EvalsJsonFile;
+  fixtureInputs: string[];
 }
 
 interface SkillFrontmatter {
@@ -32,10 +33,11 @@ export async function createCommand(options: CreateCommandOptions): Promise<Crea
 
   const skillText = await readSkillMd(skillPath);
   const frontmatter = parseSkillFrontmatter(skillText, skillDir);
-  const evals = buildStarterEvals(frontmatter, skillText);
+  const starter = buildStarterEvals(frontmatter, skillText);
+  const evals = starter.evals;
 
   if (options.dryRun) {
-    return { skillDir, evalsJsonPath, dryRun: true, written: false, evals };
+    return { skillDir, evalsJsonPath, dryRun: true, written: false, evals, fixtureInputs: starter.fixtureInputs };
   }
 
   if (!options.force && await fileExists(evalsJsonPath)) {
@@ -43,11 +45,12 @@ export async function createCommand(options: CreateCommandOptions): Promise<Crea
   }
 
   await mkdir(evalsDir, { recursive: true });
+  await writeStarterFixtureInputs(evalsDir, starter.fixtureInputs);
   await writeFile(evalsJsonPath, `${JSON.stringify(evals, null, 2)}\n`, "utf8");
 
   // Validate the written file through the same loader used by `run`.
   const validated = await readEvalsJson(evalsJsonPath);
-  return { skillDir, evalsJsonPath, dryRun: false, written: true, evals: validated };
+  return { skillDir, evalsJsonPath, dryRun: false, written: true, evals: validated, fixtureInputs: starter.fixtureInputs };
 }
 
 async function readSkillMd(skillPath: string): Promise<string> {
@@ -103,18 +106,24 @@ function unquoteYamlScalar(value: string): string {
   return value;
 }
 
-function buildStarterEvals(skill: SkillFrontmatter, skillText: string): EvalsJsonFile {
+function buildStarterEvals(skill: SkillFrontmatter, skillText: string): { evals: EvalsJsonFile; fixtureInputs: string[] } {
   const description = skill.description ?? `Use the ${skill.name} skill correctly.`;
   const shortDescription = description.endsWith(".") ? description.slice(0, -1) : description;
   const deterministicSignals = inferDeterministicAssertions(skillText);
+  const fixtureInputs = inferFixtureInputPaths(skillText, deterministicSignals.paths);
   const expectedArtifactsText = deterministicSignals.paths.length > 0
     ? ` Produce the expected artifact(s): ${deterministicSignals.paths.map((item) => `\`${item}\``).join(", ")}.`
     : "";
+  const fixtureInputsText = fixtureInputs.length > 0
+    ? ` Use the seeded input fixture(s): ${fixtureInputs.map((item) => `\`${item}\``).join(", ")}.`
+    : "";
 
   return {
-    version: "1",
-    skill_name: skill.name,
-    evals: [
+    fixtureInputs,
+    evals: {
+      version: "1",
+      skill_name: skill.name,
+      evals: [
       {
         id: "trigger-explicit",
         description: "Explicit trigger case: the user directly asks for this skill's help.",
@@ -138,11 +147,19 @@ function buildStarterEvals(skill: SkillFrontmatter, skillText: string): EvalsJso
       {
         id: "execution-golden-path",
         description: "Golden-path execution case for a representative skill task.",
-        prompt: `Complete a representative ${skill.name} task for this scenario: ${shortDescription}.${expectedArtifactsText} Explain the result clearly and include any important next steps.`,
+        prompt: `Complete a representative ${skill.name} task for this scenario: ${shortDescription}.${fixtureInputsText}${expectedArtifactsText} Explain the result clearly and include any important next steps.`,
         expected_output: deterministicSignals.paths.length > 0
           ? `The assistant should complete the representative task and create the expected artifact(s): ${deterministicSignals.paths.join(", ")}.`
           : "The assistant should complete the representative task, not merely describe the skill.",
-        setup: { kind: "empty" },
+        setup: fixtureInputs.length > 0
+          ? {
+              kind: "seeded",
+              sources: fixtureInputs.map((inputPath) => ({
+                from: `files/starter-inputs/${inputPath}`,
+                to: inputPath,
+              })),
+            }
+          : { kind: "empty" },
         assertions: [
           ...deterministicSignals.assertions,
           {
@@ -185,7 +202,8 @@ function buildStarterEvals(skill: SkillFrontmatter, skillText: string): EvalsJso
           intent: "adjacent-negative",
         },
       },
-    ],
+      ],
+    },
   };
 }
 
@@ -201,6 +219,28 @@ function inferDeterministicAssertions(skillText: string): { paths: string[]; ass
   }
 
   return { paths, assertions };
+}
+
+function inferFixtureInputPaths(skillText: string, outputPaths: string[]): string[] {
+  const outputPathSet = new Set(outputPaths);
+  const candidates = new Set<string>();
+  const searchableText = stripAdvisorySections(stripFencedCodeBlocks(skillText));
+  const codeSpanPattern = /`([^`]+)`/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = codeSpanPattern.exec(searchableText)) !== null) {
+    for (const candidate of extractPathCandidates(match[1]!)) {
+      if (isLikelyInputPath(candidate) && !outputPathSet.has(candidate)) candidates.add(candidate);
+    }
+  }
+
+  const quotedPathPattern = /["']([^"'\n]+\.(?:md|markdown|txt|json|ya?ml|csv|tsv))["']/gi;
+  while ((match = quotedPathPattern.exec(searchableText)) !== null) {
+    const normalized = normalizePathCandidate(match[1]!);
+    if (normalized && isLikelyInputPath(normalized) && !outputPathSet.has(normalized)) candidates.add(normalized);
+  }
+
+  return removeDuplicateBasenamePaths(Array.from(candidates)).slice(0, 3);
 }
 
 function inferOutputPaths(skillText: string): string[] {
@@ -255,13 +295,48 @@ function normalizePathCandidate(value: string): string | null {
   return trimmed;
 }
 
+function isLikelyInputPath(value: string): boolean {
+  if (!isSafeRelativeDataPath(value)) return false;
+  const lowerValue = value.toLowerCase();
+  const basename = path.basename(lowerValue);
+  if (/^(input|requirements?|prd|issue|task|brief|notes?)\.(?:md|markdown|txt|json|ya?ml)$/i.test(basename)) return true;
+  if (/^(notes|inputs?|requirements?|fixtures?)\//i.test(lowerValue)) return true;
+  return false;
+}
+
 function isLikelyOutputPath(value: string): boolean {
+  if (!isSafeRelativeDataPath(value)) return false;
+  if (isLikelyInputPath(value)) return false;
+  return true;
+}
+
+function isSafeRelativeDataPath(value: string): boolean {
   if (!/^[A-Za-z0-9._/-]+$/.test(value)) return false;
   if (!/\.(?:md|markdown|txt|json|ya?ml|csv|tsv|html|xml)$/i.test(value)) return false;
   const basename = path.basename(value).toLowerCase();
   if (basename === "skill.md" || basename === "readme.md") return false;
   if (value.startsWith("docs/") || value.startsWith("node_modules/")) return false;
   return true;
+}
+
+async function writeStarterFixtureInputs(evalsDir: string, fixtureInputs: string[]): Promise<void> {
+  for (const inputPath of fixtureInputs) {
+    const fixturePath = path.join(evalsDir, "files", "starter-inputs", inputPath);
+    await mkdir(path.dirname(fixturePath), { recursive: true });
+    await writeFile(fixturePath, buildFixtureInputPlaceholder(inputPath), "utf8");
+  }
+}
+
+function buildFixtureInputPlaceholder(inputPath: string): string {
+  if (/\.json$/i.test(inputPath)) {
+    return `${JSON.stringify({ todo: `Replace with realistic input for ${inputPath}.` }, null, 2)}\n`;
+  }
+
+  if (/\.ya?ml$/i.test(inputPath)) {
+    return `# TODO: replace with realistic input for ${inputPath}\n`;
+  }
+
+  return `# TODO\n\nReplace this starter fixture with realistic input for ${inputPath}.\n`;
 }
 
 async function fileExists(file: string): Promise<boolean> {

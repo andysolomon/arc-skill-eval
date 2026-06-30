@@ -116,6 +116,36 @@ test("createCommand ignores artifact paths inside fenced code examples and advis
   }
 });
 
+test("createCommand scaffolds inferred fixture inputs", async () => {
+  const { root, skillDir } = await createSkillFixture({
+    name: "fixture-input-skill",
+    description: "Reads `notes/input.md` and `requirements.md`, then writes `plan.md`.",
+  });
+
+  try {
+    const dryRun = await createCommand({ skillDir, dryRun: true });
+    const executionCase = dryRun.evals.evals.find((item) => item.id === "execution-golden-path");
+
+    assert(executionCase);
+    assert.deepEqual(dryRun.fixtureInputs, ["notes/input.md", "requirements.md"]);
+    assert.deepEqual(executionCase.setup, {
+      kind: "seeded",
+      sources: [
+        { from: "files/starter-inputs/notes/input.md", to: "notes/input.md" },
+        { from: "files/starter-inputs/requirements.md", to: "requirements.md" },
+      ],
+    });
+    assert.deepEqual(executionCase.assertions.slice(0, 1), [{ type: "file-exists", path: "plan.md" }]);
+
+    const written = await createCommand({ skillDir });
+    assert.deepEqual(written.fixtureInputs, ["notes/input.md", "requirements.md"]);
+    assert.match(await readFile(path.join(skillDir, "evals", "files", "starter-inputs", "notes", "input.md"), "utf8"), /realistic input/);
+    assert.match(await readFile(path.join(skillDir, "evals", "files", "starter-inputs", "requirements.md"), "utf8"), /realistic input/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("createCommand refuses to overwrite existing evals without force", async () => {
   const { root, skillDir } = await createSkillFixture();
   const evalsDir = path.join(skillDir, "evals");
@@ -188,6 +218,7 @@ test("runCli handles create summary", async () => {
     assert.equal(result.exitCode, 0);
     assert.match(result.stdout, /Generated starter eval suite for summary-skill/);
     assert.match(result.stdout, /Cases:\n- trigger-explicit\n- execution-golden-path\n- adjacent-negative/);
+    assert.match(result.stdout, /Fixture inputs:[\s\S]*- none inferred yet/);
     assert.match(result.stdout, /Deterministic assertions:[\s\S]*execution-golden-path: file-exists report\.json/);
     assert.match(result.stdout, /Deterministic assertions:[\s\S]*execution-golden-path: json-valid report\.json/);
     assert.match(result.stdout, /Judge assertions:[\s\S]*trigger-explicit: explicit-trigger-relevance/);

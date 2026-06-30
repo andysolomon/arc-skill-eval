@@ -40,6 +40,7 @@ Milestone SCP-2 — Guided eval creation
     [x] 4.3 Mention deterministic inference in docs
     [x] 4.4 Add generated eval fixture tests
     [x] 4.5 Add --summary for generated cases and assertion choices
+    [x] 4.6 Scaffold likely fixture inputs for generated execution cases
 
 Milestone SCP-3 — Human review loop
 
