@@ -29,7 +29,20 @@ A left rail of four stacked panels drives a detail pane on the right. The detail
 | **[3] Assertions** | Assertions for the selected case — deterministic (`file-exists`, `regex-match`, `json-valid`) vs LLM-judge |
 | **[4] Runs** | Run / iteration history with the compare marker and exit code |
 
-The detail pane shows: for a **case** — prompt, expected output, per-assertion grading with evidence, metrics (model, duration, tokens, cost, a context-usage bar), tool calls, and a with/without comparison; for an **assertion** — its claim, evidence, and raw `evals.json` source; for a **run** — the reconstructed `arc-skill-eval run …` command, exit code, and output paths.
+The detail pane shows: for a **case** — see the tabbed detail modes below; for an **assertion** — its claim, evidence, and raw `evals.json` source; for a **run** — the reconstructed `arc-skill-eval run …` command, exit code, and output paths.
+
+### Case detail modes
+
+When a case is selected, the detail pane is tabbed. Cycle the tabs with `[` / `]` (the strip shows in the pane header); `v` jumps straight to **Raw**.
+
+| Mode | Contents |
+| --- | --- |
+| **Overview** | Prompt, expected output, per-assertion grading with evidence, metrics (model, duration, tokens, cost, context-usage bar), and the with/without summary |
+| **Response** | The final assistant response (`assistant.md`) |
+| **Diff** *(compare runs only)* | A line diff of the `without_skill` → `with_skill` responses — the load-bearing signal, made visible |
+| **Trace** | Tool-call digest from `tool-summary.json` (calls by name, bash/file/skill activity, external calls) plus the produced `outputs/` listing |
+| **Context** | The `context-manifest.json` — attached skills colored by role (`target`/`extra`/`ambient`), active/available tools, MCP tools, and ambient flags |
+| **Raw** | The raw `grading.json` |
 
 ## Keybindings
 
@@ -41,12 +54,25 @@ The detail pane shows: for a **case** — prompt, expected output, per-assertion
 | `→` / `l` / `↵` | Enter the detail-pane cursor |
 | `↵` *(in pane)* | Drill the cursor item into its side panel |
 | `←` / `h` / `Esc` | Leave the detail-pane cursor |
-| `v` | Toggle rendered ⇄ raw `grading.json` (Cases) |
+| `[` / `]` | Cycle the case detail mode (Overview / Response / Diff / Trace / Context / Raw) |
+| `v` | Jump to raw `grading.json` (Cases) |
 | `PgUp`/`PgDn` · `⌃u`/`⌃d` | Scroll the detail pane |
 | `r` | Re-run evals for the selected skill (or case), then reload |
+| `/` | Filter skills / cases by name (type to filter, `↵` accept, `Esc` clear) |
+| `F` | Toggle failures-only |
+| `s` | Cycle skill sort (name / pass / delta / cost) |
+| `f` | Write a `feedback.json` note for the selected case |
 | `g` / `G` | Top / bottom |
 | `?` | Help overlay |
 | `q` / `Ctrl-C` | Quit |
+
+### Filtering and sorting
+
+`/` opens a name filter over the Skills and Cases panels — type to narrow, `↵` to keep it, `Esc` to clear. `F` toggles a failures-only view (skills/cases that aren't fully passing). `s` cycles the Skills sort between name, pass rate, with-skill delta, and cost. Active filters show in the status bar.
+
+### Writing feedback (`f`)
+
+With a case selected, `f` opens a note prompt. On `↵` it writes (or merges into) a `feedback.json` in the skill's newest run directory, setting that case's `status` to `reviewed` and storing your text in `notes`. The file matches the schema `arc-skill-eval improve --from-feedback` consumes, so the browse → note → improve loop stays in one place.
 
 ### Detail-pane cursor
 

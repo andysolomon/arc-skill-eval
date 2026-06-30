@@ -6,12 +6,15 @@
 
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
-import type { Workspace, Skill, Case, Assertion, Run, CaseStatus } from './types.js';
+import type { Workspace, Skill, Case, Assertion, Run, CaseStatus, TraceInfo, ContextInfo, OutputFile } from './types.js';
 
 // ---------------------------------------------------------------- fs helpers
 
 async function readJson<T = unknown>(p: string): Promise<T | null> {
   try { return JSON.parse(await fs.readFile(p, 'utf8')) as T; } catch { return null; }
+}
+async function readText(p: string): Promise<string> {
+  try { return await fs.readFile(p, 'utf8'); } catch { return ''; }
 }
 async function exists(p: string): Promise<boolean> {
   try { await fs.access(p); return true; } catch { return false; }
@@ -21,6 +24,30 @@ async function listDirs(p: string): Promise<string[]> {
     const entries = await fs.readdir(p, { withFileTypes: true });
     return entries.filter((e) => e.isDirectory()).map((e) => e.name);
   } catch { return []; }
+}
+
+/** Recursively list files under outputs/ (relative paths + sizes), capped. */
+async function listOutputFiles(dir: string, cap = 200): Promise<OutputFile[]> {
+  const out: OutputFile[] = [];
+  async function walk(d: string, rel: string): Promise<void> {
+    if (out.length >= cap) return;
+    let entries: import('node:fs').Dirent[];
+    try { entries = await fs.readdir(d, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (out.length >= cap) return;
+      const full = path.join(d, e.name);
+      const r = rel ? rel + '/' + e.name : e.name;
+      if (e.isDirectory()) await walk(full, r);
+      else {
+        let size = 0;
+        try { size = (await fs.stat(full)).size; } catch { /* ignore */ }
+        out.push({ path: r, size });
+      }
+    }
+  }
+  await walk(dir, '');
+  out.sort((a, b) => (a.path < b.path ? -1 : 1));
+  return out;
 }
 
 // ---------------------------------------------------------------- formatting
@@ -77,6 +104,35 @@ function deriveStatus(passed: number, total: number): CaseStatus {
   return passed > 0 ? 'partial' : 'fail';
 }
 
+function buildTrace(tools: any): TraceInfo {
+  return {
+    callCount: tools?.tool_call_count ?? 0,
+    errors: tools?.tool_error_count ?? 0,
+    fileTouches: tools?.file_touch_count ?? 0,
+    bashCount: tools?.bash_command_count ?? 0,
+    toolCalls: Object.entries(tools?.tool_calls_by_name ?? {}).map(([k, v]) => [k, Number(v)] as [string, number]),
+    skillReads: Object.entries(tools?.skill_reads_by_name ?? {}).map(([k, v]) => [k, Number(v)] as [string, number]),
+    writtenFiles: Array.isArray(tools?.written_files) ? tools.written_files.map(String) : [],
+    editedFiles: Array.isArray(tools?.edited_files) ? tools.edited_files.map(String) : [],
+    externalCalls: Array.isArray(tools?.external_calls)
+      ? tools.external_calls.map((c: any) => ({ system: String(c?.system ?? ''), operation: String(c?.operation ?? ''), ...(c?.target ? { target: String(c.target) } : {}) }))
+      : [],
+  };
+}
+
+function buildContext(m: any): ContextInfo {
+  return {
+    mode: String(m?.mode ?? 'isolated'),
+    agentDir: m?.agent_dir ? String(m.agent_dir) : '',
+    attachedSkills: Array.isArray(m?.attached_skills) ? m.attached_skills.map((s: any) => ({ name: String(s?.name ?? ''), role: String(s?.role ?? '') })) : [],
+    activeTools: Array.isArray(m?.active_tools) ? m.active_tools.map(String) : [],
+    availableTools: Array.isArray(m?.available_tools) ? m.available_tools.map((t: any) => ({ name: String(t?.name ?? ''), source: String(t?.source ?? '') })) : [],
+    mcpTools: Array.isArray(m?.mcp_tools) ? m.mcp_tools.map((t: any) => String(t?.name ?? t)) : [],
+    mcpServers: Array.isArray(m?.mcp_servers) ? m.mcp_servers.map(String) : [],
+    ambient: m?.ambient && typeof m.ambient === 'object' ? m.ambient : {},
+  };
+}
+
 async function loadCase(caseDir: string, ec: any): Promise<Case> {
   const compare = await exists(path.join(caseDir, 'with_skill'));
   const base = compare ? path.join(caseDir, 'with_skill') : caseDir;
@@ -84,6 +140,10 @@ async function loadCase(caseDir: string, ec: any): Promise<Case> {
   const grading = await readJson<any>(path.join(base, 'grading.json'));
   const timing = await readJson<any>(path.join(base, 'timing.json'));
   const tools = await readJson<any>(path.join(base, 'tool-summary.json'));
+  const manifest = await readJson<any>(path.join(base, 'context-manifest.json'));
+  const assistant = await readText(path.join(base, 'assistant.md'));
+  const assistantWithout = compare ? await readText(path.join(caseDir, 'without_skill', 'assistant.md')) : '';
+  const outputs = await listOutputFiles(path.join(base, 'outputs'));
 
   const assertions: Assertion[] = (grading?.assertion_results ?? []).map(mapAssertion);
   const passed = grading?.summary?.passed ?? assertions.filter((a) => a.passed).length;
@@ -108,7 +168,7 @@ async function loadCase(caseDir: string, ec: any): Promise<Case> {
     expected: String(ec?.expected_output ?? ''),
     setup: ec?.setup ? JSON.stringify(ec.setup) : Array.isArray(ec?.files) ? 'seeded · ' + ec.files.join(', ') : 'empty',
     model: modelStr(timing),
-    judge: '—', // SEAM: read judge model from run metadata if you persist it
+    judge: '—', // not persisted in artifacts; left as a stub
     dur: timing ? ms(timing.duration_ms ?? 0) : '—',
     tin: tu.input_tokens ?? 0,
     tout: tu.output_tokens ?? 0,
@@ -124,6 +184,11 @@ async function loadCase(caseDir: string, ec: any): Promise<Case> {
     ext: tools?.external_call_count ?? 0,
     mcp: tools?.mcp_tool_call_count ?? 0,
     withP, withT, withoutP, withoutT, delta,
+    assistant,
+    assistantWithout,
+    trace: buildTrace(tools),
+    context: buildContext(manifest),
+    outputs,
     assertions,
   };
 }
@@ -185,6 +250,7 @@ async function loadSkill(skillDir: string): Promise<Skill | null> {
   return {
     id: String(evals?.skill_name ?? path.basename(skillDir)),
     dir: path.resolve(skillDir),
+    runDir: path.resolve(runDir),
     role: 'target', // SEAM: mark distractors loaded via --extra-skill
     model: first?.model ?? '—',
     judge: first?.judge ?? '—',
@@ -198,16 +264,23 @@ async function loadSkill(skillDir: string): Promise<Skill | null> {
   };
 }
 
-async function aggregateRunPass(dir: string): Promise<{ pass: string; exit: number }> {
+async function aggregateRun(dir: string): Promise<{ pass: string; exit: number; cost: number }> {
   const caseDirs = (await listDirs(dir)).filter((n) => n.startsWith('eval-'));
-  let cp = 0; let exit = 0;
+  let cp = 0; let exit = 0; let cost = 0;
   for (const cd of caseDirs) {
-    const base = (await exists(path.join(dir, cd, 'with_skill'))) ? path.join(dir, cd, 'with_skill') : path.join(dir, cd);
+    const hasCompare = await exists(path.join(dir, cd, 'with_skill'));
+    const base = hasCompare ? path.join(dir, cd, 'with_skill') : path.join(dir, cd);
     const g = await readJson<any>(path.join(base, 'grading.json'));
     const failed = g?.summary?.failed ?? 1;
     if (failed === 0) cp++; else exit = 1;
+    const t = await readJson<any>(path.join(base, 'timing.json'));
+    cost += Number(t?.estimated_cost_usd ?? 0);
+    if (hasCompare) {
+      const t2 = await readJson<any>(path.join(dir, cd, 'without_skill', 'timing.json'));
+      cost += Number(t2?.estimated_cost_usd ?? 0);
+    }
   }
-  return { pass: `${cp}/${caseDirs.length}`, exit };
+  return { pass: `${cp}/${caseDirs.length}`, exit, cost };
 }
 
 async function loadRuns(skillDir: string): Promise<Run[]> {
@@ -215,28 +288,32 @@ async function loadRuns(skillDir: string): Promise<Run[]> {
   for (const dir of await runDirsFor(skillDir)) {
     const benchmark = await readJson<any>(path.join(dir, 'benchmark.json'));
     const mode: Run['mode'] = benchmark ? 'compare' : 'single';
-    const { pass, exit } = await aggregateRunPass(dir);
+    const { pass, exit, cost } = await aggregateRun(dir);
     const rel = path.relative(path.join(skillDir, 'evals-runs'), dir);
     const segments = rel.split(path.sep);
     const iteration = segments[0]?.startsWith('iteration-') ? segments[0].replace('iteration-', '') : '—';
     const runId = segments[segments.length - 1] ?? rel;
-    // peek one case's timing for the model label
+    // peek one case's with_skill (or single) artifacts for model + context
     const firstCase = (await listDirs(dir)).find((n) => n.startsWith('eval-'));
     const tBase = firstCase ? ((await exists(path.join(dir, firstCase, 'with_skill'))) ? path.join(dir, firstCase, 'with_skill') : path.join(dir, firstCase)) : '';
     const timing = tBase ? await readJson<any>(path.join(tBase, 'timing.json')) : null;
+    const manifest = tBase ? await readJson<any>(path.join(tBase, 'context-manifest.json')) : null;
+    const extras = Array.isArray(manifest?.attached_skills)
+      ? manifest.attached_skills.filter((s: any) => s?.role === 'extra').map((s: any) => String(s?.name))
+      : [];
     out.push({
       iteration,
       runId,
       mode,
       skill: path.basename(skillDir),
-      extra: '',
-      ctxMode: 'isolated', // SEAM: read from context-manifest.json
+      extra: extras.join(', '),
+      ctxMode: String(manifest?.mode ?? 'isolated'),
       model: modelStr(timing),
       judge: '—',
       when: relTime(await mtime(dir)),
       pass,
-      delta: benchmark?.overall?.delta != null ? pct(Number(benchmark.overall.delta)) : '',
-      cost: '—',
+      delta: benchmark?.summary?.delta != null ? pct(Number(benchmark.summary.delta)) : '',
+      cost: money2(cost),
       exit,
       caseFilter: '',
     });

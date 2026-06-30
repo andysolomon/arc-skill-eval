@@ -1,10 +1,57 @@
 import { useEffect, useState } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
+import { promises as fs } from 'node:fs';
+import * as path from 'node:path';
 import { COLORS, segLen } from './theme.js';
 import { GLYPHS } from './caps.js';
 import type { Seg } from './theme.js';
-import type { Skill, Run, Focus, Sel } from './types.js';
-import { skillRows, caseRows, assertionRows, runRows, buildMain } from './view-model.js';
+import type { Skill, Run, Case, Focus, Sel, CaseMode } from './types.js';
+import { skillRows, caseRows, assertionRows, runRows, buildMain, modesFor } from './view-model.js';
+
+type SortMode = 'name' | 'pass' | 'delta' | 'cost';
+
+const matchStr = (s: string, q: string): boolean => s.toLowerCase().includes(q.toLowerCase());
+const deltaNum = (d: string): number => { const m = /-?\d+(\.\d+)?/.exec(d); return m ? Number(m[0]) : -Infinity; };
+const costNum = (c: string): number => { const m = /-?\d+(\.\d+)?/.exec(c); return m ? Number(m[0]) : 0; };
+
+function applySkillView(skills: Skill[], filter: string, failOnly: boolean, sortMode: SortMode): Skill[] {
+  let v = skills;
+  if (failOnly) v = v.filter((s) => s.passed < s.total);
+  if (filter) v = v.filter((s) => matchStr(s.id, filter) || s.cases.some((c) => matchStr(c.id, filter)));
+  const by = [...v];
+  if (sortMode === 'pass') by.sort((a, b) => a.passed / Math.max(1, a.total) - b.passed / Math.max(1, b.total));
+  else if (sortMode === 'delta') by.sort((a, b) => deltaNum(b.delta) - deltaNum(a.delta));
+  else if (sortMode === 'cost') by.sort((a, b) => costNum(b.totalCost) - costNum(a.totalCost));
+  else by.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return by;
+}
+function applyCaseView(cases: Case[], filter: string, failOnly: boolean): Case[] {
+  let v = cases;
+  if (failOnly) v = v.filter((c) => c.status !== 'pass');
+  if (filter) { const m = v.filter((c) => matchStr(c.id, filter)); v = m.length ? m : v; }
+  return v;
+}
+
+/** Write/merge a feedback.json note matching the schema `improve` consumes. */
+async function writeFeedback(skill: Skill, caseId: string, note: string): Promise<string> {
+  const fpath = path.join(skill.runDir, 'feedback.json');
+  let doc: any = null;
+  try { doc = JSON.parse(await fs.readFile(fpath, 'utf8')); } catch { doc = null; }
+  if (!doc || !Array.isArray(doc.cases)) {
+    doc = {
+      schema_version: '1',
+      run_dir: skill.runDir,
+      compare: skill.cases.some((c) => c.delta !== ''),
+      cases: skill.cases.map((c) => ({ case_id: c.id, status: 'needs-review', notes: '', variants: [] })),
+    };
+  }
+  let entry = doc.cases.find((c: any) => c.case_id === caseId);
+  if (!entry) { entry = { case_id: caseId, status: 'needs-review', notes: '', variants: [] }; doc.cases.push(entry); }
+  entry.notes = note;
+  entry.status = 'reviewed';
+  await fs.writeFile(fpath, JSON.stringify(doc, null, 2) + '\n', 'utf8');
+  return fpath;
+}
 
 const ORDER: Focus[] = ['skills', 'cases', 'assertions', 'runs'];
 
@@ -12,7 +59,7 @@ const ORDER: Focus[] = ['skills', 'cases', 'assertions', 'runs'];
 export interface AppState {
   focused: Focus;
   sel: Sel;
-  rawMode: boolean;
+  caseMode: CaseMode;
 }
 
 /** Actions the App hands back to the controller loop (browse-command.ts). */
@@ -148,26 +195,39 @@ function MainPane(props: {
 
 // ------------------------------------------------------------------ status bar
 
-function StatusBar({ focused, rawMode, pane, sk }: { focused: Focus; rawMode: boolean; pane: boolean; sk: Skill }) {
+function StatusBar({ focused, caseMode, pane, sk, filter, filtering, failOnly, sortMode, noting, note, flash }: { focused: Focus; caseMode: CaseMode; pane: boolean; sk: Skill; filter: string; filtering: boolean; failOnly: boolean; sortMode: SortMode; noting: boolean; note: string; flash: string }) {
   const ud = `${GLYPHS.up}${GLYPHS.down}`;
   const hints: [string, string][] = pane
     ? [[ud, 'line'], [GLYPHS.enter, 'open'], [GLYPHS.arrowL, 'back'], ['?', 'help']]
     : focused === 'skills'
-      ? [[ud, 'skill'], [GLYPHS.arrowR, 'inspect'], ['r', 'run'], ['tab', 'panel'], ['?', 'help']]
+      ? [[ud, 'skill'], [GLYPHS.arrowR, 'inspect'], ['/', 'filter'], ['r', 'run'], ['?', 'help']]
       : focused === 'cases'
-        ? [[ud, 'case'], [GLYPHS.arrowR, 'inspect'], ['v', rawMode ? 'rendered' : 'raw'], ['r', 'run'], ['tab', 'panel'], ['?', 'help']]
+        ? [[ud, 'case'], [GLYPHS.arrowR, 'inspect'], ['[ ]', caseMode], ['f', 'note'], ['/', 'filter'], ['?', 'help']]
         : focused === 'assertions'
           ? [[ud, 'assertion'], [GLYPHS.arrowR, 'sections'], ['tab', 'panel'], ['?', 'help']]
           : [[ud, 'run'], [GLYPHS.arrowR, 'sections'], ['tab', 'panel'], ['?', 'help']];
   return (
     <Box height={1} justifyContent="space-between" paddingX={1}>
       <Box>
-        {hints.map(([k, l], i) => (
-          <Text key={i}>
-            <Text color={COLORS.yellow} bold>{k}</Text>
-            <Text color={COLORS.comment}>{` ${l}   `}</Text>
-          </Text>
-        ))}
+        {noting ? (
+          <Text><Text color={COLORS.yellow} bold>{'note: '}</Text><Text color={COLORS.fg}>{note}</Text><Text color={COLORS.blue}>{GLYPHS.accent}</Text></Text>
+        ) : filtering ? (
+          <Text><Text color={COLORS.yellow} bold>{'/ '}</Text><Text color={COLORS.fg}>{filter}</Text><Text color={COLORS.blue}>{GLYPHS.accent}</Text></Text>
+        ) : flash ? (
+          <Text color={COLORS.green}>{flash}</Text>
+        ) : (
+          <Box>
+            {filter ? <Text color={COLORS.cyan}>{'/' + filter + '  '}</Text> : null}
+            {failOnly ? <Text color={COLORS.red}>{'fail-only  '}</Text> : null}
+            {sortMode !== 'name' ? <Text color={COLORS.magenta}>{'sort:' + sortMode + '  '}</Text> : null}
+            {hints.map(([k, l], i) => (
+              <Text key={i}>
+                <Text color={COLORS.yellow} bold>{k}</Text>
+                <Text color={COLORS.comment}>{` ${l}   `}</Text>
+              </Text>
+            ))}
+          </Box>
+        )}
       </Box>
       <Box>
         <Text color={COLORS.green}>{GLYPHS.play + ' '}</Text>
@@ -187,10 +247,15 @@ function HelpView() {
     [`${GLYPHS.arrowR} / l / ${GLYPHS.enter}`, 'enter the detail pane cursor (Skills, Cases)'],
     [`${GLYPHS.enter}  (in pane)`, 'drill into the highlighted item'],
     [`${GLYPHS.arrowL} / h / esc`, 'leave the detail pane cursor'],
-    ['v', `toggle rendered ${GLYPHS.compare} raw grading.json (Cases)`],
+    ['[  ]', 'cycle case detail mode (Overview/Response/Diff/Trace/Context/Raw)'],
+    ['v', 'jump to raw grading.json (Cases)'],
     [`PgUp/PgDn · ${GLYPHS.ctrl}u/${GLYPHS.ctrl}d`, 'scroll the detail pane'],
     ['r', 'run evals for the selected skill/case, then reload'],
     ['g  /  G', 'jump to top / bottom'],
+    ['/', 'filter skills + cases (type, ↵ apply, esc clear)'],
+    ['F', 'toggle failures-only'],
+    ['s', 'cycle skill sort (name / pass / delta / cost)'],
+    ['f', 'write a feedback.json note for the case (feeds improve)'],
     ['q  /  ctrl-c', 'quit'],
   ];
   return (
@@ -218,23 +283,32 @@ export function App({ skills, runs, onAction, initial, showWithout }: { skills: 
 
   const [focused, setFocused] = useState<Focus>(initial?.focused ?? 'cases');
   const [sel, setSel] = useState<Sel>(initial?.sel ?? { skills: 0, cases: 0, assertions: 0, runs: 0 });
-  const [rawMode, setRawMode] = useState(initial?.rawMode ?? false);
+  const [caseMode, setCaseMode] = useState<CaseMode>(initial?.caseMode ?? 'overview');
   const [showHelp, setShowHelp] = useState(false);
   const [scroll, setScroll] = useState(0);
   const [pane, setPane] = useState(false);   // in-pane cursor active
   const [cursor, setCursor] = useState(0);   // index into the current view's anchors
+  const [filter, setFilter] = useState('');
+  const [filtering, setFiltering] = useState(false);
+  const [failOnly, setFailOnly] = useState(false);
+  const [sortMode, setSortMode] = useState<SortMode>('name');
+  const [noting, setNoting] = useState(false);
+  const [note, setNote] = useState('');
+  const [flash, setFlash] = useState('');
 
-  const sk = skills[clampIdx(sel.skills, skills.length)];
-  const cs = sk?.cases[clampIdx(sel.cases, sk.cases.length)];
+  const viewSkills = applySkillView(skills, filter, failOnly, sortMode);
+  const sk = viewSkills[clampIdx(sel.skills, viewSkills.length)];
+  const viewCases = sk ? applyCaseView(sk.cases, filter, failOnly) : [];
+  const cs = viewCases[clampIdx(sel.cases, viewCases.length)];
   const asrt = cs?.assertions[clampIdx(sel.assertions, cs.assertions.length)];
   const run = runs[clampIdx(sel.runs, runs.length)];
 
   // Reset pane/cursor/scroll whenever the projected view changes.
-  const viewKey = `${focused}|${sel.skills}|${sel.cases}|${sel.assertions}|${sel.runs}|${rawMode}`;
+  const viewKey = `${focused}|${sel.skills}|${sel.cases}|${sel.assertions}|${sel.runs}|${caseMode}`;
   useEffect(() => { setScroll(0); setPane(false); setCursor(0); }, [viewKey]);
 
   const maxRows = Math.max(4, rowsT - 7);
-  const main = sk && cs ? buildMain(focused, sk, cs, asrt!, run, rawMode, showWithout ?? true) : { title: '', sub: [] as Seg[], lines: [] as DisplayLine[], anchors: [] as number[] };
+  const main = sk && cs ? buildMain(focused, sk, cs, asrt!, run, caseMode, showWithout ?? true) : { title: '', sub: [] as Seg[], lines: [] as DisplayLine[], anchors: [] as number[] };
   const anchors = main.anchors;
   const scrollMax = Math.max(0, main.lines.length - maxRows);
   const cursorLine = pane && anchors.length ? (anchors[clampIdx(cursor, anchors.length)] ?? -1) : -1;
@@ -243,12 +317,44 @@ export function App({ skills, runs, onAction, initial, showWithout }: { skills: 
   const scrollToLine = (cl: number) => setScroll((s) => (cl < s ? cl : cl >= s + maxRows ? cl - maxRows + 1 : s));
 
   useInput((input, key) => {
-    if (!sk || !cs) { if (input === 'q') onAction({ type: 'quit' }); return; }
+    if (noting) {
+      if (key.return) {
+        if (sk && cs) {
+          const skill = sk; const caseId = cs.id; const text = note;
+          void writeFeedback(skill, caseId, text).then((p) => setFlash('feedback saved → ' + p)).catch((e) => setFlash('feedback failed: ' + (e?.message ?? String(e))));
+        }
+        setNoting(false); return;
+      }
+      if (key.escape) { setNoting(false); return; }
+      if (key.backspace || key.delete) { setNote((n) => n.slice(0, -1)); return; }
+      if (input && input.length === 1 && input >= ' ' && !key.ctrl && !key.meta) { setNote((n) => n + input); return; }
+      return;
+    }
+    if (filtering) {
+      if (key.return) { setFiltering(false); return; }
+      if (key.escape) { setFiltering(false); setFilter(''); return; }
+      if (key.backspace || key.delete) { setFilter((f) => f.slice(0, -1)); return; }
+      if (input && input.length === 1 && input >= ' ' && !key.ctrl && !key.meta) { setFilter((f) => f + input); return; }
+      return;
+    }
+    if (flash) setFlash('');
+    if (!sk || !cs) { if (input === 'q') onAction({ type: 'quit' }); if (input === '/') setFiltering(true); return; }
     if (showHelp) { setShowHelp(false); return; }
     if (input === 'q') { onAction({ type: 'quit' }); return; }
     if (input === '?') { setShowHelp(true); return; }
-    if (input === 'r') { onAction({ type: 'rerun', skillDir: sk.dir, caseId: focused === 'cases' ? cs.id : null, state: { focused, sel, rawMode } }); return; }
-    if (input === 'v') { if (focused === 'cases') { setRawMode((vv) => !vv); setPane(false); } return; }
+    if (input === '/') { setFiltering(true); return; }
+    if (input === 'f' && focused === 'cases') { setNote(''); setNoting(true); return; }
+    if (input === 'F') { setFailOnly((v) => !v); setSel((s) => ({ ...s, skills: 0, cases: 0, assertions: 0 })); return; }
+    if (input === 's') { setSortMode((m) => (m === 'name' ? 'pass' : m === 'pass' ? 'delta' : m === 'delta' ? 'cost' : 'name')); setSel((s) => ({ ...s, skills: 0 })); return; }
+    if (input === 'r') { onAction({ type: 'rerun', skillDir: sk.dir, caseId: focused === 'cases' ? cs.id : null, state: { focused, sel, caseMode } }); return; }
+    if (input === 'v') { if (focused === 'cases') { setCaseMode((m) => (m === 'raw' ? 'overview' : 'raw')); setPane(false); } return; }
+    if (focused === 'cases' && (input === ']' || input === '[')) {
+      const modes = modesFor(cs);
+      const cur = modes.indexOf(caseMode);
+      const ni = ((cur < 0 ? 0 : cur) + (input === ']' ? 1 : -1) + modes.length) % modes.length;
+      setCaseMode(modes[ni]!);
+      return;
+    }
 
     // panel switching always exits the pane
     if (key.tab) { setPane(false); const i = ORDER.indexOf(focused); const d = key.shift ? -1 : 1; setFocused(ORDER[(i + d + ORDER.length) % ORDER.length]!); return; }
@@ -283,7 +389,7 @@ export function App({ skills, runs, onAction, initial, showWithout }: { skills: 
     if (key.ctrl && input === 'u') { setScroll((s) => Math.max(0, s - Math.floor(maxRows / 2))); return; }
 
     // list navigation
-    const lens: Record<Focus, number> = { skills: skills.length, cases: sk.cases.length, assertions: cs.assertions.length, runs: runs.length };
+    const lens: Record<Focus, number> = { skills: viewSkills.length, cases: viewCases.length, assertions: cs.assertions.length, runs: runs.length };
     const move = (d: number) => {
       const len = lens[focused];
       setSel((s) => {
@@ -328,14 +434,14 @@ export function App({ skills, runs, onAction, initial, showWithout }: { skills: 
     <Box flexDirection="column" width={cols} height={rowsT}>
       <Box flexGrow={1} flexDirection="row">
         <Box flexDirection="column" width={railWidth}>
-          <Panel n={1} name="Skills" grow={grows.skills} count={String(skills.length)} rows={skillRows(skills)} selected={sel.skills} focused={!pane && focused === 'skills'} innerWidth={innerRail} maxRows={cap(grows.skills)} />
-          <Panel n={2} name="Cases" grow={grows.cases} count={String(sk.cases.length)} rows={caseRows(sk)} selected={clampIdx(sel.cases, sk.cases.length)} focused={!pane && focused === 'cases'} innerWidth={innerRail} maxRows={cap(grows.cases)} />
+          <Panel n={1} name="Skills" grow={grows.skills} count={String(viewSkills.length)} rows={skillRows(viewSkills)} selected={clampIdx(sel.skills, viewSkills.length)} focused={!pane && focused === 'skills'} innerWidth={innerRail} maxRows={cap(grows.skills)} />
+          <Panel n={2} name="Cases" grow={grows.cases} count={String(viewCases.length)} rows={caseRows(viewCases)} selected={clampIdx(sel.cases, viewCases.length)} focused={!pane && focused === 'cases'} innerWidth={innerRail} maxRows={cap(grows.cases)} />
           <Panel n={3} name="Assertions" grow={grows.assertions} count={String(cs.assertions.length)} rows={assertionRows(cs)} selected={clampIdx(sel.assertions, cs.assertions.length)} focused={!pane && focused === 'assertions'} innerWidth={innerRail} maxRows={cap(grows.assertions)} />
           <Panel n={4} name="Runs" grow={grows.runs} count={String(runs.length)} rows={runRows(runs)} selected={sel.runs} focused={!pane && focused === 'runs'} innerWidth={innerRail} maxRows={cap(grows.runs)} />
         </Box>
         <MainPane title={main.title} sub={main.sub} lines={main.lines} scroll={scroll} maxRows={maxRows} innerWidth={mainInner} cursorLine={cursorLine} paneFocused={pane} />
       </Box>
-      <StatusBar focused={focused} rawMode={rawMode} pane={pane} sk={sk} />
+      <StatusBar focused={focused} caseMode={caseMode} pane={pane} sk={sk} filter={filter} filtering={filtering} failOnly={failOnly} sortMode={sortMode} noting={noting} note={note} flash={flash} />
     </Box>
   );
 }
