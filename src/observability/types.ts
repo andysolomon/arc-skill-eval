@@ -1,3 +1,6 @@
+import type { GradingJson, TimingJson, EvalRunVariant } from "../evals/types.js";
+import type { EvalTrace } from "../traces/types.js";
+
 export type EvalContextMode = "isolated" | "ambient";
 
 export type ContextSkillRole = "target" | "extra" | "ambient";
@@ -55,4 +58,45 @@ export interface ToolSummaryJson {
   }>;
   mcp_tool_call_count: number;
   mcp_tool_calls_by_name: Record<string, number>;
+}
+
+export type ObservabilityExportStatus = "success" | "skipped" | "failed";
+
+export interface ObservabilityExportResult {
+  sink: string;
+  status: ObservabilityExportStatus;
+  message?: string;
+}
+
+export interface ObservabilityArtifactPaths {
+  assistant: string;
+  outputs: string;
+  timing: string;
+  grading: string;
+  trace: string;
+  tool_summary: string;
+  context_manifest: string;
+}
+
+export interface ObservabilityCaseVariantPayload {
+  run_id: string;
+  iteration?: string;
+  skill: {
+    name: string;
+    dir: string;
+  };
+  case_id: string;
+  variant: EvalRunVariant;
+  timing: TimingJson;
+  grading_summary: GradingJson["summary"];
+  grading: GradingJson;
+  trace: EvalTrace;
+  tool_summary: ToolSummaryJson;
+  context_manifest: ContextManifestJson;
+  artifact_paths: ObservabilityArtifactPaths;
+}
+
+export interface ObservabilitySink {
+  name: string;
+  exportCaseVariant(payload: ObservabilityCaseVariantPayload): Promise<ObservabilityExportResult | void> | ObservabilityExportResult | void;
 }
