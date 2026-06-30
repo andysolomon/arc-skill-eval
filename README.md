@@ -300,6 +300,20 @@ Model options:
 - `--agent-dir <path>` points Pi settings, model registry, and auth lookup at an eval-owned agent directory instead of the normal `~/.pi/agent` directory.
 - When no model flags are supplied, `arc-skill-eval` inherits Pi's default provider/model/thinking level from the effective Pi agent settings.
 
+### Export traces to Laminar (optional)
+
+`run --laminar` additionally exports each case/variant as a [Laminar](https://www.lmnr.ai/) trace for dashboard inspection. It is **off by default and entirely optional** — local `evals-runs/` artifacts remain the canonical record, and an export failure never fails the run.
+
+```bash
+LMNR_PROJECT_API_KEY=lmnr_... arc-skill-eval run . --laminar
+```
+
+- **`LMNR_PROJECT_API_KEY`** is required when `--laminar` is set; the command fails fast (before any case runs) and names the key if it is missing. **`LMNR_BASE_URL`** and **`LMNR_PROJECT_NAME`** are optional.
+- The Laminar Node SDK (`@lmnr-ai/lmnr`) is an **optional** dependency, dynamically imported only when the flag is enabled — installs that never use Laminar don't pull it in. If it's missing when enabled, the run reports a clear error naming the package.
+- Exports carry **metadata and artifact paths only** (no assistant text, prompts, or file contents). `with_skill` / `without_skill` variants stay distinguishable while sharing a run/case id; the `benchmark.json` delta remains local.
+
+See [`docs/concepts/artifacts` → External observability](docs-site/src/content/docs/concepts/artifacts.md) for the full local-artifact → Laminar trace mapping.
+
 ### Eval-owned Pi runtime
 
 Use `--agent-dir` when you want reproducible team or CI runs without depending on personal Pi defaults:

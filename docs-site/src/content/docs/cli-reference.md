@@ -19,6 +19,7 @@ arc-skill-eval run <skill-dir-or-repo>
                    [--extra-skill <path>]...
                    [--context-mode isolated|ambient]
                    [--compare]
+                   [--laminar]
                    [--json]
 
 arc-skill-eval init-runtime <agent-dir>
@@ -328,6 +329,24 @@ Emit a machine-readable JSON summary on stdout instead of human-readable lines. 
 ```bash
 arc-skill-eval run . --json
 ```
+
+### `--laminar`
+
+Opt into exporting each case/variant as a [Laminar](https://www.lmnr.ai/) trace for dashboard inspection. **Disabled by default** — without this flag no Laminar SDK is loaded and no network calls occur. Laminar export is strictly additive: local artifacts under `evals-runs/` remain the canonical source of truth, and an export failure never fails the run.
+
+Configuration is read from the environment when the flag is set:
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `LMNR_PROJECT_API_KEY` | yes | Laminar project API key. The command fails fast (before any case runs) if this is missing, naming the key. |
+| `LMNR_BASE_URL` | no | Override the Laminar endpoint. |
+| `LMNR_PROJECT_NAME` | no | Group traces under a named project. |
+
+```bash
+LMNR_PROJECT_API_KEY=lmnr_... arc-skill-eval run . --laminar
+```
+
+The Laminar Node SDK (`@lmnr-ai/lmnr`) is an **optional** dependency, loaded on demand only when the flag is enabled. If it is not installed, the run reports a clear error naming the package. See [Artifacts → External observability](/arc-skill-eval/concepts/artifacts/#external-observability-laminar) for the trace mapping.
 
 ## Examples
 
