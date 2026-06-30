@@ -116,6 +116,7 @@ test("runEvalsCommand runs every case, writes per-case artifacts, aggregates pas
     assert.equal(skillResult.skillName, "sample");
     assert.equal(skillResult.cases.length, 2);
     assert.equal(skillResult.errors.length, 0);
+    assert.deepEqual(skillResult.observabilityExportFailures, []);
     assert.equal(skillResult.benchmarkPath, undefined);
 
     for (const caseArt of skillResult.cases) {
@@ -159,6 +160,7 @@ test("runEvalsCommand runs every case, writes per-case artifacts, aggregates pas
       assert.equal(contextManifest.ambient.extensions, false);
       assert.ok(contextManifest.available_tools.some((tool) => tool.name === "bash" && tool.source === "builtin"));
 
+      assert.deepEqual(caseArt.observabilityExports, []);
       assert.ok(caseArt.outputsDir.startsWith(skillDir));
       assert.ok(caseArt.outputsDir.includes("run-fixed"));
     }
@@ -207,6 +209,100 @@ test("runEvalsCommand accepts a sandbox override and per-case sandbox without ch
       assert.equal(grading.summary.failed, 0);
     }
     assert.equal(result.summary.passedCases, 2);
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test("runEvalsCommand exports complete case variant payloads to observability sinks", async () => {
+  const { repoRoot, skillDir } = await createSkillFixture({
+    skillName: "sample",
+    evals: [{ id: "observed", prompt: "Say hello.", assertions: ["The response contains hello"] }],
+  });
+  const payloads = [];
+
+  try {
+    const result = await runEvalsCommand({
+      input: skillDir,
+      runId: "run-observed",
+      iteration: "obs",
+      createSession: async () => ({
+        model: null,
+        session: createInjectedSession("hello"),
+      }),
+      judge: STUB_JUDGE_PASS,
+      observabilitySinks: [{
+        name: "fake-sink",
+        exportCaseVariant(payload) {
+          payloads.push(payload);
+          return { sink: "fake-sink", status: "success", message: "exported" };
+        },
+      }],
+    });
+
+    assert.equal(payloads.length, 1);
+    const [payload] = payloads;
+    assert.equal(payload.run_id, "run-observed");
+    assert.equal(payload.iteration, "iteration-obs");
+    assert.deepEqual(payload.skill, { name: "sample", dir: skillDir });
+    assert.equal(payload.case_id, "observed");
+    assert.equal(payload.variant, "with_skill");
+    assert.equal(payload.timing.total_tokens, 12);
+    assert.equal(payload.grading_summary.passed, 1);
+    assert.equal(payload.grading.assertion_results.length, 1);
+    assert.equal(payload.trace.identity.runtime, "pi-sdk");
+    assert.equal(payload.tool_summary.tool_call_count, 0);
+    assert.equal(payload.context_manifest.mode, "isolated");
+    assert.ok(payload.artifact_paths.assistant.endsWith("assistant.md"));
+    assert.ok(payload.artifact_paths.outputs.endsWith("outputs"));
+    assert.ok(payload.artifact_paths.grading.endsWith("grading.json"));
+
+    const caseArtifacts = result.skills[0].cases[0];
+    assert.deepEqual(caseArtifacts.observabilityExports, [{ sink: "fake-sink", status: "success", message: "exported" }]);
+    assert.deepEqual(result.skills[0].observabilityExportFailures, []);
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test("runEvalsCommand isolates observability sink failures after local artifacts are written", async () => {
+  const { repoRoot, skillDir } = await createSkillFixture({
+    skillName: "sample",
+    evals: [{ id: "export-fails", prompt: "Say hello.", assertions: ["The response contains hello"] }],
+  });
+
+  try {
+    const result = await runEvalsCommand({
+      input: skillDir,
+      runId: "run-export-fails",
+      createSession: async () => ({
+        model: null,
+        session: createInjectedSession("hello"),
+      }),
+      judge: STUB_JUDGE_PASS,
+      observabilitySinks: [{
+        name: "broken-sink",
+        exportCaseVariant() {
+          throw new Error("network unavailable");
+        },
+      }],
+    });
+
+    assert.equal(result.summary.passedCases, 1);
+    const [caseArtifacts] = result.skills[0].cases;
+    assert.equal(JSON.parse(await readFile(caseArtifacts.gradingPath, "utf8")).summary.passed, 1);
+    assert.equal(await readFile(caseArtifacts.assistantPath, "utf8"), "hello\n");
+    assert.deepEqual(caseArtifacts.observabilityExports, [{
+      sink: "broken-sink",
+      status: "failed",
+      message: "network unavailable",
+    }]);
+    assert.deepEqual(result.skills[0].observabilityExportFailures, [{
+      caseId: "export-fails",
+      variant: "with_skill",
+      sink: "broken-sink",
+      message: "network unavailable",
+    }]);
   } finally {
     await rm(repoRoot, { recursive: true, force: true });
   }
