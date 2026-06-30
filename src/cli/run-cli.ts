@@ -171,7 +171,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
       case "browse": {
         // Interactive: the Ink TUI renders directly to the terminal and owns
         // stdout for its lifetime, so it bypasses the buffered stdout/stderr path.
-        const code = await browseCommand({ input: parsed.input });
+        const code = await browseCommand({ input: parsed.input, showWithout: !parsed.noBaseline });
         return {
           exitCode: code === 0 ? 0 : 1,
           stdout: "",

@@ -25,10 +25,11 @@ const BIN = process.env.ARC_SKILL_EVAL_BIN ?? 'arc-skill-eval';
 
 export interface BrowseOptions {
   input?: string;
+  showWithout?: boolean;
 }
 
 /** Render the App and resolve once the user quits or requests a re-run. */
-function runApp(ws: Workspace, initial?: AppState): Promise<AppAction> {
+function runApp(ws: Workspace, initial: AppState | undefined, showWithout: boolean): Promise<AppAction> {
   return new Promise((resolve) => {
     let done = false;
     const finish = (a: AppAction) => {
@@ -38,7 +39,7 @@ function runApp(ws: Workspace, initial?: AppState): Promise<AppAction> {
       resolve(a);
     };
     const instance = render(
-      createElement(App, { skills: ws.skills, runs: ws.runs, onAction: finish, initial }),
+      createElement(App, { skills: ws.skills, runs: ws.runs, onAction: finish, initial, showWithout }),
       { exitOnCtrlC: true },
     );
     // Ctrl-C path: Ink resolves waitUntilExit on its own.
@@ -92,6 +93,7 @@ function mergeSkill(ws: Workspace, skillDir: string, reloaded: Awaited<ReturnTyp
 
 export async function browseCommand(opts: BrowseOptions = {}): Promise<number> {
   const input = opts.input ?? '.';
+  const showWithout = opts.showWithout ?? true;
 
   process.stdout.write(ALT_ENTER);
   const cleanup = () => process.stdout.write(ALT_EXIT);
@@ -101,7 +103,7 @@ export async function browseCommand(opts: BrowseOptions = {}): Promise<number> {
     const ws = await loadWorkspace(input); // loaded once; re-runs patch it in place
     let initial: AppState | undefined;
     for (;;) {
-      const action = await runApp(ws, initial);
+      const action = await runApp(ws, initial, showWithout);
       if (action.type === 'quit') break;
       if (action.type === 'rerun') {
         initial = action.state; // remember where the user was

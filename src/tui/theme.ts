@@ -1,8 +1,11 @@
 // Tokyo Night palette + pure render helpers.
-// Ported verbatim from the HTML design spec (style.md §2.1). No Ink/React here —
-// these functions build plain {text,color} segments the components render.
+// The palette degrades on low-color terminals (caps.colorLevel) and the
+// glyph set degrades to ASCII off UTF-8 (caps.GLYPHS). All call sites import
+// COLORS / GLYPHS unchanged — the runtime swap happens here.
 
-export const COLORS = {
+import { colorLevel, GLYPHS } from './caps.js';
+
+const HEX = {
   bg: '#1a1b26',
   bgDark: '#16161e',
   bgHi: '#222538',
@@ -23,20 +26,34 @@ export const COLORS = {
   dim: '#3b4261',
 } as const;
 
+// 16-color fallback (Ink/chalk auto-downsamples hex on 256-color, so this is
+// only used at level <= 1). Keys mirror HEX exactly.
+const ANSI: Record<keyof typeof HEX, string> = {
+  bg: 'black',
+  bgDark: 'black',
+  bgHi: 'gray',
+  fg: 'white',
+  fgDark: 'white',
+  comment: 'gray',
+  blue: 'blueBright',
+  cyan: 'cyanBright',
+  green: 'greenBright',
+  magenta: 'magentaBright',
+  red: 'redBright',
+  orange: 'yellow',
+  yellow: 'yellowBright',
+  teal: 'cyan',
+  selection: 'blue',
+  border: 'gray',
+  borderActive: 'blueBright',
+  dim: 'gray',
+};
+
 export type Color = string;
+export const COLORS: Record<keyof typeof HEX, Color> = colorLevel >= 2 ? { ...HEX } : ANSI;
 
-/** One run of colored text inside a line/row. */
-export interface Seg {
-  t: string;
-  c: Color;
-  b?: boolean; // bold
-}
-
-/** A line in the main pane (optionally with a full-width background wash). */
-export interface Line {
-  segs: Seg[];
-  bg?: Color;
-}
+export interface Seg { t: string; c: Color; b?: boolean }
+export interface Line { segs: Seg[]; bg?: Color }
 
 export const seg = (t: unknown, c: Color, b = false): Seg => ({ t: String(t), c, ...(b ? { b: true } : {}) });
 
@@ -54,11 +71,11 @@ export const num = (n: number): string => Number(n).toLocaleString('en-US');
 
 export const segLen = (segs: Seg[]): number => segs.reduce((a, s) => a + s.t.length, 0);
 
-/** A filled/empty block-bar, e.g. ▓▓▓▓░░░░░░ — gate the glyphs behind a unicode check in prod. */
+/** A filled/empty block-bar — glyphs come from the capability-aware set. */
 export function bar(frac: number, color: Color, width = 18): Seg[] {
   const clamped = Math.max(0, Math.min(1, frac));
   const f = Math.round(clamped * width);
-  return [seg('▓'.repeat(f), color), seg('░'.repeat(width - f), COLORS.dim)];
+  return [seg(GLYPHS.barFull.repeat(f), color), seg(GLYPHS.barEmpty.repeat(width - f), COLORS.dim)];
 }
 
 /** Word-wrap prose into indented main-pane lines. */
@@ -78,14 +95,12 @@ export function wrap(text: string, w: number, indent = '  '): Line[] {
   return out.length ? out : [{ segs: [seg(indent + '—', COLORS.dim)] }];
 }
 
-export const glyphs = { pass: '✓', fail: '✗', partial: '◐', running: '◌' } as const;
-
 export function statusGlyph(status: string): [string, Color] {
   switch (status) {
-    case 'pass': return [glyphs.pass, COLORS.green];
-    case 'fail': return [glyphs.fail, COLORS.red];
-    case 'partial': return [glyphs.partial, COLORS.orange];
-    default: return [glyphs.running, COLORS.comment];
+    case 'pass': return [GLYPHS.pass, COLORS.green];
+    case 'fail': return [GLYPHS.fail, COLORS.red];
+    case 'partial': return [GLYPHS.partial, COLORS.orange];
+    default: return [GLYPHS.running, COLORS.comment];
   }
 }
 

@@ -50,6 +50,7 @@ export interface CreateCliOptions {
 
 export interface BrowseCliOptions {
   input?: string;
+  noBaseline?: boolean;
 }
 
 export interface AuditCliOptions {

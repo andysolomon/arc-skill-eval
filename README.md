@@ -246,6 +246,11 @@ Navigation:
 - `v` toggles rendered ⇄ raw `grading.json`.
 - `r` re-runs evals for the selected skill (or case): it leaves the TUI, shells out to `arc-skill-eval run <skill> [--case <id>]` with live output, then reloads only that skill and restores your selection. The child is launched as `arc-skill-eval` (must be on `PATH`); override with `ARC_SKILL_EVAL_BIN`.
 
+Display options:
+
+- `--no-baseline` hides the `without_skill` comparison rows in the detail pane (handy when you only ran the skill variant).
+- The TUI is capability-aware: truecolor hex degrades to 16-color ANSI on low-color terminals, and block/box glyphs (bars, status ticks, accent bar) fall back to ASCII off a UTF-8 locale. Force the fallbacks with `NO_COLOR` / `FORCE_COLOR=0` (no color) or `ARC_TUI_ASCII=1` (ASCII glyphs).
+
 Model options:
 - `--model <provider/model[:thinking]>` pins the skill runner model instead of using Pi's configured default. Example: `openai-codex/gpt-5.5:medium`.
 - `--judge-model <provider/model[:thinking]>` pins the model used for LLM-judged string assertions. Deterministic assertions do not use the judge.
