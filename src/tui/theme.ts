@@ -51,7 +51,7 @@ const ANSI: Record<keyof typeof HEX, string> = {
 
 type Palette = Record<keyof typeof HEX, string>;
 
-// Alternate palettes from style.md (selectable via ARC_TUI_THEME).
+// Alternate palettes from STYLE.md (selectable via ARC_TUI_THEME).
 const GRUVBOX: Palette = {
   bg: '#282828', bgDark: '#1d2021', bgHi: '#3c3836', fg: '#ebdbb2', fgDark: '#d5c4a1',
   comment: '#928374', blue: '#83a598', cyan: '#8ec07c', green: '#b8bb26', magenta: '#d3869b',
@@ -65,7 +65,9 @@ const NORD: Palette = {
   selection: '#434c5e', border: '#3b4252', borderActive: '#88c0d0', dim: '#4c566a',
 };
 
-const PALETTES: Record<string, Palette> = { tokyonight: { ...HEX }, gruvbox: GRUVBOX, nord: NORD };
+/** All selectable palettes, keyed by ARC_TUI_THEME value. Exposed so the
+ *  component-gallery conformance test and tooling can read the token set. */
+export const PALETTES: Record<string, Palette> = { tokyonight: { ...HEX }, gruvbox: GRUVBOX, nord: NORD };
 const THEME = (process.env.ARC_TUI_THEME || 'tokyonight').toLowerCase();
 const PICKED: Palette = PALETTES[THEME] ?? { ...HEX };
 

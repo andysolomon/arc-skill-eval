@@ -37,6 +37,7 @@ export default defineConfig({
 				{ label: 'Skill Creator Roadmap', link: '/skill-creator-roadmap/' },
 				{ label: 'CLI reference', link: '/cli-reference/' },
 				{ label: 'Browse (TUI)', link: '/browse/' },
+				{ label: 'Components & themes', link: '/components/' },
 				{
 					label: 'Examples',
 					autogenerate: { directory: 'examples' },
