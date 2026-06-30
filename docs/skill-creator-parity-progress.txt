@@ -16,12 +16,12 @@ Milestone SCP-1 — Eval-owned Pi runtime
     [x] 1.5 Record effective agentDir in run artifacts
     [x] 1.6 Document eval-owned runtime setup
 
-[ ] W-000020 Initialize tiny eval runtime config [AFK]
-    [ ] 2.1 Add init-runtime command parser and help output
-    [ ] 2.2 Write minimal models.json for ollama-cloud
-    [ ] 2.3 Write minimal settings.json with default provider/model/thinking
-    [ ] 2.4 Refuse overwrites unless --force is supplied
-    [ ] 2.5 Add config writer tests
+[x] W-000020 Initialize tiny eval runtime config [AFK]
+    [x] 2.1 Add init-runtime command parser and help output
+    [x] 2.2 Write minimal models.json for ollama-cloud
+    [x] 2.3 Write minimal settings.json with default provider/model/thinking
+    [x] 2.4 Refuse overwrites unless --force is supplied
+    [x] 2.5 Add config writer tests
     [ ] 2.6 Manual smoke with ollama-cloud/gpt-oss:20b
 
 Milestone SCP-2 — Guided eval creation

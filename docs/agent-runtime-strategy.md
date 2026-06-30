@@ -64,7 +64,7 @@ A tiny Pi instance is not a fork of Pi. It is an eval-owned Pi config directory 
 - explicit runner and judge model pins
 - temp session directories per run
 
-`arc-skill-eval` already defaults to isolated context for skills/tools, but model registry and auth currently still come from the user's main Pi agent dir via `getAgentDir()`. A tiny instance would make that explicit and reproducible.
+`arc-skill-eval` defaults to isolated context for skills/tools. With `--agent-dir`, model registry, settings, and auth lookup can also come from an eval-owned Pi agent directory instead of the user's main Pi agent dir.
 
 ### CLI
 
@@ -77,7 +77,7 @@ arc-skill-eval run ./skills/hello-world \
   --judge-model ollama-cloud/gpt-oss:20b
 ```
 
-Potential initializer:
+Initializer:
 
 ```bash
 arc-skill-eval init-runtime ./.arc-skill-eval/pi-agent \
@@ -122,7 +122,7 @@ Pi resolves `apiKey` values by first checking environment variables, so `"apiKey
 - Keeps Pi's tool loop, skills, sessions, and model registry
 - Lets us avoid touching global `~/.pi/agent` during CI or local experiments
 - Makes eval runs more reproducible
-- Small implementation: thread `agentDir` through CLI -> run command -> `runEvalCase` -> Pi SDK runner
+- Already implemented: `agentDir` is threaded through CLI -> run command -> `runEvalCase` -> Pi SDK runner and default LLM judge
 
 ### Caveats
 

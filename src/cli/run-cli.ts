@@ -1,3 +1,4 @@
+import { initRuntimeCommand } from "./init-runtime-command.js";
 import { runEvalsCommand } from "./run-evals-command.js";
 import { renderHelp, parseCliArgs } from "./argv.js";
 import { formatRunEvalsResult } from "./render.js";
@@ -14,6 +15,20 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
           stdout: `${renderHelp()}\n`,
           stderr: "",
         };
+      case "init-runtime": {
+        const result = await initRuntimeCommand({
+          targetDir: parsed.targetDir,
+          provider: parsed.provider,
+          model: parsed.model,
+          force: parsed.force,
+        });
+        const action = result.overwritten ? "Updated" : "Created";
+        return {
+          exitCode: 0,
+          stdout: `${action} eval runtime at ${result.targetDir}\n- ${result.modelsPath}\n- ${result.settingsPath}\n\nRun with:\narc-skill-eval run <skill-dir> --agent-dir ${result.targetDir}\n`,
+          stderr: "",
+        };
+      }
       case "run": {
         const result = await runEvalsCommand({
           input: parsed.input,

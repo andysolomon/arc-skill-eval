@@ -1,9 +1,9 @@
 ---
 title: CLI reference
-description: Every flag of `arc-skill-eval run`, with model pinning, compare mode, and exit-code semantics.
+description: Every flag of `arc-skill-eval run` plus `init-runtime`, with model pinning, compare mode, and exit-code semantics.
 ---
 
-The current stable CLI centers on one command: `run`. It discovers skills, materializes fixtures, runs cases through Pi, grades assertions, and writes artifacts.
+The current stable CLI centers on `run` for executing evals and `init-runtime` for creating tiny eval-owned Pi runtime config.
 
 ## Synopsis
 
@@ -20,13 +20,40 @@ arc-skill-eval run <skill-dir-or-repo>
                    [--context-mode isolated|ambient]
                    [--compare]
                    [--json]
+
+arc-skill-eval init-runtime <agent-dir>
+                            --provider <provider>
+                            --model <model>
+                            [--force]
 ```
 
-The positional `<skill-dir-or-repo>` is resolved as a skill directory if it contains `evals/evals.json`, otherwise as a repo whose tree is walked for `SKILL.md` + `evals/evals.json` pairs.
+## Commands
+
+### `init-runtime <agent-dir>`
+
+Create a tiny eval-owned Pi runtime directory with `models.json` and `settings.json`:
+
+```bash
+arc-skill-eval init-runtime ./.arc-skill-eval/pi-agent \
+  --provider ollama-cloud \
+  --model gpt-oss:20b
+```
+
+Options:
+
+- `--provider <provider>`: currently `ollama-cloud` and `ollama` are supported.
+- `--model <model>`: model id to register and set as the Pi default for this runtime.
+- `--force`: overwrite existing `models.json` or `settings.json`. Without this flag, the command refuses to overwrite existing runtime files.
+
+For Ollama Cloud, the generated `models.json` references `OLLAMA_API_KEY`; it does not store a literal API key.
+
+### `run <skill-dir-or-repo>`
+
+Discover skills, materialize fixtures, run cases through Pi, grade assertions, and write artifacts. The positional `<skill-dir-or-repo>` is resolved as a skill directory if it contains `evals/evals.json`, otherwise as a repo whose tree is walked for `SKILL.md` + `evals/evals.json` pairs.
 
 Exit code: `0` when every case has no failing assertions; `1` otherwise.
 
-## Flags
+## Run flags
 
 ### `--skill <name>` *(repeatable)*
 
@@ -167,6 +194,11 @@ arc-skill-eval run ./skills/arc-conventional-commits \
 arc-skill-eval run ./skills/hello-world \
   --model ollama-cloud/gpt-oss:20b \
   --judge-model ollama-cloud/gpt-oss:20b
+
+# Create a tiny eval-owned Pi config/runtime directory.
+arc-skill-eval init-runtime ./.arc-skill-eval/pi-agent \
+  --provider ollama-cloud \
+  --model gpt-oss:20b
 
 # Use an eval-owned Pi config/runtime directory.
 arc-skill-eval run ./skills/hello-world \

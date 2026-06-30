@@ -17,6 +17,13 @@ export interface RunEvalsCliOptions extends CommandSelectionOptions {
   judgeModel?: ModelSelection;
 }
 
+export interface InitRuntimeCliOptions {
+  targetDir: string;
+  provider: string;
+  model: string;
+  force?: boolean;
+}
+
 export interface CliRenderOptions {
   json?: boolean;
 }
@@ -33,7 +40,8 @@ export interface HelpCommandResult {
 
 export type ParsedCliCommand =
   | { command: "help" }
-  | ({ command: "run"; json?: boolean } & RunEvalsCliOptions);
+  | ({ command: "run"; json?: boolean } & RunEvalsCliOptions)
+  | ({ command: "init-runtime" } & InitRuntimeCliOptions);
 
 export class CliUsageError extends Error {
   constructor(message: string) {

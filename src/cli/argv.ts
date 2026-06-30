@@ -14,6 +14,11 @@ export function parseCliArgs(argv: string[]): ParsedCliCommand {
         command: "run",
         ...parseRunCommandArgs(rest),
       };
+    case "init-runtime":
+      return {
+        command: "init-runtime",
+        ...parseInitRuntimeCommandArgs(rest),
+      };
     default:
       throw new CliUsageError(`Unknown command: ${commandName}. Run \`arc-skill-eval --help\` for usage.`);
   }
@@ -25,6 +30,7 @@ export function renderHelp(): string {
     "",
     "Usage:",
     "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--agent-dir <path>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--compare] [--json]",
+    "  arc-skill-eval init-runtime <agent-dir> --provider <provider> --model <model> [--force]",
     "",
     "Notes:",
     "  - <skill-dir-or-repo> is either a skill directory containing evals/evals.json,",
@@ -37,6 +43,7 @@ export function renderHelp(): string {
     "  - --extra-skill loads explicit distractor/conflict skills for every variant.",
     "  - --context-mode ambient opts into normal Pi ambient resources; default is isolated.",
     "  - run exits with code 1 when any assertion fails or any case errors out.",
+    "  - init-runtime writes a minimal Pi models.json and settings.json for eval-owned runtime config.",
     "  - Format reference: https://platform.claude.com/docs/en/agents-and-tools/agent-skills",
   ].join("\n");
 }
@@ -150,6 +157,52 @@ function parseRunCommandArgs(args: string[]) {
   }
 
   return { input, skillNames, caseIds, outputDir, iteration, agentDir, extraSkillPaths, contextMode, model, judgeModel, compare, json };
+}
+
+function parseInitRuntimeCommandArgs(args: string[]) {
+  let targetDir: string | undefined;
+  let provider: string | undefined;
+  let model: string | undefined;
+  let force = false;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+
+    if (arg === "--force") {
+      force = true;
+      continue;
+    }
+
+    if (arg === "--provider" || arg.startsWith("--provider=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      provider = parsed.value;
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
+    if (arg === "--model" || arg.startsWith("--model=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      model = parsed.value;
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
+    if (arg.startsWith("-")) {
+      throw new CliUsageError(`Unknown flag: ${arg}.`);
+    }
+
+    if (targetDir !== undefined) {
+      throw new CliUsageError("Only one <agent-dir> positional argument is allowed.");
+    }
+
+    targetDir = arg;
+  }
+
+  if (!targetDir) throw new CliUsageError("Missing required <agent-dir> argument.");
+  if (!provider) throw new CliUsageError("Missing required --provider flag.");
+  if (!model) throw new CliUsageError("Missing required --model flag.");
+
+  return { targetDir, provider, model, force };
 }
 
 function readFlagValue(arg: string, nextArg: string | undefined): { value: string; consumedNext: boolean } {

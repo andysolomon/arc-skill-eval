@@ -74,6 +74,11 @@ arc-skill-eval run ./skills/arc-conventional-commits \
   --model openai-codex/gpt-5.5:medium \
   --judge-model mistral/ministral-8b-latest
 
+# Create a tiny eval-owned Pi config/runtime directory
+arc-skill-eval init-runtime ./.arc-skill-eval/pi-agent \
+  --provider ollama-cloud \
+  --model gpt-oss:20b
+
 # Use an eval-owned Pi config/runtime directory
 arc-skill-eval run ./skills/hello-world \
   --agent-dir ./.arc-skill-eval/pi-agent \
@@ -150,7 +155,17 @@ arc-skill-eval run ./skills/hello-world \
   --judge-model ollama-cloud/gpt-oss:20b
 ```
 
-A minimal eval-owned runtime can contain just:
+Create one with:
+
+```bash
+arc-skill-eval init-runtime ./.arc-skill-eval/pi-agent \
+  --provider ollama-cloud \
+  --model gpt-oss:20b
+```
+
+Use `--force` to intentionally overwrite existing runtime files.
+
+A minimal eval-owned runtime contains just:
 
 ```text
 .arc-skill-eval/pi-agent/

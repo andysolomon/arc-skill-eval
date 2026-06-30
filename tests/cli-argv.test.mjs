@@ -3,6 +3,32 @@ import test from "node:test";
 
 import { CliUsageError, parseCliArgs } from "../dist/index.js";
 
+test("parseCliArgs accepts init-runtime options", () => {
+  const parsed = parseCliArgs([
+    "init-runtime",
+    "./.arc-skill-eval/pi-agent",
+    "--provider",
+    "ollama-cloud",
+    "--model=gpt-oss:20b",
+    "--force",
+  ]);
+
+  assert.deepEqual(parsed, {
+    command: "init-runtime",
+    targetDir: "./.arc-skill-eval/pi-agent",
+    provider: "ollama-cloud",
+    model: "gpt-oss:20b",
+    force: true,
+  });
+});
+
+test("parseCliArgs requires init-runtime provider and model", () => {
+  assert.throws(
+    () => parseCliArgs(["init-runtime", "./.arc-skill-eval/pi-agent", "--provider", "ollama-cloud"]),
+    CliUsageError,
+  );
+});
+
 test("parseCliArgs accepts extra skill paths and context mode", () => {
   const parsed = parseCliArgs([
     "run",

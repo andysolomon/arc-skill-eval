@@ -352,13 +352,13 @@ Deliverables:
 
 Tasks:
 
-- [ ] 1.1 Extend CLI parser/help for `--agent-dir`
-- [ ] 1.2 Add CLI tests for `--agent-dir`
-- [ ] 1.3 Thread `agentDir` through run command and compare variants
-- [ ] 1.4 Update `createDefaultPiSdkSession` to use supplied credentials/config dir when present
-- [ ] 1.5 Add artifact metadata for effective config dir
-- [ ] 1.6 Implement `init-runtime` command with safe write/`--force`
-- [ ] 1.7 Document Ollama Cloud eval-owned runtime setup
+- [x] 1.1 Extend CLI parser/help for `--agent-dir`
+- [x] 1.2 Add CLI tests for `--agent-dir`
+- [x] 1.3 Thread `agentDir` through run command and compare variants
+- [x] 1.4 Update `createDefaultPiSdkSession` to use supplied credentials/config dir when present
+- [x] 1.5 Add artifact metadata for effective config dir
+- [x] 1.6 Implement `init-runtime` command with safe write/`--force`
+- [x] 1.7 Document Ollama Cloud eval-owned runtime setup
 
 Test Strategy:
 

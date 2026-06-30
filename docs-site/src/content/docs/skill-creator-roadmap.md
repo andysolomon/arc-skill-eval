@@ -17,15 +17,16 @@ Skeval can already:
 - run with-skill vs without-skill comparisons with `--compare`
 - pin runner and judge models with `--model` and `--judge-model`
 - use low-cost cloud providers such as Ollama Cloud through Pi
+- create eval-owned Pi config/runtime directories with `init-runtime`
 - use eval-owned Pi config/runtime directories with `--agent-dir`
 
 Those pieces make the eval signal real. The roadmap below focuses on making the skill improvement loop easier to drive.
 
 ## Planned commands
 
-### `init-runtime`
+### `init-runtime` ✅
 
-`--agent-dir` is available now. The next step is a helper to create a tiny eval-owned Pi runtime directory:
+Create a tiny eval-owned Pi runtime directory:
 
 ```bash
 arc-skill-eval init-runtime ./.arc-skill-eval/pi-agent \
@@ -33,7 +34,7 @@ arc-skill-eval init-runtime ./.arc-skill-eval/pi-agent \
   --model gpt-oss:20b
 ```
 
-This should write minimal `models.json` and `settings.json` files while keeping secrets in environment variables such as `OLLAMA_API_KEY`.
+This writes minimal `models.json` and `settings.json` files while keeping secrets in environment variables such as `OLLAMA_API_KEY`.
 
 ### `create`
 
