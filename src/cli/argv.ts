@@ -60,7 +60,7 @@ export function renderHelp(): string {
     "arc-skill-eval",
     "",
     "Usage:",
-    "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--agent-dir <path>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--sandbox none|just-bash] [--compare] [--json]",
+    "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--agent-dir <path>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--sandbox none|just-bash] [--compare] [--laminar] [--json]",
     "  arc-skill-eval init-runtime <agent-dir> --provider <provider> --model <model> [--force]",
     "  arc-skill-eval review <run-dir> [--output <dir>] [--force]",
     "  arc-skill-eval improve --from-feedback <feedback.json> [--dry-run] [--summary] [--apply]",
@@ -79,6 +79,7 @@ export function renderHelp(): string {
     "  - --extra-skill loads explicit distractor/conflict skills for every variant.",
     "  - --context-mode ambient opts into normal Pi ambient resources; default is isolated.",
     "  - --sandbox just-bash runs eligible cases in an isolated just-bash environment and overrides each case's `sandbox` field; default is none (the temp-workspace runner).",
+    "  - --laminar opts into exporting eval traces to Laminar; it requires LMNR_PROJECT_API_KEY and optionally honors LMNR_BASE_URL / LMNR_PROJECT_NAME. Disabled by default.",
     "  - run exits with code 1 when any assertion fails or any case errors out.",
     "  - init-runtime writes a minimal Pi models.json and settings.json for eval-owned runtime config.",
     "  - review writes static review.html and feedback.json files for an eval run directory.",
@@ -97,6 +98,7 @@ function parseRunCommandArgs(args: string[]) {
   let input: string | undefined;
   let json = false;
   let compare = false;
+  let laminar = false;
   let outputDir: string | undefined;
   let iteration: string | undefined;
   let agentDir: string | undefined;
@@ -116,6 +118,11 @@ function parseRunCommandArgs(args: string[]) {
 
     if (arg === "--compare") {
       compare = true;
+      continue;
+    }
+
+    if (arg === "--laminar") {
+      laminar = true;
       continue;
     }
 
@@ -212,7 +219,7 @@ function parseRunCommandArgs(args: string[]) {
     throw new CliUsageError("Missing required <skill-dir-or-repo> argument.");
   }
 
-  return { input, skillNames, caseIds, outputDir, iteration, agentDir, extraSkillPaths, contextMode, sandbox, model, judgeModel, compare, json };
+  return { input, skillNames, caseIds, outputDir, iteration, agentDir, extraSkillPaths, contextMode, sandbox, model, judgeModel, compare, laminar, json };
 }
 
 function parseInitRuntimeCommandArgs(args: string[]) {

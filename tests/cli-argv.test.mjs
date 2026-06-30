@@ -198,6 +198,20 @@ test("parseCliArgs supports thinking suffixes after colon-tagged model ids", () 
   assert.deepEqual(parsed.model, { provider: "ollama", id: "qwen3.5:cloud", thinking: "medium" });
 });
 
+test("parseCliArgs sets laminar true when --laminar is passed", () => {
+  const parsed = parseCliArgs(["run", "./skill", "--laminar"]);
+
+  assert.equal(parsed.command, "run");
+  assert.equal(parsed.laminar, true);
+});
+
+test("parseCliArgs leaves laminar falsy when flag omitted", () => {
+  const parsed = parseCliArgs(["run", "./skill"]);
+
+  assert.equal(parsed.command, "run");
+  assert.ok(!parsed.laminar);
+});
+
 test("parseCliArgs rejects model pins without provider", () => {
   assert.throws(
     () => parseCliArgs(["run", "./skill", "--model", "gpt-5.5"]),

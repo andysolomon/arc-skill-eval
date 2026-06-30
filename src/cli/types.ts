@@ -11,6 +11,7 @@ export interface RunEvalsCliOptions extends CommandSelectionOptions {
   iteration?: string;
   agentDir?: string;
   compare?: boolean;
+  laminar?: boolean;
   extraSkillPaths?: string[];
   contextMode?: "isolated" | "ambient";
   sandbox?: SandboxMode;
