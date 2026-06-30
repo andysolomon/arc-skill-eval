@@ -1,13 +1,11 @@
 // `arc-skill-eval browse [skill-dir-or-repo]` — interactive run browser.
 // Wire this into your CLI dispatcher (see arc-skill-eval-tui/README.md).
 //
-// Control flow: `r`/`R` and new-case (`n`) run IN-PROCESS inside the App
-// (it calls runEvalsCommand directly and reloads via the `onReload` callback
-// below) — Ink never unmounts. Only the `o` "re-run with custom flags" action
-// still hands back a `rerun` AppAction: arbitrary flags need a real subprocess,
-// so for that one path we unmount Ink, leave the alternate screen, run
-// `arc-skill-eval run …` with inherited stdio, reload the affected skill, and
-// remount with the previous selection restored.
+// Control flow: `r`/`R`, `o` (supported custom run flags), and new-case (`n`)
+// run IN-PROCESS inside the App (it calls runEvalsCommand directly and reloads
+// via the `onReload` callback below) — Ink never unmounts for normal browse
+// workflows. The older child-process `rerun` action remains as a fallback for
+// callers that explicitly hand one back to the controller.
 
 import { createElement } from 'react';
 import { render } from 'ink';
