@@ -8,17 +8,17 @@
       "assertions": [
         { "type": "file-exists", "path": "greeting.txt" },
         { "type": "regex-match", "pattern": "Hello, world!", "target": { "file": "greeting.txt" } },
-        "The response mentions the file `greeting.txt` by name"
+        { "type": "regex-match", "pattern": "greeting\\.txt", "target": "assistant-text" }
       ]
     },
     {
       "id": "named-ada",
       "prompt": "Create a greeting for Ada.",
-      "expected_output": "greeting.txt contains 'Hello, Ada!' and the assistant reply confirms it greeted Ada.",
+      "expected_output": "greeting.txt contains 'Hello, Ada!' and the assistant reply names the file.",
       "assertions": [
         { "type": "file-exists", "path": "greeting.txt" },
         { "type": "regex-match", "pattern": "Hello, Ada!", "target": { "file": "greeting.txt" } },
-        "The response confirms the greeting was written for Ada"
+        { "type": "regex-match", "pattern": "greeting\\.txt", "target": "assistant-text" }
       ]
     },
     {

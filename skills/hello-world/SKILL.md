@@ -28,4 +28,4 @@ When invoked, follow these steps exactly:
 
 ## Why it exists
 
-This skill is the smoke test for `arc-skill-eval`. If its evals pass, the framework's whole pipeline — discovery, runner, grader, workspace capture, script assertions, LLM-judged assertions — is healthy. Authors of real skills can treat the companion `evals/evals.json` as a worked example of the format.
+This skill is the smoke test for `arc-skill-eval`. If its evals pass, the framework's deterministic pipeline — discovery, runner, grader, workspace capture, script assertions, and assistant-text assertions — is healthy. Authors of real skills can treat the companion `evals/evals.json` as a worked example of the format.
