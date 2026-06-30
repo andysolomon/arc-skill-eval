@@ -23,7 +23,9 @@ import type {
   NormalizedSkillEvalContract,
   ParityCase,
   RoutingCase,
+  SandboxMode,
 } from "../contracts/types.js";
+import { createJustBashCodingTools } from "./just-bash-sandbox.js";
 import { PI_BUILTIN_TOOLS, PI_DEFAULT_ACTIVE_TOOLS } from "../observability/artifacts.js";
 import type {
   ContextManifestJson,
@@ -83,6 +85,7 @@ export interface PiSdkSessionFactoryOptions {
   attachSkill: boolean;
   extraSkillPaths: string[];
   contextMode: EvalContextMode;
+  sandbox: SandboxMode;
 }
 
 export interface PiSdkSessionFactoryResult {
@@ -169,6 +172,7 @@ export async function runPiSdkCase(
   const attachSkill = options.attachSkill ?? true;
   const extraSkillPaths = [...(options.extraSkillPaths ?? [])];
   const contextMode = options.contextMode ?? "isolated";
+  const sandbox = options.sandbox ?? "none";
   const materializedFixture = await maybeMaterializeCaseFixture(options.skill, options.caseDefinition);
   const caseWorkspaceDir = materializedFixture?.workspaceDir ?? environment.workspaceDir;
   const caseEnv = materializedFixture?.env ?? {};
@@ -191,6 +195,7 @@ export async function runPiSdkCase(
       attachSkill,
       extraSkillPaths,
       contextMode,
+      sandbox,
     });
   } catch (error) {
     await cleanup().catch(() => undefined);
@@ -346,7 +351,10 @@ async function createDefaultPiSdkSession(
     thinkingLevel: resolvedModel?.selection.thinking,
     noTools: "all",
     tools: ["read", "bash", "edit", "write"],
-    customTools: createPiSdkCodingTools(options.workspaceDir, options.env),
+    customTools:
+      options.sandbox === "just-bash"
+        ? createJustBashCodingTools(options.workspaceDir, options.env)
+        : createPiSdkCodingTools(options.workspaceDir, options.env),
     resourceLoader,
     sessionManager: SessionManager.create(options.workspaceDir, options.sessionDir),
     settingsManager,

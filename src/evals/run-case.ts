@@ -56,10 +56,10 @@ export interface RunEvalCaseOptions {
   /** Context isolation mode. Defaults to isolated. */
   contextMode?: EvalContextMode;
   /**
-   * Resolved execution isolation for this case. Defaults to `"none"`.
-   * Accepted here for forward-compatibility; the `just-bash` execution
-   * path is wired in W-000021 — this runner currently ignores the value
-   * and always uses the temp-workspace path.
+   * Resolved execution isolation for this case. Defaults to `"none"`
+   * (host shell + real workspace FS). `"just-bash"` routes the agent's
+   * bash tool through an in-process virtual shell — see
+   * {@link createJustBashCodingTools}.
    */
   sandbox?: SandboxMode;
   /**
@@ -140,6 +140,7 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
       attachSkill: options.attachSkill,
       extraSkillPaths: options.extraSkillPaths,
       contextMode: options.contextMode,
+      sandbox: options.sandbox,
     });
 
     const timing: TimingJson = {

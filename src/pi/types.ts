@@ -3,6 +3,7 @@ import type {
   LiveSmokeCase,
   ModelSelection,
   NormalizedSkillEvalContract,
+  SandboxMode,
   ThinkingLevel,
   ParityCase,
   RoutingCase,
@@ -91,6 +92,8 @@ export interface RunPiSdkCaseOptions {
   extraSkillPaths?: string[];
   /** Context isolation mode. Defaults to isolated. */
   contextMode?: EvalContextMode;
+  /** Execution isolation mode. Defaults to "none" (host shell + real FS). */
+  sandbox?: SandboxMode;
 }
 
 export interface RunValidatedSkillViaPiSdkOptions {
