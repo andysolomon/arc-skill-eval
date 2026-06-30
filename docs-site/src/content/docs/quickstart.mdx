@@ -94,6 +94,23 @@ arc-skill-eval run ./skills/hello-world \
 
 See [Runtime & Models](/arc-skill-eval/runtime-and-models/) for provider setup and Pi default behavior.
 
+## Scaffold evals for your own skill
+
+For a new skill, start with deterministic `create` when the success signal is mechanical: a file exists, JSON is valid, a command output matches a regex, or a fixture should be changed in a predictable way.
+
+```bash
+arc-skill-eval create ./skills/my-skill --dry-run --summary
+arc-skill-eval create ./skills/my-skill
+```
+
+Use guided create when the skill is more conceptual and the hard part is designing cases and assertions:
+
+```bash
+arc-skill-eval create ./skills/my-skill --guided --interactive
+```
+
+A `grill-me` interview skill is a good example. It probably should not assert that a file exists. Instead, it needs judge assertions for behavior like asking direct follow-up questions, challenging assumptions, and staying in interview mode, plus adjacent negatives for nearby requests like "summarize this plan" that should not trigger the skill.
+
 ## Compare against a no-skill baseline
 
 The pass-rate delta is the load-bearing signal. Add `--compare` to run each case twice — once with the skill attached, once without — and emit a top-level `benchmark.json`:
@@ -103,6 +120,23 @@ arc-skill-eval run ./skills/hello-world --compare
 ```
 
 You now get sibling `with_skill/` and `without_skill/` directories under each `eval-<id>/`, and the run root contains `benchmark.json` with per-case deltas plus an overall delta. See [With/without skill](/arc-skill-eval/concepts/with-without-skill/) for why this comparison matters more than any absolute score, and [Dogfooding & Authoring Loop](/arc-skill-eval/dogfooding/) for a practical iteration workflow.
+
+## Review and improve
+
+Generate a static report after a run:
+
+```bash
+arc-skill-eval review ./skills/hello-world/evals-runs/<runId>
+```
+
+Open `review.html` to inspect assistant output, deterministic assertion evidence, judge evidence, tool summaries, and compare deltas. Add human notes to `feedback.json`, then use the feedback-driven improvement workflow when you are ready to plan changes:
+
+```bash
+arc-skill-eval improve ./skills/hello-world \
+  --from-feedback ./skills/hello-world/evals-runs/<runId>/feedback.json
+```
+
+The usual loop is: `create` or `create --guided`, run one case, run with `--compare`, generate `review.html`, capture feedback, improve the skill or evals, then repeat under a new `--iteration`.
 
 ## Where next
 

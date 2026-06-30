@@ -69,6 +69,9 @@ arc-skill-eval create ./skills/my-skill --dry-run
 # Review a human-readable summary of generated cases/assertions
 arc-skill-eval create ./skills/my-skill --dry-run --summary
 
+# Use guided create when the skill is conceptual or hard to test mechanically
+arc-skill-eval create ./skills/my-skill --guided
+
 # Interactively accept, skip, or edit proposed cases/assertions before writing
 arc-skill-eval create ./skills/my-skill --guided --interactive
 
@@ -97,8 +100,11 @@ arc-skill-eval run ./skills/hello-world \
   --model ollama-cloud/gpt-oss:20b \
   --judge-model ollama-cloud/gpt-oss:20b
 
-# Generate a static HTML review report from run artifacts
+# Generate a static HTML review report and feedback template from run artifacts
 arc-skill-eval review ./skills/hello-world/evals-runs/<runId>
+
+# Turn review feedback into a targeted improvement plan when available
+arc-skill-eval improve ./skills/hello-world --from-feedback ./skills/hello-world/evals-runs/<runId>/feedback.json
 
 # Retarget output to a different workspace root
 arc-skill-eval run . --output-dir ./evals-runs
@@ -165,6 +171,8 @@ The command reads `SKILL.md` frontmatter, writes `evals/evals.json`, and include
 
 When obvious output artifacts are mentioned in `SKILL.md`, such as `plan.md` or `report.json`, the execution case also gets deterministic `file-exists` and `json-valid` assertions. When likely input files are mentioned, such as `notes/input.md`, `requirements.md`, `prd.md`, `issue.md`, or `task.md`, the execution case gets seeded fixture inputs under `evals/files/starter-inputs/`. The adjacent-negative case is domain-aware for common skill types like eval authoring, planning, releases, docs, and auth/webhooks, with a generic fallback. Use `--dry-run` to print the proposed JSON without writing files, `--summary` to print a human-readable review of generated cases/assertions, and `--force` to overwrite an existing `evals/evals.json`.
 
+Use deterministic `create` first when the skill has concrete file, JSON, or command-line effects. It is fast, repeatable, CI-friendly, and never spends model tokens. Use `create --guided` when the hardest part is deciding what to test: conceptual interview skills, planning/review skills, routing skills with subtle adjacent negatives, or skills where success is mostly semantic. Guided output should still be reviewed like code.
+
 Use interactive guided mode to review the proposed suite before it is written:
 
 ```bash
@@ -172,6 +180,8 @@ arc-skill-eval create ./skills/my-skill --guided --interactive
 ```
 
 The lightweight prompt flow presents the rationale, cases, fixture inputs, and assertions; lets you include/skip cases and assertions; and lets you edit case prompts, expected output, and judge/regex assertion text. Existing overwrite protections still apply unless `--force` is supplied.
+
+For example, a conceptual `grill-me` skill that conducts a relentless interview may not create files at all. Its suite should lean on judge assertions such as "asks direct follow-up questions about assumptions and tradeoffs" plus adjacent negatives that should *not* trigger the skill, rather than fake `file-exists` checks. That makes the eval measure the behavior the skill actually promises.
 
 The positional `<skill-dir-or-repo>` for `run` is resolved as:
 - a skill directory if it contains `evals/evals.json`,
@@ -186,6 +196,19 @@ arc-skill-eval review ./skills/hello-world/evals-runs/<runId>
 ```
 
 This writes `review.html` and `feedback.json` into the run directory. Use `--output <dir>` to write elsewhere and `--force` to overwrite an existing report. Compare runs are rendered with `with_skill` and `without_skill` variants side-by-side.
+
+A practical create-run-review-improve loop looks like this:
+
+```bash
+arc-skill-eval create ./skills/my-skill --guided --interactive
+arc-skill-eval run ./skills/my-skill --case execution-golden-path
+arc-skill-eval run ./skills/my-skill --compare --iteration dogfood-1
+arc-skill-eval review ./skills/my-skill/evals-runs/iteration-dogfood-1/<runId>
+arc-skill-eval improve ./skills/my-skill \
+  --from-feedback ./skills/my-skill/evals-runs/iteration-dogfood-1/<runId>/feedback.json
+```
+
+Use `review.html` to inspect assistant output, grading evidence, artifacts, and with/without-skill deltas. Capture human notes in `feedback.json`; feedback-driven improvement can then turn those notes into a focused plan for changing the skill, tightening assertions, or adding cases.
 
 Model options:
 - `--model <provider/model[:thinking]>` pins the skill runner model instead of using Pi's configured default. Example: `openai-codex/gpt-5.5:medium`.

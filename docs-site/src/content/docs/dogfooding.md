@@ -7,21 +7,43 @@ Skeval works best when eval authoring and skill improvement are the same loop: w
 
 ## The loop
 
-1. **Create or update evals** for the target skill.
+1. **Create or update evals** for the target skill. Use deterministic `create` for concrete artifacts; use `create --guided --interactive` for conceptual or semantic behavior.
 2. **Run one case** to catch obvious fixture, assertion, or model issues.
 3. **Run with `--compare`** to measure whether the skill helps relative to the no-skill baseline.
-4. **Inspect artifacts**: assistant output, files, grading evidence, traces, and benchmark deltas.
-5. **Improve the skill or evals** based on failures.
+4. **Generate a review report** and inspect assistant output, files, grading evidence, traces, and benchmark deltas.
+5. **Capture feedback** in `feedback.json` and use it to improve the skill or evals.
 6. **Record the next run under a new iteration**.
 
 ```bash
+arc-skill-eval create ./skills/my-skill --guided --interactive
 arc-skill-eval run ./skills/my-skill --case golden-path
 
 arc-skill-eval run ./skills/my-skill \
   --case golden-path \
   --compare \
   --iteration dogfood-1
+
+arc-skill-eval review ./skills/my-skill/evals-runs/iteration-dogfood-1/<runId>
+arc-skill-eval improve ./skills/my-skill \
+  --from-feedback ./skills/my-skill/evals-runs/iteration-dogfood-1/<runId>/feedback.json
 ```
+
+## Creating evals with `create`
+
+Use deterministic create when the success criteria are obvious and mechanical:
+
+```bash
+arc-skill-eval create ./skills/my-skill --dry-run --summary
+arc-skill-eval create ./skills/my-skill
+```
+
+Use guided create when you need help designing the cases:
+
+```bash
+arc-skill-eval create ./skills/my-skill --guided --interactive
+```
+
+A conceptual skill such as `grill-me` should usually lean on judge assertions and adjacent negatives. It does not need fake artifact checks; it needs evidence that the assistant asks hard follow-up questions, challenges assumptions, and does not trigger for nearby summarization or editing tasks.
 
 ## Creating evals with `arc-creating-evals`
 
@@ -86,6 +108,30 @@ over a weak prose assertion like:
 ```
 
 Use LLM-judged string assertions for tone, explanation quality, or semantic properties that cannot be checked mechanically.
+
+## Review before improving
+
+`review` turns raw run artifacts into a human-readable handoff:
+
+```bash
+arc-skill-eval review ./skills/my-skill/evals-runs/<runId>
+```
+
+Open `review.html` for case summaries, assistant output, assertion evidence, timing/model/tool metadata, and compare deltas. Use `feedback.json` for human notes such as:
+
+- the case passed but did not prove the skill helped
+- the adjacent negative is too broad or too easy
+- a judge assertion is vague or accepts paraphrase without evidence
+- a fixture is missing a real-world constraint
+
+Then feed those notes into the improvement workflow:
+
+```bash
+arc-skill-eval improve ./skills/my-skill \
+  --from-feedback ./skills/my-skill/evals-runs/<runId>/feedback.json
+```
+
+The improvement plan should tell you whether to change the skill description, add fixtures, tighten assertions, or add/remove cases.
 
 ## Use iteration buckets
 

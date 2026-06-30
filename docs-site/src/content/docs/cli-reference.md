@@ -3,7 +3,7 @@ title: CLI reference
 description: Every flag of `arc-skill-eval run`, `init-runtime`, and `review`, with model pinning, compare mode, and exit-code semantics.
 ---
 
-The current stable CLI centers on `create` for starter suites, `run` for executing evals, `init-runtime` for creating tiny eval-owned Pi runtime config, and `review` for static run reports.
+The current CLI centers on `create` for starter/guided suites, `run` for executing evals, `init-runtime` for creating tiny eval-owned Pi runtime config, `review` for static run reports, and `improve` for feedback-driven planning.
 
 ## Synopsis
 
@@ -36,6 +36,9 @@ arc-skill-eval create <skill-dir>
                       [--dry-run]
                       [--summary]
                       [--force]
+
+arc-skill-eval improve <skill-dir>
+                       --from-feedback <feedback.json>
 ```
 
 ## Commands
@@ -56,9 +59,19 @@ The command reads `SKILL.md` frontmatter and writes three starter cases:
 
 When obvious output artifacts are mentioned in `SKILL.md`, such as `plan.md` or `report.json`, the execution case also gets deterministic `file-exists` and `json-valid` assertions. When likely input files are mentioned, such as `notes/input.md`, `requirements.md`, `prd.md`, `issue.md`, or `task.md`, the execution case gets seeded fixture inputs under `evals/files/starter-inputs/`. The adjacent-negative case is domain-aware for common skill types like eval authoring, planning, releases, docs, and auth/webhooks, with a generic fallback.
 
+Use deterministic `create` when a repeatable starter suite is enough: file-writing skills, JSON/config skills, CLI automation, or CI fixtures where the obvious assertions are mechanical. Use guided create when case design is the hard part: conceptual skills, planning/review skills, routing behavior, and subtle adjacent negatives. Guided suggestions are proposals, not authority; review them before committing.
+
+For a conceptual `grill-me` skill, prefer judge assertions and adjacent negatives over fake file assertions:
+
+```bash
+arc-skill-eval create .agents/skills/grill-me --guided --interactive
+```
+
+The useful assertions ask whether the assistant challenges assumptions, asks sharp follow-up questions, and stays in interview mode. Adjacent negatives check that ordinary editing or summarization requests do not trigger the skill.
+
 Options:
 
-- `--guided`: mark the create flow as guided. Pair with `--interactive` to review the proposal before writing.
+- `--guided`: ask for a richer proposal aimed at case design, conceptual assertions, fixture ideas, and rationale.
 - `--interactive`: launch a lightweight prompt flow for guided create. You can include/skip cases and assertions, and edit case prompts, expected output, and judge/regex assertion text before writing.
 - `--dry-run`: print the proposed JSON without writing files.
 - `--summary`: print a human-readable review of generated cases, deterministic assertions, and judge assertions. With `--dry-run`, this prints the summary instead of raw JSON.
@@ -107,6 +120,18 @@ Options:
 
 - `--output <dir>`: write the report files outside the run directory.
 - `--force`: overwrite existing `review.html` or `feedback.json`.
+
+### `improve <skill-dir> --from-feedback <feedback.json>`
+
+Convert reviewed run evidence into a targeted improvement plan. Start by creating a report, then add human notes to `feedback.json`:
+
+```bash
+arc-skill-eval review ./skills/my-skill/evals-runs/<runId>
+arc-skill-eval improve ./skills/my-skill \
+  --from-feedback ./skills/my-skill/evals-runs/<runId>/feedback.json
+```
+
+Use this after a compare run when the report shows neutral/negative deltas, flaky judge evidence, missing fixture coverage, or assertions that pass without proving the skill helped.
 
 ### `run <skill-dir-or-repo>`
 
