@@ -37,6 +37,8 @@ export interface CreateCliOptions {
   summary?: boolean;
   guided?: boolean;
   interactive?: boolean;
+  model?: ModelSelection;
+  agentDir?: string;
 }
 
 export interface CliRenderOptions {

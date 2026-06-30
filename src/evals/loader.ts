@@ -76,12 +76,16 @@ export async function readEvalsJson(absolutePath: string): Promise<EvalsJsonFile
     );
   }
 
+  return validateEvalsJsonValue(parsed, absolutePath);
+}
+
+export function validateEvalsJsonValue(value: unknown, sourceDescription = "evals.json"): EvalsJsonFile {
   const issues: string[] = [];
-  const file = validateEvalsJsonFile(parsed, issues);
+  const file = validateEvalsJsonFile(value, issues);
 
   if (issues.length > 0 || !file) {
     throw new EvalsJsonValidationError(
-      `evals.json at ${absolutePath} failed validation (${issues.length} issue${
+      `evals.json at ${sourceDescription} failed validation (${issues.length} issue${
         issues.length === 1 ? "" : "s"
       })`,
       issues,

@@ -1,10 +1,27 @@
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { readEvalsJson } from "../evals/loader.js";
+import type { ModelSelection } from "../contracts/types.js";
+import { readEvalsJson, validateEvalsJsonValue } from "../evals/loader.js";
 import type { EvalAssertion, EvalsJsonFile } from "../evals/types.js";
 import { reviewCreateProposalInteractively, type CreateInteractivePrompt } from "./create-interactive.js";
 import { CliCommandError } from "./types.js";
+
+export interface LlmEvalDesignProposal {
+  evals: EvalsJsonFile;
+  fixtureInputs: string[];
+  rationale: string[];
+}
+
+export interface LlmEvalDesignerInput {
+  skillDir: string;
+  skillPath: string;
+  skillText: string;
+  starterEvals: EvalsJsonFile;
+}
+
+export type LlmEvalDesignerFn = (input: LlmEvalDesignerInput) => Promise<LlmEvalDesignProposal>;
 
 export interface CreateCommandOptions {
   skillDir: string;
@@ -13,6 +30,9 @@ export interface CreateCommandOptions {
   guided?: boolean;
   interactive?: boolean;
   interactivePrompt?: CreateInteractivePrompt;
+  model?: ModelSelection;
+  agentDir?: string;
+  designer?: LlmEvalDesignerFn;
 }
 
 export interface CreateCommandResult {
@@ -25,6 +45,7 @@ export interface CreateCommandResult {
   adjacentNegativeAssumption: string;
   guided: boolean;
   interactive: boolean;
+  rationale: string[];
 }
 
 interface SkillFrontmatter {
@@ -45,13 +66,28 @@ export async function createCommand(options: CreateCommandOptions): Promise<Crea
   const skillText = await readSkillMd(skillPath);
   const frontmatter = parseSkillFrontmatter(skillText, skillDir);
   const starter = buildStarterEvals(frontmatter, skillText);
-  const evals = options.interactive
-    ? await reviewCreateProposalInteractively(starter.evals, {
-        prompt: options.interactivePrompt,
-        rationale: options.guided ? "Review the proposed guided eval suite before writing evals.json." : undefined,
-        fixtureInputs: starter.fixtureInputs,
+  const proposal = options.guided
+    ? await (options.designer ?? createDefaultLlmEvalDesigner({ model: options.model, agentDir: options.agentDir }))({
+        skillDir,
+        skillPath,
+        skillText,
+        starterEvals: starter.evals,
       })
-    : starter.evals;
+    : {
+        evals: starter.evals,
+        fixtureInputs: starter.fixtureInputs,
+        rationale: ["Deterministic starter scaffold generated from SKILL.md heuristics."],
+      };
+  const proposalEvals = validateEvalsJsonValue(proposal.evals, options.guided ? "guided eval designer response" : evalsJsonPath);
+  const fixtureInputs = sanitizeFixtureInputs(proposal.fixtureInputs);
+  const rationale = proposal.rationale.length > 0 ? proposal.rationale : [options.guided ? "LLM-guided eval design proposal." : "Deterministic starter scaffold."];
+  const evals = options.interactive
+    ? await reviewCreateProposalInteractively(proposalEvals, {
+        prompt: options.interactivePrompt,
+        rationale: rationale.join("\n"),
+        fixtureInputs,
+      })
+    : proposalEvals;
 
   if (options.dryRun) {
     return {
@@ -60,15 +96,16 @@ export async function createCommand(options: CreateCommandOptions): Promise<Crea
       dryRun: true,
       written: false,
       evals,
-      fixtureInputs: starter.fixtureInputs,
-      adjacentNegativeAssumption: starter.adjacentNegativeAssumption,
-      guided: options.guided ?? false,
-      interactive: options.interactive ?? false,
+      fixtureInputs,
+      adjacentNegativeAssumption: options.guided ? "LLM-guided adjacent negative proposal" : starter.adjacentNegativeAssumption,
+      guided: Boolean(options.guided),
+      interactive: Boolean(options.interactive),
+      rationale,
     };
   }
 
   await mkdir(evalsDir, { recursive: true });
-  await writeStarterFixtureInputs(evalsDir, starter.fixtureInputs);
+  await writeStarterFixtureInputs(evalsDir, fixtureInputs);
   await writeFile(evalsJsonPath, `${JSON.stringify(evals, null, 2)}\n`, "utf8");
 
   // Validate the written file through the same loader used by `run`.
@@ -79,11 +116,201 @@ export async function createCommand(options: CreateCommandOptions): Promise<Crea
     dryRun: false,
     written: true,
     evals: validated,
-    fixtureInputs: starter.fixtureInputs,
-    adjacentNegativeAssumption: starter.adjacentNegativeAssumption,
-    guided: options.guided ?? false,
-    interactive: options.interactive ?? false,
+    fixtureInputs,
+    adjacentNegativeAssumption: options.guided ? "LLM-guided adjacent negative proposal" : starter.adjacentNegativeAssumption,
+    guided: Boolean(options.guided),
+    interactive: Boolean(options.interactive),
+    rationale,
   };
+}
+
+function sanitizeFixtureInputs(paths: string[]): string[] {
+  const sanitized: string[] = [];
+  for (const item of paths) {
+    const normalized = normalizePathCandidate(item);
+    if (normalized && isSafeRelativeDataPath(normalized) && !sanitized.includes(normalized)) sanitized.push(normalized);
+  }
+  return sanitized.slice(0, 10);
+}
+
+function createDefaultLlmEvalDesigner(options: { model?: ModelSelection; agentDir?: string }): LlmEvalDesignerFn {
+  return async (input) => {
+    const prompt = buildGuidedCreatePrompt(input);
+    const rawResponse = await invokePiEvalDesigner({ prompt, model: options.model, agentDir: options.agentDir });
+    return parseGuidedCreateResponse(rawResponse);
+  };
+}
+
+function buildGuidedCreatePrompt(input: LlmEvalDesignerInput): string {
+  return [
+    "You are an expert eval designer for Anthropic-style agent skills.",
+    "Design a starter eval suite for the SKILL.md below. Do not use tools or create files; respond only with the JSON proposal.",
+    "Prefer specific, representative cases over generic heuristics. Include routing, execution, adjacent-negative, and safety/behavior coverage where useful.",
+    "Use deterministic assertions when files or exact output can be checked; use judge assertions only for semantic behavior.",
+    "Allowed assertion shapes are strict:",
+    "- File exists: { \"type\": \"file-exists\", \"path\": \"relative/path.txt\" }",
+    "- Regex against a file: { \"type\": \"regex-match\", \"pattern\": \"...\", \"target\": { \"file\": \"relative/path.txt\" } }",
+    "- Regex against assistant text: { \"type\": \"regex-match\", \"pattern\": \"...\", \"target\": \"assistant-text\" }",
+    "- Valid JSON file: { \"type\": \"json-valid\", \"path\": \"relative/path.json\" }",
+    "- Semantic judge: { \"id\": \"stable-id\", \"kind\": \"output\", \"method\": \"judge\", \"prompt\": \"...\" }",
+    "Never use { \"type\": \"regex\" }, { \"kind\": \"workspace\", \"method\": \"regex-match\" }, or any assertion shape not listed above.",
+    "If a case needs seeded files, list fixture input paths and reference them under setup.sources from evals/files/.",
+    "Return ONLY JSON with this shape:",
+    JSON.stringify({
+      rationale: ["why these cases were chosen"],
+      fixtureInputs: ["files/example.md"],
+      evalsJson: input.starterEvals,
+    }, null, 2),
+    "The evalsJson value must be a valid evals/evals.json object for arc-skill-eval.",
+    "Do not include markdown fences or prose outside the JSON object.",
+    "",
+    "=== SKILL.md ===",
+    input.skillText,
+    "=== END SKILL.md ===",
+  ].join("\n");
+}
+
+function parseGuidedCreateResponse(rawResponse: string): LlmEvalDesignProposal {
+  const jsonBlob = extractJsonObject(rawResponse);
+  if (!jsonBlob) {
+    throw new CliCommandError("Guided eval designer returned no JSON object.");
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonBlob);
+  } catch (error) {
+    throw new CliCommandError(`Guided eval designer returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  if (!isRecord(parsed)) {
+    throw new CliCommandError("Guided eval designer response must be a JSON object.");
+  }
+
+  const evalsCandidate = isRecord(parsed.evalsJson)
+    ? parsed.evalsJson
+    : isRecord(parsed.evals_json)
+      ? parsed.evals_json
+      : isRecord(parsed.evals) && "skill_name" in parsed.evals
+        ? parsed.evals
+        : "skill_name" in parsed
+          ? parsed
+          : null;
+
+  if (!evalsCandidate) {
+    throw new CliCommandError("Guided eval designer response must include an `evalsJson` object.");
+  }
+
+  try {
+    return {
+      evals: validateEvalsJsonValue(evalsCandidate, "guided eval designer response"),
+      fixtureInputs: readStringArrayField(parsed, "fixtureInputs") ?? readStringArrayField(parsed, "fixtures") ?? [],
+      rationale: readStringArrayField(parsed, "rationale") ?? (typeof parsed.rationale === "string" ? [parsed.rationale] : []),
+    };
+  } catch (error) {
+    if (error instanceof Error && "issues" in error && Array.isArray((error as { issues?: unknown }).issues)) {
+      throw new CliCommandError(`Guided eval designer returned invalid evals.json:\n- ${(error as { issues: string[] }).issues.join("\n- ")}`);
+    }
+    throw error;
+  }
+}
+
+function readStringArrayField(value: Record<string, unknown>, field: string): string[] | undefined {
+  const raw = value[field];
+  if (!Array.isArray(raw)) return undefined;
+  return raw.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
+function extractJsonObject(raw: string): string | null {
+  const trimmed = raw.trim();
+  const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
+  const source = fenceMatch?.[1]?.trim() ?? trimmed;
+  const start = source.indexOf("{");
+  if (start < 0) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < source.length; i++) {
+    const ch = source[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (ch === "\\" && inString) {
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "{") depth++;
+    if (ch === "}") {
+      depth--;
+      if (depth === 0) return source.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+async function invokePiEvalDesigner(options: { prompt: string; model?: ModelSelection; agentDir?: string }): Promise<string> {
+  const pi = await import("@mariozechner/pi-coding-agent");
+  const { completeSimple } = await import("@mariozechner/pi-ai");
+
+  const credentialsAgentDir = options.agentDir ? path.resolve(options.agentDir) : pi.getAgentDir();
+  const settingsManager = pi.SettingsManager.create(process.cwd(), credentialsAgentDir);
+  const authStorage = pi.AuthStorage.create(path.join(credentialsAgentDir, "auth.json"));
+  const modelRegistry = pi.ModelRegistry.create(authStorage, path.join(credentialsAgentDir, "models.json"));
+  const configuredModel = options.model
+    ? modelRegistry.find(options.model.provider, options.model.id)
+    : settingsManager.getDefaultProvider() && settingsManager.getDefaultModel()
+      ? modelRegistry.find(settingsManager.getDefaultProvider()!, settingsManager.getDefaultModel()!)
+      : modelRegistry.getAvailable()[0];
+
+  if (!configuredModel) {
+    throw new CliCommandError(options.model
+      ? `Unable to resolve guided create model ${options.model.provider}/${options.model.id}.`
+      : "Unable to resolve a configured model for guided create. Pass --model or configure Pi defaults.");
+  }
+
+  const requestAuth = await modelRegistry.getApiKeyAndHeaders(configuredModel);
+  if (!requestAuth.ok) {
+    throw new CliCommandError(`Unable to authenticate guided create model ${configuredModel.provider}/${configuredModel.id}: ${requestAuth.error}`);
+  }
+
+  const thinking = options.model?.thinking ?? settingsManager.getDefaultThinkingLevel();
+  const { mkdtemp } = await import("node:fs/promises");
+  const isolatedCwd = await mkdtemp(path.join(tmpdir(), "arc-skill-eval-create-"));
+  const previousCwd = process.cwd();
+
+  try {
+    process.chdir(isolatedCwd);
+    const response = await completeSimple(
+      configuredModel,
+      {
+        messages: [{ role: "user", content: options.prompt, timestamp: Date.now() }],
+      },
+      {
+        apiKey: requestAuth.apiKey,
+        headers: requestAuth.headers,
+        reasoning: thinking && thinking !== "off" ? thinking as never : undefined,
+      },
+    );
+
+    return response.content
+      .filter((item): item is { type: "text"; text: string } => item.type === "text")
+      .map((item) => item.text)
+      .join("");
+  } finally {
+    process.chdir(previousCwd);
+    await rm(isolatedCwd, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 async function readSkillMd(skillPath: string): Promise<string> {

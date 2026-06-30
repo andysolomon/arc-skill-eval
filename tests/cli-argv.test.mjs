@@ -31,6 +31,31 @@ test("parseCliArgs accepts guided interactive create options", () => {
   });
 });
 
+test("parseCliArgs accepts create guided model options", () => {
+  const parsed = parseCliArgs([
+    "create",
+    "./skills/demo",
+    "--guided",
+    "--model",
+    "openai-codex/gpt-5.5:medium",
+    "--agent-dir=./.arc-skill-eval/pi-agent",
+    "--dry-run",
+    "--summary",
+  ]);
+
+  assert.deepEqual(parsed, {
+    command: "create",
+    skillDir: "./skills/demo",
+    dryRun: true,
+    summary: true,
+    force: false,
+    guided: true,
+    interactive: false,
+    model: { provider: "openai-codex", id: "gpt-5.5", thinking: "medium" },
+    agentDir: "./.arc-skill-eval/pi-agent",
+  });
+});
+
 test("parseCliArgs requires --guided for interactive create", () => {
   assert.throws(
     () => parseCliArgs(["create", "./skills/demo", "--interactive"]),
