@@ -84,9 +84,10 @@ Apply assertions in priority order. Weaker signals should always be backed by st
    - `{ "type": "regex-match", "pattern": "<regex>", "target": { "file": "<relative>" } }` — pattern must appear in a produced file.
    - `{ "type": "json-valid", "path": "<relative>" }` — file must parse as JSON.
 2. **String assertions** (LLM-judged) for properties a script cannot check:
-   - Write them as short, specific, evidence-requirable claims.
-   - **Avoid** literal-quote tokens, heading-marker prefixes (`## Foo`), sentence-stem verbs (*"You should..."*). Models paraphrase.
-   - **Prefer** action verbs + proper nouns (*"The response names the \"conventionalcommits\" preset"*, *"The output describes the removal of existing standard-version config"*).
+   - Write them as short, specific, evidence-requirable claims about behavior, not incidental wording.
+   - **Avoid** literal-quote tokens, heading-marker prefixes (`## Foo`), sentence-stem verbs (*"You should..."*), and phase-announcement wording. Models paraphrase.
+   - **Prefer** action verbs + proper nouns (*"The response names the \"conventionalcommits\" preset"*, *"The output describes the removal of existing standard-version config"*, *"The assistant starts repository-specific setup rather than giving generic advice"*).
+   - If exact wording is genuinely required (commit messages, CLI output, public copy, mandatory disclaimers), state that requirement in `expected_output` and use deterministic `regex-match` or structured `kind: "output", method: "exact"` assertions where possible.
 
 **Budget:** 2–5 assertions per case. More than that and one will start failing for the wrong reasons.
 
@@ -121,6 +122,7 @@ Apply assertions in priority order. Weaker signals should always be backed by st
 
 - **Don't invent cases the skill isn't built for.** A trigger case the skill wasn't designed to respond to is noise, not a bug.
 - **Don't write string assertions without testing against a real run first.** Model paraphrasing will ambush you otherwise.
+- **Prefer behavior-focused assertions over exact wording.** Check artifacts, semantic actions, and routing outcomes; do not require a heading, phase name, or skill-name mention unless that text is part of the user-facing contract.
 - **Don't copy the skill's instructions into assertions verbatim.** If the skill says "The .releaserc.json MUST have conventionalcommits preset", an assertion that quotes that text won't distinguish skill output from regurgitation. Assert on the *effect* (`{ "type": "json-valid", "path": ".releaserc.json" }` + `{ "type": "regex-match", "pattern": "conventionalcommits", "target": { "file": ".releaserc.json" } }`).
 - **Prefer 1 execution case + strong script assertions over 3 execution cases + weak text matches.**
 - **Never set an `id` that includes slashes or whitespace.** Use lowercase kebab-case slugs; numbers are also fine. The CLI sanitizes for filesystem paths but your IDs should be readable as-is.
