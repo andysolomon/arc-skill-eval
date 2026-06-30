@@ -97,6 +97,45 @@ test("gradeEvalCase resolves every assertion (string + script mixture, all pass)
   }
 });
 
+test("gradeEvalCase persists the resolved judge_model when judge assertions ran", async () => {
+  const ws = await makeTempWorkspace();
+  try {
+    const judge = async (input) => ({
+      results: input.assertions.map(() => ({ passed: true, evidence: "ok" })),
+    });
+
+    const result = await gradeEvalCase({
+      case: { id: "judged-1", prompt: "noop", assertions: ["The assistant succeeds."] },
+      workspaceDir: ws.dir,
+      assistantText: "Success.",
+      judge,
+      judgeModel: { provider: "anthropic", id: "claude-judge-test" },
+    });
+
+    assert.deepEqual(result.judge_model, { provider: "anthropic", id: "claude-judge-test" });
+  } finally {
+    await ws.cleanup();
+  }
+});
+
+test("gradeEvalCase omits judge_model for deterministic-only cases", async () => {
+  const ws = await makeTempWorkspace();
+  try {
+    await writeFile(path.join(ws.dir, "notes.txt"), "hello\n", "utf-8");
+
+    const result = await gradeEvalCase({
+      case: { id: "det-only", prompt: "noop", assertions: [{ type: "file-exists", path: "notes.txt" }] },
+      workspaceDir: ws.dir,
+      assistantText: "done",
+      judgeModel: { provider: "anthropic", id: "claude-judge-test" },
+    });
+
+    assert.equal(result.judge_model, undefined);
+  } finally {
+    await ws.cleanup();
+  }
+});
+
 test("gradeEvalCase supports intent-based output and workspace assertions", async () => {
   const ws = await makeTempWorkspace();
   try {

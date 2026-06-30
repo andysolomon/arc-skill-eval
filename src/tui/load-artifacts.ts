@@ -98,6 +98,14 @@ function modelStr(timing: any): string {
   return `${m.provider}/${m.id}${m.thinking ? ':' + m.thinking : ''}`;
 }
 
+// grading.json carries judge_model only when an LLM-judge actually ran for the case.
+function judgeStr(grading: any): string {
+  const j = grading?.judge_model;
+  if (!j) return '—';
+  if (typeof j === 'string') return j;
+  return j.provider && j.id ? `${j.provider}/${j.id}` : '—';
+}
+
 function deriveStatus(passed: number, total: number): CaseStatus {
   const failed = total - passed;
   if (failed <= 0) return 'pass';
@@ -168,7 +176,7 @@ async function loadCase(caseDir: string, ec: any): Promise<Case> {
     expected: String(ec?.expected_output ?? ''),
     setup: ec?.setup ? JSON.stringify(ec.setup) : Array.isArray(ec?.files) ? 'seeded · ' + ec.files.join(', ') : 'empty',
     model: modelStr(timing),
-    judge: '—', // not persisted in artifacts; left as a stub
+    judge: judgeStr(grading),
     dur: timing ? ms(timing.duration_ms ?? 0) : '—',
     tin: tu.input_tokens ?? 0,
     tout: tu.output_tokens ?? 0,
@@ -298,6 +306,7 @@ async function loadRuns(skillDir: string): Promise<Run[]> {
     const tBase = firstCase ? ((await exists(path.join(dir, firstCase, 'with_skill'))) ? path.join(dir, firstCase, 'with_skill') : path.join(dir, firstCase)) : '';
     const timing = tBase ? await readJson<any>(path.join(tBase, 'timing.json')) : null;
     const manifest = tBase ? await readJson<any>(path.join(tBase, 'context-manifest.json')) : null;
+    const grading = tBase ? await readJson<any>(path.join(tBase, 'grading.json')) : null;
     const extras = Array.isArray(manifest?.attached_skills)
       ? manifest.attached_skills.filter((s: any) => s?.role === 'extra').map((s: any) => String(s?.name))
       : [];
@@ -309,7 +318,7 @@ async function loadRuns(skillDir: string): Promise<Run[]> {
       extra: extras.join(', '),
       ctxMode: String(manifest?.mode ?? 'isolated'),
       model: modelStr(timing),
-      judge: '—',
+      judge: judgeStr(grading),
       when: relTime(await mtime(dir)),
       pass,
       delta: benchmark?.summary?.delta != null ? pct(Number(benchmark.summary.delta)) : '',

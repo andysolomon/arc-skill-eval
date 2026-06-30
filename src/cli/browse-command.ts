@@ -50,12 +50,14 @@ function runApp(ws: Workspace, initial: AppState | undefined, showWithout: boole
   });
 }
 
-/** Run `arc-skill-eval run <skillDir> [--case <id>]` with inherited stdio. */
-function runChild(skillDir: string, caseId: string | null, compare?: boolean): Promise<void> {
+/** Run `arc-skill-eval run <skillDir> [--case <id>] [extra flags]` with inherited stdio. */
+function runChild(skillDir: string, caseId: string | null, compare?: boolean, extraArgs?: string): Promise<void> {
   return new Promise((resolve) => {
     const args = ['run', skillDir];
     if (caseId) args.push('--case', caseId);
     if (compare) args.push('--compare');
+    // user-typed flags from the `o` prompt (e.g. "--model anthropic/claude --iteration v2")
+    if (extraArgs) for (const tok of extraArgs.split(/\s+/).filter(Boolean)) args.push(tok);
     process.stdout.write(`\n$ ${BIN} ${args.join(' ')}\n\n`);
     const child = spawn(BIN, args, { stdio: 'inherit' });
     child.on('exit', () => resolve());
@@ -127,7 +129,7 @@ export async function browseCommand(opts: BrowseOptions = {}): Promise<number> {
       if (action.type === 'rerun') {
         initial = action.state; // remember where the user was
         process.stdout.write(ALT_EXIT); // hand the normal screen to the child
-        await runChild(action.skillDir, action.caseId, action.compare);
+        await runChild(action.skillDir, action.caseId, action.compare, action.extraArgs);
         mergeSkill(ws, action.skillDir, await reloadSkill(action.skillDir));
         process.stdout.write('\nReloaded — press any key…');
         await waitForKey();

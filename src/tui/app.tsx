@@ -65,7 +65,7 @@ export interface AppState {
 /** Actions the App hands back to the controller loop (browse-command.ts). */
 export type AppAction =
   | { type: 'quit'; state?: AppState }
-  | { type: 'rerun'; skillDir: string; caseId: string | null; state: AppState; compare?: boolean };
+  | { type: 'rerun'; skillDir: string; caseId: string | null; state: AppState; compare?: boolean; extraArgs?: string };
 
 const clampIdx = (i: number, len: number): number => Math.max(0, Math.min(Math.max(0, len - 1), i));
 
@@ -195,12 +195,12 @@ function MainPane(props: {
 
 // ------------------------------------------------------------------ status bar
 
-function StatusBar({ focused, caseMode, pane, sk, filter, filtering, failOnly, sortMode, noting, note, flash }: { focused: Focus; caseMode: CaseMode; pane: boolean; sk: Skill; filter: string; filtering: boolean; failOnly: boolean; sortMode: SortMode; noting: boolean; note: string; flash: string }) {
+function StatusBar({ focused, caseMode, pane, sk, filter, filtering, failOnly, sortMode, noting, note, flash, opting, opts }: { focused: Focus; caseMode: CaseMode; pane: boolean; sk: Skill; filter: string; filtering: boolean; failOnly: boolean; sortMode: SortMode; noting: boolean; note: string; flash: string; opting: boolean; opts: string }) {
   const ud = `${GLYPHS.up}${GLYPHS.down}`;
   const hints: [string, string][] = pane
     ? [[ud, 'line'], [GLYPHS.enter, 'open'], [GLYPHS.arrowL, 'back'], ['?', 'help']]
     : focused === 'skills'
-      ? [[ud, 'skill'], [GLYPHS.arrowR, 'inspect'], ['/', 'filter'], ['r', 'run'], ['?', 'help']]
+      ? [[ud, 'skill'], [GLYPHS.arrowR, 'inspect'], ['/', 'filter'], ['r', 'run'], ['o', 'opts'], ['?', 'help']]
       : focused === 'cases'
         ? [[ud, 'case'], [GLYPHS.arrowR, 'inspect'], ['[ ]', caseMode], ['f', 'note'], ['/', 'filter'], ['?', 'help']]
         : focused === 'assertions'
@@ -209,7 +209,9 @@ function StatusBar({ focused, caseMode, pane, sk, filter, filtering, failOnly, s
   return (
     <Box height={1} justifyContent="space-between" paddingX={1}>
       <Box>
-        {noting ? (
+        {opting ? (
+          <Text><Text color={COLORS.yellow} bold>{'run flags: '}</Text><Text color={COLORS.fg}>{opts}</Text><Text color={COLORS.blue}>{GLYPHS.accent}</Text></Text>
+        ) : noting ? (
           <Text><Text color={COLORS.yellow} bold>{'note: '}</Text><Text color={COLORS.fg}>{note}</Text><Text color={COLORS.blue}>{GLYPHS.accent}</Text></Text>
         ) : filtering ? (
           <Text><Text color={COLORS.yellow} bold>{'/ '}</Text><Text color={COLORS.fg}>{filter}</Text><Text color={COLORS.blue}>{GLYPHS.accent}</Text></Text>
@@ -252,6 +254,7 @@ function HelpView() {
     [`PgUp/PgDn · ${GLYPHS.ctrl}u/${GLYPHS.ctrl}d`, 'scroll the detail pane'],
     ['r', 'run evals for the selected skill/case, then reload'],
     ['R', 're-run with --compare (with_skill vs without_skill)'],
+    ['o', 're-run with custom flags (--model, --iteration, --extra-skill…)'],
     ['g  /  G', 'jump to top / bottom'],
     ['/', 'filter skills + cases (type, ↵ apply, esc clear)'],
     ['F', 'toggle failures-only'],
@@ -298,6 +301,8 @@ export function App({ skills, runs, onAction, initial, showWithout }: { skills: 
   const [note, setNote] = useState('');
   const [flash, setFlash] = useState('');
   const [compareBase, setCompareBase] = useState<Run | null>(null);
+  const [opting, setOpting] = useState(false);   // capturing extra run flags
+  const [opts, setOpts] = useState('');
 
   const viewSkills = applySkillView(skills, filter, failOnly, sortMode);
   const sk = viewSkills[clampIdx(sel.skills, viewSkills.length)];
@@ -333,6 +338,16 @@ export function App({ skills, runs, onAction, initial, showWithout }: { skills: 
       if (input && input.length === 1 && input >= ' ' && !key.ctrl && !key.meta) { setNote((n) => n + input); return; }
       return;
     }
+    if (opting) {
+      if (key.return) {
+        if (sk) onAction({ type: 'rerun', skillDir: sk.dir, caseId: focused === 'cases' && cs ? cs.id : null, state: { focused, sel, caseMode }, extraArgs: opts.trim() });
+        setOpting(false); return;
+      }
+      if (key.escape) { setOpting(false); return; }
+      if (key.backspace || key.delete) { setOpts((o) => o.slice(0, -1)); return; }
+      if (input && input.length === 1 && input >= ' ' && !key.ctrl && !key.meta) { setOpts((o) => o + input); return; }
+      return;
+    }
     if (filtering) {
       if (key.return) { setFiltering(false); return; }
       if (key.escape) { setFiltering(false); setFilter(''); return; }
@@ -352,6 +367,7 @@ export function App({ skills, runs, onAction, initial, showWithout }: { skills: 
     if (input === 'c' && focused === 'runs') { setCompareBase((b) => (b && run && b.runId === run.runId ? null : run ?? null)); return; }
     if (input === 'r') { onAction({ type: 'rerun', skillDir: sk.dir, caseId: focused === 'cases' ? cs.id : null, state: { focused, sel, caseMode } }); return; }
     if (input === 'R') { onAction({ type: 'rerun', skillDir: sk.dir, caseId: focused === 'cases' ? cs.id : null, state: { focused, sel, caseMode }, compare: true }); return; }
+    if (input === 'o') { setOpts(focused === 'cases' ? '--model ' : '--iteration '); setOpting(true); return; }
     if (input === 'v') { if (focused === 'cases') { setCaseMode((m) => (m === 'raw' ? 'overview' : 'raw')); setPane(false); } return; }
     if (focused === 'cases' && (input === ']' || input === '[')) {
       const modes = modesFor(cs);
@@ -455,7 +471,7 @@ export function App({ skills, runs, onAction, initial, showWithout }: { skills: 
         </Box>
         <MainPane title={main.title} sub={main.sub} lines={main.lines} scroll={scroll} maxRows={maxRows} innerWidth={mainInner} cursorLine={cursorLine} paneFocused={pane} />
       </Box>
-      <StatusBar focused={focused} caseMode={caseMode} pane={pane} sk={sk} filter={filter} filtering={filtering} failOnly={failOnly} sortMode={sortMode} noting={noting} note={note} flash={flash} />
+      <StatusBar focused={focused} caseMode={caseMode} pane={pane} sk={sk} filter={filter} filtering={filtering} failOnly={failOnly} sortMode={sortMode} noting={noting} note={note} flash={flash} opting={opting} opts={opts} />
     </Box>
   );
 }
