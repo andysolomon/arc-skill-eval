@@ -165,6 +165,91 @@ test("createCommand generates domain-aware adjacent negative cases", async () =>
   }
 });
 
+test("createCommand supports guided interactive selection and prompt edits", async () => {
+  const { root, skillDir } = await createSkillFixture({
+    name: "grill-me",
+    description: "A relentless interview to sharpen a plan or design.",
+  });
+  const messages = [];
+  const confirmations = [false, true, true, false, false];
+  const inputs = [
+    "Grill me on the riskiest parts of this launch plan.",
+    "The assistant should ask a structured sequence of hard questions.",
+    "The response should challenge assumptions with direct questions.",
+  ];
+
+  try {
+    const result = await createCommand({
+      skillDir,
+      guided: true,
+      interactive: true,
+      interactivePrompt: {
+        message(text) {
+          messages.push(text);
+        },
+        async confirm() {
+          return confirmations.shift() ?? true;
+        },
+        async input(_message, defaultValue) {
+          return inputs.shift() ?? defaultValue;
+        },
+      },
+    });
+
+    assert.equal(result.guided, true);
+    assert.equal(result.interactive, true);
+    assert.equal(result.written, true);
+    assert.match(messages.join("\n"), /Interactive guided eval creation for grill-me/);
+    assert.deepEqual(result.evals.evals.map((item) => item.id), ["execution-golden-path"]);
+    assert.equal(result.evals.evals[0].prompt, "Grill me on the riskiest parts of this launch plan.");
+    assert.equal(result.evals.evals[0].expected_output, "The assistant should ask a structured sequence of hard questions.");
+    assert.equal(result.evals.evals[0].assertions.length, 1);
+    assert.equal(result.evals.evals[0].assertions[0].prompt, "The response should challenge assumptions with direct questions.");
+
+    const written = await readEvalsJson(path.join(skillDir, "evals", "evals.json"));
+    assert.deepEqual(written.evals.map((item) => item.id), ["execution-golden-path"]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("createCommand preserves overwrite protection before guided interactive prompts", async () => {
+  const { root, skillDir } = await createSkillFixture();
+  const evalsDir = path.join(skillDir, "evals");
+  let prompted = false;
+
+  try {
+    await mkdir(evalsDir, { recursive: true });
+    await writeFile(path.join(evalsDir, "evals.json"), "existing", "utf8");
+
+    await assert.rejects(
+      () => createCommand({
+        skillDir,
+        guided: true,
+        interactive: true,
+        interactivePrompt: {
+          message() {
+            prompted = true;
+          },
+          async confirm() {
+            prompted = true;
+            return true;
+          },
+          async input(_message, defaultValue) {
+            prompted = true;
+            return defaultValue;
+          },
+        },
+      }),
+      CliCommandError,
+    );
+    assert.equal(prompted, false);
+    assert.equal(await readFile(path.join(evalsDir, "evals.json"), "utf8"), "existing");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("createCommand refuses to overwrite existing evals without force", async () => {
   const { root, skillDir } = await createSkillFixture();
   const evalsDir = path.join(skillDir, "evals");

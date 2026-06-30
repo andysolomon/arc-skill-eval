@@ -3,12 +3,16 @@ import path from "node:path";
 
 import { readEvalsJson } from "../evals/loader.js";
 import type { EvalAssertion, EvalsJsonFile } from "../evals/types.js";
+import { reviewCreateProposalInteractively, type CreateInteractivePrompt } from "./create-interactive.js";
 import { CliCommandError } from "./types.js";
 
 export interface CreateCommandOptions {
   skillDir: string;
   force?: boolean;
   dryRun?: boolean;
+  guided?: boolean;
+  interactive?: boolean;
+  interactivePrompt?: CreateInteractivePrompt;
 }
 
 export interface CreateCommandResult {
@@ -19,6 +23,8 @@ export interface CreateCommandResult {
   evals: EvalsJsonFile;
   fixtureInputs: string[];
   adjacentNegativeAssumption: string;
+  guided: boolean;
+  interactive: boolean;
 }
 
 interface SkillFrontmatter {
@@ -32,10 +38,20 @@ export async function createCommand(options: CreateCommandOptions): Promise<Crea
   const evalsDir = path.join(skillDir, "evals");
   const evalsJsonPath = path.join(evalsDir, "evals.json");
 
+  if (!options.dryRun && !options.force && await fileExists(evalsJsonPath)) {
+    throw new CliCommandError(`Refusing to overwrite existing evals file: ${evalsJsonPath}. Re-run with --force to overwrite.`);
+  }
+
   const skillText = await readSkillMd(skillPath);
   const frontmatter = parseSkillFrontmatter(skillText, skillDir);
   const starter = buildStarterEvals(frontmatter, skillText);
-  const evals = starter.evals;
+  const evals = options.interactive
+    ? await reviewCreateProposalInteractively(starter.evals, {
+        prompt: options.interactivePrompt,
+        rationale: options.guided ? "Review the proposed guided eval suite before writing evals.json." : undefined,
+        fixtureInputs: starter.fixtureInputs,
+      })
+    : starter.evals;
 
   if (options.dryRun) {
     return {
@@ -46,11 +62,9 @@ export async function createCommand(options: CreateCommandOptions): Promise<Crea
       evals,
       fixtureInputs: starter.fixtureInputs,
       adjacentNegativeAssumption: starter.adjacentNegativeAssumption,
+      guided: options.guided ?? false,
+      interactive: options.interactive ?? false,
     };
-  }
-
-  if (!options.force && await fileExists(evalsJsonPath)) {
-    throw new CliCommandError(`Refusing to overwrite existing evals file: ${evalsJsonPath}. Re-run with --force to overwrite.`);
   }
 
   await mkdir(evalsDir, { recursive: true });
@@ -67,6 +81,8 @@ export async function createCommand(options: CreateCommandOptions): Promise<Crea
     evals: validated,
     fixtureInputs: starter.fixtureInputs,
     adjacentNegativeAssumption: starter.adjacentNegativeAssumption,
+    guided: options.guided ?? false,
+    interactive: options.interactive ?? false,
   };
 }
 

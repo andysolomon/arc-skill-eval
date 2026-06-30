@@ -31,6 +31,8 @@ arc-skill-eval review <run-dir>
                       [--force]
 
 arc-skill-eval create <skill-dir>
+                      [--guided]
+                      [--interactive]
                       [--dry-run]
                       [--summary]
                       [--force]
@@ -56,9 +58,19 @@ When obvious output artifacts are mentioned in `SKILL.md`, such as `plan.md` or 
 
 Options:
 
+- `--guided`: mark the create flow as guided. Pair with `--interactive` to review the proposal before writing.
+- `--interactive`: launch a lightweight prompt flow for guided create. You can include/skip cases and assertions, and edit case prompts, expected output, and judge/regex assertion text before writing.
 - `--dry-run`: print the proposed JSON without writing files.
 - `--summary`: print a human-readable review of generated cases, deterministic assertions, and judge assertions. With `--dry-run`, this prints the summary instead of raw JSON.
 - `--force`: overwrite an existing `evals/evals.json`.
+
+Interactive guided mode:
+
+```bash
+arc-skill-eval create ./skills/my-skill --guided --interactive
+```
+
+Existing overwrite protections still apply before the interactive prompts run unless `--force` is supplied.
 
 ### `init-runtime <agent-dir>`
 

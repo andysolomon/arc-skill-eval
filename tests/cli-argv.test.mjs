@@ -12,7 +12,30 @@ test("parseCliArgs accepts create options", () => {
     dryRun: true,
     summary: true,
     force: true,
+    guided: false,
+    interactive: false,
   });
+});
+
+test("parseCliArgs accepts guided interactive create options", () => {
+  const parsed = parseCliArgs(["create", "./skills/demo", "--guided", "--interactive"]);
+
+  assert.deepEqual(parsed, {
+    command: "create",
+    skillDir: "./skills/demo",
+    dryRun: false,
+    summary: false,
+    force: false,
+    guided: true,
+    interactive: true,
+  });
+});
+
+test("parseCliArgs requires --guided for interactive create", () => {
+  assert.throws(
+    () => parseCliArgs(["create", "./skills/demo", "--interactive"]),
+    /--interactive is currently supported with --guided/,
+  );
 });
 
 test("parseCliArgs accepts review options", () => {

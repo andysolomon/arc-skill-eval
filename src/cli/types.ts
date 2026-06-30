@@ -35,6 +35,8 @@ export interface CreateCliOptions {
   force?: boolean;
   dryRun?: boolean;
   summary?: boolean;
+  guided?: boolean;
+  interactive?: boolean;
 }
 
 export interface CliRenderOptions {

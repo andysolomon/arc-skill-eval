@@ -69,6 +69,9 @@ arc-skill-eval create ./skills/my-skill --dry-run
 # Review a human-readable summary of generated cases/assertions
 arc-skill-eval create ./skills/my-skill --dry-run --summary
 
+# Interactively accept, skip, or edit proposed cases/assertions before writing
+arc-skill-eval create ./skills/my-skill --guided --interactive
+
 # Run every eval in every discovered skill under the current repo
 arc-skill-eval run .
 
@@ -161,6 +164,14 @@ The command reads `SKILL.md` frontmatter, writes `evals/evals.json`, and include
 - `adjacent-negative`
 
 When obvious output artifacts are mentioned in `SKILL.md`, such as `plan.md` or `report.json`, the execution case also gets deterministic `file-exists` and `json-valid` assertions. When likely input files are mentioned, such as `notes/input.md`, `requirements.md`, `prd.md`, `issue.md`, or `task.md`, the execution case gets seeded fixture inputs under `evals/files/starter-inputs/`. The adjacent-negative case is domain-aware for common skill types like eval authoring, planning, releases, docs, and auth/webhooks, with a generic fallback. Use `--dry-run` to print the proposed JSON without writing files, `--summary` to print a human-readable review of generated cases/assertions, and `--force` to overwrite an existing `evals/evals.json`.
+
+Use interactive guided mode to review the proposed suite before it is written:
+
+```bash
+arc-skill-eval create ./skills/my-skill --guided --interactive
+```
+
+The lightweight prompt flow presents the rationale, cases, fixture inputs, and assertions; lets you include/skip cases and assertions; and lets you edit case prompts, expected output, and judge/regex assertion text. Existing overwrite protections still apply unless `--force` is supplied.
 
 The positional `<skill-dir-or-repo>` for `run` is resolved as:
 - a skill directory if it contains `evals/evals.json`,
