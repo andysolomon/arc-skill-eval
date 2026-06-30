@@ -141,6 +141,7 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
       extraSkillPaths: options.extraSkillPaths,
       contextMode: options.contextMode,
       sandbox: options.sandbox,
+      sandboxMocks: options.case.sandboxMocks,
     });
 
     const timing: TimingJson = {
