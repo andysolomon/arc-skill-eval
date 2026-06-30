@@ -173,6 +173,40 @@ test("runEvalsCommand runs every case, writes per-case artifacts, aggregates pas
   }
 });
 
+test("runEvalsCommand forwards agentDir and records it in context manifest", async () => {
+  const { repoRoot, skillDir } = await createSkillFixture({
+    skillName: "sample",
+    evals: [{ id: "agent-dir", prompt: "Write greeting.", assertions: ["The response contains greeting"] }],
+  });
+  const agentDir = path.join(repoRoot, ".arc-skill-eval", "pi-agent");
+  let seenAgentDir;
+  let seenConfigAgentDir;
+
+  try {
+    const result = await runEvalsCommand({
+      input: skillDir,
+      runId: "run-agent-dir",
+      agentDir,
+      createSession: async (options) => {
+        seenAgentDir = options.agentDir;
+        seenConfigAgentDir = options.configAgentDir;
+        return {
+          model: null,
+          session: createInjectedSession(options.caseDefinition.prompt),
+        };
+      },
+      judge: STUB_JUDGE_PASS,
+    });
+
+    assert.equal(seenAgentDir, path.resolve(agentDir));
+    assert.equal(seenConfigAgentDir, agentDir);
+    const manifest = JSON.parse(await readFile(result.skills[0].cases[0].contextManifestPath, "utf8"));
+    assert.equal(manifest.agent_dir, path.resolve(agentDir));
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
 test("runEvalsCommand supports iteration-scoped output directories", async () => {
   const { repoRoot, skillDir } = await createSkillFixture({
     evals: [

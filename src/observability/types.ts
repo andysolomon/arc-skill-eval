@@ -19,6 +19,8 @@ export interface ContextToolInfo {
 
 export interface ContextManifestJson {
   runtime: "pi";
+  /** Effective Pi agent directory used for this run. */
+  agent_dir?: string;
   mode: EvalContextMode;
   attached_skills: ContextSkillAttachment[];
   available_tools: ContextToolInfo[];

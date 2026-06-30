@@ -13,6 +13,7 @@ arc-skill-eval run <skill-dir-or-repo>
                    [--case <id>]...
                    [--model <provider/model[:thinking]>]
                    [--judge-model <provider/model[:thinking]>]
+                   [--agent-dir <path>]
                    [--output-dir <path>]
                    [--iteration <name>]
                    [--extra-skill <path>]...
@@ -72,6 +73,19 @@ arc-skill-eval run ./skills/hello-world \
 ```
 
 See [Runtime & Models](/arc-skill-eval/runtime-and-models/) for provider setup, Pi defaults, and Ollama Cloud examples.
+
+### `--agent-dir <path>`
+
+Use an eval-owned Pi agent directory for model registry, settings, and auth lookup. This is useful for reproducible team or CI runs that should not depend on a developer's personal `~/.pi/agent` defaults.
+
+```bash
+arc-skill-eval run ./skills/hello-world \
+  --agent-dir ./.arc-skill-eval/pi-agent \
+  --model ollama-cloud/gpt-oss:20b \
+  --judge-model ollama-cloud/gpt-oss:20b
+```
+
+When supplied, both the runner and default LLM judge use this directory for Pi config.
 
 ### `--output-dir <path>`
 
@@ -151,6 +165,12 @@ arc-skill-eval run ./skills/arc-conventional-commits \
 
 # Use the verified Ollama Cloud smoke-test lane.
 arc-skill-eval run ./skills/hello-world \
+  --model ollama-cloud/gpt-oss:20b \
+  --judge-model ollama-cloud/gpt-oss:20b
+
+# Use an eval-owned Pi config/runtime directory.
+arc-skill-eval run ./skills/hello-world \
+  --agent-dir ./.arc-skill-eval/pi-agent \
   --model ollama-cloud/gpt-oss:20b \
   --judge-model ollama-cloud/gpt-oss:20b
 

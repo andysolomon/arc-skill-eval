@@ -19,6 +19,13 @@ test("parseCliArgs accepts extra skill paths and context mode", () => {
   assert.equal(parsed.contextMode, "ambient");
 });
 
+test("parseCliArgs accepts agent dir", () => {
+  const parsed = parseCliArgs(["run", "./skill", "--agent-dir", "./.arc-skill-eval/pi-agent"]);
+
+  assert.equal(parsed.command, "run");
+  assert.equal(parsed.agentDir, "./.arc-skill-eval/pi-agent");
+});
+
 test("parseCliArgs accepts runner and judge model pins", () => {
   const parsed = parseCliArgs([
     "run",

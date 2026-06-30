@@ -8,13 +8,13 @@ Legend
 
 Milestone SCP-1 — Eval-owned Pi runtime
 
-[ ] W-000019 Support eval-owned Pi agent directories [AFK]
-    [ ] 1.1 Extend CLI parser/help for --agent-dir
-    [ ] 1.2 Add CLI tests for --agent-dir
-    [ ] 1.3 Thread agentDir through run command and compare variants
-    [ ] 1.4 Update Pi SDK session creation to use supplied config dir when present
-    [ ] 1.5 Record effective agentDir in run artifacts
-    [ ] 1.6 Document eval-owned runtime setup
+[x] W-000019 Support eval-owned Pi agent directories [AFK]
+    [x] 1.1 Extend CLI parser/help for --agent-dir
+    [x] 1.2 Add CLI tests for --agent-dir
+    [x] 1.3 Thread agentDir through run command and compare variants
+    [x] 1.4 Update Pi SDK session creation to use supplied config dir when present
+    [x] 1.5 Record effective agentDir in run artifacts
+    [x] 1.6 Document eval-owned runtime setup
 
 [ ] W-000020 Initialize tiny eval runtime config [AFK]
     [ ] 2.1 Add init-runtime command parser and help output

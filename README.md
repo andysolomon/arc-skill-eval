@@ -74,6 +74,12 @@ arc-skill-eval run ./skills/arc-conventional-commits \
   --model openai-codex/gpt-5.5:medium \
   --judge-model mistral/ministral-8b-latest
 
+# Use an eval-owned Pi config/runtime directory
+arc-skill-eval run ./skills/hello-world \
+  --agent-dir ./.arc-skill-eval/pi-agent \
+  --model ollama-cloud/gpt-oss:20b \
+  --judge-model ollama-cloud/gpt-oss:20b
+
 # Retarget output to a different workspace root
 arc-skill-eval run . --output-dir ./evals-runs
 
@@ -130,7 +136,29 @@ The positional `<skill-dir-or-repo>` is resolved as:
 Model options:
 - `--model <provider/model[:thinking]>` pins the skill runner model instead of using Pi's configured default. Example: `openai-codex/gpt-5.5:medium`.
 - `--judge-model <provider/model[:thinking]>` pins the model used for LLM-judged string assertions. Deterministic assertions do not use the judge.
-- When no model flags are supplied, `arc-skill-eval` inherits Pi's default provider/model/thinking level from `~/.pi/agent/settings.json`.
+- `--agent-dir <path>` points Pi settings, model registry, and auth lookup at an eval-owned agent directory instead of the normal `~/.pi/agent` directory.
+- When no model flags are supplied, `arc-skill-eval` inherits Pi's default provider/model/thinking level from the effective Pi agent settings.
+
+### Eval-owned Pi runtime
+
+Use `--agent-dir` when you want reproducible team or CI runs without depending on personal Pi defaults:
+
+```bash
+arc-skill-eval run ./skills/hello-world \
+  --agent-dir ./.arc-skill-eval/pi-agent \
+  --model ollama-cloud/gpt-oss:20b \
+  --judge-model ollama-cloud/gpt-oss:20b
+```
+
+A minimal eval-owned runtime can contain just:
+
+```text
+.arc-skill-eval/pi-agent/
+├── models.json
+└── settings.json
+```
+
+The runner and default LLM judge both use this directory for Pi `models.json`, `settings.json`, and `auth.json` lookup when `--agent-dir` is supplied. Secrets should still be referenced by environment variable name, for example `"apiKey": "OLLAMA_API_KEY"`, rather than committed as literal values.
 
 ### Ollama / low-cost cloud and local runs
 

@@ -66,7 +66,9 @@ A tiny Pi instance is not a fork of Pi. It is an eval-owned Pi config directory 
 
 `arc-skill-eval` already defaults to isolated context for skills/tools, but model registry and auth currently still come from the user's main Pi agent dir via `getAgentDir()`. A tiny instance would make that explicit and reproducible.
 
-### Proposed CLI
+### CLI
+
+`--agent-dir` is supported for `run` and points both the skill runner and default LLM judge at an eval-owned Pi config/runtime directory:
 
 ```bash
 arc-skill-eval run ./skills/hello-world \

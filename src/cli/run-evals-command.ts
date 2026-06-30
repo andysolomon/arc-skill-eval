@@ -37,6 +37,8 @@ export interface RunEvalsCommandOptions {
   model?: ModelSelection;
   /** Model pin for the LLM-judge. Falls back to grader default. */
   judgeModel?: ModelSelection;
+  /** Eval-owned Pi agent directory for model registry/settings/auth. */
+  agentDir?: string;
   /** Fixed runId; default is an ISO timestamp. */
   runId?: string;
   /** Optional iteration bucket, e.g. `1` -> `iteration-1`. */
@@ -158,6 +160,7 @@ export async function runEvalsCommand(
           skillOutputDir,
           model: options.model,
           judgeModel: options.judgeModel,
+          agentDir: options.agentDir,
           compare: options.compare ?? false,
           extraSkillPaths: options.extraSkillPaths ?? [],
           contextMode: options.contextMode ?? "isolated",
@@ -202,6 +205,7 @@ async function runOneCase(args: {
   skillOutputDir: string;
   model: ModelSelection | undefined;
   judgeModel: ModelSelection | undefined;
+  agentDir: string | undefined;
   compare: boolean;
   extraSkillPaths: string[];
   contextMode: EvalContextMode;
@@ -255,6 +259,7 @@ async function runOneCaseVariant(args: {
   evalsDir: string;
   model: ModelSelection | undefined;
   judgeModel: ModelSelection | undefined;
+  agentDir: string | undefined;
   createSession: PiSdkSessionFactory | undefined;
   judge: LlmJudgeFn | undefined;
   variant: EvalRunVariant;
@@ -268,6 +273,7 @@ async function runOneCaseVariant(args: {
     case: args.evalCase,
     evalsDir: args.evalsDir,
     model: args.model,
+    agentDir: args.agentDir,
     createSession: args.createSession,
     attachSkill: args.attachSkill,
     extraSkillPaths: args.extraSkillPaths,
@@ -281,6 +287,7 @@ async function runOneCaseVariant(args: {
       assistantText: run.assistantText,
       judge: args.judge,
       judgeModel: args.judgeModel,
+      agentDir: args.agentDir,
     });
 
     const assistantPath = path.join(args.variantDir, "assistant.md");

@@ -21,6 +21,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
           caseIds: parsed.caseIds,
           outputDirOverride: parsed.outputDir,
           iteration: parsed.iteration,
+          agentDir: parsed.agentDir,
           compare: parsed.compare,
           extraSkillPaths: parsed.extraSkillPaths,
           contextMode: parsed.contextMode,

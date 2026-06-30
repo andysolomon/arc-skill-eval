@@ -108,9 +108,9 @@ Then add an `ollama-cloud` provider to Pi's `models.json`:
 
 The `apiKey` value is the environment variable name. Do not commit literal API keys.
 
-## Eval-owned Pi runtime roadmap
+## Eval-owned Pi runtime
 
-Today, Skeval uses the normal Pi configuration directory unless model flags override the selected model. The planned next step is an eval-owned Pi runtime directory:
+Use `--agent-dir` when you want Skeval to load Pi settings, model registry, and auth from an eval-owned runtime directory instead of the normal personal Pi agent directory:
 
 ```bash
 arc-skill-eval run ./skills/hello-world \
@@ -119,13 +119,15 @@ arc-skill-eval run ./skills/hello-world \
   --judge-model ollama-cloud/gpt-oss:20b
 ```
 
-That tiny runtime would contain only the model providers and settings needed for evals:
+That tiny runtime can contain only the model providers and settings needed for evals:
 
 ```text
 .arc-skill-eval/pi-agent/
 ├── models.json
 └── settings.json
 ```
+
+When `--agent-dir` is supplied, both the skill runner and the default LLM judge use that directory for Pi config lookup.
 
 Benefits:
 
@@ -134,4 +136,4 @@ Benefits:
 - no ambient skills, extensions, or prompt templates unless explicitly enabled
 - provider setup that can live with the repo while secrets stay in environment variables
 
-See the full design note in [`docs/agent-runtime-strategy.md`](https://github.com/andysolomon/arc-skill-eval/blob/main/docs/agent-runtime-strategy.md).
+The next planned runtime feature is an `init-runtime` helper that writes this directory for you. See the full design note in [`docs/agent-runtime-strategy.md`](https://github.com/andysolomon/arc-skill-eval/blob/main/docs/agent-runtime-strategy.md).

@@ -24,7 +24,7 @@ export function renderHelp(): string {
     "arc-skill-eval",
     "",
     "Usage:",
-    "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--compare] [--json]",
+    "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--agent-dir <path>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--compare] [--json]",
     "",
     "Notes:",
     "  - <skill-dir-or-repo> is either a skill directory containing evals/evals.json,",
@@ -33,6 +33,7 @@ export function renderHelp(): string {
     "    <skillDir>/evals-runs/<runId>/eval-<id>/ (overridable via --output-dir).",
     "  - --model pins the skill runner model; --judge-model pins the LLM assertion judge.",
     "  - Model values use Pi's provider/model form, optionally with :thinking (for example openai-codex/gpt-5.5:medium).",
+    "  - --agent-dir points Pi config/auth/model lookup at an eval-owned agent directory.",
     "  - --extra-skill loads explicit distractor/conflict skills for every variant.",
     "  - --context-mode ambient opts into normal Pi ambient resources; default is isolated.",
     "  - run exits with code 1 when any assertion fails or any case errors out.",
@@ -48,6 +49,7 @@ function parseRunCommandArgs(args: string[]) {
   let compare = false;
   let outputDir: string | undefined;
   let iteration: string | undefined;
+  let agentDir: string | undefined;
   const extraSkillPaths: string[] = [];
   let contextMode: "isolated" | "ambient" | undefined;
   let model: ModelSelection | undefined;
@@ -83,6 +85,13 @@ function parseRunCommandArgs(args: string[]) {
     if (arg === "--output-dir" || arg.startsWith("--output-dir=")) {
       const parsed = readFlagValue(arg, args[index + 1]);
       outputDir = parsed.value;
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
+    if (arg === "--agent-dir" || arg.startsWith("--agent-dir=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      agentDir = parsed.value;
       index += parsed.consumedNext ? 1 : 0;
       continue;
     }
@@ -140,7 +149,7 @@ function parseRunCommandArgs(args: string[]) {
     throw new CliUsageError("Missing required <skill-dir-or-repo> argument.");
   }
 
-  return { input, skillNames, caseIds, outputDir, iteration, extraSkillPaths, contextMode, model, judgeModel, compare, json };
+  return { input, skillNames, caseIds, outputDir, iteration, agentDir, extraSkillPaths, contextMode, model, judgeModel, compare, json };
 }
 
 function readFlagValue(arg: string, nextArg: string | undefined): { value: string; consumedNext: boolean } {

@@ -55,6 +55,8 @@ export interface GradeEvalCaseOptions {
   assistantText: string;
   /** Model to use for the LLM-judge. Defaults to `{ provider: "mistral", id: "ministral-8b-latest" }`. */
   judgeModel?: ModelSelection;
+  /** Eval-owned Pi agent directory for judge model registry/settings/auth. */
+  agentDir?: string;
   /** Test-injection point for the judge call. Omit to use the default Pi-backed judge. */
   judge?: LlmJudgeFn;
 }
@@ -93,7 +95,7 @@ export async function gradeEvalCase(options: GradeEvalCaseOptions): Promise<Grad
   }
 
   if (judgeAssertionSlots.length > 0) {
-    const judge = options.judge ?? createDefaultLlmJudge({ model: options.judgeModel ?? DEFAULT_JUDGE_MODEL });
+    const judge = options.judge ?? createDefaultLlmJudge({ model: options.judgeModel ?? DEFAULT_JUDGE_MODEL, agentDir: options.agentDir });
     const judgeResults = await runJudgeSafely(judge, {
       assistantText: options.assistantText,
       assertions: judgeAssertionSlots.map((slot) => slot.text),
@@ -542,10 +544,10 @@ function toCaseId(id: string | number): EvalCaseId {
  * that always pass a custom `judge` never touch Pi. The judge sends a
  * single prompt per grading call and parses the model's JSON response.
  */
-export function createDefaultLlmJudge(options: { model: ModelSelection }): LlmJudgeFn {
+export function createDefaultLlmJudge(options: { model: ModelSelection; agentDir?: string }): LlmJudgeFn {
   return async (input) => {
     const prompt = buildJudgePrompt(input);
-    const rawResponse = await invokePiJudge({ model: options.model, prompt });
+    const rawResponse = await invokePiJudge({ model: options.model, agentDir: options.agentDir, prompt });
     return parseJudgeResponse(rawResponse, input.assertions.length);
   };
 }
@@ -698,7 +700,7 @@ function extractJsonBlob(raw: string): string | null {
  * The default judge constructs a Pi agent session with no skills
  * attached and sends a single prompt.
  */
-async function invokePiJudge(options: { model: ModelSelection; prompt: string }): Promise<string> {
+async function invokePiJudge(options: { model: ModelSelection; agentDir?: string; prompt: string }): Promise<string> {
   const pi = await import("@mariozechner/pi-coding-agent");
   const { mkdtemp, rm } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
@@ -706,8 +708,9 @@ async function invokePiJudge(options: { model: ModelSelection; prompt: string })
   const agentDir = await mkdtemp(path.join(tmpdir(), "arc-skill-eval-judge-"));
 
   try {
-    const settingsManager = pi.SettingsManager.inMemory({ compaction: { enabled: false } });
-    const credentialsAgentDir = pi.getAgentDir();
+    const credentialsAgentDir = options.agentDir ? path.resolve(options.agentDir) : pi.getAgentDir();
+    const settingsManager = pi.SettingsManager.create(agentDir, credentialsAgentDir);
+    settingsManager.applyOverrides({ compaction: { enabled: false } });
     const authStorage = pi.AuthStorage.create(path.join(credentialsAgentDir, "auth.json"));
     const modelRegistry = pi.ModelRegistry.create(
       authStorage,

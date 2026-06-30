@@ -9,6 +9,7 @@ export interface RunEvalsCliOptions extends CommandSelectionOptions {
   caseIds?: string[];
   outputDir?: string;
   iteration?: string;
+  agentDir?: string;
   compare?: boolean;
   extraSkillPaths?: string[];
   contextMode?: "isolated" | "ambient";

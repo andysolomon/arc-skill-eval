@@ -71,6 +71,8 @@ export interface PiSdkSessionLike {
 export interface PiSdkSessionFactoryOptions {
   workspaceDir: string;
   agentDir: string;
+  /** User-supplied eval-owned Pi config directory, if any. Undefined means use normal Pi defaults. */
+  configAgentDir?: string;
   sessionDir: string;
   skill: ValidatedSkillDiscovery;
   caseDefinition: PiSdkRunnableCase;
@@ -178,6 +180,7 @@ export async function runPiSdkCase(
     sessionResult = await createSession({
       workspaceDir: caseWorkspaceDir,
       agentDir: environment.agentDir,
+      configAgentDir: options.agentDir,
       sessionDir: environment.sessionDir,
       skill: options.skill,
       caseDefinition: options.caseDefinition,
@@ -221,6 +224,7 @@ export async function runPiSdkCase(
   const usage = collectPiSdkUsageMetrics(session, sessionResult.model);
   const contextManifest = sessionResult.contextManifest ?? buildRequestedContextManifest({
     skillFiles: options.skill.files,
+    agentDir: environment.agentDir,
     attachSkill,
     extraSkillPaths,
     contextMode,
@@ -312,7 +316,7 @@ export async function runValidatedSkillViaPiSdk(
 async function createDefaultPiSdkSession(
   options: PiSdkSessionFactoryOptions,
 ): Promise<PiSdkSessionFactoryResult> {
-  const credentialsAgentDir = getAgentDir();
+  const credentialsAgentDir = path.resolve(options.configAgentDir ?? getAgentDir());
   const settingsManager = SettingsManager.create(options.workspaceDir, credentialsAgentDir);
   settingsManager.applyOverrides({
     compaction: { enabled: false },
@@ -516,6 +520,7 @@ async function createPiSdkResourceLoader(options: {
   });
   const contextManifest = buildActualContextManifest({
     mode: options.contextMode,
+    agentDir: options.agentDir,
     explicitSkills,
     ambientSkills: ambientEnabled ? baseLoader.getSkills().skills : [],
   });
@@ -584,6 +589,7 @@ function loadSdkSkillsFromPath(skillPath: string): Skill[] {
 
 function buildActualContextManifest(args: {
   mode: EvalContextMode;
+  agentDir: string;
   explicitSkills: LoadedContextSkill[];
   ambientSkills: Skill[];
 }): ContextManifestJson {
@@ -594,6 +600,7 @@ function buildActualContextManifest(args: {
 
   return {
     runtime: "pi",
+    agent_dir: args.agentDir,
     mode: args.mode,
     attached_skills: attachedSkills,
     available_tools: [...PI_BUILTIN_TOOLS],
@@ -612,6 +619,7 @@ function buildActualContextManifest(args: {
 
 function buildRequestedContextManifest(args: {
   skillFiles: DiscoveredSkillFiles;
+  agentDir: string;
   attachSkill: boolean;
   extraSkillPaths: string[];
   contextMode: EvalContextMode;
@@ -637,6 +645,7 @@ function buildRequestedContextManifest(args: {
 
   return {
     runtime: "pi",
+    agent_dir: args.agentDir,
     mode: args.contextMode,
     attached_skills: attachedSkills,
     available_tools: [...PI_BUILTIN_TOOLS],

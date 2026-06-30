@@ -47,6 +47,8 @@ export interface RunEvalCaseOptions {
   evalsDir: string;
   /** Optional model pin; falls back to runtime defaults when absent. */
   model?: ModelSelection;
+  /** Eval-owned Pi agent directory for model registry/settings/auth. */
+  agentDir?: string;
   /** Attach the target skill to the Pi session. Defaults to true. */
   attachSkill?: boolean;
   /** Additional explicit skill paths to load as conflict/distractor context. */
@@ -125,6 +127,7 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
       skill: skillDiscovery,
       caseDefinition,
       workspaceDir,
+      agentDir: options.agentDir,
       model: options.model,
       createSession: options.createSession,
       attachSkill: options.attachSkill,
