@@ -1,4 +1,4 @@
-import type { ModelSelection } from "../contracts/types.js";
+import type { ModelSelection, SandboxMode } from "../contracts/types.js";
 
 export interface CommandSelectionOptions {
   skillNames?: string[];
@@ -13,6 +13,7 @@ export interface RunEvalsCliOptions extends CommandSelectionOptions {
   compare?: boolean;
   extraSkillPaths?: string[];
   contextMode?: "isolated" | "ambient";
+  sandbox?: SandboxMode;
   model?: ModelSelection;
   judgeModel?: ModelSelection;
 }

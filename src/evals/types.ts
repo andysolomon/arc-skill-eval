@@ -8,6 +8,7 @@
 import type {
   EnvironmentRequirements,
   ModelSelection,
+  SandboxMode,
   SkillDefinition,
   ThinkingLevel,
   WorkspaceSetup,
@@ -55,9 +56,18 @@ export interface EvalCase {
   files?: string[];
   /** Assertions to grade against the run output, workspace, behavior, or safety. */
   assertions?: EvalAssertion[];
+  /**
+   * Execution isolation for this case. Defaults to `"none"` (the
+   * temp-workspace runner). `"just-bash"` selects the virtual bash
+   * sandbox — selection only; the sandbox execution path is added in
+   * W-000021.
+   */
+  sandbox?: SandboxMode;
   /** Optional metadata for filtering/reporting. */
   metadata?: EvalCaseMetadata;
 }
+
+export type { SandboxMode };
 
 export interface EvalCaseMetadata {
   tags?: string[];

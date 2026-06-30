@@ -1,7 +1,7 @@
 import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { ModelSelection } from "../contracts/types.js";
+import type { ModelSelection, SandboxMode } from "../contracts/types.js";
 import { discoverEvalSkills, type DiscoveredEvalSkill } from "../evals/discover.js";
 import { readEvalsJson } from "../evals/loader.js";
 import { DEFAULT_JUDGE_MODEL, gradeEvalCase, type LlmJudgeFn } from "../evals/grade.js";
@@ -51,6 +51,11 @@ export interface RunEvalsCommandOptions {
   extraSkillPaths?: string[];
   /** Context resource mode. Defaults to isolated. */
   contextMode?: EvalContextMode;
+  /**
+   * Sandbox override applied to every selected case. Takes precedence
+   * over each case's own `sandbox` field. Defaults to `"none"`.
+   */
+  sandbox?: SandboxMode;
   /** Test-injection points. */
   createSession?: PiSdkSessionFactory;
   judge?: LlmJudgeFn;
@@ -194,6 +199,8 @@ export async function runEvalsCommand(
           compare: options.compare ?? false,
           extraSkillPaths: options.extraSkillPaths ?? [],
           contextMode: options.contextMode ?? "isolated",
+          // Precedence: CLI override > per-case field > default.
+          sandbox: options.sandbox ?? evalCase.sandbox ?? "none",
           createSession: options.createSession,
           judge: options.judge,
         });
@@ -367,6 +374,7 @@ async function runOneCase(args: {
   compare: boolean;
   extraSkillPaths: string[];
   contextMode: EvalContextMode;
+  sandbox: SandboxMode;
   createSession: PiSdkSessionFactory | undefined;
   judge: LlmJudgeFn | undefined;
 }): Promise<CaseRunArtifacts> {
@@ -425,6 +433,7 @@ async function runOneCaseVariant(args: {
   attachSkill: boolean;
   extraSkillPaths: string[];
   contextMode: EvalContextMode;
+  sandbox: SandboxMode;
 }): Promise<VariantRunArtifacts> {
   const run = await runEvalCase({
     skill: args.skill,
@@ -436,6 +445,7 @@ async function runOneCaseVariant(args: {
     attachSkill: args.attachSkill,
     extraSkillPaths: args.extraSkillPaths,
     contextMode: args.contextMode,
+    sandbox: args.sandbox,
   });
 
   try {

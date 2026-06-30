@@ -159,6 +159,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
           compare: parsed.compare,
           extraSkillPaths: parsed.extraSkillPaths,
           contextMode: parsed.contextMode,
+          sandbox: parsed.sandbox,
           model: parsed.model,
           judgeModel: parsed.judgeModel,
         });

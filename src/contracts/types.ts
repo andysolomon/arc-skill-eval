@@ -33,6 +33,13 @@ export const WORKSPACE_MOUNT_MODE_VALUES = [
 
 export const NETWORK_MODE_VALUES = ["none", "mocked", "live"] as const;
 
+/**
+ * Execution isolation modes for an eval case. `none` uses the default
+ * temp-workspace runner; `just-bash` runs the case inside a virtual
+ * bash sandbox (behavior added in W-000021).
+ */
+export const SANDBOX_MODE_VALUES = ["none", "just-bash"] as const;
+
 export const TOOL_REQUIREMENT_MODE_VALUES = ["real", "shim", "mock"] as const;
 
 export const ENFORCEMENT_VALUES = ["warn", "required"] as const;
@@ -72,6 +79,7 @@ export type InferenceSource = (typeof INFERENCE_SOURCE_VALUES)[number];
 export type WorkspaceKind = (typeof WORKSPACE_KIND_VALUES)[number];
 export type WorkspaceMountMode = (typeof WORKSPACE_MOUNT_MODE_VALUES)[number];
 export type NetworkMode = (typeof NETWORK_MODE_VALUES)[number];
+export type SandboxMode = (typeof SANDBOX_MODE_VALUES)[number];
 export type ToolRequirementMode = (typeof TOOL_REQUIREMENT_MODE_VALUES)[number];
 
 export interface SkillEvalContract {

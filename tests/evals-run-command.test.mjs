@@ -173,6 +173,45 @@ test("runEvalsCommand runs every case, writes per-case artifacts, aggregates pas
   }
 });
 
+test("runEvalsCommand accepts a sandbox override and per-case sandbox without changing default behavior", async () => {
+  // W-000023 only threads the resolved sandbox value through to the
+  // runner; the just-bash execution path (and an observable precedence
+  // assertion) arrives in W-000021. Here we confirm the plumbing accepts
+  // both a CLI-level override and a per-case field and still runs the
+  // existing temp-workspace path end-to-end.
+  const { repoRoot, skillDir } = await createSkillFixture({
+    skillName: "sample",
+    evals: [
+      { id: "cli-override", prompt: "Say hello.", sandbox: "none", assertions: ["The response contains 'hello'"] },
+      { id: "case-field", prompt: "Say hi.", sandbox: "just-bash", assertions: ["The response contains 'hi'"] },
+    ],
+  });
+
+  try {
+    const result = await runEvalsCommand({
+      input: skillDir,
+      runId: "run-sandbox",
+      sandbox: "just-bash",
+      createSession: async ({ caseDefinition }) => ({
+        model: null,
+        session: createInjectedSession(caseDefinition.prompt),
+      }),
+      judge: STUB_JUDGE_PASS,
+    });
+
+    const [skillResult] = result.skills;
+    assert.equal(skillResult.cases.length, 2);
+    assert.equal(skillResult.errors.length, 0);
+    for (const caseArt of skillResult.cases) {
+      const grading = JSON.parse(await readFile(caseArt.gradingPath, "utf8"));
+      assert.equal(grading.summary.failed, 0);
+    }
+    assert.equal(result.summary.passedCases, 2);
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
 test("runEvalsCommand forwards agentDir and records it in context manifest", async () => {
   const { repoRoot, skillDir } = await createSkillFixture({
     skillName: "sample",

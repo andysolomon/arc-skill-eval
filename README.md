@@ -37,6 +37,8 @@ Assertion grading mirrors OpenAI's layered approach (deterministic checks first,
 }
 ```
 
+Each case may also set `"sandbox": "just-bash"` to run inside an isolated virtual bash environment instead of the default temp-workspace runner (`"none"`). A `--sandbox` CLI flag overrides this per run. The selection is wired now; the `just-bash` execution path lands in a follow-up (W-000021).
+
 ## Requirements
 - Node.js ≥ 20
 - Pi installed and configured with at least one provider API key (Anthropic, OpenAI, Google/Gemini, Mistral, xAI, etc.). The skill's assistant runs via `@mariozechner/pi-coding-agent`.
@@ -368,6 +370,7 @@ Context options:
 - `--extra-skill <path>` can be repeated to add explicit skill directories or `SKILL.md` files as distractor/conflict context. In `--compare`, `with_skill` receives the target + extras, while `without_skill` receives extras only.
 - `--context-mode isolated` is the default: no ambient Pi skills, extensions, prompt templates, themes, or context files are loaded.
 - `--context-mode ambient` opts into normal Pi ambient resources so extension tools/MCP-like tools and other configured resources can enter the context. The resolved loadout is recorded in `context-manifest.json`.
+- `--sandbox none|just-bash` selects the execution isolation for every selected case, overriding each case's own `sandbox` field. `none` (default) uses the temp-workspace runner; `just-bash` runs cases in an isolated virtual bash environment (execution path added in W-000021).
 
 Exit code: `0` when every case has no failing assertions, `1` otherwise.
 
