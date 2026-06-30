@@ -170,6 +170,8 @@ export interface AssertionResult {
 export interface GradingJson {
   case_id: EvalCaseId;
   assertion_results: AssertionResult[];
+  /** Judge model used for LLM-judged assertions; omitted when no judge ran. */
+  judge_model?: { provider: string; id: string };
   summary: {
     passed: number;
     failed: number;

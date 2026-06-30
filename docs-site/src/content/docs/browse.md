@@ -59,6 +59,7 @@ When a case is selected, the detail pane is tabbed. Cycle the tabs with `[` / `]
 | `PgUp`/`PgDn` · `⌃u`/`⌃d` | Scroll the detail pane |
 | `r` | Re-run evals for the selected skill (or case), then reload |
 | `R` | Re-run the selected skill with `--compare` (with/without baseline) |
+| `o` | Re-run with custom flags (typed prompt, prefilled `--model`/`--iteration`) |
 | `/` | Filter skills / cases by name (type to filter, `↵` accept, `Esc` clear) |
 | `F` | Toggle failures-only |
 | `s` | Cycle skill sort (name / pass / delta / cost) |
@@ -80,9 +81,9 @@ With a case selected, `f` opens a note prompt. On `↵` it writes (or merges int
 
 The detail pane free-scrolls by default. Press `→` / `l` / `↵` to drop a cursor into it; `j`/`k` move the cursor and the scroll follows it. On the Skills/Cases views the cursor lands on items (cases / assertions) and `↵` drills into the matching side panel; on the Assertions/Runs views it steps through section headers. `←` / `h` / `Esc` returns to free-scroll.
 
-### Re-running (`r`, `R`)
+### Re-running (`r`, `R`, `o`)
 
-`r` runs `arc-skill-eval run <skillDir> [--case <id>]` with live output, then reloads only that skill's artifacts and drops you back exactly where you were. On the Skills panel it runs the whole skill; on the Cases panel it adds `--case`. `R` runs the same skill with `--compare`, so the next view has fresh with/without-skill numbers. The `arc-skill-eval` binary must be on `PATH` (override with `ARC_SKILL_EVAL_BIN`).
+`r` runs `arc-skill-eval run <skillDir> [--case <id>]` with live output, then reloads only that skill's artifacts and drops you back exactly where you were. On the Skills panel it runs the whole skill; on the Cases panel it adds `--case`. `R` runs the same skill with `--compare`, so the next view has fresh with/without-skill numbers. `o` opens a one-line flag prompt (prefilled with `--model ` on Cases, `--iteration ` on Runs) — type any `run` flags (`--model …`, `--iteration …`, `--extra-skill …`, `--context-mode ambient`), press `↵`, and it runs `arc-skill-eval run …` with your flags appended, then reloads; `Esc` cancels. The `arc-skill-eval` binary must be on `PATH` (override with `ARC_SKILL_EVAL_BIN`).
 
 ### Cross-iteration comparison (`c`)
 

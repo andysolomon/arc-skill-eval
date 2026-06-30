@@ -94,8 +94,10 @@ export async function gradeEvalCase(options: GradeEvalCaseOptions): Promise<Grad
     }
   }
 
+  const resolvedJudgeModel = options.judgeModel ?? DEFAULT_JUDGE_MODEL;
+
   if (judgeAssertionSlots.length > 0) {
-    const judge = options.judge ?? createDefaultLlmJudge({ model: options.judgeModel ?? DEFAULT_JUDGE_MODEL, agentDir: options.agentDir });
+    const judge = options.judge ?? createDefaultLlmJudge({ model: resolvedJudgeModel, agentDir: options.agentDir });
     const judgeResults = await runJudgeSafely(judge, {
       assistantText: options.assistantText,
       assertions: judgeAssertionSlots.map((slot) => slot.text),
@@ -132,6 +134,9 @@ export async function gradeEvalCase(options: GradeEvalCaseOptions): Promise<Grad
   return {
     case_id: caseId,
     assertion_results: assertionResults,
+    ...(judgeAssertionSlots.length > 0
+      ? { judge_model: { provider: resolvedJudgeModel.provider, id: resolvedJudgeModel.id } }
+      : {}),
     summary: {
       passed,
       failed,
