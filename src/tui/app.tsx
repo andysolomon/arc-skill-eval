@@ -9,6 +9,7 @@ import type { Skill, Run, Case, Focus, Sel, CaseMode } from './types.js';
 import { skillRows, caseRows, assertionRows, runRows, buildMain, modesFor } from './view-model.js';
 import { useRunController, RunConsole } from './RunConsole.js';
 import { NewCaseForm } from './NewCaseForm.js';
+import { RunOptionsForm } from './RunOptionsForm.js';
 import { KEYMAP } from './keymap.js';
 
 type SortMode = 'name' | 'pass' | 'delta' | 'cost';
@@ -221,7 +222,7 @@ function MainPane(props: {
 
 // ------------------------------------------------------------------ status bar
 
-function StatusBar({ focused, caseMode, pane, sk, filter, filtering, failOnly, sortMode, noting, note, flash, opting, opts }: { focused: Focus; caseMode: CaseMode; pane: boolean; sk: Skill; filter: string; filtering: boolean; failOnly: boolean; sortMode: SortMode; noting: boolean; note: string; flash: string; opting: boolean; opts: string }) {
+function StatusBar({ focused, caseMode, pane, sk, filter, filtering, failOnly, sortMode, noting, note, flash }: { focused: Focus; caseMode: CaseMode; pane: boolean; sk: Skill; filter: string; filtering: boolean; failOnly: boolean; sortMode: SortMode; noting: boolean; note: string; flash: string }) {
   const ud = `${GLYPHS.up}${GLYPHS.down}`;
   const hints: [string, string][] = pane
     ? [[ud, 'line'], [GLYPHS.enter, 'open'], [GLYPHS.arrowL, 'back'], ['?', 'help']]
@@ -235,9 +236,7 @@ function StatusBar({ focused, caseMode, pane, sk, filter, filtering, failOnly, s
   return (
     <Box height={1} justifyContent="space-between" paddingX={1}>
       <Box>
-        {opting ? (
-          <Text><Text color={COLORS.yellow} bold>{'run flags: '}</Text><Text color={COLORS.fg}>{opts}</Text><Text color={COLORS.blue}>{GLYPHS.accent}</Text></Text>
-        ) : noting ? (
+        {noting ? (
           <Text><Text color={COLORS.yellow} bold>{'note: '}</Text><Text color={COLORS.fg}>{note}</Text><Text color={COLORS.blue}>{GLYPHS.accent}</Text></Text>
         ) : filtering ? (
           <Text><Text color={COLORS.yellow} bold>{'/ '}</Text><Text color={COLORS.fg}>{filter}</Text><Text color={COLORS.blue}>{GLYPHS.accent}</Text></Text>
@@ -322,9 +321,8 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
   const [note, setNote] = useState('');
   const [flash, setFlash] = useState('');
   const [compareBase, setCompareBase] = useState<Run | null>(null);
-  const [opting, setOpting] = useState(false);   // capturing extra run flags
-  const [opts, setOpts] = useState('');
-  const runCtl = useRunController();              // in-process run console (r / R)
+  const [runOptions, setRunOptions] = useState(false);
+  const runCtl = useRunController();              // in-process run console (r / R / o)
   const [creating, setCreating] = useState(false); // new-eval-case form (n)
 
   const viewSkills = applySkillView(skills, filter, failOnly, sortMode);
@@ -358,7 +356,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
       else if (!runCtl.state.done && key.escape) { runCtl.close(); } // abort: drop the overlay (run-abort)
       return;
     }
-    if (creating) return; // NewCaseForm owns input via its own useInput
+    if (creating || runOptions) return; // overlay forms own input via their own useInput
     if (noting) {
       if (key.return) {
         if (sk && cs) {
@@ -370,16 +368,6 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
       if (key.escape) { setNoting(false); return; }
       if (key.backspace || key.delete) { setNote((n) => n.slice(0, -1)); return; }
       if (input && input.length === 1 && input >= ' ' && !key.ctrl && !key.meta) { setNote((n) => n + input); return; }
-      return;
-    }
-    if (opting) {
-      if (key.return) {
-        if (sk) runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' && cs ? cs.id : null, compare: false, extraArgs: opts.trim() });
-        setOpting(false); return;
-      }
-      if (key.escape) { setOpting(false); return; }
-      if (key.backspace || key.delete) { setOpts((o) => o.slice(0, -1)); return; }
-      if (input && input.length === 1 && input >= ' ' && !key.ctrl && !key.meta) { setOpts((o) => o + input); return; }
       return;
     }
     if (filtering) {
@@ -402,7 +390,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
     if (input === 'r') { runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' ? cs.id : null, compare: false }); return; }
     if (input === 'R') { runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' ? cs.id : null, compare: true }); return; }
     if (input === 'n' && (focused === 'skills' || focused === 'cases')) { setCreating(true); return; }
-    if (input === 'o') { setOpts(focused === 'cases' ? '--model ' : '--iteration '); setOpting(true); return; }
+    if (input === 'o') { setRunOptions(true); return; }
     if (input === 'v') { if (focused === 'cases') { setCaseMode((m) => (m === 'raw' ? 'overview' : 'raw')); setPane(false); } return; }
     if (focused === 'cases' && (input === ']' || input === '[')) {
       const modes = modesFor(cs);
@@ -477,6 +465,18 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
   // Overlays render in place of the layout (mirrors the help overlay) — Ink
   // stays mounted, so no terminal handoff. Run console takes priority.
   if (runCtl.state.active) return <RunConsole state={runCtl.state} elapsed={runCtl.elapsed} frame={runCtl.frame} />;
+  if (runOptions) return (
+    <Box padding={1}>
+      <RunOptionsForm
+        skillName={sk.id}
+        caseId={focused === 'cases' ? cs.id : null}
+        recentJudgeModels={runs.map((r) => r.judge).concat(sk.judge)}
+        recentRunnerModels={runs.map((r) => r.model).concat(sk.model)}
+        onRun={({ compare, extraArgs }) => { setRunOptions(false); runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' ? cs.id : null, compare, extraArgs }); }}
+        onClose={() => setRunOptions(false)}
+      />
+    </Box>
+  );
   if (creating) return (
     <NewCaseForm
       skillDir={sk.dir}
@@ -512,7 +512,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
         </Box>
         <MainPane title={main.title} sub={main.sub} lines={main.lines} scroll={scroll} maxRows={maxRows} innerWidth={mainInner} cursorLine={cursorLine} paneFocused={pane} />
       </Box>
-      <StatusBar focused={focused} caseMode={caseMode} pane={pane} sk={sk} filter={filter} filtering={filtering} failOnly={failOnly} sortMode={sortMode} noting={noting} note={note} flash={flash} opting={opting} opts={opts} />
+      <StatusBar focused={focused} caseMode={caseMode} pane={pane} sk={sk} filter={filter} filtering={filtering} failOnly={failOnly} sortMode={sortMode} noting={noting} note={note} flash={flash} />
     </Box>
   );
 }
