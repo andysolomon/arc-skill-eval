@@ -139,7 +139,7 @@ function MainPane(props: {
       {overflow && (
         <Box justifyContent="space-between" paddingX={1}>
           <Text color={COLORS.dim}>{`${start + 1}–${end} / ${total}`}</Text>
-          <Text color={COLORS.dim}>{paneFocused ? '↑↓ line · ↵ open · ← back' : 'PgUp/PgDn · ⌃u/⌃d · → inspect'}</Text>
+          <Text color={COLORS.dim}>{paneFocused ? `${GLYPHS.up}${GLYPHS.down} line · ${GLYPHS.enter} open · ${GLYPHS.arrowL} back` : `PgUp/PgDn · ${GLYPHS.ctrl}u/${GLYPHS.ctrl}d · ${GLYPHS.arrowR} inspect`}</Text>
         </Box>
       )}
     </Box>
@@ -149,15 +149,16 @@ function MainPane(props: {
 // ------------------------------------------------------------------ status bar
 
 function StatusBar({ focused, rawMode, pane, sk }: { focused: Focus; rawMode: boolean; pane: boolean; sk: Skill }) {
+  const ud = `${GLYPHS.up}${GLYPHS.down}`;
   const hints: [string, string][] = pane
-    ? [['↑↓', 'line'], ['↵', 'open'], ['←', 'back'], ['?', 'help']]
+    ? [[ud, 'line'], [GLYPHS.enter, 'open'], [GLYPHS.arrowL, 'back'], ['?', 'help']]
     : focused === 'skills'
-      ? [['↑↓', 'skill'], ['→', 'inspect'], ['r', 'run'], ['tab', 'panel'], ['?', 'help']]
+      ? [[ud, 'skill'], [GLYPHS.arrowR, 'inspect'], ['r', 'run'], ['tab', 'panel'], ['?', 'help']]
       : focused === 'cases'
-        ? [['↑↓', 'case'], ['→', 'inspect'], ['v', rawMode ? 'rendered' : 'raw'], ['r', 'run'], ['tab', 'panel'], ['?', 'help']]
+        ? [[ud, 'case'], [GLYPHS.arrowR, 'inspect'], ['v', rawMode ? 'rendered' : 'raw'], ['r', 'run'], ['tab', 'panel'], ['?', 'help']]
         : focused === 'assertions'
-          ? [['↑↓', 'assertion'], ['→', 'sections'], ['tab', 'panel'], ['?', 'help']]
-          : [['↑↓', 'run'], ['→', 'sections'], ['tab', 'panel'], ['?', 'help']];
+          ? [[ud, 'assertion'], [GLYPHS.arrowR, 'sections'], ['tab', 'panel'], ['?', 'help']]
+          : [[ud, 'run'], [GLYPHS.arrowR, 'sections'], ['tab', 'panel'], ['?', 'help']];
   return (
     <Box height={1} justifyContent="space-between" paddingX={1}>
       <Box>
@@ -169,9 +170,9 @@ function StatusBar({ focused, rawMode, pane, sk }: { focused: Focus; rawMode: bo
         ))}
       </Box>
       <Box>
-        <Text color={COLORS.green}>{'▶ '}</Text>
+        <Text color={COLORS.green}>{GLYPHS.play + ' '}</Text>
         <Text color={COLORS.blue}>{sk.model}</Text>
-        <Text color={COLORS.comment}>{'  Σ '}</Text>
+        <Text color={COLORS.comment}>{'  ' + GLYPHS.sigma + ' '}</Text>
         <Text color={COLORS.green}>{sk.totalCost}</Text>
       </Box>
     </Box>
@@ -180,14 +181,14 @@ function StatusBar({ focused, rawMode, pane, sk }: { focused: Focus; rawMode: bo
 
 function HelpView() {
   const items: [string, string][] = [
-    ['↑ ↓  /  j k', 'move selection in the focused panel (or cursor in the pane)'],
-    ['tab  /  ⇧tab', 'focus next / previous panel'],
+    [`${GLYPHS.up} ${GLYPHS.down}  /  j k`, 'move selection in the focused panel (or cursor in the pane)'],
+    [`tab  /  ${GLYPHS.shift}tab`, 'focus next / previous panel'],
     ['1 – 4', 'jump to Skills / Cases / Assertions / Runs'],
-    ['→ / l / ↵', 'enter the detail pane cursor (Skills, Cases)'],
-    ['↵  (in pane)', 'drill into the highlighted item'],
-    ['← / h / esc', 'leave the detail pane cursor'],
-    ['v', 'toggle rendered ⇄ raw grading.json (Cases)'],
-    ['PgUp/PgDn · ⌃u/⌃d', 'scroll the detail pane'],
+    [`${GLYPHS.arrowR} / l / ${GLYPHS.enter}`, 'enter the detail pane cursor (Skills, Cases)'],
+    [`${GLYPHS.enter}  (in pane)`, 'drill into the highlighted item'],
+    [`${GLYPHS.arrowL} / h / esc`, 'leave the detail pane cursor'],
+    ['v', `toggle rendered ${GLYPHS.compare} raw grading.json (Cases)`],
+    [`PgUp/PgDn · ${GLYPHS.ctrl}u/${GLYPHS.ctrl}d`, 'scroll the detail pane'],
     ['r', 'run evals for the selected skill/case, then reload'],
     ['g  /  G', 'jump to top / bottom'],
     ['q  /  ctrl-c', 'quit'],

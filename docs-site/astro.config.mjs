@@ -36,6 +36,7 @@ export default defineConfig({
 				{ label: 'Runtime & Models', link: '/runtime-and-models/' },
 				{ label: 'Skill Creator Roadmap', link: '/skill-creator-roadmap/' },
 				{ label: 'CLI reference', link: '/cli-reference/' },
+				{ label: 'Browse (TUI)', link: '/browse/' },
 				{
 					label: 'Examples',
 					autogenerate: { directory: 'examples' },

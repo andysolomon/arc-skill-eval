@@ -1,9 +1,9 @@
 ---
 title: CLI reference
-description: Every flag of `arc-skill-eval run`, `init-runtime`, and `review`, with model pinning, compare mode, and exit-code semantics.
+description: Every flag of `arc-skill-eval run`, `init-runtime`, `review`, `browse`, and `audit`, with model pinning, compare mode, and exit-code semantics.
 ---
 
-The current CLI centers on `create` for starter/guided suites, `run` for executing evals, `init-runtime` for creating tiny eval-owned Pi runtime config, `review` for static run reports, and `improve` for feedback-driven planning.
+The current CLI centers on `create` for starter/guided suites, `run` for executing evals, `init-runtime` for creating tiny eval-owned Pi runtime config, `review` for static run reports, `improve` for feedback-driven planning, `browse` for an interactive run browser, and `audit` for deterministic skill-quality checks.
 
 ## Synopsis
 
@@ -46,6 +46,13 @@ arc-skill-eval create <skill-dir>
 
 arc-skill-eval improve <skill-dir>
                        --from-feedback <feedback.json>
+
+arc-skill-eval browse [<skill-dir-or-repo>]
+                      [--no-baseline]
+
+arc-skill-eval audit <skill-dir-or-repo>
+                     [--json]
+                     [--output <path>]
 ```
 
 ## Commands
@@ -158,6 +165,41 @@ Options:
 - `--dry-run`: force proposal-only mode.
 - `--summary`: print a human-readable proposal instead of raw JSON.
 - `--apply`: write validated improvement metadata to the matching `evals/evals.json`.
+
+### `browse [<skill-dir-or-repo>]`
+
+Open an interactive terminal run browser (an Ink TUI) over the artifacts under `evals-runs/`. The optional positional resolves as a skill directory (contains `evals/evals.json`) or a repo root; it defaults to the current directory.
+
+```bash
+arc-skill-eval browse ./skills/arc-conventional-commits   # one skill
+arc-skill-eval browse .                                    # whole repo
+```
+
+It renders a four-panel layout — Skills, Cases, Assertions, Runs — with the selected case's prompt, grading evidence, metrics, tool calls, and `with_skill` vs `without_skill` comparison in the detail pane. It reads the same per-case `grading.json` / `timing.json` artifacts that `run` writes, so no extra setup is needed. Press `?` inside the TUI for the full keybinding overlay; `r` re-runs the selected skill (or case) and reloads in place.
+
+Options:
+
+- `--no-baseline`: hide the `without_skill` comparison rows in the detail pane.
+
+The TUI adapts to the terminal: truecolor degrades to 16-color ANSI on low-color terminals, and block/box glyphs fall back to ASCII off a UTF-8 locale. Force the fallbacks with `NO_COLOR` / `FORCE_COLOR=0` (no color) or `ARC_TUI_ASCII=1` (ASCII glyphs). The re-run child is launched as `arc-skill-eval` (must be on `PATH`); override with `ARC_SKILL_EVAL_BIN`.
+
+See [Browse (TUI)](/arc-skill-eval/browse/) for the full panel reference and keybindings.
+
+### `audit <skill-dir-or-repo>`
+
+Run deterministic skill-quality checks without invoking a model: frontmatter validity, content sprawl, eval coverage, local-link integrity, and duplicate skill families.
+
+```bash
+arc-skill-eval audit ./skills/arc-conventional-commits
+arc-skill-eval audit . --json --output ./audit.json
+```
+
+Like `run`, the positional resolves as a single skill directory or a repo root whose tree is walked for `SKILL.md` + `evals/evals.json` pairs.
+
+Options:
+
+- `--json`: emit a machine-readable JSON report instead of human-readable lines.
+- `--output <path>`: write the report to a file instead of stdout.
 
 ### `run <skill-dir-or-repo>`
 
