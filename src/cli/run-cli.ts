@@ -1,10 +1,52 @@
-import { createCommand } from "./create-command.js";
+import { createCommand, type CreateCommandResult } from "./create-command.js";
 import { initRuntimeCommand } from "./init-runtime-command.js";
 import { reviewCommand } from "./review-command.js";
 import { runEvalsCommand } from "./run-evals-command.js";
 import { renderHelp, parseCliArgs } from "./argv.js";
 import { formatRunEvalsResult } from "./render.js";
 import { CliCommandError, CliUsageError, type CliInvocationResult } from "./types.js";
+
+function formatCreateSummary(result: CreateCommandResult): string {
+  const deterministicAssertions: string[] = [];
+  const judgeAssertions: string[] = [];
+
+  for (const evalCase of result.evals.evals) {
+    for (const assertion of evalCase.assertions ?? []) {
+      if (typeof assertion === "string") {
+        judgeAssertions.push(`${evalCase.id}: ${assertion}`);
+      } else if ("type" in assertion) {
+        deterministicAssertions.push(`${evalCase.id}: ${assertion.type}${"path" in assertion ? ` ${assertion.path}` : ""}`);
+      } else if (assertion.method === "judge") {
+        judgeAssertions.push(`${evalCase.id}: ${assertion.id}`);
+      } else {
+        deterministicAssertions.push(`${evalCase.id}: ${assertion.kind}/${assertion.method}${"path" in assertion && assertion.path ? ` ${assertion.path}` : ""}`);
+      }
+    }
+  }
+
+  const lines = [
+    `${result.dryRun ? "Generated" : "Created"} starter eval suite for ${result.evals.skill_name}`,
+    "",
+    "Cases:",
+    ...result.evals.evals.map((evalCase) => `- ${evalCase.id}`),
+    "",
+    "Deterministic assertions:",
+    ...(deterministicAssertions.length > 0 ? deterministicAssertions.map((item) => `- ${item}`) : ["- none inferred yet"]),
+    "",
+    "Judge assertions:",
+    ...(judgeAssertions.length > 0 ? judgeAssertions.map((item) => `- ${item}`) : ["- none"]),
+    "",
+    result.dryRun ? `Dry run only; no files written. Target path: ${result.evalsJsonPath}` : `Wrote: ${result.evalsJsonPath}`,
+    "",
+    "Review before committing:",
+    "- Prompts are starter scaffolds.",
+    "- Add fixtures for real execution paths.",
+    "- Replace generic judge assertions where deterministic checks are possible.",
+    "",
+  ];
+
+  return `${lines.join("\n")}\n`;
+}
 
 export async function runCli(argv: string[]): Promise<CliInvocationResult> {
   try {
@@ -41,12 +83,12 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
       }
       case "create": {
         const result = await createCommand({ skillDir: parsed.skillDir, force: parsed.force, dryRun: parsed.dryRun });
-        if (result.dryRun) {
+        if (result.dryRun && !parsed.summary) {
           return { exitCode: 0, stdout: `${JSON.stringify(result.evals, null, 2)}\n`, stderr: "" };
         }
         return {
           exitCode: 0,
-          stdout: `Created starter eval suite with ${result.evals.evals.length} case(s) at ${result.evalsJsonPath}\n`,
+          stdout: formatCreateSummary(result),
           stderr: "",
         };
       }

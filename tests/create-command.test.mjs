@@ -175,3 +175,25 @@ test("runCli handles create dry-run", async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("runCli handles create summary", async () => {
+  const { root, skillDir } = await createSkillFixture({
+    name: "summary-skill",
+    description: "Writes `report.json` for summary testing.",
+  });
+
+  try {
+    const result = await runCli(["create", skillDir, "--dry-run", "--summary"]);
+
+    assert.equal(result.exitCode, 0);
+    assert.match(result.stdout, /Generated starter eval suite for summary-skill/);
+    assert.match(result.stdout, /Cases:\n- trigger-explicit\n- execution-golden-path\n- adjacent-negative/);
+    assert.match(result.stdout, /Deterministic assertions:[\s\S]*execution-golden-path: file-exists report\.json/);
+    assert.match(result.stdout, /Deterministic assertions:[\s\S]*execution-golden-path: json-valid report\.json/);
+    assert.match(result.stdout, /Judge assertions:[\s\S]*trigger-explicit: explicit-trigger-relevance/);
+    assert.match(result.stdout, /Dry run only; no files written/);
+    await assert.rejects(() => readFile(path.join(skillDir, "evals", "evals.json")), /ENOENT/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

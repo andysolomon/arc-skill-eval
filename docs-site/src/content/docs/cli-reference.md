@@ -32,6 +32,7 @@ arc-skill-eval review <run-dir>
 
 arc-skill-eval create <skill-dir>
                       [--dry-run]
+                      [--summary]
                       [--force]
 ```
 
@@ -56,6 +57,7 @@ When obvious output artifacts are mentioned in `SKILL.md`, such as `plan.md` or 
 Options:
 
 - `--dry-run`: print the proposed JSON without writing files.
+- `--summary`: print a human-readable review of generated cases, deterministic assertions, and judge assertions. With `--dry-run`, this prints the summary instead of raw JSON.
 - `--force`: overwrite an existing `evals/evals.json`.
 
 ### `init-runtime <agent-dir>`
@@ -228,6 +230,9 @@ arc-skill-eval create ./skills/my-skill
 
 # Preview a starter suite without writing files.
 arc-skill-eval create ./skills/my-skill --dry-run
+
+# Review generated cases and assertions as text.
+arc-skill-eval create ./skills/my-skill --dry-run --summary
 
 # Run every eval in every discovered skill under the current repo.
 arc-skill-eval run .

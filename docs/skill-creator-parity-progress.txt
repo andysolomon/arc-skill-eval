@@ -39,6 +39,7 @@ Milestone SCP-2 — Guided eval creation
     [x] 4.2 Generate file-exists and json-valid assertions where possible
     [x] 4.3 Mention deterministic inference in docs
     [x] 4.4 Add generated eval fixture tests
+    [x] 4.5 Add --summary for generated cases and assertion choices
 
 Milestone SCP-3 — Human review loop
 

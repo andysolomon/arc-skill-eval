@@ -66,6 +66,9 @@ arc-skill-eval create ./skills/my-skill
 # Preview the generated evals.json without writing it
 arc-skill-eval create ./skills/my-skill --dry-run
 
+# Review a human-readable summary of generated cases/assertions
+arc-skill-eval create ./skills/my-skill --dry-run --summary
+
 # Run every eval in every discovered skill under the current repo
 arc-skill-eval run .
 
@@ -157,7 +160,7 @@ The command reads `SKILL.md` frontmatter, writes `evals/evals.json`, and include
 - `execution-golden-path`
 - `adjacent-negative`
 
-When obvious output artifacts are mentioned in `SKILL.md`, such as `plan.md` or `report.json`, the execution case also gets deterministic `file-exists` and `json-valid` assertions. Use `--dry-run` to print the proposed JSON without writing files, and `--force` to overwrite an existing `evals/evals.json`.
+When obvious output artifacts are mentioned in `SKILL.md`, such as `plan.md` or `report.json`, the execution case also gets deterministic `file-exists` and `json-valid` assertions. Use `--dry-run` to print the proposed JSON without writing files, `--summary` to print a human-readable review of generated cases/assertions, and `--force` to overwrite an existing `evals/evals.json`.
 
 The positional `<skill-dir-or-repo>` for `run` is resolved as:
 - a skill directory if it contains `evals/evals.json`,

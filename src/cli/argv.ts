@@ -42,7 +42,7 @@ export function renderHelp(): string {
     "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--agent-dir <path>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--compare] [--json]",
     "  arc-skill-eval init-runtime <agent-dir> --provider <provider> --model <model> [--force]",
     "  arc-skill-eval review <run-dir> [--output <dir>] [--force]",
-    "  arc-skill-eval create <skill-dir> [--dry-run] [--force]",
+    "  arc-skill-eval create <skill-dir> [--dry-run] [--summary] [--force]",
     "",
     "Notes:",
     "  - <skill-dir-or-repo> is either a skill directory containing evals/evals.json,",
@@ -223,6 +223,7 @@ function parseCreateCommandArgs(args: string[]) {
   let skillDir: string | undefined;
   let force = false;
   let dryRun = false;
+  let summary = false;
 
   for (const arg of args) {
     if (arg === "--force") {
@@ -232,6 +233,11 @@ function parseCreateCommandArgs(args: string[]) {
 
     if (arg === "--dry-run") {
       dryRun = true;
+      continue;
+    }
+
+    if (arg === "--summary") {
+      summary = true;
       continue;
     }
 
@@ -247,7 +253,7 @@ function parseCreateCommandArgs(args: string[]) {
   }
 
   if (!skillDir) throw new CliUsageError("Missing required <skill-dir> argument.");
-  return { skillDir, force, dryRun };
+  return { skillDir, force, dryRun, summary };
 }
 
 function parseReviewCommandArgs(args: string[]) {

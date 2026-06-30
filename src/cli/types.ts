@@ -34,6 +34,7 @@ export interface CreateCliOptions {
   skillDir: string;
   force?: boolean;
   dryRun?: boolean;
+  summary?: boolean;
 }
 
 export interface CliRenderOptions {
