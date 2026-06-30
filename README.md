@@ -211,7 +211,7 @@ A minimal eval-owned runtime contains just:
 └── settings.json
 ```
 
-The runner and default LLM judge both use this directory for Pi `models.json`, `settings.json`, and `auth.json` lookup when `--agent-dir` is supplied. Secrets should still be referenced by environment variable name, for example `"apiKey": "OLLAMA_API_KEY"`, rather than committed as literal values.
+The runner and default LLM judge both use this directory for Pi `models.json`, `settings.json`, and `auth.json` lookup when `--agent-dir` is supplied. `run` preflights this directory before executing cases and reports missing `models.json`, `settings.json`, provider/model entries, or required API-key environment variables once with an `init-runtime` remediation. Secrets should still be referenced by environment variable name, for example `"apiKey": "OLLAMA_API_KEY"`, rather than committed as literal values.
 
 ### Ollama / low-cost cloud and local runs
 

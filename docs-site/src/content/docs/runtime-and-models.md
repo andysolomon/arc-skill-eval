@@ -137,7 +137,7 @@ That tiny runtime can contain only the model providers and settings needed for e
 └── settings.json
 ```
 
-When `--agent-dir` is supplied, both the skill runner and the default LLM judge use that directory for Pi config lookup.
+When `--agent-dir` is supplied, both the skill runner and the default LLM judge use that directory for Pi config lookup. `run` preflights the directory before case execution and reports missing `models.json`, `settings.json`, provider/model entries, or required API-key environment variables once with an `init-runtime` remediation.
 
 Benefits:
 

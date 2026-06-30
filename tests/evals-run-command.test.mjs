@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { runEvalsCommand } from "../dist/index.js";
+import { CliCommandError, runEvalsCommand } from "../dist/index.js";
 
 async function createSkillFixture({
   skillName = "sample",
@@ -202,6 +202,34 @@ test("runEvalsCommand forwards agentDir and records it in context manifest", asy
     assert.equal(seenConfigAgentDir, agentDir);
     const manifest = JSON.parse(await readFile(result.skills[0].cases[0].contextManifestPath, "utf8"));
     assert.equal(manifest.agent_dir, path.resolve(agentDir));
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test("runEvalsCommand preflights incomplete eval-owned agent dir", async () => {
+  const { repoRoot, skillDir } = await createSkillFixture({
+    skillName: "sample",
+    evals: [{ id: "preflight", prompt: "Write greeting.", assertions: [] }],
+  });
+  const agentDir = path.join(repoRoot, ".arc-skill-eval", "pi-agent");
+
+  try {
+    await mkdir(agentDir, { recursive: true });
+    await writeFile(path.join(agentDir, "auth.json"), "{}\n", "utf8");
+
+    await assert.rejects(
+      () => runEvalsCommand({ input: skillDir, runId: "run-preflight", agentDir }),
+      (error) => {
+        assert(error instanceof CliCommandError);
+        assert.match(error.message, new RegExp(`--agent-dir ${agentDir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+        assert.match(error.message, /missing or unreadable models\.json/);
+        assert.match(error.message, /missing or unreadable settings\.json/);
+        assert.match(error.message, /arc-skill-eval init-runtime/);
+        assert.match(error.message, /omit --agent-dir/);
+        return true;
+      },
+    );
   } finally {
     await rm(repoRoot, { recursive: true, force: true });
   }
