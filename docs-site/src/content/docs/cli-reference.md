@@ -1,9 +1,9 @@
 ---
 title: CLI reference
-description: Every flag of `arc-skill-eval run` plus `init-runtime`, with model pinning, compare mode, and exit-code semantics.
+description: Every flag of `arc-skill-eval run`, `init-runtime`, and `review`, with model pinning, compare mode, and exit-code semantics.
 ---
 
-The current stable CLI centers on `run` for executing evals and `init-runtime` for creating tiny eval-owned Pi runtime config.
+The current stable CLI centers on `run` for executing evals, `init-runtime` for creating tiny eval-owned Pi runtime config, and `review` for static run reports.
 
 ## Synopsis
 
@@ -25,6 +25,10 @@ arc-skill-eval init-runtime <agent-dir>
                             --provider <provider>
                             --model <model>
                             [--force]
+
+arc-skill-eval review <run-dir>
+                      [--output <dir>]
+                      [--force]
 ```
 
 ## Commands
@@ -46,6 +50,24 @@ Options:
 - `--force`: overwrite existing `models.json` or `settings.json`. Without this flag, the command refuses to overwrite existing runtime files.
 
 For Ollama Cloud, the generated `models.json` references `OLLAMA_API_KEY`; it does not store a literal API key.
+
+### `review <run-dir>`
+
+Generate a static review bundle for an eval run directory:
+
+```bash
+arc-skill-eval review ./skills/hello-world/evals-runs/<runId>
+```
+
+Outputs:
+
+- `review.html` — a standalone report with case summaries, assertion evidence, assistant output, timing/model/tool metadata when available, and side-by-side variants for compare runs.
+- `feedback.json` — a structured skeleton for human notes that future `improve` workflows can consume.
+
+Options:
+
+- `--output <dir>`: write the report files outside the run directory.
+- `--force`: overwrite existing `review.html` or `feedback.json`.
 
 ### `run <skill-dir-or-repo>`
 
@@ -199,6 +221,9 @@ arc-skill-eval run ./skills/hello-world \
 arc-skill-eval init-runtime ./.arc-skill-eval/pi-agent \
   --provider ollama-cloud \
   --model gpt-oss:20b
+
+# Generate a static review report from artifacts.
+arc-skill-eval review ./skills/hello-world/evals-runs/<runId>
 
 # Use an eval-owned Pi config/runtime directory.
 arc-skill-eval run ./skills/hello-world \

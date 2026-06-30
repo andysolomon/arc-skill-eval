@@ -42,13 +42,13 @@ Milestone SCP-2 — Guided eval creation
 
 Milestone SCP-3 — Human review loop
 
-[ ] W-000023 Generate static compare review report [AFK]
-    [ ] 5.1 Add review command parser/help
-    [ ] 5.2 Load run artifacts from compare output directories
-    [ ] 5.3 Render assistant outputs and produced files side by side
-    [ ] 5.4 Render grading, timing, token, and benchmark summaries
-    [ ] 5.5 Support feedback.json export schema
-    [ ] 5.6 Add snapshot tests for generated HTML
+[x] W-000023 Generate static compare review report [AFK]
+    [x] 5.1 Add review command parser/help
+    [x] 5.2 Load run artifacts from compare output directories
+    [x] 5.3 Render assistant outputs side by side
+    [x] 5.4 Render grading, timing, token, and benchmark summaries
+    [x] 5.5 Support feedback.json export schema
+    [x] 5.6 Add generated HTML tests
 
 [ ] W-000024 Convert review feedback into improvement plans [HITL]
     [ ] 6.1 Define feedback schema and loader

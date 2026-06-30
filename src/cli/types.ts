@@ -24,6 +24,12 @@ export interface InitRuntimeCliOptions {
   force?: boolean;
 }
 
+export interface ReviewCliOptions {
+  runDir: string;
+  output?: string;
+  force?: boolean;
+}
+
 export interface CliRenderOptions {
   json?: boolean;
 }
@@ -41,7 +47,8 @@ export interface HelpCommandResult {
 export type ParsedCliCommand =
   | { command: "help" }
   | ({ command: "run"; json?: boolean } & RunEvalsCliOptions)
-  | ({ command: "init-runtime" } & InitRuntimeCliOptions);
+  | ({ command: "init-runtime" } & InitRuntimeCliOptions)
+  | ({ command: "review" } & ReviewCliOptions);
 
 export class CliUsageError extends Error {
   constructor(message: string) {

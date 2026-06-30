@@ -85,6 +85,9 @@ arc-skill-eval run ./skills/hello-world \
   --model ollama-cloud/gpt-oss:20b \
   --judge-model ollama-cloud/gpt-oss:20b
 
+# Generate a static HTML review report from run artifacts
+arc-skill-eval review ./skills/hello-world/evals-runs/<runId>
+
 # Retarget output to a different workspace root
 arc-skill-eval run . --output-dir ./evals-runs
 
@@ -137,6 +140,16 @@ A recent dogfood run passed the golden-path case and showed a positive `+16.7%` 
 The positional `<skill-dir-or-repo>` is resolved as:
 - a skill directory if it contains `evals/evals.json`,
 - otherwise a repo whose tree is walked for SKILL.md + evals/evals.json pairs.
+
+### Review reports
+
+Turn a run directory into a static review bundle:
+
+```bash
+arc-skill-eval review ./skills/hello-world/evals-runs/<runId>
+```
+
+This writes `review.html` and `feedback.json` into the run directory. Use `--output <dir>` to write elsewhere and `--force` to overwrite an existing report. Compare runs are rendered with `with_skill` and `without_skill` variants side-by-side.
 
 Model options:
 - `--model <provider/model[:thinking]>` pins the skill runner model instead of using Pi's configured default. Example: `openai-codex/gpt-5.5:medium`.

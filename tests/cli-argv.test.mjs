@@ -3,6 +3,17 @@ import test from "node:test";
 
 import { CliUsageError, parseCliArgs } from "../dist/index.js";
 
+test("parseCliArgs accepts review options", () => {
+  const parsed = parseCliArgs(["review", "./evals-runs/run-1", "--output", "./review", "--force"]);
+
+  assert.deepEqual(parsed, {
+    command: "review",
+    runDir: "./evals-runs/run-1",
+    output: "./review",
+    force: true,
+  });
+});
+
 test("parseCliArgs accepts init-runtime options", () => {
   const parsed = parseCliArgs([
     "init-runtime",

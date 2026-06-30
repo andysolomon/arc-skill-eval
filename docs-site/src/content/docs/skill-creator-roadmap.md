@@ -19,6 +19,7 @@ Skeval can already:
 - use low-cost cloud providers such as Ollama Cloud through Pi
 - create eval-owned Pi config/runtime directories with `init-runtime`
 - use eval-owned Pi config/runtime directories with `--agent-dir`
+- generate static run reports and feedback templates with `review`
 
 Those pieces make the eval signal real. The roadmap below focuses on making the skill improvement loop easier to drive.
 
@@ -46,15 +47,15 @@ arc-skill-eval create ./skills/my-skill
 
 The first version should inspect `SKILL.md`, draft trigger cases, execution cases, adjacent negatives, fixture stubs, and deterministic assertions where possible.
 
-### `review`
+### `review` ✅
 
-Turn compare artifacts into a static human-review report:
+Turn run or compare artifacts into a static human-review report:
 
 ```bash
 arc-skill-eval review ./skills/my-skill/evals-runs/<runId>
 ```
 
-The report should show prompts, with-skill and without-skill outputs, produced files, grading evidence, timing, token usage, and benchmark deltas side by side.
+The first version shows case summaries, with-skill and without-skill outputs for compare runs, grading evidence, timing/model/tool metadata when available, benchmark deltas, and a `feedback.json` template.
 
 ### `improve`
 
