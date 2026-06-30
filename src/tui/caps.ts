@@ -41,6 +41,12 @@ export interface GlyphSet {
   up: string;
   down: string;
   arrowR: string;
+  arrowL: string;
+  enter: string;
+  shift: string;
+  ctrl: string;
+  play: string;
+  sigma: string;
   compare: string;
   delta: string;
   bullet: string;
@@ -49,13 +55,15 @@ export interface GlyphSet {
 const UNI: GlyphSet = {
   pass: '✓', fail: '✗', partial: '◐', running: '◌',
   barFull: '▓', barEmpty: '░', accent: '▌',
-  up: '↑', down: '↓', arrowR: '→', compare: '⇄', delta: 'Δ', bullet: '●',
+  up: '↑', down: '↓', arrowR: '→', arrowL: '←', enter: '↵', shift: '⇧', ctrl: '⌃',
+  play: '▶', sigma: 'Σ', compare: '⇄', delta: 'Δ', bullet: '●',
 };
 
 const ASCII: GlyphSet = {
   pass: '+', fail: 'x', partial: '~', running: '.',
   barFull: '#', barEmpty: '-', accent: '|',
-  up: '^', down: 'v', arrowR: '->', compare: '<>', delta: 'd', bullet: '*',
+  up: '^', down: 'v', arrowR: '->', arrowL: '<-', enter: 'ent', shift: 'shift+', ctrl: '^',
+  play: '>', sigma: 'sum', compare: '<>', delta: 'd', bullet: '*',
 };
 
 export const GLYPHS: GlyphSet = UNICODE ? UNI : ASCII;
