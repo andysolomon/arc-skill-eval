@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { COLORS, segLen } from './theme.js';
+import { GLYPHS } from './caps.js';
 import type { Seg } from './theme.js';
 import type { Skill, Run, Focus, Sel } from './types.js';
 import { skillRows, caseRows, assertionRows, runRows, buildMain } from './view-model.js';
 
 const ORDER: Focus[] = ['skills', 'cases', 'assertions', 'runs'];
-const SHOW_WITHOUT = true; // surface this as a --no-baseline CLI flag if desired
 
 /** UI state the controller can restore after a re-run remounts the App. */
 export interface AppState {
@@ -42,8 +42,8 @@ function RowList({ rows, selected, focused, width, maxRows }: { rows: Seg[][]; s
         const i = overflow ? start + idx : idx;
         const sel = i === selected;
         const bg = sel ? (focused ? COLORS.selection : COLORS.bgHi) : undefined;
-        const accent = focused && sel ? '▌' : ' ';
-        const more = overflow && idx === 0 && start > 0 ? '↑' : overflow && idx === maxRows - 1 && start + maxRows < total ? '↓' : null;
+        const accent = focused && sel ? GLYPHS.accent : ' ';
+        const more = overflow && idx === 0 && start > 0 ? GLYPHS.up : overflow && idx === maxRows - 1 && start + maxRows < total ? GLYPHS.down : null;
         const fill = ' '.repeat(Math.max(0, width - segLen(segs) - 1 - (more ? 1 : 0)));
         return (
           <Text key={i} wrap="truncate" backgroundColor={bg}>
@@ -129,7 +129,7 @@ function MainPane(props: {
           const fill = isCursor ? ' '.repeat(Math.max(0, innerWidth - segLen(line.segs) - 1)) : '';
           return (
             <Text key={i} wrap="truncate" backgroundColor={bg}>
-              {isCursor ? <Text color={COLORS.blue} backgroundColor={bg}>▌</Text> : null}
+              {isCursor ? <Text color={COLORS.blue} backgroundColor={bg}>{GLYPHS.accent}</Text> : null}
               {line.segs.map((s, j) => (<Text key={j} color={s.c} bold={s.b} backgroundColor={bg}>{s.t}</Text>))}
               {isCursor ? <Text backgroundColor={bg}>{fill}</Text> : null}
             </Text>
@@ -210,7 +210,7 @@ function HelpView() {
 
 // ------------------------------------------------------------------ app
 
-export function App({ skills, runs, onAction, initial }: { skills: Skill[]; runs: Run[]; onAction: (a: AppAction) => void; initial?: AppState }) {
+export function App({ skills, runs, onAction, initial, showWithout }: { skills: Skill[]; runs: Run[]; onAction: (a: AppAction) => void; initial?: AppState; showWithout?: boolean }) {
   const { stdout } = useStdout();
   const cols = stdout?.columns ?? 120;
   const rowsT = stdout?.rows ?? 40;
@@ -233,7 +233,7 @@ export function App({ skills, runs, onAction, initial }: { skills: Skill[]; runs
   useEffect(() => { setScroll(0); setPane(false); setCursor(0); }, [viewKey]);
 
   const maxRows = Math.max(4, rowsT - 7);
-  const main = sk && cs ? buildMain(focused, sk, cs, asrt!, run, rawMode, SHOW_WITHOUT) : { title: '', sub: [] as Seg[], lines: [] as DisplayLine[], anchors: [] as number[] };
+  const main = sk && cs ? buildMain(focused, sk, cs, asrt!, run, rawMode, showWithout ?? true) : { title: '', sub: [] as Seg[], lines: [] as DisplayLine[], anchors: [] as number[] };
   const anchors = main.anchors;
   const scrollMax = Math.max(0, main.lines.length - maxRows);
   const cursorLine = pane && anchors.length ? (anchors[clampIdx(cursor, anchors.length)] ?? -1) : -1;

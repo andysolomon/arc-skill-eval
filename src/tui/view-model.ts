@@ -10,6 +10,7 @@ import {
   COLORS, seg, pad, trunc, num, bar, wrap, statusGlyph, rateColor, deltaColor, passFrac,
 } from './theme.js';
 import type { Seg, Line } from './theme.js';
+import { GLYPHS } from './caps.js';
 import type { Skill, Case, Assertion, Run, Focus } from './types.js';
 
 const sectionRow = (label: string, extra: Seg[] = []): Line => ({ segs: [seg(pad(label, 13), COLORS.cyan, true), ...extra] });
@@ -55,7 +56,7 @@ export function runRows(runs: Run[]): Seg[][] {
     const name = r.iteration !== '—' ? r.iteration : r.runId.replace('run-', '');
     const [p, t] = passFrac(r.pass);
     const segs = [seg(g + ' ', gc, true), seg(pad(name, 16), COLORS.fg), seg(r.pass + ' ', rateColor(p, t))];
-    if (r.mode === 'compare') segs.push(seg('⇄', COLORS.magenta));
+    if (r.mode === 'compare') segs.push(seg(GLYPHS.compare, COLORS.magenta));
     return segs;
   });
 }
@@ -134,7 +135,7 @@ function caseView(cs: Case, showWithout: boolean): MainView {
   for (const a of cs.assertions) {
     const [g, gc] = statusGlyph(a.passed ? 'pass' : 'fail');
     anchors.push(lines.length); // cursor lands on the assertion header; index == assertion index
-    lines.push(row([seg('  ' + g + ' ', gc, true), seg(pad(typeTag(a), 11), typeColor(a)), seg(a.label + (a.target ? '  → ' + a.target : ''), COLORS.fg)]));
+    lines.push(row([seg('  ' + g + ' ', gc, true), seg(pad(typeTag(a), 11), typeColor(a)), seg(a.label + (a.target ? '  ' + GLYPHS.arrowR + ' ' + a.target : ''), COLORS.fg)]));
     lines.push(row([seg('      ', COLORS.fg), seg(trunc(a.evidence, 62), a.passed ? COLORS.comment : COLORS.red)]));
   }
   lines.push(blank());
@@ -149,7 +150,7 @@ function caseView(cs: Case, showWithout: boolean): MainView {
   lines.push(row([seg('  skill reads  ', COLORS.comment), seg(cs.skillReads, COLORS.magenta)]));
   lines.push(row([seg('  external ', COLORS.comment), seg(String(cs.ext), COLORS.fgDark), seg('  ·  mcp ', COLORS.comment), seg(String(cs.mcp), COLORS.fgDark)]));
   lines.push(blank());
-  lines.push(sectionRow('COMPARE', [seg(cs.delta ? 'Δ ' + cs.delta : 'single-run', deltaColor(cs.delta))]));
+  lines.push(sectionRow('COMPARE', [seg(cs.delta ? GLYPHS.delta + ' ' + cs.delta : 'single-run', deltaColor(cs.delta))]));
   lines.push(row([seg('  with_skill     ', COLORS.fgDark), ...bar(safeFrac(cs.withP, cs.withT), COLORS.green), seg(`  ${cs.withP}/${cs.withT}`, COLORS.green)]));
   if (showWithout && cs.delta) lines.push(row([seg('  without_skill  ', COLORS.fgDark), ...bar(safeFrac(cs.withoutP, cs.withoutT), COLORS.orange), seg(`  ${cs.withoutP}/${cs.withoutT}`, COLORS.orange)]));
   return {

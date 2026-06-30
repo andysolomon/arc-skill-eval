@@ -59,7 +59,7 @@ export function renderHelp(): string {
     "  arc-skill-eval review <run-dir> [--output <dir>] [--force]",
     "  arc-skill-eval improve --from-feedback <feedback.json> [--dry-run] [--summary] [--apply]",
     "  arc-skill-eval create <skill-dir> [--guided] [--interactive] [--model <provider/model[:thinking]>] [--agent-dir <path>] [--dry-run] [--summary] [--force]",
-    "  arc-skill-eval browse [<skill-dir-or-repo>]",
+    "  arc-skill-eval browse [<skill-dir-or-repo>] [--no-baseline]",
     "  arc-skill-eval audit <skill-dir-or-repo> [--json] [--output <path>]",
     "",
     "Notes:",
@@ -78,6 +78,7 @@ export function renderHelp(): string {
     "  - improve proposes eval suite changes from review feedback; --apply writes validated metadata updates.",
     "  - create scaffolds a starter evals/evals.json next to a SKILL.md file; --guided asks a configured model to propose cases first and --interactive lets you review, edit, and select proposed cases before writing.",
     "  - browse opens an interactive terminal run browser (Ink TUI) over the artifacts under evals-runs/; defaults to the current directory.",
+    "  - browse --no-baseline hides the without_skill comparison rows in the detail pane.",
     "  - audit performs deterministic skill-quality checks: frontmatter, sprawl, eval coverage, local links, and duplicate families.",
     "  - Format reference: https://platform.claude.com/docs/en/agents-and-tools/agent-skills",
   ].join("\n");
@@ -387,8 +388,14 @@ function parseReviewCommandArgs(args: string[]) {
 
 function parseBrowseCommandArgs(args: string[]) {
   let input: string | undefined;
+  let noBaseline = false;
 
   for (const arg of args) {
+    if (arg === "--no-baseline") {
+      noBaseline = true;
+      continue;
+    }
+
     if (arg.startsWith("-")) {
       throw new CliUsageError(`Unknown flag: ${arg}.`);
     }
@@ -400,7 +407,7 @@ function parseBrowseCommandArgs(args: string[]) {
     input = arg;
   }
 
-  return { input };
+  return { input, noBaseline };
 }
 
 function parseAuditCommandArgs(args: string[]) {
