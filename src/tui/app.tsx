@@ -9,6 +9,7 @@ import type { Skill, Run, Case, Focus, Sel, CaseMode } from './types.js';
 import { skillRows, caseRows, assertionRows, runRows, buildMain, modesFor } from './view-model.js';
 import { useRunController, RunConsole } from './RunConsole.js';
 import { NewCaseForm } from './NewCaseForm.js';
+import { KEYMAP } from './keymap.js';
 
 type SortMode = 'name' | 'pass' | 'delta' | 'cost';
 
@@ -266,37 +267,22 @@ function StatusBar({ focused, caseMode, pane, sk, filter, filtering, failOnly, s
   );
 }
 
+// Rendered from the canonical KEYMAP (src/tui/keymap.ts) — the same source the
+// docs page is generated from, so the overlay and the docs cannot drift.
 function HelpView() {
-  const items: [string, string][] = [
-    [`${GLYPHS.up} ${GLYPHS.down}  /  j k`, 'move selection in the focused panel (or cursor in the pane)'],
-    [`tab  /  ${GLYPHS.shift}tab`, 'focus next / previous panel'],
-    ['1 – 4', 'jump to Skills / Cases / Assertions / Runs'],
-    [`${GLYPHS.arrowR} / l / ${GLYPHS.enter}`, 'enter the detail pane cursor (Skills, Cases)'],
-    [`${GLYPHS.enter}  (in pane)`, 'drill into the highlighted item'],
-    [`${GLYPHS.arrowL} / h / esc`, 'leave the detail pane cursor'],
-    ['[  ]', 'cycle case detail mode (Overview/Response/Diff/Trace/Context/Raw)'],
-    ['v', 'jump to raw grading.json (Cases)'],
-    [`PgUp/PgDn · ${GLYPHS.ctrl}u/${GLYPHS.ctrl}d`, 'scroll the detail pane'],
-    ['r', 'run evals in-TUI (live spinner), then reload in place'],
-    ['R', 'run in-TUI with --compare (with_skill vs without_skill)'],
-    ['n', 'scaffold a new eval case → evals.json (Skills/Cases)'],
-    ['o', 're-run with custom flags (--model, --iteration, --extra-skill…)'],
-    ['g  /  G', 'jump to top / bottom'],
-    ['/', 'filter skills + cases (type, ↵ apply, esc clear)'],
-    ['F', 'toggle failures-only'],
-    ['s', 'cycle skill sort (name / pass / delta / cost)'],
-    ['f', 'write a feedback.json note for the case (feeds improve)'],
-    ['c', 'pin a run as the cross-iteration baseline (Runs)'],
-    ['q  /  ctrl-c', 'quit'],
-  ];
   return (
     <Box flexDirection="column" borderStyle="round" borderColor={COLORS.borderActive} paddingX={2} paddingY={1}>
       <Text bold color={COLORS.blue}>Keybindings — arc-skill-eval</Text>
-      <Box height={1} />
-      {items.map(([k, d], i) => (
-        <Box key={i}>
-          <Box width={22}><Text color={COLORS.yellow} bold>{k}</Text></Box>
-          <Text color={COLORS.fgDark}>{d}</Text>
+      {KEYMAP.map((section) => (
+        <Box key={section.title} flexDirection="column" marginTop={1}>
+          <Text bold color={COLORS.comment}>{section.title}</Text>
+          {section.bindings.map((b) => (
+            <Box key={b.id}>
+              <Box width={18}><Text color={COLORS.yellow} bold>{b.keys.join(' ')}</Text></Box>
+              <Text color={COLORS.fgDark}>{b.desc}</Text>
+              {b.context ? <Text color={COLORS.comment}>{' (' + b.context + ')'}</Text> : null}
+            </Box>
+          ))}
         </Box>
       ))}
       <Box height={1} />
@@ -304,6 +290,17 @@ function HelpView() {
     </Box>
   );
 }
+
+// Every keymap id the input handler below actually services. The conformance
+// test (tests/tui-components.test.mjs) asserts this set equals KEY_IDS, so a
+// binding documented in keymap.ts without a handler here — or a handler for an
+// undocumented id — fails CI.
+export const HANDLED_KEY_IDS: ReadonlySet<string> = new Set([
+  'move', 'panel-cycle', 'panel-jump', 'edge', 'quit',          // navigation
+  'pane-enter', 'pane-drill', 'pane-leave', 'pane-scroll', 'case-mode', 'raw', // detail pane
+  'run', 'run-compare', 'run-opts', 'new-case', 'feedback', 'run-abort', 'run-reload', // run & author
+  'filter', 'failures', 'sort', 'pin-base', 'help',             // filter & compare
+]);
 
 // ------------------------------------------------------------------ app
 
@@ -358,6 +355,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
     // unmounts; on completion, enter/esc reload the affected skill in place.
     if (runCtl.state.active) {
       if (runCtl.state.done && (key.return || key.escape)) { runCtl.close(); if (sk) void onReload?.(sk.dir); }
+      else if (!runCtl.state.done && key.escape) { runCtl.close(); } // abort: drop the overlay (run-abort)
       return;
     }
     if (creating) return; // NewCaseForm owns input via its own useInput

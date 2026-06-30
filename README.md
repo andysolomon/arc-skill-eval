@@ -261,10 +261,13 @@ It renders a lazygit-style four-panel layout — Skills, Cases, Assertions, Runs
 
 Navigation:
 
-- `Tab` / `1`–`4` move between panels; `j`/`k` (or `↑`/`↓`) move the selection; `?` opens help; `q` quits.
-- `→` / `l` / `↵` drops a cursor into the detail pane (scroll follows it); `↵` then drills the cursor item into its side panel; `←` / `h` / `Esc` leaves the cursor. `PgUp`/`PgDn` and `⌃u`/`⌃d` scroll long panes.
-- `v` toggles rendered ⇄ raw `grading.json`.
-- `r` re-runs evals for the selected skill (or case): it leaves the TUI, shells out to `arc-skill-eval run <skill> [--case <id>]` with live output, then reloads only that skill and restores your selection. The child is launched as `arc-skill-eval` (must be on `PATH`); override with `ARC_SKILL_EVAL_BIN`.
+See the **[Keybindings reference](https://andysolomon.github.io/arc-skill-eval/keymap/)** for the full keymap — it's generated from [`src/tui/keymap.ts`](src/tui/keymap.ts), the same source the in-TUI `?` overlay renders from, so the two can't drift. Highlights: `Tab`/`1`–`4` panels, `j`/`k` move, `→`/`l`/`↵` enter the detail pane, `[`/`]` cycle case mode, `v` raw `grading.json`, `/` filter, `s` sort, `c` pin baseline, `r`/`R` run, `n` new case, `?` help, `q` quit.
+
+Runs and authoring happen **in-process, without leaving the TUI**:
+
+- `r` / `R` run evals for the selection in a live run console (spinner, per-case progress, pass/fail summary); on completion the affected skill reloads in place and your selection is restored. `R` adds `--compare` (`with_skill` vs `without_skill`). `Esc` aborts an in-flight run; `↵` reloads and closes when it's done.
+- `o` runs with custom flags (`--model`, `--iteration`, `--extra-skill`…). This is the one path that still uses a child process — the binary is `arc-skill-eval` (must be on `PATH`); override with `ARC_SKILL_EVAL_BIN`.
+- `n` scaffolds a new eval case into `evals/evals.json`; `f` records a `feedback.json` note for the selected case (consumed by `improve`).
 
 Display options:
 
@@ -472,9 +475,12 @@ With `--compare`, each case writes isolated variant artifacts and the skill run 
     { "text": "file-exists: .releaserc.json", "passed": true, "evidence": "Found .releaserc.json (182 bytes)", "assertion": { "type": "file-exists", "path": ".releaserc.json" } },
     { "text": "The response summarizes the semantic-release plugins it installed.", "passed": true, "evidence": "\"installs @semantic-release/commit-analyzer + release-notes-generator\"", "assertion": "The response summarizes the semantic-release plugins it installed." }
   ],
+  "judge_model": { "provider": "mistral", "id": "ministral-8b-latest" },
   "summary": { "passed": 2, "failed": 0, "total": 2, "pass_rate": 1.0 }
 }
 ```
+
+`judge_model` records the LLM-judge that graded the prose assertions (the `--judge-model` selection, defaulting to `{ "provider": "mistral", "id": "ministral-8b-latest" }`); it's omitted for cases with only deterministic checks. `browse` surfaces it per case.
 
 ## Authoring an eval suite for a skill
 Use the bundled **`arc-creating-evals`** skill in `skills/arc-creating-evals/`. It interviews you across Anthropic's four success dimensions (outcome, process, style, efficiency) and emits `evals/evals.json` + fixtures. Install the skill into your agent's skills directory (`.claude/skills/` or the equivalent for your tool) — see `skills/README.md` for the recipe.
@@ -488,12 +494,12 @@ Use the bundled **`arc-creating-evals`** skill in `skills/arc-creating-evals/`. 
 - `docs/evals-json-pivot.md` — direction, milestone log, and what stays vs what was deprecated.
 - `docs/domain-model.md` — runtime + grading entities.
 
-## Deferred, not dropped
-The current release is the slim MVP of the pivot to the Anthropic format. Planned follow-ups:
-- Cross-iteration benchmark comparison for iterate-and-compare flows.
-- Human-review `feedback.json`.
+## Shipped since the MVP
+The slim MVP of the pivot to the Anthropic format has since grown both of its planned follow-ups:
+- **Cross-iteration comparison** — pin a baseline run with `c` in `browse` to diff iterations against it, and `R` runs `--compare` (`with_skill` vs `without_skill`) in place.
+- **Human-review `feedback.json`** — written by `review` (and by `f` in `browse`), consumed by `improve --from-feedback`.
 
-See `docs/evals-json-pivot.md` for the full plan.
+Remaining ideas live in `docs/evals-json-pivot.md` and `ROADMAP.md`.
 
 ## Inspiration & credits
 
