@@ -58,10 +58,12 @@ When a case is selected, the detail pane is tabbed. Cycle the tabs with `[` / `]
 | `v` | Jump to raw `grading.json` (Cases) |
 | `PgUp`/`PgDn` · `⌃u`/`⌃d` | Scroll the detail pane |
 | `r` | Re-run evals for the selected skill (or case), then reload |
+| `R` | Re-run the selected skill with `--compare` (with/without baseline) |
 | `/` | Filter skills / cases by name (type to filter, `↵` accept, `Esc` clear) |
 | `F` | Toggle failures-only |
 | `s` | Cycle skill sort (name / pass / delta / cost) |
 | `f` | Write a `feedback.json` note for the selected case |
+| `c` | Pin the selected run as the cross-iteration baseline (Runs panel) |
 | `g` / `G` | Top / bottom |
 | `?` | Help overlay |
 | `q` / `Ctrl-C` | Quit |
@@ -78,9 +80,13 @@ With a case selected, `f` opens a note prompt. On `↵` it writes (or merges int
 
 The detail pane free-scrolls by default. Press `→` / `l` / `↵` to drop a cursor into it; `j`/`k` move the cursor and the scroll follows it. On the Skills/Cases views the cursor lands on items (cases / assertions) and `↵` drills into the matching side panel; on the Assertions/Runs views it steps through section headers. `←` / `h` / `Esc` returns to free-scroll.
 
-### Re-running (`r`)
+### Re-running (`r`, `R`)
 
-`r` runs `arc-skill-eval run <skillDir> [--case <id>]` with live output, then reloads only that skill's artifacts and drops you back exactly where you were. On the Skills panel it runs the whole skill; on the Cases panel it adds `--case`. The `arc-skill-eval` binary must be on `PATH` (override with `ARC_SKILL_EVAL_BIN`).
+`r` runs `arc-skill-eval run <skillDir> [--case <id>]` with live output, then reloads only that skill's artifacts and drops you back exactly where you were. On the Skills panel it runs the whole skill; on the Cases panel it adds `--case`. `R` runs the same skill with `--compare`, so the next view has fresh with/without-skill numbers. The `arc-skill-eval` binary must be on `PATH` (override with `ARC_SKILL_EVAL_BIN`).
+
+### Cross-iteration comparison (`c`)
+
+On the Runs panel, `c` pins the selected run as a baseline. The Runs view then shows each other run's pass-rate and cost movement relative to the pinned run — a quick way to see whether an iteration actually moved the needle.
 
 ## Flags
 
@@ -98,10 +104,14 @@ Colors and glyphs adapt to the terminal at startup:
 
 - **Color** — truecolor uses the full Tokyo Night palette; 256-color is auto-downsampled; 16-color terminals get a named-ANSI fallback. `NO_COLOR` or `FORCE_COLOR=0` disables color.
 - **Glyphs** — block bars, status ticks, and arrows use unicode on UTF-8 locales and fall back to ASCII otherwise. Force ASCII with `ARC_TUI_ASCII=1`.
+- **Theme** — `ARC_TUI_THEME=tokyonight|gruvbox|nord` selects the palette (default `tokyonight`).
 
 ```bash
 # force a plain, ASCII, no-color render
 NO_COLOR=1 ARC_TUI_ASCII=1 arc-skill-eval browse .
+
+# Gruvbox palette
+ARC_TUI_THEME=gruvbox arc-skill-eval browse .
 ```
 
 ## See also

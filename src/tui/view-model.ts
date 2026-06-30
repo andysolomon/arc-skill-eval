@@ -50,13 +50,14 @@ export function assertionRows(c: Case): Seg[][] {
   });
 }
 
-export function runRows(runs: Run[]): Seg[][] {
+export function runRows(runs: Run[], baseId?: string): Seg[][] {
   return runs.map((r) => {
     const [g, gc] = statusGlyph(r.exit === 0 ? 'pass' : 'fail');
     const name = r.iteration !== '—' ? r.iteration : r.runId.replace('run-', '');
     const [p, t] = passFrac(r.pass);
     const segs = [seg(g + ' ', gc, true), seg(pad(name, 16), COLORS.fg), seg(r.pass + ' ', rateColor(p, t))];
     if (r.mode === 'compare') segs.push(seg(GLYPHS.compare, COLORS.magenta));
+    if (baseId && r.runId === baseId) segs.push(seg('  base', COLORS.cyan, true));
     return segs;
   });
 }
@@ -78,6 +79,7 @@ export function buildMain(
   run: Run | undefined,
   caseMode: CaseMode,
   showWithout: boolean,
+  compareBase?: Run,
 ): MainView {
   if (focus === 'skills') return skillView(sk, showWithout);
   if (focus === 'cases') {
@@ -90,7 +92,7 @@ export function buildMain(
     return { title: v.title, sub: caseTabs(cs, caseMode), lines: v.lines, anchors: v.anchors };
   }
   if (focus === 'assertions') return assertionView(asrt);
-  return runView(run);
+  return runView(run, compareBase);
 }
 
 const MODE_LABEL: Record<CaseMode, string> = { overview: 'Overview', response: 'Response', diff: 'Diff', trace: 'Trace', context: 'Context', raw: 'Raw' };
@@ -240,7 +242,7 @@ function assertionView(a: Assertion): MainView {
   return { title: typeTag(a) + ' assertion', sub: [seg(a.passed ? '✓ passed' : '✗ failed', a.passed ? COLORS.green : COLORS.red)], lines, anchors };
 }
 
-function runView(r: Run | undefined): MainView {
+function runView(r: Run | undefined, base?: Run): MainView {
   if (!r) return { title: 'Runs', sub: [], lines: [row([seg('  no runs found under evals-runs/', COLORS.dim)])], anchors: [] };
   const [p, t] = passFrac(r.pass);
   const cmd = [`arc-skill-eval run ./skills/${r.skill}`];
@@ -279,8 +281,24 @@ function runView(r: Run | undefined): MainView {
   lines.push(r.mode === 'compare'
     ? row([seg('  ', COLORS.fg), seg('benchmark.json', COLORS.yellow), seg('  ·  with_skill/ + without_skill/ per case', COLORS.dim)])
     : row([seg('  ', COLORS.fg), seg('grading.json · timing.json · trace.json · tool-summary.json', COLORS.dim)]));
+  if (base && base.runId !== r.runId) {
+    const [bp, bt] = passFrac(base.pass);
+    const rateMove = (t ? p / t : 0) - (bt ? bp / bt : 0);
+    const costMove = costNum(r.cost) - costNum(base.cost);
+    const baseName = base.iteration !== '—' ? base.iteration : base.runId;
+    lines.push(blank());
+    anchors.push(lines.length);
+    lines.push(sectionRow('vs BASE', [seg(baseName, COLORS.dim)]));
+    lines.push(row([seg('  pass   ', COLORS.comment), seg(base.pass, COLORS.fgDark), seg('  →  ', COLORS.comment), seg(r.pass, COLORS.fgDark), seg('   ' + signPct(rateMove), rateMove > 0 ? COLORS.green : rateMove < 0 ? COLORS.red : COLORS.comment)]));
+    lines.push(row([seg('  cost   ', COLORS.comment), seg(base.cost, COLORS.fgDark), seg('  →  ', COLORS.comment), seg(r.cost, COLORS.fgDark), seg('   ' + signMoney(costMove), costMove > 0 ? COLORS.red : costMove < 0 ? COLORS.green : COLORS.comment)]));
+    lines.push(row([seg('  model  ', COLORS.comment), seg(base.model + ' → ' + r.model, COLORS.dim)]));
+  }
   return { title: r.iteration !== '—' ? r.iteration : r.runId, sub: [seg(`${r.pass} passed`, rateColor(p, t)), seg('   ' + r.cost, COLORS.green)], lines, anchors };
 }
+
+function costNum(c: string): number { const m = /-?\d+(\.\d+)?/.exec(c); return m ? Number(m[0]) : 0; }
+function signPct(v: number): string { return (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%'; }
+function signMoney(v: number): string { return (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(4); }
 
 // ---------------------------------------------------------------- detail modes
 

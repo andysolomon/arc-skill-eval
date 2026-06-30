@@ -10,6 +10,9 @@
 import { createElement } from 'react';
 import { render } from 'ink';
 import { spawn } from 'node:child_process';
+import { promises as fs } from 'node:fs';
+import { createHash } from 'node:crypto';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { App } from '../tui/app.js';
 import type { AppAction, AppState } from '../tui/app.js';
@@ -48,10 +51,11 @@ function runApp(ws: Workspace, initial: AppState | undefined, showWithout: boole
 }
 
 /** Run `arc-skill-eval run <skillDir> [--case <id>]` with inherited stdio. */
-function runChild(skillDir: string, caseId: string | null): Promise<void> {
+function runChild(skillDir: string, caseId: string | null, compare?: boolean): Promise<void> {
   return new Promise((resolve) => {
     const args = ['run', skillDir];
     if (caseId) args.push('--case', caseId);
+    if (compare) args.push('--compare');
     process.stdout.write(`\n$ ${BIN} ${args.join(' ')}\n\n`);
     const child = spawn(BIN, args, { stdio: 'inherit' });
     child.on('exit', () => resolve());
@@ -91,6 +95,18 @@ function mergeSkill(ws: Workspace, skillDir: string, reloaded: Awaited<ReturnTyp
   ws.runs = ws.runs.filter((r) => r.skill !== base && r.skill !== reloaded.skill!.id).concat(reloaded.runs);
 }
 
+// Persist the last view per input path (so quitting + reopening lands where you left off).
+function stateFile(input: string): string {
+  const hash = createHash('sha1').update(path.resolve(input)).digest('hex').slice(0, 12);
+  return path.join(os.tmpdir(), `arc-skill-eval-tui-${hash}.json`);
+}
+async function readState(input: string): Promise<AppState | undefined> {
+  try { return JSON.parse(await fs.readFile(stateFile(input), 'utf8')) as AppState; } catch { return undefined; }
+}
+async function writeState(input: string, state: AppState): Promise<void> {
+  try { await fs.writeFile(stateFile(input), JSON.stringify(state), 'utf8'); } catch { /* ignore */ }
+}
+
 export async function browseCommand(opts: BrowseOptions = {}): Promise<number> {
   const input = opts.input ?? '.';
   const showWithout = opts.showWithout ?? true;
@@ -101,14 +117,17 @@ export async function browseCommand(opts: BrowseOptions = {}): Promise<number> {
 
   try {
     const ws = await loadWorkspace(input); // loaded once; re-runs patch it in place
-    let initial: AppState | undefined;
+    let initial: AppState | undefined = await readState(input);
     for (;;) {
       const action = await runApp(ws, initial, showWithout);
-      if (action.type === 'quit') break;
+      if (action.type === 'quit') {
+        if (action.state) await writeState(input, action.state);
+        break;
+      }
       if (action.type === 'rerun') {
         initial = action.state; // remember where the user was
         process.stdout.write(ALT_EXIT); // hand the normal screen to the child
-        await runChild(action.skillDir, action.caseId);
+        await runChild(action.skillDir, action.caseId, action.compare);
         mergeSkill(ws, action.skillDir, await reloadSkill(action.skillDir));
         process.stdout.write('\nReloaded — press any key…');
         await waitForKey();
