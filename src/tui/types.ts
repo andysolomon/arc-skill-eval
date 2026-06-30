@@ -45,6 +45,7 @@ export interface Case {
 
 export interface Skill {
   id: string;
+  dir: string;        // absolute skill directory — used by the `r` re-run action
   role: 'target' | 'distractor';
   model: string;
   judge: string;

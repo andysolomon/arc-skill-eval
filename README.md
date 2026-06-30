@@ -225,7 +225,14 @@ arc-skill-eval browse ./skills/arc-conventional-commits   # one skill
 arc-skill-eval browse .                                    # whole repo
 ```
 
-It renders a lazygit-style four-panel layout — Skills, Cases, Assertions, Runs — with the selected case's prompt, grading evidence, metrics, and with/without-skill comparison in the main pane. `v`/`↵` toggles rendered ⇄ raw `grading.json`; `Tab`/`1`–`4` move between panels; `?` opens help; `q` quits. It is read-only and reads the same per-case `grading.json` / `timing.json` artifacts that `run` emits, so no extra setup is needed.
+It renders a lazygit-style four-panel layout — Skills, Cases, Assertions, Runs — with the selected case's prompt, grading evidence, metrics, and with/without-skill comparison in the main pane. It reads the same per-case `grading.json` / `timing.json` artifacts that `run` emits, so no extra setup is needed.
+
+Navigation:
+
+- `Tab` / `1`–`4` move between panels; `j`/`k` (or `↑`/`↓`) move the selection; `?` opens help; `q` quits.
+- `→` / `l` / `↵` drops a cursor into the detail pane (scroll follows it); `↵` then drills the cursor item into its side panel; `←` / `h` / `Esc` leaves the cursor. `PgUp`/`PgDn` and `⌃u`/`⌃d` scroll long panes.
+- `v` toggles rendered ⇄ raw `grading.json`.
+- `r` re-runs evals for the selected skill (or case): it leaves the TUI, shells out to `arc-skill-eval run <skill> [--case <id>]` with live output, then reloads only that skill and restores your selection. The child is launched as `arc-skill-eval` (must be on `PATH`); override with `ARC_SKILL_EVAL_BIN`.
 
 Model options:
 - `--model <provider/model[:thinking]>` pins the skill runner model instead of using Pi's configured default. Example: `openai-codex/gpt-5.5:medium`.
