@@ -46,6 +46,7 @@ export interface CreateCliOptions {
   interactive?: boolean;
   model?: ModelSelection;
   agentDir?: string;
+  authoringSkillPath?: string;
 }
 
 export interface BrowseCliOptions {

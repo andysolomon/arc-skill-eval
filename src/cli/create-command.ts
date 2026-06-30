@@ -1,6 +1,7 @@
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { ModelSelection } from "../contracts/types.js";
 import { readEvalsJson, validateEvalsJsonValue } from "../evals/loader.js";
@@ -33,6 +34,8 @@ export interface CreateCommandOptions {
   model?: ModelSelection;
   agentDir?: string;
   designer?: LlmEvalDesignerFn;
+  /** Optional override for the eval-authoring skill that guides --guided create. Defaults to bundled skills/arc-creating-evals. */
+  authoringSkillPath?: string;
 }
 
 export interface CreateCommandResult {
@@ -67,7 +70,7 @@ export async function createCommand(options: CreateCommandOptions): Promise<Crea
   const frontmatter = parseSkillFrontmatter(skillText, skillDir);
   const starter = buildStarterEvals(frontmatter, skillText);
   const proposal = options.guided
-    ? await (options.designer ?? createDefaultLlmEvalDesigner({ model: options.model, agentDir: options.agentDir }))({
+    ? await (options.designer ?? createDefaultLlmEvalDesigner({ model: options.model, agentDir: options.agentDir, authoringSkillPath: options.authoringSkillPath }))({
         skillDir,
         skillPath,
         skillText,
@@ -133,18 +136,33 @@ function sanitizeFixtureInputs(paths: string[]): string[] {
   return sanitized.slice(0, 10);
 }
 
-function createDefaultLlmEvalDesigner(options: { model?: ModelSelection; agentDir?: string }): LlmEvalDesignerFn {
+function createDefaultLlmEvalDesigner(options: { model?: ModelSelection; agentDir?: string; authoringSkillPath?: string }): LlmEvalDesignerFn {
   return async (input) => {
-    const prompt = buildGuidedCreatePrompt(input);
+    const authoringSkill = await readEvalAuthoringSkill(options.authoringSkillPath);
+    const prompt = buildGuidedCreatePrompt(input, { authoringSkill });
     const rawResponse = await invokePiEvalDesigner({ prompt, model: options.model, agentDir: options.agentDir });
     return parseGuidedCreateResponse(rawResponse);
   };
 }
 
-function buildGuidedCreatePrompt(input: LlmEvalDesignerInput): string {
+export interface GuidedCreatePromptOptions {
+  authoringSkill?: EvalAuthoringSkillReference;
+}
+
+export interface EvalAuthoringSkillReference {
+  path: string;
+  markdown: string;
+}
+
+export function buildGuidedCreatePrompt(input: LlmEvalDesignerInput, options: GuidedCreatePromptOptions = {}): string {
+  const authoringSkill = options.authoringSkill;
   return [
-    "You are an expert eval designer for Anthropic-style agent skills.",
-    "Design a starter eval suite for the SKILL.md below. Do not use tools or create files; respond only with the JSON proposal.",
+    "You are running arc-skill-eval create --guided.",
+    authoringSkill
+      ? "Follow the arc-creating-evals skill below as the authoritative eval-authoring procedure."
+      : "You are an expert eval designer for Anthropic-style agent skills.",
+    "Design a starter eval suite for the target SKILL.md below. Do not use tools or create files; respond only with the JSON proposal.",
+    "Adapt any interactive phase gates in arc-creating-evals for this non-interactive CLI call: infer reasonable success criteria from the skill text, and record assumptions in rationale.",
     "Prefer specific, representative cases over generic heuristics. Include routing, execution, adjacent-negative, and safety/behavior coverage where useful.",
     "Use deterministic assertions when files or exact output can be checked; use judge assertions only for semantic behavior.",
     "Allowed assertion shapes are strict:",
@@ -164,9 +182,17 @@ function buildGuidedCreatePrompt(input: LlmEvalDesignerInput): string {
     "The evalsJson value must be a valid evals/evals.json object for arc-skill-eval.",
     "Do not include markdown fences or prose outside the JSON object.",
     "",
-    "=== SKILL.md ===",
+    ...(authoringSkill
+      ? [
+          `=== arc-creating-evals skill (${authoringSkill.path}) ===`,
+          authoringSkill.markdown,
+          "=== END arc-creating-evals skill ===",
+          "",
+        ]
+      : []),
+    "=== TARGET SKILL.md ===",
     input.skillText,
-    "=== END SKILL.md ===",
+    "=== END TARGET SKILL.md ===",
   ].join("\n");
 }
 
@@ -253,6 +279,20 @@ function extractJsonObject(raw: string): string | null {
     }
   }
   return null;
+}
+
+async function readEvalAuthoringSkill(authoringSkillPath?: string): Promise<EvalAuthoringSkillReference> {
+  const resolvedPath = path.resolve(authoringSkillPath ?? bundledArcCreatingEvalsSkillPath());
+  try {
+    return { path: resolvedPath, markdown: await readFile(resolvedPath, "utf8") };
+  } catch (error) {
+    throw new CliCommandError(`Unable to read eval-authoring skill at ${resolvedPath}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function bundledArcCreatingEvalsSkillPath(): string {
+  const thisFile = fileURLToPath(import.meta.url);
+  return path.resolve(path.dirname(thisFile), "..", "..", "skills", "arc-creating-evals", "SKILL.md");
 }
 
 async function invokePiEvalDesigner(options: { prompt: string; model?: ModelSelection; agentDir?: string }): Promise<string> {

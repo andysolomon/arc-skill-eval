@@ -58,7 +58,7 @@ export function renderHelp(): string {
     "  arc-skill-eval init-runtime <agent-dir> --provider <provider> --model <model> [--force]",
     "  arc-skill-eval review <run-dir> [--output <dir>] [--force]",
     "  arc-skill-eval improve --from-feedback <feedback.json> [--dry-run] [--summary] [--apply]",
-    "  arc-skill-eval create <skill-dir> [--guided] [--interactive] [--model <provider/model[:thinking]>] [--agent-dir <path>] [--dry-run] [--summary] [--force]",
+    "  arc-skill-eval create <skill-dir> [--guided] [--interactive] [--model <provider/model[:thinking]>] [--agent-dir <path>] [--authoring-skill <path>] [--dry-run] [--summary] [--force]",
     "  arc-skill-eval browse [<skill-dir-or-repo>] [--no-baseline]",
     "  arc-skill-eval audit <skill-dir-or-repo> [--json] [--output <path>]",
     "",
@@ -76,7 +76,7 @@ export function renderHelp(): string {
     "  - init-runtime writes a minimal Pi models.json and settings.json for eval-owned runtime config.",
     "  - review writes static review.html and feedback.json files for an eval run directory.",
     "  - improve proposes eval suite changes from review feedback; --apply writes validated metadata updates.",
-    "  - create scaffolds a starter evals/evals.json next to a SKILL.md file; --guided asks a configured model to propose cases first and --interactive lets you review, edit, and select proposed cases before writing.",
+    "  - create scaffolds a starter evals/evals.json next to a SKILL.md file; --guided asks a configured model to propose cases using the bundled arc-creating-evals skill first and --interactive lets you review, edit, and select proposed cases before writing.",
     "  - browse opens an interactive terminal run browser (Ink TUI) over the artifacts under evals-runs/; defaults to the current directory.",
     "  - browse --no-baseline hides the without_skill comparison rows in the detail pane.",
     "  - audit performs deterministic skill-quality checks: frontmatter, sprawl, eval coverage, local links, and duplicate families.",
@@ -250,6 +250,7 @@ function parseCreateCommandArgs(args: string[]) {
   let interactive = false;
   let model: ModelSelection | undefined;
   let agentDir: string | undefined;
+  let authoringSkillPath: string | undefined;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
@@ -293,6 +294,13 @@ function parseCreateCommandArgs(args: string[]) {
       continue;
     }
 
+    if (arg === "--authoring-skill" || arg.startsWith("--authoring-skill=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      authoringSkillPath = parsed.value;
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
     if (arg.startsWith("-")) {
       throw new CliUsageError(`Unknown flag: ${arg}.`);
     }
@@ -306,7 +314,7 @@ function parseCreateCommandArgs(args: string[]) {
 
   if (!skillDir) throw new CliUsageError("Missing required <skill-dir> argument.");
   if (interactive && !guided) throw new CliUsageError("--interactive is currently supported with --guided create mode. Use `arc-skill-eval create <skill-dir> --guided --interactive`.");
-  return { skillDir, force, dryRun, summary, guided, interactive, ...(model ? { model } : {}), ...(agentDir ? { agentDir } : {}) };
+  return { skillDir, force, dryRun, summary, guided, interactive, ...(model ? { model } : {}), ...(agentDir ? { agentDir } : {}), ...(authoringSkillPath ? { authoringSkillPath } : {}) };
 }
 
 function parseImproveCommandArgs(args: string[]) {
