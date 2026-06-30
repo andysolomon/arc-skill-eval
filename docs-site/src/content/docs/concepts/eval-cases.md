@@ -18,6 +18,8 @@ type EvalCase = {
   setup?: WorkspaceSetup;
   files?: string[];           // legacy shorthand for setup
   assertions?: EvalAssertion[];
+  sandbox?: "none" | "just-bash";
+  sandboxMocks?: SandboxCommandMock[];
   metadata?: Record<string, unknown>;
 };
 ```
@@ -47,6 +49,29 @@ type WorkspaceSetup =
 - **`fixture`** — use the existing `FixtureRef` materializer (in `src/fixtures/`), which supports git initialization and pre-run hooks. Use this when a case needs to start from a non-trivial repo state.
 
 The legacy `files: ["..."]` shorthand still works and compiles to a `seeded` setup with `mountMode: "preserve-path"`. Prefer `setup` for new cases — it's explicit about intent and supports all three kinds.
+
+## Sandbox
+
+- **`sandbox`** — `"none"` *(default)* runs the case with the host shell and real filesystem; `"just-bash"` runs it inside an in-process [`just-bash`](https://www.npmjs.com/package/just-bash) virtual shell rooted at the case workspace (no host shell, repo tree untouched, generated files still captured under `outputs/`). The [`--sandbox`](/arc-skill-eval/cli-reference/#--sandbox-nonejust-bash) CLI flag overrides this per run.
+- **`sandboxMocks`** — deterministic stand-ins for external commands under the `just-bash` sandbox. `npm`/`npx`/`git` default to no-op success; override any command with specific output and file effects:
+
+```json
+{
+  "id": "install-deps",
+  "prompt": "Install dependencies.",
+  "sandbox": "just-bash",
+  "sandboxMocks": [
+    {
+      "command": "npm",
+      "stdout": "added 1 package\n",
+      "exitCode": 0,
+      "files": [{ "path": "node_modules/.installed", "content": "ok" }]
+    }
+  ]
+}
+```
+
+Each `SandboxCommandMock` is `{ command, stdout?, stderr?, exitCode?, files?: { path, content }[] }`. Mocks only apply when the case runs under `just-bash`.
 
 ## Concrete examples
 
