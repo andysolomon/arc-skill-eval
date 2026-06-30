@@ -381,6 +381,7 @@ Deliverables:
 - Validated starter `evals/evals.json`
 - Optional fixture scaffolding
 - Summary explaining case classes and assertion choices
+- Deterministic `file-exists` / `json-valid` assertions for obvious output artifacts
 
 Tasks:
 
@@ -390,6 +391,7 @@ Tasks:
 - [x] 2.4 Validate generated JSON with existing parser
 - [x] 2.5 Add dry-run option for generated suite preview
 - [x] 2.6 Add docs and examples
+- [x] 2.7 Infer deterministic assertions from obvious `SKILL.md` artifact paths
 
 Test Strategy:
 

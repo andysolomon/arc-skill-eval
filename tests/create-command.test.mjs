@@ -41,6 +41,29 @@ test("createCommand writes a valid starter eval suite", async () => {
   }
 });
 
+test("createCommand infers deterministic file and JSON assertions", async () => {
+  const { root, skillDir } = await createSkillFixture({
+    name: "artifact-skill",
+    description: "Writes `plan.md` and `report.json` for release planning.",
+  });
+
+  try {
+    const result = await createCommand({ skillDir, dryRun: true });
+    const executionCase = result.evals.evals.find((item) => item.id === "execution-golden-path");
+
+    assert(executionCase);
+    assert.match(executionCase.prompt, /`plan\.md`/);
+    assert.match(executionCase.prompt, /`report\.json`/);
+    assert.deepEqual(executionCase.assertions.slice(0, 3), [
+      { type: "file-exists", path: "plan.md" },
+      { type: "file-exists", path: "report.json" },
+      { type: "json-valid", path: "report.json" },
+    ]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("createCommand refuses to overwrite existing evals without force", async () => {
   const { root, skillDir } = await createSkillFixture();
   const evalsDir = path.join(skillDir, "evals");

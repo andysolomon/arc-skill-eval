@@ -2,7 +2,7 @@ import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { readEvalsJson } from "../evals/loader.js";
-import type { EvalsJsonFile } from "../evals/types.js";
+import type { EvalAssertion, EvalsJsonFile } from "../evals/types.js";
 import { CliCommandError } from "./types.js";
 
 export interface CreateCommandOptions {
@@ -32,7 +32,7 @@ export async function createCommand(options: CreateCommandOptions): Promise<Crea
 
   const skillText = await readSkillMd(skillPath);
   const frontmatter = parseSkillFrontmatter(skillText, skillDir);
-  const evals = buildStarterEvals(frontmatter);
+  const evals = buildStarterEvals(frontmatter, skillText);
 
   if (options.dryRun) {
     return { skillDir, evalsJsonPath, dryRun: true, written: false, evals };
@@ -80,9 +80,13 @@ function unquoteYamlScalar(value: string): string {
   return value;
 }
 
-function buildStarterEvals(skill: SkillFrontmatter): EvalsJsonFile {
+function buildStarterEvals(skill: SkillFrontmatter, skillText: string): EvalsJsonFile {
   const description = skill.description ?? `Use the ${skill.name} skill correctly.`;
   const shortDescription = description.endsWith(".") ? description.slice(0, -1) : description;
+  const deterministicSignals = inferDeterministicAssertions(skillText);
+  const expectedArtifactsText = deterministicSignals.paths.length > 0
+    ? ` Produce the expected artifact(s): ${deterministicSignals.paths.map((item) => `\`${item}\``).join(", ")}.`
+    : "";
 
   return {
     version: "1",
@@ -111,10 +115,13 @@ function buildStarterEvals(skill: SkillFrontmatter): EvalsJsonFile {
       {
         id: "execution-golden-path",
         description: "Golden-path execution case for a representative skill task.",
-        prompt: `Complete a representative ${skill.name} task for this scenario: ${shortDescription}. Explain the result clearly and include any important next steps.`,
-        expected_output: "The assistant should complete the representative task, not merely describe the skill.",
+        prompt: `Complete a representative ${skill.name} task for this scenario: ${shortDescription}.${expectedArtifactsText} Explain the result clearly and include any important next steps.`,
+        expected_output: deterministicSignals.paths.length > 0
+          ? `The assistant should complete the representative task and create the expected artifact(s): ${deterministicSignals.paths.join(", ")}.`
+          : "The assistant should complete the representative task, not merely describe the skill.",
         setup: { kind: "empty" },
         assertions: [
+          ...deterministicSignals.assertions,
           {
             id: "golden-path-completion",
             kind: "output",
@@ -157,6 +164,65 @@ function buildStarterEvals(skill: SkillFrontmatter): EvalsJsonFile {
       },
     ],
   };
+}
+
+function inferDeterministicAssertions(skillText: string): { paths: string[]; assertions: EvalAssertion[] } {
+  const paths = inferOutputPaths(skillText);
+  const assertions: EvalAssertion[] = [];
+
+  for (const filePath of paths) {
+    assertions.push({ type: "file-exists", path: filePath });
+    if (/\.json$/i.test(filePath)) {
+      assertions.push({ type: "json-valid", path: filePath });
+    }
+  }
+
+  return { paths, assertions };
+}
+
+function inferOutputPaths(skillText: string): string[] {
+  const candidates = new Set<string>();
+  const codeSpanPattern = /`([^`]+)`/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = codeSpanPattern.exec(skillText)) !== null) {
+    for (const candidate of extractPathCandidates(match[1]!)) {
+      if (isLikelyOutputPath(candidate)) candidates.add(candidate);
+    }
+  }
+
+  const quotedPathPattern = /["']([^"'\n]+\.(?:md|markdown|txt|json|ya?ml|csv|tsv|html|xml))["']/gi;
+  while ((match = quotedPathPattern.exec(skillText)) !== null) {
+    const normalized = normalizePathCandidate(match[1]!);
+    if (normalized && isLikelyOutputPath(normalized)) candidates.add(normalized);
+  }
+
+  return Array.from(candidates).slice(0, 5);
+}
+
+function extractPathCandidates(value: string): string[] {
+  return value
+    .split(/[\s,]+/)
+    .map((item) => normalizePathCandidate(item))
+    .filter((item): item is string => item !== null);
+}
+
+function normalizePathCandidate(value: string): string | null {
+  const trimmed = value.trim().replace(/[).,;:]+$/g, "").replace(/^\.\//, "");
+  if (!trimmed) return null;
+  if (trimmed.includes("://")) return null;
+  if (path.isAbsolute(trimmed)) return null;
+  if (trimmed.split(/[\\/]/).includes("..")) return null;
+  return trimmed;
+}
+
+function isLikelyOutputPath(value: string): boolean {
+  if (!/^[A-Za-z0-9._/-]+$/.test(value)) return false;
+  if (!/\.(?:md|markdown|txt|json|ya?ml|csv|tsv|html|xml)$/i.test(value)) return false;
+  const basename = path.basename(value).toLowerCase();
+  if (basename === "skill.md" || basename === "readme.md") return false;
+  if (value.startsWith("docs/") || value.startsWith("node_modules/")) return false;
+  return true;
 }
 
 async function fileExists(file: string): Promise<boolean> {

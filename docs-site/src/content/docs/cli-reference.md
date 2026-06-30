@@ -51,6 +51,8 @@ The command reads `SKILL.md` frontmatter and writes three starter cases:
 - `execution-golden-path`
 - `adjacent-negative`
 
+When obvious output artifacts are mentioned in `SKILL.md`, such as `plan.md` or `report.json`, the execution case also gets deterministic `file-exists` and `json-valid` assertions.
+
 Options:
 
 - `--dry-run`: print the proposed JSON without writing files.

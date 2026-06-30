@@ -157,7 +157,7 @@ The command reads `SKILL.md` frontmatter, writes `evals/evals.json`, and include
 - `execution-golden-path`
 - `adjacent-negative`
 
-Use `--dry-run` to print the proposed JSON without writing files, and `--force` to overwrite an existing `evals/evals.json`.
+When obvious output artifacts are mentioned in `SKILL.md`, such as `plan.md` or `report.json`, the execution case also gets deterministic `file-exists` and `json-valid` assertions. Use `--dry-run` to print the proposed JSON without writing files, and `--force` to overwrite an existing `evals/evals.json`.
 
 The positional `<skill-dir-or-repo>` for `run` is resolved as:
 - a skill directory if it contains `evals/evals.json`,

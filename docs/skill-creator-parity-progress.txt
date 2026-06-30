@@ -34,11 +34,11 @@ Milestone SCP-2 — Guided eval creation
     [x] 3.5 Add optional dry-run flow
     [x] 3.6 Document create workflow
 
-[ ] W-000022 Prefer deterministic assertions in generated evals [AFK]
-    [ ] 4.1 Detect expected file outputs from skill instructions
-    [ ] 4.2 Generate file-exists, regex-match, and json-valid assertions where possible
-    [ ] 4.3 Explain judge-based assertions in command summary
-    [ ] 4.4 Add generated eval fixture tests
+[x] W-000022 Prefer deterministic assertions in generated evals [AFK]
+    [x] 4.1 Detect expected file outputs from skill instructions
+    [x] 4.2 Generate file-exists and json-valid assertions where possible
+    [x] 4.3 Mention deterministic inference in docs
+    [x] 4.4 Add generated eval fixture tests
 
 Milestone SCP-3 — Human review loop
 
