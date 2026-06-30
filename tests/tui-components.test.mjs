@@ -21,6 +21,7 @@ const TOKEN_KEYS = [
 const GLYPH_KEYS = [
   'pass', 'fail', 'partial', 'running', 'barFull', 'barEmpty', 'accent', 'up', 'down',
   'arrowR', 'arrowL', 'enter', 'shift', 'ctrl', 'play', 'sigma', 'compare', 'delta', 'bullet',
+  'spinner', // string[] (animation frames), unlike the single-char glyphs above
 ];
 
 // ---------------------------------------------------------------- palettes
@@ -55,6 +56,11 @@ test('unicode and ASCII glyph sets are key-complete and in sync', () => {
     const set = GLYPH_SETS[which];
     assert.deepEqual(Object.keys(set).sort(), [...GLYPH_KEYS].sort(), `${which} glyph keys`);
     for (const key of GLYPH_KEYS) {
+      if (key === 'spinner') {
+        assert.ok(Array.isArray(set[key]) && set[key].length >= 1, `${which}.spinner should be a non-empty array`);
+        for (const f of set[key]) assert.ok(typeof f === 'string' && f.length >= 1, `${which}.spinner frame non-empty`);
+        continue;
+      }
       assert.equal(typeof set[key], 'string');
       assert.ok(set[key].length >= 1, `${which}.${key} should be non-empty`);
     }

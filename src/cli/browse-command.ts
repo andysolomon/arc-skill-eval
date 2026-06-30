@@ -1,11 +1,13 @@
 // `arc-skill-eval browse [skill-dir-or-repo]` — interactive run browser.
 // Wire this into your CLI dispatcher (see arc-skill-eval-tui/README.md).
 //
-// Control flow: the App never spawns processes itself. It hands an AppAction
-// back to this loop. For a re-run we fully unmount Ink, leave the alternate
-// screen, run `arc-skill-eval run …` with inherited stdio, then re-enter,
-// reload ONLY the affected skill, and remount the App with the previous
-// selection restored — so Ink and the child never fight over stdout.
+// Control flow: `r`/`R` and new-case (`n`) run IN-PROCESS inside the App
+// (it calls runEvalsCommand directly and reloads via the `onReload` callback
+// below) — Ink never unmounts. Only the `o` "re-run with custom flags" action
+// still hands back a `rerun` AppAction: arbitrary flags need a real subprocess,
+// so for that one path we unmount Ink, leave the alternate screen, run
+// `arc-skill-eval run …` with inherited stdio, reload the affected skill, and
+// remount with the previous selection restored.
 
 import { createElement } from 'react';
 import { render } from 'ink';
@@ -31,20 +33,27 @@ export interface BrowseOptions {
   showWithout?: boolean;
 }
 
-/** Render the App and resolve once the user quits or requests a re-run. */
+/** Render the App and resolve once the user quits or requests a re-run.
+ *  `onReload` lets the App reload a skill in place after an in-process run or a
+ *  new-case write — it patches the shared workspace and re-renders without
+ *  unmounting, so Ink keeps the screen the whole time. */
 function runApp(ws: Workspace, initial: AppState | undefined, showWithout: boolean): Promise<AppAction> {
   return new Promise((resolve) => {
     let done = false;
-    const finish = (a: AppAction) => {
+    let instance: ReturnType<typeof render>;
+    const element = () =>
+      createElement(App, { skills: ws.skills, runs: ws.runs, onAction: finish, onReload, initial, showWithout });
+    function finish(a: AppAction): void {
       if (done) return;
       done = true;
       instance.unmount();
       resolve(a);
-    };
-    const instance = render(
-      createElement(App, { skills: ws.skills, runs: ws.runs, onAction: finish, initial, showWithout }),
-      { exitOnCtrlC: true },
-    );
+    }
+    async function onReload(skillDir: string): Promise<void> {
+      try { mergeSkill(ws, skillDir, await reloadSkill(skillDir)); } catch { /* keep the stale view */ }
+      if (!done && instance) instance.rerender(element());
+    }
+    instance = render(element(), { exitOnCtrlC: true });
     // Ctrl-C path: Ink resolves waitUntilExit on its own.
     instance.waitUntilExit().then(() => { if (!done) { done = true; resolve({ type: 'quit' }); } });
   });

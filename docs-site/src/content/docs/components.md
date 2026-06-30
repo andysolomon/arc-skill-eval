@@ -24,6 +24,8 @@ A standalone, clickable catalog of every component across all three themes:
 | **Bars** | `bar(frac, color, width)` — a `▓`/`░` proportional fill used for pass-rate and context-window usage. |
 | **Diff renderer** | LCS line diff of `without_skill` → `with_skill` responses, with `+`/`-` gutters and add/remove wash colors. |
 | **Badges** | Status glyphs (`✓ ✗ ◐ ◌`) + `passed/total` fractions, colored by pass rate and delta. |
+| **RunConsole** | Overlay shown while `r`/`R` run evals in-process (Ink stays mounted): spinner header, elapsed timer, per-case pass bars, and a run summary. |
+| **NewCaseForm** | Overlay for `n` — three fields (id · prompt · expected) that append a skeleton case to `evals.json`. |
 
 ## Themes
 

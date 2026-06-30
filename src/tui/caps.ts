@@ -50,6 +50,7 @@ export interface GlyphSet {
   compare: string;
   delta: string;
   bullet: string;
+  spinner: string[];
 }
 
 const UNI: GlyphSet = {
@@ -57,6 +58,7 @@ const UNI: GlyphSet = {
   barFull: '▓', barEmpty: '░', accent: '▌',
   up: '↑', down: '↓', arrowR: '→', arrowL: '←', enter: '↵', shift: '⇧', ctrl: '⌃',
   play: '▶', sigma: 'Σ', compare: '⇄', delta: 'Δ', bullet: '●',
+  spinner: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
 };
 
 const ASCII: GlyphSet = {
@@ -64,6 +66,7 @@ const ASCII: GlyphSet = {
   barFull: '#', barEmpty: '-', accent: '|',
   up: '^', down: 'v', arrowR: '->', arrowL: '<-', enter: 'ent', shift: 'shift+', ctrl: '^',
   play: '>', sigma: 'sum', compare: '<>', delta: 'd', bullet: '*',
+  spinner: ['|', '/', '-', '\\'],
 };
 
 export const GLYPHS: GlyphSet = UNICODE ? UNI : ASCII;
