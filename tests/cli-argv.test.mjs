@@ -63,6 +63,18 @@ test("parseCliArgs requires --guided for interactive create", () => {
   );
 });
 
+test("parseCliArgs accepts improve options", () => {
+  const parsed = parseCliArgs(["improve", "--from-feedback", "./run/feedback.json", "--dry-run", "--summary", "--apply"]);
+
+  assert.deepEqual(parsed, {
+    command: "improve",
+    feedbackPath: "./run/feedback.json",
+    dryRun: true,
+    summary: true,
+    apply: true,
+  });
+});
+
 test("parseCliArgs accepts review options", () => {
   const parsed = parseCliArgs(["review", "./evals-runs/run-1", "--output", "./review", "--force"]);
 

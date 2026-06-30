@@ -30,6 +30,13 @@ export interface ReviewCliOptions {
   force?: boolean;
 }
 
+export interface ImproveCliOptions {
+  feedbackPath: string;
+  dryRun?: boolean;
+  summary?: boolean;
+  apply?: boolean;
+}
+
 export interface CreateCliOptions {
   skillDir: string;
   force?: boolean;
@@ -60,6 +67,7 @@ export type ParsedCliCommand =
   | ({ command: "run"; json?: boolean } & RunEvalsCliOptions)
   | ({ command: "init-runtime" } & InitRuntimeCliOptions)
   | ({ command: "review" } & ReviewCliOptions)
+  | ({ command: "improve" } & ImproveCliOptions)
   | ({ command: "create" } & CreateCliOptions);
 
 export class CliUsageError extends Error {

@@ -5,6 +5,7 @@ export * from "./create-interactive.js";
 export * from "./guided-eval-designer.js";
 export * from "./init-runtime-command.js";
 export * from "./review-command.js";
+export * from "./improve-command.js";
 export * from "./argv.js";
 export * from "./render.js";
 export * from "./run-cli.js";

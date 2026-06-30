@@ -30,6 +30,11 @@ arc-skill-eval review <run-dir>
                       [--output <dir>]
                       [--force]
 
+arc-skill-eval improve --from-feedback <feedback.json>
+                       [--dry-run]
+                       [--summary]
+                       [--apply]
+
 arc-skill-eval create <skill-dir>
                       [--guided]
                       [--interactive]
@@ -133,17 +138,26 @@ Options:
 - `--output <dir>`: write the report files outside the run directory.
 - `--force`: overwrite existing `review.html` or `feedback.json`.
 
-### `improve <skill-dir> --from-feedback <feedback.json>`
+### `improve --from-feedback <feedback.json>`
 
-Convert reviewed run evidence into a targeted improvement plan. Start by creating a report, then add human notes to `feedback.json`:
+Suggest eval-suite improvements from review feedback. Start by creating a report, then add human notes to `feedback.json`:
 
 ```bash
 arc-skill-eval review ./skills/my-skill/evals-runs/<runId>
-arc-skill-eval improve ./skills/my-skill \
-  --from-feedback ./skills/my-skill/evals-runs/<runId>/feedback.json
+arc-skill-eval improve --from-feedback ./skills/my-skill/evals-runs/<runId>/feedback.json \
+  --dry-run --summary
 ```
 
 Use this after a compare run when the report shows neutral/negative deltas, flaky judge evidence, missing fixture coverage, or assertions that pass without proving the skill helped.
+
+The command reads human notes and failing assertion summaries from `feedback.json`, then proposes prompt, assertion, fixture, or adjacent-negative improvements with rationale. It preserves human approval by default: no eval files are changed unless `--apply` is supplied. Applied changes annotate matching eval cases with validated improvement metadata and then re-run the existing eval loader.
+
+Options:
+
+- `--from-feedback <feedback.json>`: path to the feedback artifact written by `review`.
+- `--dry-run`: force proposal-only mode.
+- `--summary`: print a human-readable proposal instead of raw JSON.
+- `--apply`: write validated improvement metadata to the matching `evals/evals.json`.
 
 ### `run <skill-dir-or-repo>`
 
@@ -312,6 +326,10 @@ arc-skill-eval init-runtime ./.arc-skill-eval/pi-agent \
 
 # Generate a static review report from artifacts.
 arc-skill-eval review ./skills/hello-world/evals-runs/<runId>
+
+# Propose improvements from review feedback.
+arc-skill-eval improve --from-feedback ./skills/hello-world/evals-runs/<runId>/feedback.json \
+  --dry-run --summary
 
 # Use an eval-owned Pi config/runtime directory.
 arc-skill-eval run ./skills/hello-world \

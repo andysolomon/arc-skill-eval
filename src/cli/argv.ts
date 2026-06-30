@@ -24,6 +24,11 @@ export function parseCliArgs(argv: string[]): ParsedCliCommand {
         command: "review",
         ...parseReviewCommandArgs(rest),
       };
+    case "improve":
+      return {
+        command: "improve",
+        ...parseImproveCommandArgs(rest),
+      };
     case "create":
       return {
         command: "create",
@@ -42,6 +47,7 @@ export function renderHelp(): string {
     "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--agent-dir <path>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--compare] [--json]",
     "  arc-skill-eval init-runtime <agent-dir> --provider <provider> --model <model> [--force]",
     "  arc-skill-eval review <run-dir> [--output <dir>] [--force]",
+    "  arc-skill-eval improve --from-feedback <feedback.json> [--dry-run] [--summary] [--apply]",
     "  arc-skill-eval create <skill-dir> [--guided] [--interactive] [--model <provider/model[:thinking]>] [--agent-dir <path>] [--dry-run] [--summary] [--force]",
     "",
     "Notes:",
@@ -57,6 +63,7 @@ export function renderHelp(): string {
     "  - run exits with code 1 when any assertion fails or any case errors out.",
     "  - init-runtime writes a minimal Pi models.json and settings.json for eval-owned runtime config.",
     "  - review writes static review.html and feedback.json files for an eval run directory.",
+    "  - improve proposes eval suite changes from review feedback; --apply writes validated metadata updates.",
     "  - create scaffolds a starter evals/evals.json next to a SKILL.md file; --guided asks a configured model to propose cases first and --interactive lets you review, edit, and select proposed cases before writing.",
     "  - Format reference: https://platform.claude.com/docs/en/agents-and-tools/agent-skills",
   ].join("\n");
@@ -285,6 +292,48 @@ function parseCreateCommandArgs(args: string[]) {
   if (!skillDir) throw new CliUsageError("Missing required <skill-dir> argument.");
   if (interactive && !guided) throw new CliUsageError("--interactive is currently supported with --guided create mode. Use `arc-skill-eval create <skill-dir> --guided --interactive`.");
   return { skillDir, force, dryRun, summary, guided, interactive, ...(model ? { model } : {}), ...(agentDir ? { agentDir } : {}) };
+}
+
+function parseImproveCommandArgs(args: string[]) {
+  let feedbackPath: string | undefined;
+  let dryRun = false;
+  let summary = false;
+  let apply = false;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+
+    if (arg === "--dry-run") {
+      dryRun = true;
+      continue;
+    }
+
+    if (arg === "--summary") {
+      summary = true;
+      continue;
+    }
+
+    if (arg === "--apply") {
+      apply = true;
+      continue;
+    }
+
+    if (arg === "--from-feedback" || arg.startsWith("--from-feedback=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      feedbackPath = parsed.value;
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
+    if (arg.startsWith("-")) {
+      throw new CliUsageError(`Unknown flag: ${arg}.`);
+    }
+
+    throw new CliUsageError("improve requires --from-feedback <feedback.json>; positional arguments are not supported.");
+  }
+
+  if (!feedbackPath) throw new CliUsageError("Missing required --from-feedback flag.");
+  return { feedbackPath, dryRun, summary, apply };
 }
 
 function parseReviewCommandArgs(args: string[]) {
