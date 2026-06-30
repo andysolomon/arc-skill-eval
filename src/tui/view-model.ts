@@ -11,7 +11,7 @@ import {
 } from './theme.js';
 import type { Seg, Line } from './theme.js';
 import { GLYPHS } from './caps.js';
-import type { Skill, Case, Assertion, Run, Focus } from './types.js';
+import type { Skill, Case, Assertion, Run, Focus, CaseMode } from './types.js';
 
 const sectionRow = (label: string, extra: Seg[] = []): Line => ({ segs: [seg(pad(label, 13), COLORS.cyan, true), ...extra] });
 const row = (segs: Seg[], bg?: string): Line => ({ segs, ...(bg ? { bg } : {}) });
@@ -36,8 +36,8 @@ export function skillRows(skills: Skill[]): Seg[][] {
   });
 }
 
-export function caseRows(skill: Skill): Seg[][] {
-  return skill.cases.map((c) => {
+export function caseRows(cases: Case[]): Seg[][] {
+  return cases.map((c) => {
     const [g, gc] = statusGlyph(c.status);
     return [seg(g + ' ', gc, true), seg(trunc(c.id, 32), c.status === 'fail' ? COLORS.red : COLORS.fg)];
   });
@@ -76,13 +76,41 @@ export function buildMain(
   cs: Case,
   asrt: Assertion,
   run: Run | undefined,
-  rawMode: boolean,
+  caseMode: CaseMode,
   showWithout: boolean,
 ): MainView {
   if (focus === 'skills') return skillView(sk, showWithout);
-  if (focus === 'cases') return rawMode ? caseRawView(cs) : caseView(cs, showWithout);
+  if (focus === 'cases') {
+    const v = caseMode === 'response' ? responseView(cs)
+      : caseMode === 'diff' ? diffView(cs)
+      : caseMode === 'trace' ? traceView(cs)
+      : caseMode === 'context' ? contextView(cs)
+      : caseMode === 'raw' ? caseRawView(cs)
+      : caseView(cs, showWithout);
+    return { title: v.title, sub: caseTabs(cs, caseMode), lines: v.lines, anchors: v.anchors };
+  }
   if (focus === 'assertions') return assertionView(asrt);
   return runView(run);
+}
+
+const MODE_LABEL: Record<CaseMode, string> = { overview: 'Overview', response: 'Response', diff: 'Diff', trace: 'Trace', context: 'Context', raw: 'Raw' };
+
+/** Modes available for a case — Diff only appears for compare runs. */
+export function modesFor(cs: Case): CaseMode[] {
+  return cs.delta
+    ? ['overview', 'response', 'diff', 'trace', 'context', 'raw']
+    : ['overview', 'response', 'trace', 'context', 'raw'];
+}
+
+function caseTabs(cs: Case, mode: CaseMode): Seg[] {
+  const modes = modesFor(cs);
+  const segs: Seg[] = [];
+  modes.forEach((m, i) => {
+    const active = m === mode;
+    segs.push(seg(MODE_LABEL[m], active ? COLORS.blue : COLORS.comment, active));
+    if (i < modes.length - 1) segs.push(seg(' \u00b7 ', COLORS.dim));
+  });
+  return segs;
 }
 
 function skillView(sk: Skill, showWithout: boolean): MainView {
@@ -252,6 +280,148 @@ function runView(r: Run | undefined): MainView {
     ? row([seg('  ', COLORS.fg), seg('benchmark.json', COLORS.yellow), seg('  ·  with_skill/ + without_skill/ per case', COLORS.dim)])
     : row([seg('  ', COLORS.fg), seg('grading.json · timing.json · trace.json · tool-summary.json', COLORS.dim)]));
   return { title: r.iteration !== '—' ? r.iteration : r.runId, sub: [seg(`${r.pass} passed`, rateColor(p, t)), seg('   ' + r.cost, COLORS.green)], lines, anchors };
+}
+
+// ---------------------------------------------------------------- detail modes
+
+function textLines(text: string, w: number, color: string): Line[] {
+  if (!text.trim()) return [{ segs: [seg('  (empty)', COLORS.dim)] }];
+  const out: Line[] = [];
+  for (const raw of text.split('\n').slice(0, 1200)) {
+    if (raw.length <= w) { out.push({ segs: [seg(raw.length ? raw : ' ', color)] }); continue; }
+    let s = raw;
+    while (s.length > w) { out.push({ segs: [seg(s.slice(0, w), color)] }); s = s.slice(w); }
+    out.push({ segs: [seg(s, color)] });
+  }
+  return out;
+}
+
+function responseView(cs: Case): MainView {
+  return {
+    title: cs.id,
+    sub: [],
+    lines: [sectionRow('RESPONSE', [seg('assistant.md', COLORS.dim)]), blank(), ...textLines(cs.assistant, 86, COLORS.fgDark)],
+    anchors: [],
+  };
+}
+
+function traceView(cs: Case): MainView {
+  const t = cs.trace;
+  const lines: Line[] = [];
+  const anchors: number[] = [];
+  const maxTool = Math.max(1, ...t.toolCalls.map((x) => x[1]));
+  anchors.push(lines.length);
+  lines.push(sectionRow('SUMMARY'));
+  lines.push(row([seg('  calls ', COLORS.comment), seg(String(t.callCount), COLORS.fgDark), seg('   errors ', COLORS.comment), seg(String(t.errors), t.errors ? COLORS.red : COLORS.fgDark), seg('   bash ', COLORS.comment), seg(String(t.bashCount), COLORS.fgDark), seg('   touches ', COLORS.comment), seg(String(t.fileTouches), COLORS.fgDark)]));
+  lines.push(blank());
+  anchors.push(lines.length);
+  lines.push(sectionRow('TOOLS'));
+  if (t.toolCalls.length === 0) lines.push(row([seg('  none', COLORS.dim)]));
+  for (const [name, count] of t.toolCalls) lines.push(row([seg('  ' + pad(name, 14), COLORS.yellow), ...bar(count / maxTool, COLORS.blue, 12), seg('  ' + count, COLORS.fgDark)]));
+  lines.push(blank());
+  anchors.push(lines.length);
+  lines.push(sectionRow('FILES'));
+  if (!t.writtenFiles.length && !t.editedFiles.length) lines.push(row([seg('  none', COLORS.dim)]));
+  for (const f of t.writtenFiles) lines.push(row([seg('  + ', COLORS.green), seg(f, COLORS.fgDark)]));
+  for (const f of t.editedFiles) lines.push(row([seg('  ~ ', COLORS.orange), seg(f, COLORS.fgDark)]));
+  lines.push(blank());
+  anchors.push(lines.length);
+  lines.push(sectionRow('SKILLS'));
+  if (!t.skillReads.length) lines.push(row([seg('  none', COLORS.dim)]));
+  for (const [name, count] of t.skillReads) lines.push(row([seg('  ' + name + ' ', COLORS.magenta), seg('\u00d7' + count, COLORS.comment)]));
+  if (t.externalCalls.length) {
+    lines.push(blank());
+    anchors.push(lines.length);
+    lines.push(sectionRow('EXTERNAL'));
+    for (const c of t.externalCalls) lines.push(row([seg('  ' + c.system + ' ', COLORS.cyan), seg(c.operation + (c.target ? ' ' + c.target : ''), COLORS.fgDark)]));
+  }
+  if (cs.outputs.length) {
+    lines.push(blank());
+    anchors.push(lines.length);
+    lines.push(sectionRow('OUTPUTS', [seg(cs.outputs.length + ' files', COLORS.dim)]));
+    for (const o of cs.outputs.slice(0, 40)) lines.push(row([seg('  ' + pad(o.path, 44), COLORS.fgDark), seg(fmtSize(o.size), COLORS.comment)]));
+  }
+  return { title: cs.id, sub: [], lines, anchors };
+}
+
+function contextView(cs: Case): MainView {
+  const c = cs.context;
+  const lines: Line[] = [];
+  const anchors: number[] = [];
+  anchors.push(lines.length);
+  lines.push(sectionRow('MODE'));
+  lines.push(row([seg('  mode  ', COLORS.comment), seg(c.mode, c.mode === 'ambient' ? COLORS.orange : COLORS.teal)]));
+  if (c.agentDir) lines.push(row([seg('  agent ', COLORS.comment), seg(c.agentDir, COLORS.fgDark)]));
+  lines.push(blank());
+  anchors.push(lines.length);
+  lines.push(sectionRow('SKILLS'));
+  if (!c.attachedSkills.length) lines.push(row([seg('  none', COLORS.dim)]));
+  for (const s of c.attachedSkills) {
+    const rc = s.role === 'target' ? COLORS.green : s.role === 'extra' ? COLORS.orange : COLORS.comment;
+    lines.push(row([seg('  ' + pad(s.name, 30), COLORS.fgDark), seg(s.role, rc)]));
+  }
+  lines.push(blank());
+  anchors.push(lines.length);
+  lines.push(sectionRow('TOOLS'));
+  lines.push(row([seg('  active  ', COLORS.comment), seg(c.activeTools.join(' ') || '\u2014', COLORS.fgDark)]));
+  lines.push(row([seg('  avail   ', COLORS.comment), seg(c.availableTools.map((t) => t.name).join(' ') || '\u2014', COLORS.dim)]));
+  if (c.mcpTools.length || c.mcpServers.length) {
+    lines.push(blank());
+    anchors.push(lines.length);
+    lines.push(sectionRow('MCP'));
+    lines.push(row([seg('  tools   ', COLORS.comment), seg(c.mcpTools.join(' ') || '\u2014', COLORS.fgDark)]));
+    lines.push(row([seg('  servers ', COLORS.comment), seg(c.mcpServers.join(' ') || '\u2014', COLORS.fgDark)]));
+  }
+  lines.push(blank());
+  anchors.push(lines.length);
+  lines.push(sectionRow('AMBIENT'));
+  const amb = Object.entries(c.ambient);
+  if (!amb.length) lines.push(row([seg('  none', COLORS.dim)]));
+  for (const [k, v] of amb) lines.push(row([seg('  ' + pad(k, 16), COLORS.comment), seg(v ? 'on' : 'off', v ? COLORS.green : COLORS.dim)]));
+  return { title: cs.id, sub: [], lines, anchors };
+}
+
+function diffView(cs: Case): MainView {
+  if (!cs.delta) {
+    return { title: cs.id, sub: [], lines: [sectionRow('DIFF'), row([seg('  single-run \u2014 no without_skill baseline to diff', COLORS.dim)])], anchors: [] };
+  }
+  const lines: Line[] = [sectionRow('DIFF', [seg('without \u2192 with_skill', COLORS.dim)]), blank()];
+  for (const part of lineDiff(cs.assistantWithout, cs.assistant).slice(0, 800)) {
+    const color = part.sign === '+' ? COLORS.green : part.sign === '-' ? COLORS.red : COLORS.fgDark;
+    lines.push({ segs: [seg(part.sign + ' ', color), seg(part.text, color)] });
+  }
+  return { title: cs.id, sub: [], lines, anchors: [] };
+}
+
+function lineDiff(aText: string, bText: string): { sign: ' ' | '-' | '+'; text: string }[] {
+  const a = aText.split('\n');
+  const b = bText.split('\n');
+  const n = a.length, m = b.length;
+  if (n > 400 || m > 400) {
+    return [...a.map((t) => ({ sign: '-' as const, text: t })), ...b.map((t) => ({ sign: '+' as const, text: t }))];
+  }
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i]![j] = a[i] === b[j] ? dp[i + 1]![j + 1]! + 1 : Math.max(dp[i + 1]![j]!, dp[i]![j + 1]!);
+    }
+  }
+  const out: { sign: ' ' | '-' | '+'; text: string }[] = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) { out.push({ sign: ' ', text: a[i] ?? '' }); i++; j++; }
+    else if (dp[i + 1]![j]! >= dp[i]![j + 1]!) { out.push({ sign: '-', text: a[i] ?? '' }); i++; }
+    else { out.push({ sign: '+', text: b[j] ?? '' }); j++; }
+  }
+  while (i < n) out.push({ sign: '-', text: a[i++] ?? '' });
+  while (j < m) out.push({ sign: '+', text: b[j++] ?? '' });
+  return out;
+}
+
+function fmtSize(n: number): string {
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
 function safeFrac(p: number, t: number): number {

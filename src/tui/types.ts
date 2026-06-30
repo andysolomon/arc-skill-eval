@@ -11,6 +11,33 @@ export interface Assertion {
   raw: string;        // the originating assertion, JSON-stringified (from evals.json)
 }
 
+// tool-summary.json digest, shaped for the Trace view.
+export interface TraceInfo {
+  callCount: number;
+  errors: number;
+  fileTouches: number;
+  bashCount: number;
+  toolCalls: [string, number][];   // tool_calls_by_name
+  skillReads: [string, number][];  // skill_reads_by_name
+  writtenFiles: string[];
+  editedFiles: string[];
+  externalCalls: { system: string; operation: string; target?: string }[];
+}
+
+// context-manifest.json, shaped for the Context view.
+export interface ContextInfo {
+  mode: string;
+  agentDir: string;
+  attachedSkills: { name: string; role: string }[];
+  activeTools: string[];
+  availableTools: { name: string; source: string }[];
+  mcpTools: string[];
+  mcpServers: string[];
+  ambient: Record<string, boolean>;
+}
+
+export interface OutputFile { path: string; size: number }
+
 export type CaseStatus = 'pass' | 'fail' | 'partial';
 
 export interface Case {
@@ -40,12 +67,18 @@ export interface Case {
   withoutP: number;
   withoutT: number;
   delta: string;             // "" when not a --compare run
+  assistant: string;         // assistant.md (with_skill variant when compare)
+  assistantWithout: string;  // without_skill assistant.md, or ""
+  trace: TraceInfo;
+  context: ContextInfo;
+  outputs: OutputFile[];
   assertions: Assertion[];
 }
 
 export interface Skill {
   id: string;
   dir: string;        // absolute skill directory — used by the `r` re-run action
+  runDir: string;     // absolute newest run dir — used to write feedback.json
   role: 'target' | 'distractor';
   model: string;
   judge: string;
@@ -85,6 +118,8 @@ export interface Workspace {
 }
 
 export type Focus = 'skills' | 'cases' | 'assertions' | 'runs';
+
+export type CaseMode = 'overview' | 'response' | 'diff' | 'trace' | 'context' | 'raw';
 
 export interface Sel {
   skills: number;
