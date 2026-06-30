@@ -25,7 +25,7 @@ function formatCreateSummary(result: CreateCommandResult): string {
   }
 
   const lines = [
-    `${result.dryRun ? "Generated" : "Created"} starter eval suite for ${result.evals.skill_name}`,
+    `${result.dryRun ? "Generated" : "Created"} ${result.guided ? "guided" : "starter"} eval suite for ${result.evals.skill_name}`,
     "",
     "Cases:",
     ...result.evals.evals.map((evalCase) => `- ${evalCase.id}`),
@@ -88,7 +88,13 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
         };
       }
       case "create": {
-        const result = await createCommand({ skillDir: parsed.skillDir, force: parsed.force, dryRun: parsed.dryRun });
+        const result = await createCommand({
+          skillDir: parsed.skillDir,
+          force: parsed.force,
+          dryRun: parsed.dryRun,
+          guided: parsed.guided,
+          interactive: parsed.interactive,
+        });
         if (result.dryRun && !parsed.summary) {
           return { exitCode: 0, stdout: `${JSON.stringify(result.evals, null, 2)}\n`, stderr: "" };
         }

@@ -42,7 +42,7 @@ export function renderHelp(): string {
     "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--agent-dir <path>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--compare] [--json]",
     "  arc-skill-eval init-runtime <agent-dir> --provider <provider> --model <model> [--force]",
     "  arc-skill-eval review <run-dir> [--output <dir>] [--force]",
-    "  arc-skill-eval create <skill-dir> [--dry-run] [--summary] [--force]",
+    "  arc-skill-eval create <skill-dir> [--guided] [--interactive] [--dry-run] [--summary] [--force]",
     "",
     "Notes:",
     "  - <skill-dir-or-repo> is either a skill directory containing evals/evals.json,",
@@ -57,7 +57,7 @@ export function renderHelp(): string {
     "  - run exits with code 1 when any assertion fails or any case errors out.",
     "  - init-runtime writes a minimal Pi models.json and settings.json for eval-owned runtime config.",
     "  - review writes static review.html and feedback.json files for an eval run directory.",
-    "  - create scaffolds a starter evals/evals.json next to a SKILL.md file.",
+    "  - create scaffolds a starter evals/evals.json next to a SKILL.md file; --guided --interactive lets you review, edit, and select proposed cases before writing.",
     "  - Format reference: https://platform.claude.com/docs/en/agents-and-tools/agent-skills",
   ].join("\n");
 }
@@ -224,6 +224,8 @@ function parseCreateCommandArgs(args: string[]) {
   let force = false;
   let dryRun = false;
   let summary = false;
+  let guided = false;
+  let interactive = false;
 
   for (const arg of args) {
     if (arg === "--force") {
@@ -241,6 +243,16 @@ function parseCreateCommandArgs(args: string[]) {
       continue;
     }
 
+    if (arg === "--guided") {
+      guided = true;
+      continue;
+    }
+
+    if (arg === "--interactive") {
+      interactive = true;
+      continue;
+    }
+
     if (arg.startsWith("-")) {
       throw new CliUsageError(`Unknown flag: ${arg}.`);
     }
@@ -253,7 +265,8 @@ function parseCreateCommandArgs(args: string[]) {
   }
 
   if (!skillDir) throw new CliUsageError("Missing required <skill-dir> argument.");
-  return { skillDir, force, dryRun, summary };
+  if (interactive && !guided) throw new CliUsageError("--interactive is currently supported with --guided create mode. Use `arc-skill-eval create <skill-dir> --guided --interactive`.");
+  return { skillDir, force, dryRun, summary, guided, interactive };
 }
 
 function parseReviewCommandArgs(args: string[]) {
