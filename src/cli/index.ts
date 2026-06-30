@@ -7,5 +7,6 @@ export * from "./init-runtime-command.js";
 export * from "./review-command.js";
 export * from "./improve-command.js";
 export * from "./argv.js";
+export * from "./laminar-config.js";
 export * from "./render.js";
 export * from "./run-cli.js";
