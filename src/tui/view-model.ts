@@ -84,18 +84,19 @@ export function buildMain(
   caseMode: CaseMode,
   showWithout: boolean,
   compareBase?: Run,
+  wrapWidth = 70,
 ): MainView {
   if (focus === 'skills') return skillView(sk, showWithout);
   if (focus === 'cases') {
-    const v = caseMode === 'response' ? responseView(cs)
+    const v = caseMode === 'response' ? responseView(cs, wrapWidth)
       : caseMode === 'diff' ? diffView(cs)
       : caseMode === 'trace' ? traceView(cs)
       : caseMode === 'context' ? contextView(cs)
       : caseMode === 'raw' ? caseRawView(cs)
-      : caseView(cs, showWithout);
+      : caseView(cs, showWithout, wrapWidth);
     return { title: v.title, sub: caseTabs(cs, caseMode), lines: v.lines, anchors: v.anchors };
   }
-  if (focus === 'assertions') return assertionView(asrt);
+  if (focus === 'assertions') return assertionView(asrt, wrapWidth);
   return runView(run, compareBase);
 }
 
@@ -153,16 +154,17 @@ function skillView(sk: Skill, showWithout: boolean): MainView {
   };
 }
 
-function caseView(cs: Case, showWithout: boolean): MainView {
+function caseView(cs: Case, showWithout: boolean, wrapWidth: number): MainView {
   const passN = cs.assertions.filter((a) => a.passed).length;
+  const proseW = Math.max(24, wrapWidth - 2);
   const ctxUsed = (cs.ttot / 1000).toFixed(1) + 'k';
   const lines: Line[] = [];
   const anchors: number[] = [];
   lines.push(sectionRow('PROMPT'));
-  lines.push(...wrap(cs.prompt, 70));
+  lines.push(...wrap(cs.prompt, proseW));
   lines.push(blank());
   lines.push(sectionRow('EXPECTED'));
-  lines.push(...wrap(cs.expected, 70));
+  lines.push(...wrap(cs.expected, proseW));
   lines.push(row([seg('  setup  ', COLORS.comment), seg(cs.setup, COLORS.teal)]));
   lines.push(blank());
   lines.push(sectionRow('GRADING', [seg(`${passN}/${cs.assertions.length} passed`, rateColor(passN, cs.assertions.length)), seg(`   pass_rate ${safeFrac(passN, cs.assertions.length).toFixed(2)}`, COLORS.comment)]));
@@ -170,8 +172,8 @@ function caseView(cs: Case, showWithout: boolean): MainView {
     const [g, gc] = statusGlyph(a.passed ? 'pass' : 'fail');
     anchors.push(lines.length); // cursor lands on the assertion header; index == assertion index
     lines.push(row([seg('  ' + g + ' ', gc, true), seg(pad(typeTag(a), 11), typeColor(a))]));
-    lines.push(...wrapColored(a.label + (a.target ? '  ' + GLYPHS.arrowR + ' ' + a.target : ''), 74, COLORS.fg, '      '));
-    lines.push(...wrapColored(a.evidence, 74, a.passed ? COLORS.comment : COLORS.red, '      '));
+    lines.push(...wrapColored(a.label + (a.target ? '  ' + GLYPHS.arrowR + ' ' + a.target : ''), proseW, COLORS.fg, '      '));
+    lines.push(...wrapColored(a.evidence, proseW, a.passed ? COLORS.comment : COLORS.red, '      '));
   }
   lines.push(blank());
   lines.push(sectionRow('METRICS'));
@@ -224,8 +226,9 @@ function caseRawView(cs: Case): MainView {
   return { title: cs.id, sub: [seg('raw grading.json', COLORS.dim)], lines, anchors: [] };
 }
 
-function assertionView(a: Assertion): MainView {
+function assertionView(a: Assertion, wrapWidth: number): MainView {
   const recolor = (ls: Line[], c: string): Line[] => ls.map((l) => ({ ...l, segs: l.segs.map((s) => ({ ...s, c })) }));
+  const proseW = Math.max(24, wrapWidth - 2);
   const lines: Line[] = [];
   const anchors: number[] = [];
   anchors.push(lines.length);
@@ -235,15 +238,15 @@ function assertionView(a: Assertion): MainView {
   lines.push(blank());
   anchors.push(lines.length);
   lines.push(sectionRow('CLAIM'));
-  lines.push(...wrap(a.label, 70));
+  lines.push(...wrap(a.label, proseW));
   lines.push(blank());
   anchors.push(lines.length);
   lines.push(sectionRow('EVIDENCE'));
-  lines.push(...recolor(wrap(a.evidence, 70), a.passed ? COLORS.fgDark : COLORS.red));
+  lines.push(...recolor(wrap(a.evidence, proseW), a.passed ? COLORS.fgDark : COLORS.red));
   lines.push(blank());
   anchors.push(lines.length);
   lines.push(sectionRow('SOURCE', [seg('evals.json', COLORS.dim)]));
-  lines.push(...recolor(wrap(a.raw, 70), COLORS.teal));
+  lines.push(...recolor(wrap(a.raw, proseW), COLORS.teal));
   return { title: typeTag(a) + ' assertion', sub: [seg(a.passed ? '✓ passed' : '✗ failed', a.passed ? COLORS.green : COLORS.red)], lines, anchors };
 }
 
@@ -319,11 +322,11 @@ function textLines(text: string, w: number, color: string): Line[] {
   return out;
 }
 
-function responseView(cs: Case): MainView {
+function responseView(cs: Case, wrapWidth: number): MainView {
   return {
     title: cs.id,
     sub: [],
-    lines: [sectionRow('RESPONSE', [seg('assistant.md', COLORS.dim)]), blank(), ...textLines(cs.assistant, 86, COLORS.fgDark)],
+    lines: [sectionRow('RESPONSE', [seg('assistant.md', COLORS.dim)]), blank(), ...textLines(cs.assistant, Math.max(24, wrapWidth), COLORS.fgDark)],
     anchors: [],
   };
 }

@@ -83,15 +83,20 @@ function waitForKey(): Promise<void> {
   return new Promise((resolve) => {
     const stdin = process.stdin;
     const wasRaw = stdin.isRaw;
-    if (stdin.isTTY) stdin.setRawMode(true);
-    stdin.resume();
-    const onData = () => {
-      stdin.removeListener('data', onData);
+    // TTY stdin does not always keep Node's event loop alive by itself. Keep a
+    // tiny handle open so the top-level CLI await cannot be reported as
+    // "unsettled" while the TUI is waiting at the post-rerun prompt.
+    const keepAlive = setInterval(() => { /* keep process alive until keypress */ }, 60_000);
+    const finish = () => {
+      clearInterval(keepAlive);
+      stdin.removeListener('data', finish);
       if (stdin.isTTY) stdin.setRawMode(Boolean(wasRaw));
       stdin.pause();
       resolve();
     };
-    stdin.once('data', onData);
+    if (stdin.isTTY) stdin.setRawMode(true);
+    stdin.resume();
+    stdin.once('data', finish);
   });
 }
 

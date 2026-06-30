@@ -342,7 +342,10 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
   useEffect(() => { setScroll(0); setPane(false); setCursor(0); }, [viewKey]);
 
   const maxRows = Math.max(4, rowsT - 7);
-  const main = sk && cs ? buildMain(focused, sk, cs, asrt!, run, caseMode, showWithout ?? true, compareBase ?? undefined) : { title: '', sub: [] as Seg[], lines: [] as DisplayLine[], anchors: [] as number[] };
+  const railWidth = Math.max(34, Math.min(48, Math.floor(cols * 0.4)));
+  const innerRail = railWidth - 2;
+  const mainInner = Math.max(10, cols - railWidth - 2);
+  const main = sk && cs ? buildMain(focused, sk, cs, asrt!, run, caseMode, showWithout ?? true, compareBase ?? undefined, mainInner) : { title: '', sub: [] as Seg[], lines: [] as DisplayLine[], anchors: [] as number[] };
   const anchors = main.anchors;
   const scrollMax = Math.max(0, main.lines.length - maxRows);
   const cursorLine = pane && anchors.length ? (anchors[clampIdx(cursor, anchors.length)] ?? -1) : -1;
@@ -492,10 +495,6 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
       </Box>
     );
   }
-
-  const railWidth = Math.max(34, Math.min(48, Math.floor(cols * 0.4)));
-  const innerRail = railWidth - 2;
-  const mainInner = Math.max(10, cols - railWidth - 2);
 
   // Approximate each panel's visible row capacity from the rail height and the
   // flexGrow ratios (border 2 + title 1 = 3 chrome rows per panel).
