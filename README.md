@@ -188,6 +188,18 @@ The positional `<skill-dir-or-repo>` for `run` is resolved as:
 - a skill directory if it contains `evals/evals.json`,
 - otherwise a repo whose tree is walked for SKILL.md + evals/evals.json pairs.
 
+### Audit skill quality
+
+Run deterministic skill-authoring checks without invoking a model:
+
+```bash
+arc-skill-eval audit ./skills
+arc-skill-eval audit ./skills/my-skill --json
+arc-skill-eval audit ./skills --output skill-audit.md
+```
+
+`audit` reports frontmatter issues, long descriptions, `SKILL.md` sprawl, missing `evals/evals.json`, broken local markdown reference links, trigger-heavy descriptions on user-invoked skills, and likely duplicate skill families. It exits successfully by default so it can be used as a report generator; use the finding counts in JSON output if CI needs custom failure thresholds.
+
 ### Review reports
 
 Turn a run directory into a static review bundle:
