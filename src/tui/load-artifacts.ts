@@ -184,6 +184,7 @@ async function loadSkill(skillDir: string): Promise<Skill | null> {
   const first = cases[0];
   return {
     id: String(evals?.skill_name ?? path.basename(skillDir)),
+    dir: path.resolve(skillDir),
     role: 'target', // SEAM: mark distractors loaded via --extra-skill
     model: first?.model ?? '—',
     judge: first?.judge ?? '—',
@@ -257,6 +258,13 @@ async function discoverSkillDirs(root: string, depth = 3): Promise<string[]> {
   }
   await walk(root, depth);
   return found;
+}
+
+/** Reload a single skill + its runs after a re-run (cheaper than loadWorkspace). */
+export async function reloadSkill(skillDir: string): Promise<{ skill: Skill | null; runs: Run[] }> {
+  const skill = await loadSkill(skillDir);
+  const runs = await loadRuns(skillDir);
+  return { skill, runs };
 }
 
 export async function loadWorkspace(input: string): Promise<Workspace> {
