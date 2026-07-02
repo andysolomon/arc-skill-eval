@@ -156,21 +156,31 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
         const laminarConfig = resolveLaminarConfig({ enabled: parsed.laminar, env: process.env });
         const observabilitySinks = laminarConfig ? [createLaminarSink(laminarConfig)] : undefined;
 
-        const result = await runEvalsCommand({
-          input: parsed.input,
-          skillNames: parsed.skillNames,
-          caseIds: parsed.caseIds,
-          outputDirOverride: parsed.outputDir,
-          iteration: parsed.iteration,
-          agentDir: parsed.agentDir,
-          compare: parsed.compare,
-          extraSkillPaths: parsed.extraSkillPaths,
-          contextMode: parsed.contextMode,
-          sandbox: parsed.sandbox,
-          observabilitySinks,
-          model: parsed.model,
-          judgeModel: parsed.judgeModel,
-        });
+        let result;
+        try {
+          result = await runEvalsCommand({
+            input: parsed.input,
+            skillNames: parsed.skillNames,
+            caseIds: parsed.caseIds,
+            outputDirOverride: parsed.outputDir,
+            iteration: parsed.iteration,
+            agentDir: parsed.agentDir,
+            compare: parsed.compare,
+            extraSkillPaths: parsed.extraSkillPaths,
+            contextMode: parsed.contextMode,
+            sandbox: parsed.sandbox,
+            observabilitySinks,
+            model: parsed.model,
+            judgeModel: parsed.judgeModel,
+          });
+        } finally {
+          // Drain sinks before the process exits so in-flight exports (e.g.
+          // Laminar spans) actually reach their backend. A teardown failure
+          // must never mask the run result, so errors are swallowed.
+          for (const sink of observabilitySinks ?? []) {
+            await Promise.resolve(sink.shutdown?.()).catch(() => undefined);
+          }
+        }
         const failed = result.summary.failedCases > 0 || result.summary.failedAssertions > 0;
         const laminarNote = laminarConfig && !parsed.json ? "Laminar export: enabled (sink: laminar)\n" : "";
         return {

@@ -74,6 +74,8 @@ export interface LaminarCaseVariantRecord {
  */
 export interface LaminarTraceClient {
   exportCaseVariant(record: LaminarCaseVariantRecord): Promise<void>;
+  /** Drain in-flight exports and await delivery. Called once at end of run. */
+  shutdown?(): Promise<void>;
 }
 
 
@@ -150,6 +152,21 @@ function mapPayloadToRecord(
   };
 }
 
+/**
+ * Coerce a mixed-type attribute bag into string-only metadata and drop
+ * null/undefined. Laminar's `metadata` association properties are ingested
+ * as strings — sending numbers or nulls makes the server silently reject
+ * the span, so everything is stringified here.
+ */
+export function toStringMetadata(source: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (value === null || value === undefined) continue;
+    out[key] = String(value);
+  }
+  return out;
+}
+
 const MISSING_SDK_MESSAGE =
   'Laminar sink requires the optional "@lmnr-ai/lmnr" package, which is not installed. ' +
   "Install it (e.g. `npm install @lmnr-ai/lmnr`) or inject a client via " +
@@ -189,16 +206,16 @@ async function createRealClient(
       await observe(
         {
           name: record.name,
-          spanType: "EXECUTOR",
+          spanType: "DEFAULT",
           tags: [record.variant, record.skill_name],
-          metadata: {
+          metadata: toStringMetadata({
             ...record.attributes,
             ...(config.projectName ? { "eval.project_name": config.projectName } : {}),
             "eval.artifacts.assistant": record.artifact_paths.assistant,
             "eval.artifacts.outputs": record.artifact_paths.outputs,
             "eval.artifacts.grading": record.artifact_paths.grading,
             "eval.artifacts.trace": record.artifact_paths.trace,
-          },
+          }),
         },
         () => {
           Laminar.setSpanAttributes({
@@ -213,8 +230,15 @@ async function createRealClient(
         },
       );
 
-      // CLI exits right after the run — force delivery before that happens.
+      // Flush the processor queue to the exporter. Note: flush() alone does
+      // NOT reliably await the network round-trip in a short-lived CLI —
+      // shutdown() (called once at end of run) is what guarantees delivery.
       await Laminar.flush();
+    },
+    async shutdown(): Promise<void> {
+      // Drains in-flight exports and awaits delivery before the process
+      // exits. Without this, the CLI exits before spans reach Laminar.
+      await Laminar.shutdown();
     },
   };
 }
@@ -252,6 +276,11 @@ export function createLaminarSink(
         const message = error instanceof Error ? error.message : String(error);
         return { sink: "laminar", status: "failed", message };
       }
+    },
+    async shutdown(): Promise<void> {
+      // Only a client that was actually constructed (i.e. at least one export
+      // happened, or a client was injected) needs draining.
+      await client?.shutdown?.();
     },
   };
 }

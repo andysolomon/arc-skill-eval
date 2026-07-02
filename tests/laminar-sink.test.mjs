@@ -1,7 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createLaminarSink } from "../dist/index.js";
+import { createLaminarSink, toStringMetadata } from "../dist/index.js";
+
+// Regression: Laminar silently drops spans whose metadata contains non-string
+// (number/null) values, so the sink must stringify metadata and omit nullish
+// entries before export.
+test("toStringMetadata stringifies values and drops null/undefined", () => {
+  const out = toStringMetadata({
+    a: "x",
+    n: 42,
+    zero: 0,
+    b: true,
+    keep: 0.75,
+    nul: null,
+    und: undefined,
+  });
+  assert.deepEqual(out, { a: "x", n: "42", zero: "0", b: "true", keep: "0.75" });
+  for (const v of Object.values(out)) assert.equal(typeof v, "string");
+});
 
 /**
  * Build a minimal but realistic ObservabilityCaseVariantPayload. Only the
