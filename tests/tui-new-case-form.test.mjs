@@ -77,7 +77,7 @@ test("escape from the dry-run offer closes with the save message, without a run"
   await saveEmptyCase(stdin, lastFrame);
   assert.ok(await waitFor(() => /dry-run/.test(lastFrame() ?? "")));
   await sleep(120);
-  stdin.write(""); // esc
+  stdin.write("\u001b"); // esc
   assert.ok(await waitFor(() => closes.length === 1), "esc should close the form");
   assert.match(closes[0], /appended new-case/);
   assert.equal(dryRuns.length, 0);
