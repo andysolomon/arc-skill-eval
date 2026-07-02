@@ -48,7 +48,7 @@ export const KEYMAP: KeySection[] = [
       { id: 'run',         keys: ['r'],                 desc: 'Run evals for the selection in-TUI (live spinner, Ink stays mounted)' },
       { id: 'run-compare', keys: ['R'],                 desc: 'Run with --compare (with_skill vs without_skill)' },
       { id: 'run-opts',    keys: ['o'],                 desc: 'Run with custom flags (--model, --iteration, --extra-skill…)' },
-      { id: 'new-case',    keys: ['n'],                 desc: 'Scaffold a new eval case → evals.json', context: 'Skills/Cases' },
+      { id: 'new-case',    keys: ['n'],                 desc: 'Author a new eval case (id, prompt, typed assertions) → evals.json', context: 'Skills/Cases' },
       { id: 'feedback',    keys: ['f'],                 desc: 'Write a feedback.json note for the case (feeds improve)', context: 'Cases' },
       { id: 'run-abort',   keys: ['esc'],               desc: 'Abort an in-flight run', context: 'running' },
       { id: 'run-reload',  keys: ['↵'],                 desc: 'Reload artifacts & close the run console', context: 'run complete' },
