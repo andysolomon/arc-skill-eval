@@ -20,6 +20,7 @@ Skeval can already:
 - create eval-owned Pi config/runtime directories with `init-runtime`
 - use eval-owned Pi config/runtime directories with `--agent-dir`
 - generate static run reports and feedback templates with `review`
+- propose eval-suite improvements from review feedback with `improve`
 - scaffold starter eval suites with `create`
 
 Those pieces make the eval signal real. The roadmap below focuses on making the skill improvement loop easier to drive.
@@ -58,15 +59,15 @@ arc-skill-eval review ./skills/my-skill/evals-runs/<runId>
 
 The first version shows case summaries, with-skill and without-skill outputs for compare runs, grading evidence, timing/model/tool metadata when available, benchmark deltas, and a `feedback.json` template.
 
-### `improve`
+### `improve` ✅
 
 Convert review feedback into a targeted improvement plan:
 
 ```bash
-arc-skill-eval improve ./skills/my-skill --from-feedback feedback.json
+arc-skill-eval improve --from-feedback ./skills/my-skill/evals-runs/<runId>/feedback.json --summary
 ```
 
-The first version should be plan-first rather than auto-edit-first: group recurring failures, cite evidence, propose `SKILL.md` edits, and recommend new eval cases.
+The first version is plan-first rather than auto-edit-first: it reads human notes and failing assertion summaries from `feedback.json`, then proposes prompt, assertion, fixture, and adjacent-negative improvements with rationale. No eval files change unless `--apply` writes validated improvement metadata to the matching `evals/evals.json`.
 
 ### `optimize-description`
 

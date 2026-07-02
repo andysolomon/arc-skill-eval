@@ -28,13 +28,14 @@ function wrapColored(text: string, w: number, color: string, indent = '  '): Lin
 
 export function skillRows(skills: Skill[]): Seg[][] {
   return skills.map((s) => {
-    const [g, gc] = statusGlyph(s.passed === s.total ? 'pass' : s.passed === 0 ? 'fail' : 'partial');
+    const distractor = s.role === 'distractor';
+    const [g, gc] = distractor ? [GLYPHS.bullet, COLORS.dim] : statusGlyph(s.passed === s.total ? 'pass' : s.passed === 0 ? 'fail' : 'partial');
     const segs = [
       seg(g + ' ', gc, true),
-      seg(pad(s.id, 26), s.role === 'distractor' ? COLORS.fgDark : COLORS.fg),
-      seg(`${s.passed}/${s.total}`, rateColor(s.passed, s.total)),
+      seg(pad(s.id, 26), distractor ? COLORS.fgDark : COLORS.fg),
+      distractor && s.total === 0 ? seg('—  ', COLORS.comment) : seg(`${s.passed}/${s.total}`, rateColor(s.passed, s.total)),
     ];
-    if (s.role === 'distractor') segs.push(seg('  distractor', COLORS.orange));
+    if (distractor) segs.push(seg('  distractor', COLORS.orange));
     else if (s.delta && s.delta !== 'n/a') segs.push(seg('  ' + s.delta, deltaColor(s.delta)));
     return segs;
   });
@@ -78,7 +79,7 @@ export interface MainView {
 export function buildMain(
   focus: Focus,
   sk: Skill,
-  cs: Case,
+  cs: Case | undefined,
   asrt: Assertion,
   run: Run | undefined,
   caseMode: CaseMode,
@@ -86,7 +87,12 @@ export function buildMain(
   compareBase?: Run,
   wrapWidth = 70,
 ): MainView {
-  if (focus === 'skills') return skillView(sk, showWithout);
+  // A distractor skill has no cases, so case/assertion views have nothing to
+  // project — fall back to the skill view.
+  if (focus === 'skills' || !cs) {
+    if (focus === 'runs') return runView(run, compareBase);
+    return skillView(sk, showWithout);
+  }
   if (focus === 'cases') {
     const v = caseMode === 'response' ? responseView(cs, wrapWidth)
       : caseMode === 'diff' ? diffView(cs)
@@ -124,6 +130,12 @@ function skillView(sk: Skill, showWithout: boolean): MainView {
   const lines: Line[] = [];
   const anchors: number[] = [];
   lines.push(row([seg('role     ', COLORS.comment), seg(sk.role, sk.role === 'distractor' ? COLORS.orange : COLORS.green)]));
+  if (sk.role === 'distractor' && sk.cases.length === 0) {
+    if (sk.dir) lines.push(row([seg('dir      ', COLORS.comment), seg(sk.dir, COLORS.fgDark)]));
+    lines.push(blank());
+    lines.push(row([seg('attached as --extra-skill distractor context · no runs of its own', COLORS.comment)]));
+    return { title: sk.id, sub: [seg('distractor', COLORS.orange)], lines, anchors };
+  }
   lines.push(row([seg('model    ', COLORS.comment), seg(sk.model, COLORS.blue)]));
   lines.push(row([seg('judge    ', COLORS.comment), seg(sk.judge, COLORS.magenta)]));
   lines.push(blank());

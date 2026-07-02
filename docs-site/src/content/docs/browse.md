@@ -24,7 +24,7 @@ A left rail of four stacked panels drives a detail pane on the right. The detail
 
 | Panel | Contents |
 | --- | --- |
-| **[1] Skills** | Discovered skills with pass fraction and with-skill delta |
+| **[1] Skills** | Discovered skills with pass fraction and with-skill delta; skills attached only as `--extra-skill` context appear dimmed with an orange `distractor` badge |
 | **[2] Cases** | Eval cases for the selected skill, with pass/fail status |
 | **[3] Assertions** | Assertions for the selected case — deterministic (`file-exists`, `regex-match`, `json-valid`) vs LLM-judge |
 | **[4] Runs** | Run / iteration history with the compare marker and exit code |
