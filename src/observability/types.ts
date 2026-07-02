@@ -99,4 +99,10 @@ export interface ObservabilityCaseVariantPayload {
 export interface ObservabilitySink {
   name: string;
   exportCaseVariant(payload: ObservabilityCaseVariantPayload): Promise<ObservabilityExportResult | void> | ObservabilityExportResult | void;
+  /**
+   * Optional end-of-run hook. Called once after all cases finish so a sink
+   * can flush/drain and await in-flight delivery before the process exits.
+   * Sinks that need no teardown may omit it.
+   */
+  shutdown?(): Promise<void> | void;
 }
