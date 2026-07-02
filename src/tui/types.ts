@@ -38,7 +38,7 @@ export interface ContextInfo {
 
 export interface OutputFile { path: string; size: number }
 
-export type CaseStatus = 'pass' | 'fail' | 'partial';
+export type CaseStatus = 'pass' | 'fail' | 'partial' | 'not-run';
 
 export interface Case {
   id: string;
