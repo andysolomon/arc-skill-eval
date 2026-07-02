@@ -29,13 +29,15 @@ function wrapColored(text: string, w: number, color: string, indent = '  '): Lin
 export function skillRows(skills: Skill[]): Seg[][] {
   return skills.map((s) => {
     const distractor = s.role === 'distractor';
-    const [g, gc] = distractor ? [GLYPHS.bullet, COLORS.dim] : statusGlyph(s.passed === s.total ? 'pass' : s.passed === 0 ? 'fail' : 'partial');
+    const hasRuns = Boolean(s.runDir);
+    const [g, gc] = distractor ? [GLYPHS.bullet, COLORS.dim] : statusGlyph(!hasRuns ? 'not-run' : s.passed === s.total ? 'pass' : s.passed === 0 ? 'fail' : 'partial');
     const segs = [
       seg(g + ' ', gc, true),
       seg(pad(s.id, 26), distractor ? COLORS.fgDark : COLORS.fg),
-      distractor && s.total === 0 ? seg('—  ', COLORS.comment) : seg(`${s.passed}/${s.total}`, rateColor(s.passed, s.total)),
+      distractor && s.total === 0 ? seg('—  ', COLORS.comment) : !hasRuns ? seg('no runs', COLORS.comment) : seg(`${s.passed}/${s.total}`, rateColor(s.passed, s.total)),
     ];
     if (distractor) segs.push(seg('  distractor', COLORS.orange));
+    else if (!hasRuns) segs.push(seg(`  ${s.cases.length} evals`, COLORS.comment));
     else if (s.delta && s.delta !== 'n/a') segs.push(seg('  ' + s.delta, deltaColor(s.delta)));
     return segs;
   });
@@ -139,7 +141,9 @@ function skillView(sk: Skill, showWithout: boolean): MainView {
   lines.push(row([seg('model    ', COLORS.comment), seg(sk.model, COLORS.blue)]));
   lines.push(row([seg('judge    ', COLORS.comment), seg(sk.judge, COLORS.magenta)]));
   lines.push(blank());
-  lines.push(sectionRow('CASES', [seg(`${sk.passed}/${sk.total} passed`, rateColor(sk.passed, sk.total))]));
+  const hasRuns = Boolean(sk.runDir);
+  lines.push(sectionRow('CASES', [hasRuns ? seg(`${sk.passed}/${sk.total} passed`, rateColor(sk.passed, sk.total)) : seg(`${sk.cases.length} evals · no runs yet`, COLORS.comment)]));
+  if (!hasRuns) lines.push(row([seg('  press r to run all evals for this skill, or select a case and press r', COLORS.comment)]));
   for (const c of sk.cases) {
     const [g, gc] = statusGlyph(c.status);
     const p = c.assertions.filter((a) => a.passed).length;
@@ -147,7 +151,7 @@ function skillView(sk: Skill, showWithout: boolean): MainView {
     lines.push(row([
       seg('  ' + g + ' ', gc, true),
       seg(pad(c.id, 36), c.status === 'fail' ? COLORS.red : COLORS.fgDark),
-      seg(`${p}/${c.assertions.length} assert`, COLORS.comment),
+      c.status === 'not-run' ? seg('not run', COLORS.comment) : seg(`${p}/${c.assertions.length} assert`, COLORS.comment),
     ]));
   }
   lines.push(blank());
@@ -160,7 +164,7 @@ function skillView(sk: Skill, showWithout: boolean): MainView {
   lines.push(row([seg('  cost   ', COLORS.comment), seg(sk.totalCost, COLORS.green), seg('     tokens ', COLORS.comment), seg(num(sk.totalTokens), COLORS.fgDark), seg('     avg ', COLORS.comment), seg(sk.avgDur, COLORS.fgDark)]));
   return {
     title: sk.id,
-    sub: [seg(`${sk.passed}/${sk.total} passed`, rateColor(sk.passed, sk.total)), seg('   ' + (sk.delta || sk.role), sk.delta ? deltaColor(sk.delta) : COLORS.orange)],
+    sub: [hasRuns ? seg(`${sk.passed}/${sk.total} passed`, rateColor(sk.passed, sk.total)) : seg('no runs yet', COLORS.comment), seg('   ' + (sk.delta || sk.role), sk.delta ? deltaColor(sk.delta) : COLORS.orange)],
     lines,
     anchors,
   };
@@ -179,7 +183,11 @@ function caseView(cs: Case, showWithout: boolean, wrapWidth: number): MainView {
   lines.push(...wrap(cs.expected, proseW));
   lines.push(row([seg('  setup  ', COLORS.comment), seg(cs.setup, COLORS.teal)]));
   lines.push(blank());
-  lines.push(sectionRow('GRADING', [seg(`${passN}/${cs.assertions.length} passed`, rateColor(passN, cs.assertions.length)), seg(`   pass_rate ${safeFrac(passN, cs.assertions.length).toFixed(2)}`, COLORS.comment)]));
+  if (cs.status === 'not-run') {
+    lines.push(row([seg('  no run artifacts yet · press r to run this case', COLORS.comment)]));
+    lines.push(blank());
+  }
+  lines.push(sectionRow('GRADING', [cs.status === 'not-run' ? seg('not run', COLORS.comment) : seg(`${passN}/${cs.assertions.length} passed`, rateColor(passN, cs.assertions.length)), seg(`   pass_rate ${safeFrac(passN, cs.assertions.length).toFixed(2)}`, COLORS.comment)]));
   for (const a of cs.assertions) {
     const [g, gc] = statusGlyph(a.passed ? 'pass' : 'fail');
     anchors.push(lines.length); // cursor lands on the assertion header; index == assertion index
@@ -205,7 +213,7 @@ function caseView(cs: Case, showWithout: boolean, wrapWidth: number): MainView {
   return {
     title: cs.id,
     sub: [
-      seg(cs.status === 'pass' ? '✓ pass' : cs.status === 'fail' ? '✗ fail' : '◐ partial', cs.status === 'pass' ? COLORS.green : cs.status === 'fail' ? COLORS.red : COLORS.orange),
+      seg(cs.status === 'pass' ? '✓ pass' : cs.status === 'fail' ? '✗ fail' : cs.status === 'not-run' ? '◌ not run' : '◐ partial', cs.status === 'pass' ? COLORS.green : cs.status === 'fail' ? COLORS.red : cs.status === 'not-run' ? COLORS.comment : COLORS.orange),
       seg(`   ${passN}/${cs.assertions.length}`, COLORS.comment),
     ],
     lines,

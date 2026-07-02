@@ -112,6 +112,47 @@ function deriveStatus(passed: number, total: number): CaseStatus {
   return passed > 0 ? 'partial' : 'fail';
 }
 
+function formatSetup(ec: any): string {
+  return ec?.setup ? JSON.stringify(ec.setup) : Array.isArray(ec?.files) ? 'seeded · ' + ec.files.join(', ') : 'empty';
+}
+
+function unloadedCase(ec: any): Case {
+  return {
+    id: String(ec?.id ?? ''),
+    status: 'not-run',
+    prompt: String(ec?.prompt ?? ''),
+    expected: String(ec?.expected_output ?? ''),
+    setup: formatSetup(ec),
+    model: '—',
+    judge: '—',
+    dur: '—',
+    tin: 0,
+    tout: 0,
+    cr: 0,
+    cw: 0,
+    ttot: 0,
+    cost: money4(0),
+    ctxWin: 0,
+    ctxPct: 0,
+    tools: [],
+    toolErr: 0,
+    skillReads: '—',
+    ext: 0,
+    mcp: 0,
+    withP: 0,
+    withT: 0,
+    withoutP: 0,
+    withoutT: 0,
+    delta: '',
+    assistant: '',
+    assistantWithout: '',
+    trace: buildTrace(null),
+    context: buildContext(null),
+    outputs: [],
+    assertions: [],
+  };
+}
+
 function buildTrace(tools: any): TraceInfo {
   return {
     callCount: tools?.tool_call_count ?? 0,
@@ -174,7 +215,7 @@ async function loadCase(caseDir: string, ec: any): Promise<Case> {
     status: deriveStatus(passed, total),
     prompt: String(ec?.prompt ?? ''),
     expected: String(ec?.expected_output ?? ''),
-    setup: ec?.setup ? JSON.stringify(ec.setup) : Array.isArray(ec?.files) ? 'seeded · ' + ec.files.join(', ') : 'empty',
+    setup: formatSetup(ec),
     model: modelStr(timing),
     judge: judgeStr(grading),
     dur: timing ? ms(timing.duration_ms ?? 0) : '—',
@@ -229,7 +270,25 @@ async function mtime(p: string): Promise<number> {
 async function loadSkill(skillDir: string): Promise<Skill | null> {
   const evals = await readJson<any>(path.join(skillDir, 'evals', 'evals.json'));
   const runDirs = await runDirsFor(skillDir);
-  if (runDirs.length === 0) return null;
+  if (runDirs.length === 0) {
+    if (!evals) return null;
+    const cases = (evals.evals ?? []).map(unloadedCase);
+    return {
+      id: String(evals.skill_name ?? path.basename(skillDir)),
+      dir: path.resolve(skillDir),
+      runDir: '',
+      role: 'target',
+      model: '—',
+      judge: '—',
+      passed: 0,
+      total: 0,
+      withP: 0, withT: 0, withoutP: 0, withoutT: 0, delta: '',
+      totalCost: money2(0),
+      totalTokens: 0,
+      avgDur: '—',
+      cases,
+    };
+  }
 
   // newest run wins for the detail view
   let runDir = runDirs[0]!;

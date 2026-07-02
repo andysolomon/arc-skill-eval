@@ -124,6 +124,42 @@ test('loadWorkspace maps a single skill directory', async () => {
   }
 });
 
+test('loadWorkspace includes eval suites that have no run artifacts yet', async () => {
+  const { root, skillDir } = await buildFixture();
+  try {
+    const noRunDir = path.join(root, 'skills', 'no-run');
+    await writeJson(path.join(noRunDir, 'evals', 'evals.json'), {
+      skill_name: 'no-run',
+      evals: [
+        { id: 'fresh-case', prompt: 'Try the fresh eval.', expected_output: 'It can be run from browse.', setup: { kind: 'empty' } },
+      ],
+    });
+
+    const ws = await loadWorkspace(path.join(root, 'skills'));
+
+    const ids = ws.skills.map((s) => s.id).sort();
+    assert.deepEqual(ids, ['demo', 'no-run']);
+
+    const fresh = ws.skills.find((s) => s.id === 'no-run');
+    assert.ok(fresh, 'no-run skill appears even without evals-runs');
+    assert.equal(fresh.runDir, '', 'no run directory yet');
+    assert.equal(fresh.total, 0, 'no completed cases yet');
+    assert.equal(fresh.cases.length, 1, 'eval case is available for selection/rerun');
+    assert.equal(fresh.cases[0].id, 'fresh-case');
+    assert.equal(fresh.cases[0].status, 'not-run');
+    assert.equal(fresh.cases[0].prompt, 'Try the fresh eval.');
+    assert.equal(fresh.cases[0].setup, '{"kind":"empty"}');
+
+    const demo = ws.skills.find((s) => s.id === 'demo');
+    assert.ok(demo, 'run-bearing skill still appears');
+    assert.ok(demo.runDir, 'run-bearing skill keeps newest run dir');
+    assert.equal(demo.cases.length, 2);
+    assert.ok(ws.runs.some((r) => r.skill === 'demo'), 'existing runs still load');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('loadWorkspace synthesizes distractor entries for --extra-skill attachments', async () => {
   const { root, skillDir } = await buildFixture();
   try {
