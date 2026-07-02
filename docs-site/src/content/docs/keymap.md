@@ -34,7 +34,7 @@ description: Every keystroke in the arc-skill-eval browse TUI. Generated from sr
 | `r` | Run evals for the selection in-TUI (live spinner, Ink stays mounted) |
 | `R` | Run with --compare (with_skill vs without_skill) |
 | `o` | Run with custom flags (--model, --iteration, --extra-skill…) |
-| `n` | Scaffold a new eval case → evals.json _(Skills/Cases)_ |
+| `n` | Author a new eval case (id, prompt, typed assertions) → evals.json _(Skills/Cases)_ |
 | `f` | Write a feedback.json note for the case (feeds improve) _(Cases)_ |
 | `esc` | Abort an in-flight run _(running)_ |
 | `↵` | Reload artifacts & close the run console _(run complete)_ |
