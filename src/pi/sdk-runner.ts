@@ -276,7 +276,36 @@ export async function runPiSdkCase(
     });
   }
 
+  // session.prompt resolves even when the provider errors — the failure only
+  // shows up as a terminal assistant message with stopReason "error" (e.g.
+  // quota exhaustion), which would otherwise grade as an empty response.
+  const providerError = findTerminalProviderError(session.messages);
+  if (providerError !== null) {
+    const modelLabel = usage.model ? `${usage.model.provider}/${usage.model.id}` : "unknown model";
+    throw new PiSdkCaseRunError(
+      `Case ${options.caseDefinition.caseId}: runner model ${modelLabel} returned an error instead of output: ${providerError}`,
+      result,
+    );
+  }
+
   return result;
+}
+
+/**
+ * The provider error carried by the LAST assistant message, or null when the
+ * session ended on successful output (a mid-session error the agent recovered
+ * from does not count).
+ */
+function findTerminalProviderError(messages: Iterable<unknown>): string | null {
+  let last: { stopReason?: unknown; errorMessage?: unknown } | null = null;
+  for (const message of messages) {
+    const m = message as { role?: unknown; stopReason?: unknown; errorMessage?: unknown };
+    if (m !== null && typeof m === "object" && m.role === "assistant") last = m;
+  }
+  if (!last || last.stopReason !== "error") return null;
+  return typeof last.errorMessage === "string" && last.errorMessage.length > 0
+    ? last.errorMessage
+    : "provider reported an error with no message";
 }
 
 export async function runValidatedSkillViaPiSdk(
