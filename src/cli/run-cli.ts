@@ -154,7 +154,8 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
         // Resolve Laminar config before running so missing credentials fail
         // fast (resolveLaminarConfig throws CliUsageError naming the key).
         const laminarConfig = resolveLaminarConfig({ enabled: parsed.laminar, env: process.env });
-        const observabilitySinks = laminarConfig ? [createLaminarSink(laminarConfig)] : undefined;
+        const laminarSink = laminarConfig ? createLaminarSink(laminarConfig) : undefined;
+        const observabilitySinks = laminarSink ? [laminarSink] : undefined;
 
         let result;
         try {
@@ -182,7 +183,11 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
           }
         }
         const failed = result.summary.failedCases > 0 || result.summary.failedAssertions > 0;
-        const laminarNote = laminarConfig && !parsed.json ? "Laminar export: enabled (sink: laminar)\n" : "";
+        const laminarUrls = laminarSink?.evaluationUrls() ?? [];
+        const laminarNote =
+          laminarConfig && !parsed.json
+            ? `Laminar export: enabled (sink: laminar)\n${laminarUrls.map((url) => `- ${url}\n`).join("")}`
+            : "";
         return {
           exitCode: failed ? 1 : 0,
           stdout: `${formatRunEvalsResult(result, { json: parsed.json })}${laminarNote}`,

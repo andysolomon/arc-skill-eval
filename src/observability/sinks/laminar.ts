@@ -18,12 +18,23 @@ export interface LaminarSinkConfig {
 }
 
 /**
- * Flattened, conservative trace record sent to Laminar for a single
- * case-variant. This intentionally carries metadata + artifact PATHS
+ * Per-assertion grading verdict included in the exported datapoint output.
+ * This is grading data (verdict + short evidence quote), never the full
+ * assistant response, prompt, or file contents.
+ */
+export interface LaminarAssertionOutcome {
+  text: string;
+  passed: boolean;
+  evidence: string;
+}
+
+/**
+ * Flattened, conservative record for a single case-variant. This
+ * intentionally carries metadata, grading verdicts, and artifact PATHS
  * only — never full assistant text, prompts, or file contents.
  */
 export interface LaminarCaseVariantRecord {
-  /** Trace/span name; includes the variant so the two runs are visually distinct. */
+  /** Datapoint display name; includes the variant so the two runs are visually distinct. */
   name: string;
   /** Shared run identifier so both variants group under the same run. */
   run_id: string;
@@ -55,6 +66,8 @@ export interface LaminarCaseVariantRecord {
   grading_failed: number;
   grading_total: number;
   grading_pass_rate: number | null;
+  /** Per-assertion verdicts (text + evidence quote, never full outputs). */
+  assertions: LaminarAssertionOutcome[];
   /** Tool-summary counts. */
   tool_call_count: number;
   tool_error_count: number;
@@ -63,21 +76,28 @@ export interface LaminarCaseVariantRecord {
   external_call_count: number;
   /** Artifact paths (paths only — not contents). */
   artifact_paths: ObservabilityArtifactPaths;
-  /** Free-form attribute bag mirroring the above for trace backends that key on attributes. */
+  /** Free-form attribute bag mirroring the above for backends that key on attributes. */
   attributes: Record<string, string | number | boolean | null>;
 }
 
 /**
  * Minimal injectable client port. The real implementation is constructed
- * lazily via a dynamic import of the optional `@lmnr-ai/lmnr` package; tests
- * inject a mock that captures records.
+ * lazily via a dynamic import of the optional `@lmnr-ai/lmnr` package and
+ * reports to Laminar's Evaluations API; tests inject a mock that captures
+ * records.
  */
-export interface LaminarTraceClient {
+export interface LaminarEvalClient {
   exportCaseVariant(record: LaminarCaseVariantRecord): Promise<void>;
+  /** Dashboard URLs of the evaluations created so far, in creation order. */
+  evaluationUrls?(): string[];
   /** Drain in-flight exports and await delivery. Called once at end of run. */
   shutdown?(): Promise<void>;
 }
 
+/** Sink returned by {@link createLaminarSink}; exposes created evaluation URLs. */
+export interface LaminarSink extends ObservabilitySink {
+  evaluationUrls(): string[];
+}
 
 function mapPayloadToRecord(
   payload: ObservabilityCaseVariantPayload,
@@ -120,6 +140,14 @@ function mapPayloadToRecord(
     "eval.tools.external_call_count": tool_summary.external_call_count,
   };
 
+  const assertions: LaminarAssertionOutcome[] = (payload.grading.assertion_results ?? []).map(
+    (result) => ({
+      text: result.text,
+      passed: result.passed,
+      evidence: result.evidence,
+    }),
+  );
+
   return {
     name,
     run_id: payload.run_id,
@@ -142,6 +170,7 @@ function mapPayloadToRecord(
     grading_failed: grading_summary.failed,
     grading_total: grading_summary.total,
     grading_pass_rate: grading_summary.pass_rate,
+    assertions,
     tool_call_count: tool_summary.tool_call_count,
     tool_error_count: tool_summary.tool_error_count,
     mcp_tool_call_count: tool_summary.mcp_tool_call_count,
@@ -153,18 +182,75 @@ function mapPayloadToRecord(
 }
 
 /**
- * Coerce a mixed-type attribute bag into string-only metadata and drop
- * null/undefined. Laminar's `metadata` association properties are ingested
- * as strings — sending numbers or nulls makes the server silently reject
- * the span, so everything is stringified here.
+ * Name of the Laminar evaluation a record belongs to. One evaluation per
+ * (run, iteration, variant); the two variants of a run are sibling
+ * evaluations in the same group (the skill name), which is what makes them
+ * comparable side by side in the Evaluations UI.
  */
-export function toStringMetadata(source: Record<string, unknown>): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const [key, value] of Object.entries(source)) {
-    if (value === null || value === undefined) continue;
-    out[key] = String(value);
+export function buildEvaluationName(record: LaminarCaseVariantRecord): string {
+  const iteration = record.iteration ? ` ${record.iteration}` : "";
+  return `${record.skill_name} ${record.run_id}${iteration} [${record.variant}]`;
+}
+
+/**
+ * The pieces of a Laminar evaluation datapoint derived from a case-variant
+ * record: input `data`, numeric `scores` (rendered as comparable metric
+ * columns), the `executorOutput` shown as the datapoint's output, and
+ * free-form `metadata`.
+ */
+export interface LaminarDatapointParts {
+  data: Record<string, unknown>;
+  scores: Record<string, number>;
+  executorOutput: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+}
+
+export function buildDatapoint(record: LaminarCaseVariantRecord): LaminarDatapointParts {
+  const scores: Record<string, number> = {
+    passed: record.grading_passed,
+    failed: record.grading_failed,
+    total_tokens: record.total_tokens,
+    cost_usd: record.estimated_cost_usd,
+    duration_ms: record.duration_ms,
+    tool_calls: record.tool_call_count,
+  };
+  // pass_rate is the headline score; a null rate (no gradable assertions)
+  // is omitted rather than coerced to 0, which would read as a failure.
+  if (record.grading_pass_rate !== null) {
+    scores.pass_rate = record.grading_pass_rate;
   }
-  return out;
+
+  const data: Record<string, unknown> = {
+    case_id: record.case_id,
+    skill: record.skill_name,
+    variant: record.variant,
+    model: record.model_id ? `${record.model_provider ?? "unknown"}/${record.model_id}` : null,
+  };
+
+  const executorOutput: Record<string, unknown> = {
+    grading: {
+      passed: record.grading_passed,
+      failed: record.grading_failed,
+      total: record.grading_total,
+      pass_rate: record.grading_pass_rate,
+    },
+    assertions: record.assertions,
+    artifacts: record.artifact_paths,
+  };
+
+  const metadata: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(record.attributes)) {
+    if (value === null || value === undefined) continue;
+    metadata[key] = value;
+  }
+
+  return { data, scores, executorOutput, metadata };
+}
+
+/** Map an API base URL to the Laminar dashboard origin (mirrors the SDK). */
+export function laminarFrontendUrl(baseUrl?: string): string {
+  const url = (baseUrl ?? "https://api.lmnr.ai").replace(/\/$/, "");
+  return url === "https://api.lmnr.ai" ? "https://www.laminar.sh" : url;
 }
 
 const MISSING_SDK_MESSAGE =
@@ -173,13 +259,20 @@ const MISSING_SDK_MESSAGE =
   "createLaminarSink(config, { client }).";
 
 /**
- * Lazily construct a real Laminar-backed client. The `@lmnr-ai/lmnr` SDK is
- * an optional dependency imported on demand, so non-Laminar runs never load
- * it and installs that skip optional deps still work (with a clear error).
+ * Lazily construct a real Laminar-backed client that reports to the
+ * Evaluations API over plain HTTP (`LaminarClient.evals`): one evaluation
+ * per (run, iteration, variant), one datapoint per case with numeric scores
+ * and grading output. No OTel tracer is involved, so there is no flush /
+ * batch-delivery step to get wrong — every awaited call has already reached
+ * the backend when it resolves.
+ *
+ * The `@lmnr-ai/lmnr` SDK is an optional dependency imported on demand, so
+ * non-Laminar runs never load it and installs that skip optional deps still
+ * work (with a clear error).
  */
 async function createRealClient(
   config: LaminarSinkConfig,
-): Promise<LaminarTraceClient> {
+): Promise<LaminarEvalClient> {
   let sdk: typeof import("@lmnr-ai/lmnr");
   try {
     sdk = await import("@lmnr-ai/lmnr");
@@ -187,75 +280,80 @@ async function createRealClient(
     throw new Error(MISSING_SDK_MESSAGE);
   }
 
-  const { Laminar, LaminarAttributes, observe } = sdk;
-
-  // `disableBatch` flushes each span synchronously — the right mode for a
-  // short-lived CLI where the process exits right after the run.
-  Laminar.initialize({
-    projectApiKey: config.apiKey,
+  const client = new sdk.LaminarClient({
     baseUrl: config.baseUrl,
-    disableBatch: true,
+    projectApiKey: config.apiKey,
   });
+
+  // One evaluation per (run, iteration, variant), memoized as a promise so
+  // concurrent case exports for the same variant share a single init call.
+  const evaluations = new Map<string, Promise<{ id: string; url: string }>>();
+  const nextIndex = new Map<string, number>();
+  const urls: string[] = [];
+
+  function evaluationFor(record: LaminarCaseVariantRecord): Promise<{ id: string; url: string }> {
+    const key = `${record.run_id}::${record.iteration ?? ""}::${record.variant}`;
+    let pending = evaluations.get(key);
+    if (!pending) {
+      const groupName = config.projectName ?? record.skill_name;
+      pending = client.evals
+        .init(buildEvaluationName(record), groupName, {
+          "eval.run_id": record.run_id,
+          "eval.skill.name": record.skill_name,
+          "eval.skill.dir": record.skill_dir,
+          "eval.variant": record.variant,
+          ...(record.iteration ? { "eval.iteration": record.iteration } : {}),
+        })
+        .then((created) => {
+          const url = `${laminarFrontendUrl(config.baseUrl)}/project/${created.projectId}/evaluations/${created.id}`;
+          urls.push(url);
+          return { id: created.id, url };
+        });
+      evaluations.set(key, pending);
+    }
+    return pending;
+  }
 
   return {
     async exportCaseVariant(record: LaminarCaseVariantRecord): Promise<void> {
-      // One root span per case-variant = one trace. Standard gen_ai metrics
-      // go in typed span attributes; the eval-specific metadata + artifact
-      // paths ride along as span metadata, and the variant/skill as tags so
-      // both variants stay grouped and filterable under the same run/case.
-      await observe(
-        {
-          name: record.name,
-          spanType: "DEFAULT",
-          tags: [record.variant, record.skill_name],
-          metadata: toStringMetadata({
-            ...record.attributes,
-            ...(config.projectName ? { "eval.project_name": config.projectName } : {}),
-            "eval.artifacts.assistant": record.artifact_paths.assistant,
-            "eval.artifacts.outputs": record.artifact_paths.outputs,
-            "eval.artifacts.grading": record.artifact_paths.grading,
-            "eval.artifacts.trace": record.artifact_paths.trace,
-          }),
-        },
-        () => {
-          Laminar.setSpanAttributes({
-            [LaminarAttributes.PROVIDER]: record.model_provider ?? "",
-            [LaminarAttributes.REQUEST_MODEL]: record.model_id ?? "",
-            [LaminarAttributes.INPUT_TOKEN_COUNT]: record.input_tokens,
-            [LaminarAttributes.OUTPUT_TOKEN_COUNT]: record.output_tokens,
-            [LaminarAttributes.TOTAL_TOKEN_COUNT]: record.total_tokens,
-            [LaminarAttributes.TOTAL_COST]: record.estimated_cost_usd,
-          });
-          Laminar.setSpanTags([record.variant, record.skill_name]);
-        },
-      );
+      const { id: evalId } = await evaluationFor(record);
+      const index = nextIndex.get(evalId) ?? 0;
+      nextIndex.set(evalId, index + 1);
 
-      // Flush the processor queue to the exporter. Note: flush() alone does
-      // NOT reliably await the network round-trip in a short-lived CLI —
-      // shutdown() (called once at end of run) is what guarantees delivery.
-      await Laminar.flush();
+      const { data, scores, executorOutput, metadata } = buildDatapoint(record);
+      const datapointId = await client.evals.createDatapoint({
+        evalId,
+        data,
+        metadata,
+        index,
+      });
+      await client.evals.updateDatapoint({
+        evalId,
+        datapointId,
+        scores,
+        executorOutput,
+      });
     },
-    async shutdown(): Promise<void> {
-      // Drains in-flight exports and awaits delivery before the process
-      // exits. Without this, the CLI exits before spans reach Laminar.
-      await Laminar.shutdown();
+    evaluationUrls(): string[] {
+      return [...urls];
     },
   };
 }
 
 /**
  * Create a provider-neutral observability sink that exports each
- * case-variant to Laminar as a flattened trace record (metadata +
- * artifact paths only). A client may be injected for tests; otherwise a
- * real client is lazily constructed on first export.
+ * case-variant to Laminar's Evaluations API as a scored datapoint
+ * (grading verdicts + metadata + artifact paths only — never full
+ * assistant text). A client may be injected for tests; otherwise a real
+ * client is lazily constructed on first export.
  */
 export function createLaminarSink(
   config: LaminarSinkConfig,
-  deps?: { client?: LaminarTraceClient },
-): ObservabilitySink {
-  let client: LaminarTraceClient | undefined = deps?.client;
+  deps?: { client?: LaminarEvalClient },
+): LaminarSink {
+  let client: LaminarEvalClient | undefined = deps?.client;
 
-  async function resolveClient(): Promise<LaminarTraceClient> {
+  async function resolveClient(): Promise<LaminarEvalClient> {
     if (!client) {
       client = await createRealClient(config);
     }
@@ -276,6 +374,9 @@ export function createLaminarSink(
         const message = error instanceof Error ? error.message : String(error);
         return { sink: "laminar", status: "failed", message };
       }
+    },
+    evaluationUrls(): string[] {
+      return client?.evaluationUrls?.() ?? [];
     },
     async shutdown(): Promise<void> {
       // Only a client that was actually constructed (i.e. at least one export

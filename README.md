@@ -300,19 +300,21 @@ Model options:
 - `--agent-dir <path>` points Pi settings, model registry, and auth lookup at an eval-owned agent directory instead of the normal `~/.pi/agent` directory.
 - When no model flags are supplied, `arc-skill-eval` inherits Pi's default provider/model/thinking level from the effective Pi agent settings.
 
-### Export traces to Laminar (optional)
+### Export results to Laminar Evaluations (optional)
 
-`run --laminar` additionally exports each case/variant as a [Laminar](https://www.lmnr.ai/) trace for dashboard inspection. It is **off by default and entirely optional** — local `evals-runs/` artifacts remain the canonical record, and an export failure never fails the run.
+`run --laminar` additionally reports the run to [Laminar](https://www.lmnr.ai/)'s **Evaluations** view: one evaluation per run variant (`with_skill` / `without_skill`), one scored datapoint per case, grouped by skill name so variants can be compared side by side. It is **off by default and entirely optional** — local `evals-runs/` artifacts remain the canonical record, and an export failure never fails the run.
 
 ```bash
 LMNR_PROJECT_API_KEY=lmnr_... arc-skill-eval run . --laminar
 ```
 
-- **`LMNR_PROJECT_API_KEY`** is required when `--laminar` is set; the command fails fast (before any case runs) and names the key if it is missing. **`LMNR_BASE_URL`** and **`LMNR_PROJECT_NAME`** are optional.
-- The Laminar Node SDK (`@lmnr-ai/lmnr`) is an **optional** dependency, dynamically imported only when the flag is enabled — installs that never use Laminar don't pull it in. If it's missing when enabled, the run reports a clear error naming the package.
-- Exports carry **metadata and artifact paths only** (no assistant text, prompts, or file contents). `with_skill` / `without_skill` variants stay distinguishable while sharing a run/case id; the `benchmark.json` delta remains local.
+The run summary prints a direct dashboard link per evaluation. Each datapoint carries numeric scores (`pass_rate`, `passed`, `failed`, `total_tokens`, `cost_usd`, `duration_ms`, `tool_calls`) and an output with the grading summary, per-assertion verdicts (assertion text, pass/fail, short evidence quote), and local artifact paths.
 
-See [`docs/concepts/artifacts` → External observability](docs-site/src/content/docs/concepts/artifacts.md) for the full local-artifact → Laminar trace mapping.
+- **`LMNR_PROJECT_API_KEY`** is required when `--laminar` is set; the command fails fast (before any case runs) and names the key if it is missing. **`LMNR_BASE_URL`** is optional; **`LMNR_PROJECT_NAME`** optionally overrides the evaluation group name (default: the skill name).
+- The Laminar Node SDK (`@lmnr-ai/lmnr`) is an **optional** dependency, dynamically imported only when the flag is enabled — installs that never use Laminar don't pull it in. If it's missing when enabled, the run reports a clear error naming the package.
+- Exports carry **grading verdicts, metrics, and artifact paths only** (never full assistant text, prompts, or file contents). The `benchmark.json` delta remains local.
+
+See [`docs/concepts/artifacts` → External observability](docs-site/src/content/docs/concepts/artifacts.md) for the full local-artifact → Laminar evaluation mapping.
 
 ### Eval-owned Pi runtime
 
