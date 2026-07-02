@@ -243,6 +243,8 @@ arc-skill-eval run ./skills/arc-conventional-commits \
 
 Pin the model used for LLM-judged string assertions. Deterministic assertions such as `file-exists`, `regex-match`, and `json-valid` do not use the judge model.
 
+When the flag is absent, the judge defaults to the model that ran the case (which is guaranteed to be authenticated), falling back to `mistral/ministral-8b-latest` only when no runner model can be resolved. Because the runner-model default means the model grades its own output, pin `--judge-model` to a different model when that bias matters.
+
 ```bash
 arc-skill-eval run ./skills/arc-conventional-commits \
   --model openai-codex/gpt-5.5:medium \

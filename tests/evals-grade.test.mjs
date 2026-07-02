@@ -366,12 +366,13 @@ test("gradeEvalCase marks all string assertions failed when judge throws", async
     });
 
     assert.equal(result.summary.total, 3);
-    // String assertions failed with malformed-output evidence; script
-    // assertion failed independently with its own evidence.
+    // String assertions failed carrying the judge's thrown message —
+    // distinguishable from unparseable output; script assertion failed
+    // independently with its own evidence.
     assert.equal(result.assertion_results[0].passed, false);
-    assert.equal(result.assertion_results[0].evidence, "Judge returned unparseable output");
+    assert.equal(result.assertion_results[0].evidence, "Judge error: Pi timeout");
     assert.equal(result.assertion_results[1].passed, false);
-    assert.equal(result.assertion_results[1].evidence, "Judge returned unparseable output");
+    assert.equal(result.assertion_results[1].evidence, "Judge error: Pi timeout");
     assert.equal(result.assertion_results[2].passed, false);
     assert.match(result.assertion_results[2].evidence, /No such file/);
   } finally {

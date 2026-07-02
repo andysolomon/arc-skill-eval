@@ -517,7 +517,7 @@ With `--compare`, each case writes isolated variant artifacts and the skill run 
 }
 ```
 
-`judge_model` records the LLM-judge that graded the prose assertions (the `--judge-model` selection, defaulting to `{ "provider": "mistral", "id": "ministral-8b-latest" }`); it's omitted for cases with only deterministic checks. `browse` surfaces it per case.
+`judge_model` records the LLM-judge that graded the prose assertions; it's omitted for cases with only deterministic checks. `browse` surfaces it per case. Precedence: the `--judge-model` selection, else the model that ran the case (which is known to be authenticated), else `{ "provider": "mistral", "id": "ministral-8b-latest" }` as a last resort. Note that when the judge defaults to the runner's model, the model grades its own output — pin `--judge-model` to a different model when that bias matters.
 
 ## Authoring an eval suite for a skill
 Use the bundled **`arc-creating-evals`** skill in `skills/arc-creating-evals/`. It interviews you across Anthropic's four success dimensions (outcome, process, style, efficiency) and emits `evals/evals.json` + fixtures. Install the skill into your agent's skills directory (`.claude/skills/` or the equivalent for your tool) — see `skills/README.md` for the recipe.

@@ -296,13 +296,15 @@ async function preflightAgentDirRuntime(options: AgentDirPreflightOptions): Prom
     if (!isRecord(modelsJson.value.providers)) {
       issues.push(`models.json at ${modelsPath} must contain a providers object`);
     } else {
-      if (!options.createSession) {
-        const runnerSelection = options.model ?? selectionFromSettings(settingsJson.ok ? settingsJson.value : undefined);
-        if (runnerSelection) validateProviderSelection({ selection: runnerSelection, providers: modelsJson.value.providers, issues, role: "runner" });
+      const runnerSelection = options.model ?? selectionFromSettings(settingsJson.ok ? settingsJson.value : undefined);
+      if (!options.createSession && runnerSelection) {
+        validateProviderSelection({ selection: runnerSelection, providers: modelsJson.value.providers, issues, role: "runner" });
       }
 
       if (!options.judge && selectedCasesNeedJudge(options.evalsFiles, options.caseIds)) {
-        const judgeSelection = options.judgeModel ?? DEFAULT_JUDGE_MODEL;
+        // Mirrors the grading-time precedence: --judge-model > runner model
+        // > last-resort default.
+        const judgeSelection = options.judgeModel ?? runnerSelection ?? DEFAULT_JUDGE_MODEL;
         validateProviderSelection({ selection: judgeSelection, providers: modelsJson.value.providers, issues, role: "judge" });
       }
     }
@@ -474,12 +476,19 @@ async function runOneCaseVariant(args: {
   });
 
   try {
+    // Judge model precedence: --judge-model > the model that actually ran
+    // the case (guaranteed usable — the run just used it) > the built-in
+    // last-resort default inside gradeEvalCase.
+    const runnerModel = run.timing.model;
+    const judgeModel =
+      args.judgeModel ??
+      (runnerModel ? { provider: runnerModel.provider, id: runnerModel.id } : undefined);
     const grading = await gradeEvalCase({
       case: args.evalCase,
       workspaceDir: run.workspaceDir,
       assistantText: run.assistantText,
       judge: args.judge,
-      judgeModel: args.judgeModel,
+      judgeModel,
       agentDir: args.agentDir,
     });
 
