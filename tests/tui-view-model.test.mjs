@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildMain } from '../dist/tui/view-model.js';
+import { buildMain, skillRows } from '../dist/tui/view-model.js';
 import { COLORS } from '../dist/tui/theme.js';
+import { GLYPHS } from '../dist/tui/caps.js';
 
 const baseCase = {
   id: 'long-grading', status: 'fail', prompt: 'Evaluate the skill.', expected: 'The skill should be evaluated.', setup: 'empty',
@@ -71,4 +72,30 @@ test('case overview colors wrapped failed and passing evidence appropriately', (
   for (const line of passingLines) {
     assert.ok(line.segs.every((seg) => seg.c === COLORS.comment), `expected passing evidence line to use comment color: ${lineText(line)}`);
   }
+});
+
+const distractorSkill = {
+  id: 'shiny', dir: '/tmp/shiny', runDir: '', role: 'distractor',
+  model: '—', judge: '—', passed: 0, total: 0,
+  withP: 0, withT: 0, withoutP: 0, withoutT: 0, delta: '', totalCost: '$0.00', totalTokens: 0, avgDur: '—',
+  cases: [],
+};
+
+test('skillRows renders distractor entries with a dim bullet and no fake pass fraction', () => {
+  const rows = skillRows([fakeSkill, distractorSkill]);
+  const rowText = (row) => row.map((s) => s.t).join('');
+
+  assert.match(rowText(rows[0]), /0\/1/, 'target row keeps its pass fraction');
+  const dRow = rowText(rows[1]);
+  assert.match(dRow, /shiny/, 'distractor row names the skill');
+  assert.match(dRow, /distractor/, 'distractor row carries the badge');
+  assert.doesNotMatch(dRow, /0\/0/, 'no misleading 0/0 fraction');
+  assert.equal(rows[1][0].t.trim(), GLYPHS.bullet, 'distractor rows use the bullet glyph, not a status glyph');
+});
+
+test('buildMain falls back to the skill view when the selected skill has no cases', () => {
+  const view = buildMain('cases', distractorSkill, undefined, undefined, undefined, 'overview', true);
+  assert.equal(view.title, 'shiny');
+  assert.match(viewText(view), /attached as --extra-skill distractor context/);
+  assert.match(viewText(view), /no runs of its own/);
 });

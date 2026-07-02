@@ -28,7 +28,7 @@ export interface TraceInfo {
 export interface ContextInfo {
   mode: string;
   agentDir: string;
-  attachedSkills: { name: string; role: string }[];
+  attachedSkills: { name: string; path: string; role: string }[];
   activeTools: string[];
   availableTools: { name: string; source: string }[];
   mcpTools: string[];

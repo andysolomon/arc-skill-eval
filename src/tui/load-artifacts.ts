@@ -132,7 +132,7 @@ function buildContext(m: any): ContextInfo {
   return {
     mode: String(m?.mode ?? 'isolated'),
     agentDir: m?.agent_dir ? String(m.agent_dir) : '',
-    attachedSkills: Array.isArray(m?.attached_skills) ? m.attached_skills.map((s: any) => ({ name: String(s?.name ?? ''), role: String(s?.role ?? '') })) : [],
+    attachedSkills: Array.isArray(m?.attached_skills) ? m.attached_skills.map((s: any) => ({ name: String(s?.name ?? ''), path: String(s?.path ?? ''), role: String(s?.role ?? '') })) : [],
     activeTools: Array.isArray(m?.active_tools) ? m.active_tools.map(String) : [],
     availableTools: Array.isArray(m?.available_tools) ? m.available_tools.map((t: any) => ({ name: String(t?.name ?? ''), source: String(t?.source ?? '') })) : [],
     mcpTools: Array.isArray(m?.mcp_tools) ? m.mcp_tools.map((t: any) => String(t?.name ?? t)) : [],
@@ -259,7 +259,7 @@ async function loadSkill(skillDir: string): Promise<Skill | null> {
     id: String(evals?.skill_name ?? path.basename(skillDir)),
     dir: path.resolve(skillDir),
     runDir: path.resolve(runDir),
-    role: 'target', // SEAM: mark distractors loaded via --extra-skill
+    role: 'target', // a skill with its own runs is a target; --extra-skill distractors are appended by appendDistractorSkills()
     model: first?.model ?? '—',
     judge: first?.judge ?? '—',
     passed,
@@ -346,6 +346,48 @@ async function discoverSkillDirs(root: string, depth = 3): Promise<string[]> {
   return found;
 }
 
+/**
+ * Skills attached via --extra-skill never get runs of their own, so loadSkill()
+ * can't surface them. Synthesize a Skills-panel entry for each unique `extra`
+ * attachment found in the loaded cases' context manifests.
+ */
+function appendDistractorSkills(skills: Skill[]): void {
+  const known = new Set<string>();
+  for (const s of skills) { known.add(s.dir); known.add(s.id); }
+
+  const extras = new Map<string, { name: string; dir: string }>();
+  for (const s of skills) {
+    for (const c of s.cases) {
+      for (const a of c.context.attachedSkills) {
+        if (a.role !== 'extra') continue;
+        const dir = a.path ? path.resolve(a.path) : '';
+        const name = a.name || (dir ? path.basename(dir) : '');
+        const key = dir || name;
+        if (!key || known.has(name) || (dir && known.has(dir))) continue;
+        if (!extras.has(key)) extras.set(key, { name, dir });
+      }
+    }
+  }
+
+  for (const e of extras.values()) {
+    skills.push({
+      id: e.name,
+      dir: e.dir,
+      runDir: '',
+      role: 'distractor',
+      model: '—',
+      judge: '—',
+      passed: 0,
+      total: 0,
+      withP: 0, withT: 0, withoutP: 0, withoutT: 0, delta: '',
+      totalCost: money2(0),
+      totalTokens: 0,
+      avgDur: '—',
+      cases: [],
+    });
+  }
+}
+
 /** Reload a single skill + its runs after a re-run (cheaper than loadWorkspace). */
 export async function reloadSkill(skillDir: string): Promise<{ skill: Skill | null; runs: Run[] }> {
   const skill = await loadSkill(skillDir);
@@ -360,7 +402,9 @@ export async function loadWorkspace(input: string): Promise<Workspace> {
   if (await exists(path.join(abs, 'evals', 'evals.json'))) {
     const sk = await loadSkill(abs);
     const runs = await loadRuns(abs);
-    return { skills: sk ? [sk] : [], runs };
+    const skills = sk ? [sk] : [];
+    appendDistractorSkills(skills);
+    return { skills, runs };
   }
 
   // repo root: discover skill dirs
@@ -371,5 +415,6 @@ export async function loadWorkspace(input: string): Promise<Workspace> {
     if (sk) skills.push(sk);
     for (const r of await loadRuns(dir)) runs.push(r);
   }
+  appendDistractorSkills(skills);
   return { skills, runs };
 }

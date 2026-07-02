@@ -340,7 +340,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
   const railWidth = Math.max(34, Math.min(48, Math.floor(cols * 0.4)));
   const innerRail = railWidth - 2;
   const mainInner = Math.max(10, cols - railWidth - 2);
-  const main = sk && cs ? buildMain(focused, sk, cs, asrt!, run, caseMode, showWithout ?? true, compareBase ?? undefined, mainInner) : { title: '', sub: [] as Seg[], lines: [] as DisplayLine[], anchors: [] as number[] };
+  const main = sk ? buildMain(focused, sk, cs, asrt!, run, caseMode, showWithout ?? true, compareBase ?? undefined, mainInner) : { title: '', sub: [] as Seg[], lines: [] as DisplayLine[], anchors: [] as number[] };
   const anchors = main.anchors;
   const scrollMax = Math.max(0, main.lines.length - maxRows);
   const cursorLine = pane && anchors.length ? (anchors[clampIdx(cursor, anchors.length)] ?? -1) : -1;
@@ -378,7 +378,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
       return;
     }
     if (flash) setFlash('');
-    if (!sk || !cs) { if (input === 'q') onAction({ type: 'quit' }); if (input === '/') setFiltering(true); return; }
+    if (!sk) { if (input === 'q') onAction({ type: 'quit' }); if (input === '/') setFiltering(true); return; }
     if (showHelp) { setShowHelp(false); return; }
     if (input === 'q') { onAction({ type: 'quit', state: { focused, sel, caseMode } }); return; }
     if (input === '?') { setShowHelp(true); return; }
@@ -387,12 +387,12 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
     if (input === 'F') { setFailOnly((v) => !v); setSel((s) => ({ ...s, skills: 0, cases: 0, assertions: 0 })); return; }
     if (input === 's') { setSortMode((m) => (m === 'name' ? 'pass' : m === 'pass' ? 'delta' : m === 'delta' ? 'cost' : 'name')); setSel((s) => ({ ...s, skills: 0 })); return; }
     if (input === 'c' && focused === 'runs') { setCompareBase((b) => (b && run && b.runId === run.runId ? null : run ?? null)); return; }
-    if (input === 'r') { runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' ? cs.id : null, compare: false }); return; }
-    if (input === 'R') { runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' ? cs.id : null, compare: true }); return; }
+    if (input === 'r') { runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' && cs ? cs.id : null, compare: false }); return; }
+    if (input === 'R') { runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' && cs ? cs.id : null, compare: true }); return; }
     if (input === 'n' && (focused === 'skills' || focused === 'cases')) { setCreating(true); return; }
     if (input === 'o') { setRunOptions(true); return; }
     if (input === 'v') { if (focused === 'cases') { setCaseMode((m) => (m === 'raw' ? 'overview' : 'raw')); setPane(false); } return; }
-    if (focused === 'cases' && (input === ']' || input === '[')) {
+    if (focused === 'cases' && cs && (input === ']' || input === '[')) {
       const modes = modesFor(cs);
       const cur = modes.indexOf(caseMode);
       const ni = ((cur < 0 ? 0 : cur) + (input === ']' ? 1 : -1) + modes.length) % modes.length;
@@ -433,7 +433,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
     if (key.ctrl && input === 'u') { setScroll((s) => Math.max(0, s - Math.floor(maxRows / 2))); return; }
 
     // list navigation
-    const lens: Record<Focus, number> = { skills: viewSkills.length, cases: viewCases.length, assertions: cs.assertions.length, runs: runs.length };
+    const lens: Record<Focus, number> = { skills: viewSkills.length, cases: viewCases.length, assertions: cs?.assertions.length ?? 0, runs: runs.length };
     const move = (d: number) => {
       const len = lens[focused];
       setSel((s) => {
@@ -453,7 +453,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
   // help visibility is declared with the other state above; the input handler
   // re-registers each render, so it always reads the current value.
 
-  if (!sk || !cs) {
+  if (!sk) {
     return (
       <Box padding={1} flexDirection="column">
         <Text color={COLORS.orange}>No eval runs found.</Text>
@@ -469,10 +469,10 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
     <Box padding={1}>
       <RunOptionsForm
         skillName={sk.id}
-        caseId={focused === 'cases' ? cs.id : null}
+        caseId={focused === 'cases' && cs ? cs.id : null}
         recentJudgeModels={runs.map((r) => r.judge).concat(sk.judge)}
         recentRunnerModels={runs.map((r) => r.model).concat(sk.model)}
-        onRun={({ compare, extraArgs }) => { setRunOptions(false); runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' ? cs.id : null, compare, extraArgs }); }}
+        onRun={({ compare, extraArgs }) => { setRunOptions(false); runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' && cs ? cs.id : null, compare, extraArgs }); }}
         onClose={() => setRunOptions(false)}
       />
     </Box>
@@ -507,7 +507,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
         <Box flexDirection="column" width={railWidth}>
           <Panel n={1} name="Skills" grow={grows.skills} count={String(viewSkills.length)} rows={skillRows(viewSkills)} selected={clampIdx(sel.skills, viewSkills.length)} focused={!pane && focused === 'skills'} innerWidth={innerRail} maxRows={cap(grows.skills)} />
           <Panel n={2} name="Cases" grow={grows.cases} count={String(viewCases.length)} rows={caseRows(viewCases)} selected={clampIdx(sel.cases, viewCases.length)} focused={!pane && focused === 'cases'} innerWidth={innerRail} maxRows={cap(grows.cases)} />
-          <Panel n={3} name="Assertions" grow={grows.assertions} count={String(cs.assertions.length)} rows={assertionRows(cs)} selected={clampIdx(sel.assertions, cs.assertions.length)} focused={!pane && focused === 'assertions'} innerWidth={innerRail} maxRows={cap(grows.assertions)} />
+          <Panel n={3} name="Assertions" grow={grows.assertions} count={String(cs?.assertions.length ?? 0)} rows={cs ? assertionRows(cs) : []} selected={clampIdx(sel.assertions, cs?.assertions.length ?? 0)} focused={!pane && focused === 'assertions'} innerWidth={innerRail} maxRows={cap(grows.assertions)} />
           <Panel n={4} name="Runs" grow={grows.runs} count={String(runs.length)} rows={runRows(runs, compareBase?.runId)} selected={sel.runs} focused={!pane && focused === 'runs'} innerWidth={innerRail} maxRows={cap(grows.runs)} />
         </Box>
         <MainPane title={main.title} sub={main.sub} lines={main.lines} scroll={scroll} maxRows={maxRows} innerWidth={mainInner} cursorLine={cursorLine} paneFocused={pane} />

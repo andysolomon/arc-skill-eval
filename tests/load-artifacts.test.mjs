@@ -124,6 +124,37 @@ test('loadWorkspace maps a single skill directory', async () => {
   }
 });
 
+test('loadWorkspace synthesizes distractor entries for --extra-skill attachments', async () => {
+  const { root, skillDir } = await buildFixture();
+  try {
+    const shinyDir = path.join(root, 'skills', 'shiny');
+    await writeJson(path.join(skillDir, 'evals-runs', 'run-1', 'eval-case-a', 'context-manifest.json'), {
+      runtime: 'pi',
+      mode: 'isolated',
+      attached_skills: [
+        { name: 'demo', path: skillDir, role: 'target' },
+        { name: 'shiny', path: shinyDir, role: 'extra' },
+        { name: 'demo', path: skillDir, role: 'extra' }, // already a target skill → no duplicate entry
+      ],
+      available_tools: [], active_tools: [], mcp_tools: [], mcp_servers: [],
+      ambient: { extensions: false, skills: false, prompt_templates: false, themes: false, context_files: false },
+    });
+
+    const ws = await loadWorkspace(skillDir);
+
+    assert.equal(ws.skills.length, 2, 'target + one synthesized distractor');
+    const distractor = ws.skills.find((s) => s.role === 'distractor');
+    assert.ok(distractor, 'distractor entry present');
+    assert.equal(distractor.id, 'shiny');
+    assert.equal(path.resolve(distractor.dir), path.resolve(shinyDir));
+    assert.equal(distractor.cases.length, 0, 'distractors have no runs of their own');
+    assert.equal(distractor.total, 0);
+    assert.equal(ws.skills.filter((s) => s.id === 'demo').length, 1, 'target skill not duplicated by its extra attachment');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('reloadSkill returns the skill and its runs', async () => {
   const { root, skillDir } = await buildFixture();
   try {
