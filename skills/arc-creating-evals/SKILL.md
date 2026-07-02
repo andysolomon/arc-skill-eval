@@ -97,17 +97,16 @@ Apply assertions in priority order. Weaker signals should always be backed by st
 
 1. **Write `<skillDir>/evals/evals.json`.** Pretty-print with 2-space indent. Validate the JSON parses before saving.
 2. **Create any referenced fixtures** under `<skillDir>/evals/files/<fixture>/`. Keep each fixture minimal — just enough files for the case to have something real to touch. Never commit node_modules, build outputs, or live credentials.
-3. **Pin a model.** `evals.json` does not have a top-level `model` field; if the author's global Pi default is quota-capped (e.g., ChatGPT Plus `openai-codex`), recommend they set a `judgeModel` override at the CLI layer or update `~/.pi/agent/settings.json`. Call this out explicitly in your summary.
-4. **Validate:**
-   ```bash
-   arc-skill-eval validate <skillDir>
-   ```
-   This uses the legacy validator path during the MVP and will be a no-op for `evals.json`-only skills; check by hand that the JSON parses cleanly via `readEvalsJson` semantics.
+3. **Know which models will run and judge.** `evals.json` does not have a top-level `model` field; the runner model comes from `--model` or the author's Pi default. LLM-judged string assertions use, in order of precedence: `--judge-model`, else **the same model that ran the case** (always usable, since the run just used it), else a low-cost built-in fallback that needs its own credentials. The runner-model default means the model grades its own output — recommend `--judge-model <provider/model>` with a *different* model when that self-grading bias matters. Call the effective judge out explicitly in your summary; `grading.json` records it as `judge_model`.
+4. **Validate.** There is no separate validate command: `evals.json` is validated on load every time `run` (or the browse TUI) reads it, with errors that name the offending case or assertion. A JSON-parse check before saving plus a dry-run (next step) is the validation loop.
 5. **Dry-run one case** against the cheapest model the author has auth for:
    ```bash
    arc-skill-eval run <skillDir> --case <first-routing-case-id>
    ```
-   Confirm it completes end-to-end and that at least one assertion grades honestly. If the judge's evidence reads like it paraphrased instead of cited the text, tighten the assertion (make it more literal) or swap for a script assertion.
+   Confirm it completes end-to-end and that at least one assertion grades honestly, then triage the evidence on any failure:
+   - **`Judge error: ...`** — infrastructure, not your assertion. The judge model itself failed (usually an unauthenticated provider or bad model id). Fix the judge selection (`--judge-model`, provider auth); do not touch the assertion.
+   - **`Judge returned unparseable output`** — the judge responded, but not in the expected JSON shape. Retry once; if it persists, the judge model is too weak for the rubric — pick a stronger `--judge-model`.
+   - **Paraphrased evidence** — if the judge's evidence reads like it paraphrased instead of citing the text, tighten the assertion (make it more literal) or swap for a script assertion.
 6. **Summary.** Tell the user:
    - file path of the new `evals.json`
    - which fixtures were created and under what paths
