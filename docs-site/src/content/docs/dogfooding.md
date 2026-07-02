@@ -162,6 +162,18 @@ arc-skill-eval run ./skills/arc-conventional-commits \
 
 In compare mode, `with_skill` receives the target plus extras. `without_skill` receives only the extras. That isolates whether the target skill adds value in a realistic crowded context.
 
+## Run the bundled dogfood suite
+
+`arc-creating-evals` — the bundled skill that teaches eval authoring — ships with its own eval suite at `skills/arc-creating-evals/evals/`, so the eval-creation skill is held to the standard it teaches. From the repo root:
+
+```bash
+arc-skill-eval run skills/arc-creating-evals
+```
+
+The suite seeds a tiny fixture skill (`arc-demo-file-writer`) and checks that the assistant, guided by `arc-creating-evals`, actually authors a valid `evals/evals.json` for it — plus an adjacent-negative case proving a plain unit-test request does not trigger eval authoring. This is the same skill `create --guided` uses as its authoring reference, so a green run here backs both the documented workflow and the guided-create path.
+
+When triaging failures, follow the skill's own Phase 5 rules: `Judge error:` evidence means the judge infrastructure failed (fix `--judge-model` or provider auth, not the assertion); paraphrased evidence means the assertion should be tightened or replaced with a script assertion.
+
 ## Concrete dogfood evidence
 
 The `arc-skills` repo contains a dogfood suite for `arc-creating-evals`, the meta-skill that authors evals for other skills. A recent golden-path compare run showed a positive `+16.7%` with-skill delta after the suite was tightened to assert behavior unique to `arc-creating-evals`.
