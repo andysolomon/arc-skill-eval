@@ -9,6 +9,7 @@ import type { Skill, Run, Case, Focus, Sel, CaseMode } from './types.js';
 import { skillRows, caseRows, assertionRows, runRows, buildMain, modesFor } from './view-model.js';
 import { useRunController, RunConsole } from './RunConsole.js';
 import { NewCaseForm } from './NewCaseForm.js';
+import { CreateForm } from './CreateForm.js';
 import { RunOptionsForm } from './RunOptionsForm.js';
 import { KEYMAP } from './keymap.js';
 
@@ -227,7 +228,7 @@ function StatusBar({ focused, caseMode, pane, sk, filter, filtering, failOnly, s
   const hints: [string, string][] = pane
     ? [[ud, 'line'], [GLYPHS.enter, 'open'], [GLYPHS.arrowL, 'back'], ['?', 'help']]
     : focused === 'skills'
-      ? [[ud, 'skill'], [GLYPHS.arrowR, 'inspect'], ['/', 'filter'], ['r', 'run'], ['o', 'opts'], ['?', 'help']]
+      ? [[ud, 'skill'], [GLYPHS.arrowR, 'inspect'], ['/', 'filter'], ['r', 'run'], ['o', 'opts'], ['C', 'create'], ['?', 'help']]
       : focused === 'cases'
         ? [[ud, 'case'], [GLYPHS.arrowR, 'inspect'], ['[ ]', caseMode], ['f', 'note'], ['/', 'filter'], ['?', 'help']]
         : focused === 'assertions'
@@ -297,7 +298,7 @@ function HelpView() {
 export const HANDLED_KEY_IDS: ReadonlySet<string> = new Set([
   'move', 'panel-cycle', 'panel-jump', 'edge', 'quit',          // navigation
   'pane-enter', 'pane-drill', 'pane-leave', 'pane-scroll', 'case-mode', 'raw', // detail pane
-  'run', 'run-compare', 'run-opts', 'new-case', 'feedback', 'run-abort', 'run-reload', // run & author
+  'run', 'run-compare', 'run-opts', 'new-case', 'create-suite', 'feedback', 'run-abort', 'run-reload', // run & author
   'filter', 'failures', 'sort', 'pin-base', 'help',             // filter & compare
 ]);
 
@@ -324,6 +325,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
   const [runOptions, setRunOptions] = useState(false);
   const runCtl = useRunController();              // in-process run console (r / R / o)
   const [creating, setCreating] = useState(false); // new-eval-case form (n)
+  const [creatingSuite, setCreatingSuite] = useState(false); // guided create form (C)
 
   const viewSkills = applySkillView(skills, filter, failOnly, sortMode);
   const sk = viewSkills[clampIdx(sel.skills, viewSkills.length)];
@@ -356,7 +358,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
       else if (!runCtl.state.done && key.escape) { runCtl.close(); } // abort: drop the overlay (run-abort)
       return;
     }
-    if (creating || runOptions) return; // overlay forms own input via their own useInput
+    if (creating || creatingSuite || runOptions) return; // overlay forms own input via their own useInput
     if (noting) {
       if (key.return) {
         if (sk && cs) {
@@ -390,6 +392,11 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
     if (input === 'r') { runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' && cs ? cs.id : null, compare: false }); return; }
     if (input === 'R') { runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' && cs ? cs.id : null, compare: true }); return; }
     if (input === 'n' && (focused === 'skills' || focused === 'cases')) { setCreating(true); return; }
+    if (input === 'C' && focused === 'skills') {
+      if (sk.dir) setCreatingSuite(true);
+      else setFlash(`skill directory unknown for ${sk.id} — cannot create an eval suite`);
+      return;
+    }
     if (input === 'o') { setRunOptions(true); return; }
     if (input === 'v') { if (focused === 'cases') { setCaseMode((m) => (m === 'raw' ? 'overview' : 'raw')); setPane(false); } return; }
     if (focused === 'cases' && cs && (input === ']' || input === '[')) {
@@ -488,6 +495,14 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
         setCreating(false); setFlash(msg); void onReload?.(sk.dir);
         runCtl.start({ skillDir: sk.dir, caseId, compare: false });
       }}
+    />
+  );
+  if (creatingSuite) return (
+    <CreateForm
+      skillDir={sk.dir}
+      skillName={sk.id}
+      hasSuite={sk.role !== 'distractor'}
+      onClose={(msg) => { setCreatingSuite(false); if (msg) setFlash(msg); void onReload?.(sk.dir); }}
     />
   );
 
