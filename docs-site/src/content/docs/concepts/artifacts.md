@@ -127,22 +127,25 @@ The Anthropic-compatible core (per-case results, overall pass rates, overall del
 
 ## External observability (Laminar)
 
-Local artifacts are always the canonical record. Optionally, `run --laminar` also exports each case/variant to [Laminar](https://www.lmnr.ai/) so runs can be inspected in a dashboard. This is opt-in and additive — see the [`--laminar` flag](/arc-skill-eval/cli-reference/#--laminar) for setup.
+Local artifacts are always the canonical record. Optionally, `run --laminar` also reports the run to [Laminar](https://www.lmnr.ai/)'s **Evaluations** view so results can be inspected and compared in a dashboard. This is opt-in and additive — see the [`--laminar` flag](/arc-skill-eval/cli-reference/#--laminar) for setup.
 
-Each exported trace carries **metadata and artifact paths, not full content** (assistant text, prompts, and file contents are never exported). The mapping from the local artifacts:
+The export creates **one evaluation per run variant** (`with_skill` / `without_skill`) with **one scored datapoint per case**. Both evaluations share a group (the skill name, or `LMNR_PROJECT_NAME` when set), which is what makes the two variants comparable side by side in the Evaluations UI. The run summary prints a direct dashboard URL per evaluation.
 
-| Local source | Laminar trace fields |
+Each datapoint carries **grading verdicts, metrics, and artifact paths, not full content** (assistant text, prompts, and file contents are never exported). The mapping from the local artifacts:
+
+| Local source | Laminar datapoint fields |
 | --- | --- |
-| run id, iteration, skill name | trace/run grouping attributes |
-| case id, variant (`with_skill` / `without_skill`) | distinct trace per variant, sharing run/case identity |
-| `timing.json` | model/provider, token usage, estimated cost, duration |
-| `grading.json` summary | pass/fail counts and rate |
-| `tool-summary.json` | tool-call, tool-error, and MCP-tool counts |
-| the seven per-case artifact paths | links back to the canonical local files |
+| run id, iteration, skill name, variant | evaluation name + group; datapoint `data` |
+| case id, model | datapoint `data` (`case_id`, `provider/model`) |
+| `timing.json` | scores: `total_tokens`, `cost_usd`, `duration_ms`; token breakdown in metadata |
+| `grading.json` summary | scores: `pass_rate`, `passed`, `failed` |
+| `grading.json` assertion results | output: per-assertion text, pass/fail, short evidence quote |
+| `tool-summary.json` | score: `tool_calls`; error/MCP/file-touch counts in metadata |
+| the seven per-case artifact paths | output `artifacts` — links back to the canonical local files |
 
-Because `with_skill` and `without_skill` are distinguishable but share a run/case id, compare runs stay groupable in Laminar while the `benchmark.json` delta remains available locally.
+A `pass_rate` of `null` (a case with no gradable assertions) is omitted from scores rather than coerced to `0`, so it never reads as a failure.
 
-**When export fails:** Laminar errors are isolated — the run still completes, exits on assertion results as usual, and writes every local artifact. If a trace is missing from the dashboard, the local `evals-runs/<runId>/` tree is the authoritative copy; export failures surface in the run's reported sink results rather than aborting the run.
+**When export fails:** Laminar errors are isolated — the run still completes, exits on assertion results as usual, and writes every local artifact. If an evaluation is missing from the dashboard, the local `evals-runs/<runId>/` tree is the authoritative copy; export failures surface in the run's reported sink results rather than aborting the run.
 
 ## What's not yet in the artifact tree
 
