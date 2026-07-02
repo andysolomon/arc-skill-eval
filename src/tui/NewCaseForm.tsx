@@ -71,13 +71,20 @@ export function summarizeAssertion(assertion: AuthoredAssertion): string {
   }
 }
 
-type Mode = 'fields' | 'assertions' | 'pick-type' | 'edit';
+type Mode = 'fields' | 'assertions' | 'pick-type' | 'edit' | 'saved';
 
-export function NewCaseForm({ skillDir, skillName, onClose }: { skillDir: string; skillName: string; onClose: (msg?: string) => void }) {
+export function NewCaseForm({ skillDir, skillName, onClose, onDryRun }: {
+  skillDir: string;
+  skillName: string;
+  onClose: (msg?: string) => void;
+  /** Offered after a successful save: launch a run scoped to the new case. */
+  onDryRun?: (caseId: string, msg: string) => void;
+}) {
   const [mode, setMode] = useState<Mode>('fields');
   const [field, setField] = useState(0);
   const [vals, setVals] = useState(['', '', '']);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState<{ caseId: string; msg: string } | null>(null);
 
   const [assertions, setAssertions] = useState<AuthoredAssertion[]>([]);
   const [selected, setSelected] = useState(0);
@@ -92,11 +99,17 @@ export function NewCaseForm({ skillDir, skillName, onClose }: { skillDir: string
     setSaving(true);
     try {
       const res = await appendEvalCase({ skillDir, id: vals[0]!, prompt: vals[1]!, expected: vals[2]!, assertions });
-      onClose(
-        res.assertionCount > 0
-          ? `appended ${res.caseId} → evals.json (${res.total} cases, ${res.assertionCount} assertions)`
-          : `appended ${res.caseId} → evals.json (${res.total} cases) · edit for assertions`,
-      );
+      const msg = res.assertionCount > 0
+        ? `appended ${res.caseId} → evals.json (${res.total} cases, ${res.assertionCount} assertions)`
+        : `appended ${res.caseId} → evals.json (${res.total} cases) · edit for assertions`;
+      if (onDryRun) {
+        // Offer the arc-creating-evals Phase 5 dry-run while context is fresh.
+        setSaving(false);
+        setSaved({ caseId: res.caseId, msg });
+        setMode('saved');
+      } else {
+        onClose(msg);
+      }
     } catch (err) {
       onClose(`could not write evals.json: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -117,6 +130,12 @@ export function NewCaseForm({ skillDir, skillName, onClose }: { skillDir: string
 
   useInput((input, key) => {
     if (saving) return;
+    if (mode === 'saved') {
+      // The case is already on disk — every exit path reports the save.
+      if (input === 'r' && saved) { onDryRun?.(saved.caseId, saved.msg); return; }
+      if (key.return || key.escape) { onClose(saved?.msg); return; }
+      return;
+    }
     if (key.escape) {
       // Esc backs out one layer; from the top layers it cancels the form.
       if (mode === 'edit') { setEditError(null); setMode('pick-type'); return; }
@@ -231,6 +250,18 @@ export function NewCaseForm({ skillDir, skillName, onClose }: { skillDir: string
             ))}
           </Box>
           <Text color={COLORS.comment}><Text color={COLORS.yellow} bold>esc</Text> back</Text>
+        </>
+      )}
+
+      {mode === 'saved' && saved && (
+        <>
+          <Text color={COLORS.green} bold>✓ {saved.msg}</Text>
+          <Box height={1} />
+          <Text color={COLORS.comment}>Dry-run this case now to validate its assertions against a real run while the context is fresh (arc-creating-evals Phase 5).</Text>
+          <Box height={1} />
+          <Text color={COLORS.comment}>
+            <Text color={COLORS.yellow} bold>r</Text> dry-run {saved.caseId} · <Text color={COLORS.yellow} bold>enter</Text> close
+          </Text>
         </>
       )}
 

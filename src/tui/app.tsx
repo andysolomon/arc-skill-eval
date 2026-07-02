@@ -482,6 +482,12 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
       skillDir={sk.dir}
       skillName={sk.id}
       onClose={(msg) => { setCreating(false); if (msg) setFlash(msg); void onReload?.(sk.dir); }}
+      onDryRun={(caseId, msg) => {
+        // Reload so the fresh case is visible even if the run is aborted;
+        // the run-complete path reloads again with the new grading.
+        setCreating(false); setFlash(msg); void onReload?.(sk.dir);
+        runCtl.start({ skillDir: sk.dir, caseId, compare: false });
+      }}
     />
   );
 
