@@ -644,3 +644,31 @@ test("runEvalsCommand records per-case error without aborting the run", async ()
     await rm(repoRoot, { recursive: true, force: true });
   }
 });
+
+test("judge model defaults to the resolved runner model when --judge-model is absent", async () => {
+  const { repoRoot, skillDir } = await createSkillFixture({
+    skillName: "judge-default",
+    evals: [{ id: "j1", prompt: "Say hello.", assertions: ["The response contains 'hello'"] }],
+  });
+
+  try {
+    const result = await runEvalsCommand({
+      input: skillDir,
+      runId: "run-judge-default",
+      createSession: async ({ caseDefinition }) => ({
+        model: null,
+        session: createInjectedSession(caseDefinition.prompt),
+      }),
+      judge: STUB_JUDGE_PASS,
+      // No judgeModel: grading must record the model that ran the case
+      // (mock/mock-model from the injected session), not the built-in
+      // mistral last-resort default.
+    });
+
+    const [caseArt] = result.skills[0].cases;
+    const grading = JSON.parse(await readFile(caseArt.gradingPath, "utf8"));
+    assert.deepEqual(grading.judge_model, { provider: "mock", id: "mock-model" });
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});

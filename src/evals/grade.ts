@@ -53,7 +53,11 @@ export interface GradeEvalCaseOptions {
   workspaceDir: string;
   /** Final assistant text from the run — default target for `regex-match`. */
   assistantText: string;
-  /** Model to use for the LLM-judge. Defaults to `{ provider: "mistral", id: "ministral-8b-latest" }`. */
+  /**
+   * Model to use for the LLM-judge. The run command falls back to the
+   * resolved runner model when this is absent; {@link DEFAULT_JUDGE_MODEL}
+   * is the last resort.
+   */
   judgeModel?: ModelSelection;
   /** Eval-owned Pi agent directory for judge model registry/settings/auth. */
   agentDir?: string;
@@ -61,7 +65,12 @@ export interface GradeEvalCaseOptions {
   judge?: LlmJudgeFn;
 }
 
-/** Default judge model — chosen for low cost; callers can override. */
+/**
+ * Last-resort judge model, chosen for low cost. Only used when neither
+ * `--judge-model` nor a resolved runner model is available — it requires
+ * mistral credentials, which many environments do not have, so the run
+ * command prefers the runner's own (already-working) model.
+ */
 export const DEFAULT_JUDGE_MODEL: ModelSelection = {
   provider: "mistral",
   id: "ministral-8b-latest",
@@ -148,22 +157,24 @@ export async function gradeEvalCase(options: GradeEvalCaseOptions): Promise<Grad
 
 /**
  * Invokes the judge and normalizes its output into a per-assertion array
- * of length N. On throw, malformed shape, or length mismatch, every
- * assertion is marked failed with "Judge returned unparseable output".
- * Never throws.
+ * of length N. A judge that THROWS marks every assertion failed with the
+ * thrown message ("Judge error: ..."), so misconfiguration (e.g. an
+ * unauthenticated judge provider) is distinguishable from a judge that
+ * responded with malformed output. Never throws itself.
  */
 async function runJudgeSafely(
   judge: LlmJudgeFn,
   input: LlmJudgeInput,
 ): Promise<Array<{ passed: boolean; evidence: string }>> {
-  const fallback = () =>
-    input.assertions.map(() => ({ passed: false, evidence: JUDGE_MALFORMED_EVIDENCE }));
+  const fallback = (evidence: string = JUDGE_MALFORMED_EVIDENCE) =>
+    input.assertions.map(() => ({ passed: false, evidence }));
 
   let output: LlmJudgeOutput;
   try {
     output = await judge(input);
-  } catch {
-    return fallback();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return fallback(`Judge error: ${message}`);
   }
 
   if (!output || !Array.isArray(output.results) || output.results.length !== input.assertions.length) {
@@ -761,6 +772,16 @@ async function invokePiJudge(options: { model: ModelSelection; agentDir?: string
     } finally {
       unsubscribe();
       session.dispose();
+    }
+
+    if (assistantText.trim().length === 0) {
+      // A prompt that "succeeds" but streams no text is a provider-side
+      // failure (most commonly missing credentials for the judge model).
+      // Surfacing it here keeps it from being misreported as unparseable.
+      throw new Error(
+        `Judge model ${options.model.provider}/${options.model.id} returned no output — ` +
+          "check that the provider is authenticated, or pass --judge-model.",
+      );
     }
 
     return assistantText;
