@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildMain, skillRows } from '../dist/tui/view-model.js';
+import { buildMain, skillRows, isInfraEvidence } from '../dist/tui/view-model.js';
 import { COLORS } from '../dist/tui/theme.js';
 import { GLYPHS } from '../dist/tui/caps.js';
 
@@ -72,6 +72,44 @@ test('case overview colors wrapped failed and passing evidence appropriately', (
   for (const line of passingLines) {
     assert.ok(line.segs.every((seg) => seg.c === COLORS.comment), `expected passing evidence line to use comment color: ${lineText(line)}`);
   }
+});
+
+test('isInfraEvidence recognizes judge-side failure prefixes only', () => {
+  assert.equal(isInfraEvidence('Judge error: provider not authenticated'), true);
+  assert.equal(isInfraEvidence('Judge returned unparseable output'), true);
+  assert.equal(isInfraEvidence('The response never mentions the preset.'), false);
+  assert.equal(isInfraEvidence('A Judge error: mentioned mid-sentence'), false);
+});
+
+test('case overview distinguishes judge-infra evidence from real assertion failures', () => {
+  const infraEvidence = 'Judge error: Judge model mistral/ministral-8b-latest returned no output';
+  const realFailure = 'The response never names the conventionalcommits preset anywhere in its output text';
+  const cs = caseWithAssertions([
+    selectedAssertion({ passed: false, label: 'infra-failed assertion', evidence: infraEvidence }),
+    selectedAssertion({ passed: false, label: 'genuinely failed assertion', evidence: realFailure }),
+  ]);
+
+  const view = buildMain('cases', fakeSkill, cs, cs.assertions[0], undefined, 'overview', true);
+  assert.match(viewText(view), /judge infra/, 'infra tag should appear next to the judge-failed assertion');
+
+  const infraLines = view.lines.filter((line) => /Judge error/.test(lineText(line)));
+  const failLines = view.lines.filter((line) => /never names the conventionalcommits/.test(lineText(line)));
+  assert.ok(infraLines.length >= 1 && failLines.length >= 1);
+  for (const line of infraLines) {
+    assert.ok(line.segs.every((seg) => seg.c === COLORS.orange), `infra evidence should render orange: ${lineText(line)}`);
+  }
+  for (const line of failLines) {
+    assert.ok(line.segs.every((seg) => seg.c === COLORS.red), `real failure evidence stays red: ${lineText(line)}`);
+  }
+});
+
+test('assertion view flags judge-infra evidence with triage guidance', () => {
+  const a = selectedAssertion({ passed: false, evidence: 'Judge error: no output — check provider auth' });
+  const cs = caseWithAssertions([a]);
+  const view = buildMain('assertions', fakeSkill, cs, a, undefined, 'overview', true);
+  const text = viewText(view);
+  assert.match(text, /judge infrastructure, not the assertion/);
+  assert.match(text, /fix --judge-model \/ provider auth/);
 });
 
 const distractorSkill = {

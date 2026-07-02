@@ -163,6 +163,14 @@ export async function runInProcess(req: RunRequest, emit: (ev: RunEvent) => void
       }
     }
 
+    if (result.summary.totalCases === 0) {
+      // Discovery matched nothing (bad skill dir, stale --case id). Without
+      // this, the console reports "run complete, 0 passed" while the seeded
+      // rows sit queued forever — surface it as the failure it is.
+      emit({ type: 'error', message: `Run finished without executing any case${req.caseId ? ` (--case ${req.caseId})` : ''} — check the skill dir and case id.` });
+      return;
+    }
+
     emit({ type: 'done', passed: result.summary.passedCases, failed: result.summary.failedCases, durationMs: Date.now() - started, result });
   } catch (error) {
     emit({ type: 'error', message: error instanceof Error ? error.message : String(error) });

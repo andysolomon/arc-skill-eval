@@ -20,6 +20,16 @@ const blank = (): Line => ({ segs: [seg(' ', COLORS.fg)] });
 const typeColor = (a: Assertion): string => (a.det ? COLORS.cyan : COLORS.magenta);
 const typeTag = (a: Assertion): string => (a.det ? a.type : 'judge');
 
+/**
+ * Judge-side failure evidence — the judge infrastructure failed, not the
+ * assertion. Prefixes come from src/evals/grade.ts; per arc-creating-evals
+ * Phase 5 the fix is judge selection (--judge-model, provider auth), never
+ * the assertion text, so the UI renders these distinctly from real failures.
+ */
+export function isInfraEvidence(evidence: string): boolean {
+  return evidence.startsWith('Judge error:') || evidence.startsWith('Judge returned unparseable output');
+}
+
 function wrapColored(text: string, w: number, color: string, indent = '  '): Line[] {
   return wrap(text, w, indent).map((l) => ({ ...l, segs: l.segs.map((s) => ({ ...s, c: color })) }));
 }
@@ -190,10 +200,11 @@ function caseView(cs: Case, showWithout: boolean, wrapWidth: number): MainView {
   lines.push(sectionRow('GRADING', [cs.status === 'not-run' ? seg('not run', COLORS.comment) : seg(`${passN}/${cs.assertions.length} passed`, rateColor(passN, cs.assertions.length)), seg(`   pass_rate ${safeFrac(passN, cs.assertions.length).toFixed(2)}`, COLORS.comment)]));
   for (const a of cs.assertions) {
     const [g, gc] = statusGlyph(a.passed ? 'pass' : 'fail');
+    const infra = !a.passed && isInfraEvidence(a.evidence);
     anchors.push(lines.length); // cursor lands on the assertion header; index == assertion index
-    lines.push(row([seg('  ' + g + ' ', gc, true), seg(pad(typeTag(a), 11), typeColor(a))]));
+    lines.push(row([seg('  ' + g + ' ', gc, true), seg(pad(typeTag(a), 11), typeColor(a)), ...(infra ? [seg('  judge infra', COLORS.orange, true)] : [])]));
     lines.push(...wrapColored(a.label + (a.target ? '  ' + GLYPHS.arrowR + ' ' + a.target : ''), proseW, COLORS.fg, '      '));
-    lines.push(...wrapColored(a.evidence, proseW, a.passed ? COLORS.comment : COLORS.red, '      '));
+    lines.push(...wrapColored(a.evidence, proseW, a.passed ? COLORS.comment : infra ? COLORS.orange : COLORS.red, '      '));
   }
   lines.push(blank());
   lines.push(sectionRow('METRICS'));
@@ -249,20 +260,21 @@ function caseRawView(cs: Case): MainView {
 function assertionView(a: Assertion, wrapWidth: number): MainView {
   const recolor = (ls: Line[], c: string): Line[] => ls.map((l) => ({ ...l, segs: l.segs.map((s) => ({ ...s, c })) }));
   const proseW = Math.max(24, wrapWidth - 2);
+  const infra = !a.passed && isInfraEvidence(a.evidence);
   const lines: Line[] = [];
   const anchors: number[] = [];
   anchors.push(lines.length);
   lines.push(row([seg('type      ', COLORS.comment), seg(a.type, typeColor(a)), seg(a.det ? '   (deterministic)' : '   (LLM-judge)', COLORS.dim)]));
   lines.push(row([seg('target    ', COLORS.comment), seg(a.target || '—', COLORS.fgDark)]));
-  lines.push(row([seg('result    ', COLORS.comment), seg(a.passed ? '✓ passed' : '✗ failed', a.passed ? COLORS.green : COLORS.red, true)]));
+  lines.push(row([seg('result    ', COLORS.comment), seg(a.passed ? '✓ passed' : '✗ failed', a.passed ? COLORS.green : COLORS.red, true), ...(infra ? [seg('  (judge infrastructure, not the assertion)', COLORS.orange)] : [])]));
   lines.push(blank());
   anchors.push(lines.length);
   lines.push(sectionRow('CLAIM'));
   lines.push(...wrap(a.label, proseW));
   lines.push(blank());
   anchors.push(lines.length);
-  lines.push(sectionRow('EVIDENCE'));
-  lines.push(...recolor(wrap(a.evidence, proseW), a.passed ? COLORS.fgDark : COLORS.red));
+  lines.push(sectionRow('EVIDENCE', infra ? [seg('fix --judge-model / provider auth, not the assertion', COLORS.orange)] : []));
+  lines.push(...recolor(wrap(a.evidence, proseW), a.passed ? COLORS.fgDark : infra ? COLORS.orange : COLORS.red));
   lines.push(blank());
   anchors.push(lines.length);
   lines.push(sectionRow('SOURCE', [seg('evals.json', COLORS.dim)]));
