@@ -76,20 +76,6 @@ export interface LaminarTraceClient {
   exportCaseVariant(record: LaminarCaseVariantRecord): Promise<void>;
 }
 
-/**
- * Minimal local description of the optional `@lmnr-ai/lmnr` SDK surface we
- * touch. Declared locally so typecheck passes without the package installed.
- */
-interface LaminarModule {
-  Laminar: {
-    initialize(options: {
-      projectApiKey: string;
-      baseUrl?: string;
-      projectName?: string;
-    }): unknown;
-  };
-  observe?: unknown;
-}
 
 function mapPayloadToRecord(
   payload: ObservabilityCaseVariantPayload,
@@ -170,42 +156,65 @@ const MISSING_SDK_MESSAGE =
   "createLaminarSink(config, { client }).";
 
 /**
- * Lazily construct a real Laminar-backed client by dynamically importing the
- * optional `@lmnr-ai/lmnr` package. The import specifier is assigned to a
- * variable so the TypeScript compiler does not attempt module resolution at
- * build time (the package is an optional peer dependency).
+ * Lazily construct a real Laminar-backed client. The `@lmnr-ai/lmnr` SDK is
+ * an optional dependency imported on demand, so non-Laminar runs never load
+ * it and installs that skip optional deps still work (with a clear error).
  */
 async function createRealClient(
   config: LaminarSinkConfig,
 ): Promise<LaminarTraceClient> {
-  const specifier = "@lmnr-ai/lmnr";
-  let mod: LaminarModule;
+  let sdk: typeof import("@lmnr-ai/lmnr");
   try {
-    mod = (await import(specifier)) as unknown as LaminarModule;
+    sdk = await import("@lmnr-ai/lmnr");
   } catch {
     throw new Error(MISSING_SDK_MESSAGE);
   }
 
-  if (!mod?.Laminar || typeof mod.Laminar.initialize !== "function") {
-    throw new Error(MISSING_SDK_MESSAGE);
-  }
+  const { Laminar, LaminarAttributes, observe } = sdk;
 
-  mod.Laminar.initialize({
+  // `disableBatch` flushes each span synchronously — the right mode for a
+  // short-lived CLI where the process exits right after the run.
+  Laminar.initialize({
     projectApiKey: config.apiKey,
     baseUrl: config.baseUrl,
-    projectName: config.projectName,
+    disableBatch: true,
   });
 
   return {
     async exportCaseVariant(record: LaminarCaseVariantRecord): Promise<void> {
-      const observe = mod.observe as
-        | ((options: { name: string }, fn: () => void) => Promise<void> | void)
-        | undefined;
-      if (typeof observe === "function") {
-        await observe({ name: record.name }, () => {
-          /* span body intentionally empty: attributes carry the data */
-        });
-      }
+      // One root span per case-variant = one trace. Standard gen_ai metrics
+      // go in typed span attributes; the eval-specific metadata + artifact
+      // paths ride along as span metadata, and the variant/skill as tags so
+      // both variants stay grouped and filterable under the same run/case.
+      await observe(
+        {
+          name: record.name,
+          spanType: "EXECUTOR",
+          tags: [record.variant, record.skill_name],
+          metadata: {
+            ...record.attributes,
+            ...(config.projectName ? { "eval.project_name": config.projectName } : {}),
+            "eval.artifacts.assistant": record.artifact_paths.assistant,
+            "eval.artifacts.outputs": record.artifact_paths.outputs,
+            "eval.artifacts.grading": record.artifact_paths.grading,
+            "eval.artifacts.trace": record.artifact_paths.trace,
+          },
+        },
+        () => {
+          Laminar.setSpanAttributes({
+            [LaminarAttributes.PROVIDER]: record.model_provider ?? "",
+            [LaminarAttributes.REQUEST_MODEL]: record.model_id ?? "",
+            [LaminarAttributes.INPUT_TOKEN_COUNT]: record.input_tokens,
+            [LaminarAttributes.OUTPUT_TOKEN_COUNT]: record.output_tokens,
+            [LaminarAttributes.TOTAL_TOKEN_COUNT]: record.total_tokens,
+            [LaminarAttributes.TOTAL_COST]: record.estimated_cost_usd,
+          });
+          Laminar.setSpanTags([record.variant, record.skill_name]);
+        },
+      );
+
+      // CLI exits right after the run — force delivery before that happens.
+      await Laminar.flush();
     },
   };
 }
