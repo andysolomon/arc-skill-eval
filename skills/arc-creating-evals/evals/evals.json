@@ -1,0 +1,88 @@
+{
+  "version": "1",
+  "skill_name": "arc-creating-evals",
+  "evals": [
+    {
+      "id": "trigger-explicit-named",
+      "prompt": "Use the arc-creating-evals skill to add eval coverage for ./arc-demo-file-writer. I confirm the target skill summary in advance and approve proceeding through all phases without stopping for confirmation. Use outcome: evals/evals.json is created next to the target SKILL.md; process: include trigger, execution, and negative cases; style: Anthropic evals/evals.json shape; efficiency: keep the first suite small.",
+      "setup": {
+        "kind": "seeded",
+        "sources": [{ "from": "files/tiny-file-writer-skill", "to": "." }],
+        "mountMode": "flatten-contents"
+      },
+      "expected_output": "The assistant uses the arc-creating-evals workflow and creates ./arc-demo-file-writer/evals/evals.json for the fixture skill.",
+      "assertions": [
+        { "type": "file-exists", "path": "arc-demo-file-writer/evals/evals.json" },
+        { "type": "json-valid", "path": "arc-demo-file-writer/evals/evals.json" },
+        { "type": "regex-match", "pattern": "\\\"skill_name\\\"\\s*:\\s*\\\"arc-demo-file-writer\\\"", "target": { "file": "arc-demo-file-writer/evals/evals.json" } },
+        "The response states that it created an eval suite for arc-demo-file-writer and summarizes how to run it."
+      ]
+    },
+    {
+      "id": "trigger-implicit-add-coverage",
+      "prompt": "Add eval coverage to ./arc-demo-file-writer so I can prove this skill creates the summary file correctly. I confirm the behavior summary and success criteria up front; please proceed through all eval-authoring phases in one pass.",
+      "setup": {
+        "kind": "seeded",
+        "sources": [{ "from": "files/tiny-file-writer-skill", "to": "." }],
+        "mountMode": "flatten-contents"
+      },
+      "expected_output": "The assistant recognizes this as a skill-eval authoring task even though the user did not name arc-creating-evals, then writes a small eval suite for the fixture skill.",
+      "assertions": [
+        { "type": "file-exists", "path": "arc-demo-file-writer/evals/evals.json" },
+        { "type": "regex-match", "pattern": "trigger|explicit|implicit", "flags": "i", "target": { "file": "arc-demo-file-writer/evals/evals.json" } },
+        { "type": "regex-match", "pattern": "notes/summary\\.md", "target": { "file": "arc-demo-file-writer/evals/evals.json" } },
+        "The response describes at least one trigger case and one fixture-backed execution case."
+      ]
+    },
+    {
+      "id": "trigger-negative-unit-tests",
+      "prompt": "Write node:test unit tests for src/json-loader.mjs in this repository. Put them in tests/json-loader.test.mjs. Do not create skill evals or an evals/evals.json file.",
+      "setup": {
+        "kind": "seeded",
+        "sources": [{ "from": "files/unit-test-repo", "to": "." }],
+        "mountMode": "flatten-contents"
+      },
+      "expected_output": "The assistant treats this as a normal unit-test request, not as a skill-eval authoring task, and writes tests/json-loader.test.mjs.",
+      "assertions": [
+        { "type": "file-exists", "path": "tests/json-loader.test.mjs" },
+        { "type": "regex-match", "pattern": "loadJsonFile", "target": { "file": "tests/json-loader.test.mjs" } },
+        "The response does not propose creating a skill eval suite or an evals/evals.json file.",
+        "The response focuses on unit tests for the JSON loader rather than trigger, execution, or with-skill/without-skill skill evaluation cases."
+      ]
+    },
+    {
+      "id": "execution-golden-path-file-skill",
+      "prompt": "Create a complete arc-skill-eval suite for ./arc-demo-file-writer. I confirm all phases now: the desired outcome is a valid evals/evals.json plus minimal fixtures; process should include explicit trigger, implicit trigger, adjacent negative, and golden-path execution cases; style should use 2-space JSON and short evidence-requirable assertions; efficiency should keep the suite to 6-8 cases. Write the files now.",
+      "setup": {
+        "kind": "seeded",
+        "sources": [{ "from": "files/tiny-file-writer-skill", "to": "." }],
+        "mountMode": "flatten-contents"
+      },
+      "expected_output": "The assistant writes a valid eval suite with a minimal fixture for arc-demo-file-writer and includes deterministic assertions for notes/summary.md.",
+      "assertions": [
+        { "type": "file-exists", "path": "arc-demo-file-writer/evals/evals.json" },
+        { "type": "json-valid", "path": "arc-demo-file-writer/evals/evals.json" },
+        { "type": "regex-match", "pattern": "file-exists", "target": { "file": "arc-demo-file-writer/evals/evals.json" } },
+        { "type": "regex-match", "pattern": "notes/summary\\.md", "target": { "file": "arc-demo-file-writer/evals/evals.json" } },
+        "The generated suite includes a negative or adjacent case that should not invoke the full file-writing workflow.",
+        "The response includes the eval-authoring reminder that every manual fix is a signal for a future case."
+      ]
+    },
+    {
+      "id": "edge-external-api-live-smoke-deferred",
+      "prompt": "Create eval coverage for ./arc-demo-linear-export. I confirm the summary and success criteria: default evals must be offline and credential-free; any live Linear issue creation should be represented only as a deferred or opt-in live-smoke case. Proceed through all phases and write the eval files.",
+      "setup": {
+        "kind": "seeded",
+        "sources": [{ "from": "files/external-api-skill", "to": "." }],
+        "mountMode": "flatten-contents"
+      },
+      "expected_output": "The assistant creates an eval suite for the external-API skill that defaults to offline behavior and clearly separates or defers live Linear API smoke tests.",
+      "assertions": [
+        { "type": "file-exists", "path": "arc-demo-linear-export/evals/evals.json" },
+        { "type": "json-valid", "path": "arc-demo-linear-export/evals/evals.json" },
+        { "type": "regex-match", "pattern": "offline|credential-free|LINEAR_API_KEY|live-smoke", "flags": "i", "target": { "file": "arc-demo-linear-export/evals/evals.json" } },
+        "The response says that live Linear API calls should be deferred, tagged, or opt-in rather than part of the default eval run."
+      ]
+    }
+  ]
+}
