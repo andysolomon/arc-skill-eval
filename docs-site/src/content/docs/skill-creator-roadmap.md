@@ -69,16 +69,25 @@ arc-skill-eval improve --from-feedback ./skills/my-skill/evals-runs/<runId>/feed
 
 The first version is plan-first rather than auto-edit-first: it reads human notes and failing assertion summaries from `feedback.json`, then proposes prompt, assertion, fixture, and adjacent-negative improvements with rationale. No eval files change unless `--apply` writes validated improvement metadata to the matching `evals/evals.json`.
 
-### `optimize-description`
+### `optimize-description` ✅
 
 Generate trigger and non-trigger prompts, then evaluate candidate frontmatter descriptions with a train/test split:
 
 ```bash
+# 1. Generate a routing eval set, then review it by hand
 arc-skill-eval optimize-description ./skills/my-skill --generate-only
-arc-skill-eval optimize-description ./skills/my-skill --eval-set trigger-evals.json --max-iterations 5
+
+# 2. Score the current description (one no-tools routing probe per prompt)
+arc-skill-eval optimize-description ./skills/my-skill \
+  --eval-set ./skills/my-skill/evals/description-evals.json
+
+# 3. Optimize: propose from train failures, select by held-out test accuracy
+arc-skill-eval optimize-description ./skills/my-skill \
+  --eval-set ./skills/my-skill/evals/description-evals.json \
+  --max-iterations 5
 ```
 
-The command should apply the best description only with `--apply` or explicit confirmation.
+The first version generates should-trigger prompts (explicit and implicit) plus adjacent near-miss negatives with train/test split tags, and asks for human review before optimizing. Scoring presents the target description alongside real distractor skill frontmatter (sibling skills by default, `--distractor` to add more) with rotated option ordering, and reports per-prompt verdicts with separate train and held-out test accuracy. The optimizer proposes candidates from train-split failures only and selects the winner by test accuracy, so it cannot overfit the prompts it trains on; when nothing beats the current description on held-out prompts it says to keep it. `SKILL.md` changes only with `--apply`, which rewrites just the frontmatter description (block-scalar safe), verifies the file reads back cleanly, and restores the original otherwise.
 
 ### `package`
 
