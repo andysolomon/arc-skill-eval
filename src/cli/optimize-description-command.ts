@@ -314,6 +314,154 @@ export async function loadDistractorSkills(options: {
   return distractors;
 }
 
+// ---------------------------------------------------------------- optimization loop
+
+export interface ProposeDescriptionInput {
+  skillName: string;
+  currentDescription: string;
+  /** Train-split failures of the description being improved, with prompt text. */
+  failures: Array<{ prompt: string; expect: DescriptionEvalExpectation; got: string | null }>;
+  skillText: string;
+}
+
+export type DescriptionProposerFn = (input: ProposeDescriptionInput) => Promise<string>;
+
+export function buildProposeDescriptionPrompt(input: ProposeDescriptionInput): string {
+  return [
+    "You are improving an agent skill's frontmatter description so a routing gate sends the right requests to it.",
+    `Skill: ${input.skillName}`,
+    "Current description:",
+    `"""${input.currentDescription}"""`,
+    "",
+    "A routing gate evaluated realistic prompts against this description alongside competing skills. It misrouted these:",
+    ...input.failures.map((failure) =>
+      failure.expect === "trigger"
+        ? `- SHOULD trigger, but the gate chose ${failure.got ?? "nothing parseable"}: "${failure.prompt}"`
+        : `- should NOT trigger, but the gate chose ${input.skillName}: "${failure.prompt}"`,
+    ),
+    "",
+    "Rewrite the description so the should-trigger prompts route to this skill and the near-miss prompts do not.",
+    "Stay truthful to what the skill actually does (SKILL.md below). Include concrete trigger phrasings and, where useful, explicit do-not-trigger boundaries.",
+    "Return ONLY the new description text — one paragraph, no quotes, no markdown fences, no commentary.",
+    "",
+    "=== SKILL.md ===",
+    input.skillText,
+    "=== END SKILL.md ===",
+  ].join("\n");
+}
+
+/** Normalize a proposed description: strip fences/quotes, collapse whitespace. */
+export function parseProposedDescription(raw: string): string {
+  let text = raw.trim();
+  const fenceMatch = text.match(/^```[a-z]*\s*([\s\S]*?)\s*```$/);
+  if (fenceMatch) text = fenceMatch[1]!.trim();
+  text = text.replace(/^description\s*:\s*/i, "");
+  if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'"))) {
+    text = text.slice(1, -1);
+  }
+  return text.replace(/\s+/g, " ").trim();
+}
+
+export interface OptimizationIteration {
+  iteration: number;
+  description: string | null;   // null when the proposal was unusable
+  proposalError?: string;
+  train?: SplitScore;
+  /** Present only when the candidate beat the baseline on train (held-out evaluation earned). */
+  test?: SplitScore;
+}
+
+export interface OptimizeDescriptionRunReport {
+  baseline: { description: string; train: SplitScore; test: SplitScore };
+  iterations: OptimizationIteration[];
+  /** Best candidate by held-out test accuracy, only when it beats the baseline. */
+  winner: { iteration: number; description: string; train: SplitScore; test: SplitScore } | null;
+}
+
+function subsetEvalSet(evalSet: DescriptionEvalSet, split: DescriptionEvalSplit): DescriptionEvalSet {
+  return { ...evalSet, prompts: evalSet.prompts.filter((p) => p.split === split) };
+}
+
+function trainFailures(evalSet: DescriptionEvalSet, verdicts: RoutingVerdict[]): ProposeDescriptionInput["failures"] {
+  const byId = new Map(evalSet.prompts.map((p) => [p.id, p]));
+  return verdicts
+    .filter((v) => !v.correct)
+    .map((v) => ({ prompt: byId.get(v.id)?.prompt ?? v.id, expect: v.expect, got: v.got }));
+}
+
+/**
+ * Hill-climb the description: propose from the best-so-far candidate's
+ * train failures, evaluate on train, and spend a held-out test evaluation
+ * only on candidates that beat the baseline train accuracy.
+ */
+export async function optimizeDescription(options: {
+  skillName: string;
+  skillText: string;
+  currentDescription: string;
+  distractors: RoutingSkillOption[];
+  evalSet: DescriptionEvalSet;
+  maxIterations: number;
+  prober: RoutingProberFn;
+  proposer: DescriptionProposerFn;
+}): Promise<OptimizeDescriptionRunReport> {
+  const trainSet = subsetEvalSet(options.evalSet, "train");
+  const testSet = subsetEvalSet(options.evalSet, "test");
+  const scoreOn = async (description: string, set: DescriptionEvalSet) =>
+    scoreDescription({ skillName: options.skillName, description, distractors: options.distractors, evalSet: set, prober: options.prober });
+
+  const baselineTrain = await scoreOn(options.currentDescription, trainSet);
+  const baselineTest = await scoreOn(options.currentDescription, testSet);
+  const baseline = { description: options.currentDescription, train: baselineTrain.train, test: baselineTest.test };
+
+  const iterations: OptimizationIteration[] = [];
+  let best: { iteration: number; description: string; train: SplitScore; test: SplitScore } | null = null;
+  // Propose from the strongest description seen so far (by train accuracy).
+  let proposeFrom = { description: options.currentDescription, verdicts: baselineTrain.verdicts, trainAccuracy: baseline.train.accuracy };
+
+  for (let iteration = 1; iteration <= options.maxIterations; iteration++) {
+    if (proposeFrom.verdicts.every((v) => v.correct)) {
+      if (best) break; // train saturated and held-out already improved — done
+      // Overfit trap: perfect train, no held-out gain. Re-propose from the
+      // baseline's failures for diversity instead of giving up — unless the
+      // baseline itself has nothing left to learn from.
+      if (baselineTrain.verdicts.every((v) => v.correct)) break;
+      proposeFrom = { description: options.currentDescription, verdicts: baselineTrain.verdicts, trainAccuracy: baseline.train.accuracy };
+    }
+
+    let description: string;
+    try {
+      description = parseProposedDescription(await options.proposer({
+        skillName: options.skillName,
+        currentDescription: proposeFrom.description,
+        failures: trainFailures(options.evalSet, proposeFrom.verdicts),
+        skillText: options.skillText,
+      }));
+      if (description.length === 0) throw new CliCommandError("proposer returned an empty description");
+    } catch (error) {
+      iterations.push({ iteration, description: null, proposalError: error instanceof Error ? error.message : String(error) });
+      continue;
+    }
+
+    const candidateTrain = await scoreOn(description, trainSet);
+    const entry: OptimizationIteration = { iteration, description, train: candidateTrain.train };
+
+    if (candidateTrain.train.accuracy > baseline.train.accuracy) {
+      const candidateTest = await scoreOn(description, testSet);
+      entry.test = candidateTest.test;
+      if (candidateTest.test.accuracy > (best?.test.accuracy ?? baseline.test.accuracy)) {
+        best = { iteration, description, train: candidateTrain.train, test: candidateTest.test };
+      }
+    }
+    iterations.push(entry);
+
+    if (candidateTrain.train.accuracy > proposeFrom.trainAccuracy) {
+      proposeFrom = { description, verdicts: candidateTrain.verdicts, trainAccuracy: candidateTrain.train.accuracy };
+    }
+  }
+
+  return { baseline, iterations, winner: best };
+}
+
 // ---------------------------------------------------------------- command
 
 export interface OptimizeDescriptionCommandOptions {
@@ -332,6 +480,8 @@ export interface OptimizeDescriptionCommandOptions {
   generator?: TriggerSetGeneratorFn;
   /** Injectable routing prober (tests); defaults to a single Pi completion per prompt. */
   prober?: RoutingProberFn;
+  /** Injectable description proposer (tests); defaults to a single Pi completion per iteration. */
+  proposer?: DescriptionProposerFn;
 }
 
 export interface GenerateTriggerSetResult {
@@ -357,7 +507,20 @@ export interface ScoreDescriptionResult {
   totalCostUsd: number;
 }
 
-export type OptimizeDescriptionCommandResult = GenerateTriggerSetResult | ScoreDescriptionResult;
+export interface OptimizeDescriptionRunResult {
+  mode: "optimize";
+  skillDir: string;
+  skillName: string;
+  evalSetPath: string;
+  report: OptimizeDescriptionRunReport;
+  distractors: string[];
+  probeCount: number;
+  probeModel: string | null;
+  totalTokens: number;
+  totalCostUsd: number;
+}
+
+export type OptimizeDescriptionCommandResult = GenerateTriggerSetResult | ScoreDescriptionResult | OptimizeDescriptionRunResult;
 
 export async function optimizeDescriptionCommand(options: OptimizeDescriptionCommandOptions): Promise<OptimizeDescriptionCommandResult> {
   const skillDir = path.resolve(options.skillDir);
@@ -372,7 +535,7 @@ export async function optimizeDescriptionCommand(options: OptimizeDescriptionCom
   const frontmatter = parseSkillFrontmatter(skillText, skillDir);
 
   if (!options.generateOnly) {
-    return runScoreMode(options, { skillDir, frontmatter });
+    return runScoreMode(options, { skillDir, skillText, frontmatter });
   }
 
   const evalSetPath = path.resolve(options.output ?? path.join(skillDir, "evals", "description-evals.json"));
@@ -408,11 +571,8 @@ export async function optimizeDescriptionCommand(options: OptimizeDescriptionCom
 
 async function runScoreMode(
   options: OptimizeDescriptionCommandOptions,
-  context: { skillDir: string; frontmatter: SkillFrontmatter },
-): Promise<ScoreDescriptionResult> {
-  if (options.maxIterations !== undefined) {
-    throw new CliCommandError("--max-iterations (iterative optimization) arrives in the next slice (W-000037). Run without it to score the current description.");
-  }
+  context: { skillDir: string; skillText: string; frontmatter: SkillFrontmatter },
+): Promise<ScoreDescriptionResult | OptimizeDescriptionRunResult> {
   if (!options.evalSetPath) {
     throw new CliCommandError("Scoring requires --eval-set <path>. Generate one first with --generate-only.");
   }
@@ -456,26 +616,47 @@ async function runScoreMode(
     return prober(probePrompt);
   };
 
-  const score = await scoreDescription({
-    skillName: context.frontmatter.name,
-    description,
-    distractors,
-    evalSet,
-    prober: countingProber,
-  });
-
-  return {
-    mode: "score",
+  const meta = () => ({
     skillDir: context.skillDir,
     skillName: context.frontmatter.name,
     evalSetPath,
-    score,
     distractors: distractors.map((d) => d.name),
     probeCount,
     probeModel,
     totalTokens,
     totalCostUsd,
-  };
+  });
+
+  if (options.maxIterations === undefined) {
+    const score = await scoreDescription({
+      skillName: context.frontmatter.name,
+      description,
+      distractors,
+      evalSet,
+      prober: countingProber,
+    });
+    return { mode: "score", score, ...meta() };
+  }
+
+  const proposer: DescriptionProposerFn = options.proposer ?? (async (input) =>
+    invokePiCompletion({
+      prompt: buildProposeDescriptionPrompt(input),
+      purpose: "description proposal",
+      model: options.model,
+      agentDir: options.agentDir,
+    }));
+
+  const report = await optimizeDescription({
+    skillName: context.frontmatter.name,
+    skillText: context.skillText,
+    currentDescription: description,
+    distractors,
+    evalSet,
+    maxIterations: options.maxIterations,
+    prober: countingProber,
+    proposer,
+  });
+  return { mode: "optimize", report, ...meta() };
 }
 
 async function fileExists(file: string): Promise<boolean> {

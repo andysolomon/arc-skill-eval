@@ -268,10 +268,135 @@ test("score mode via the command validates eval-set/skill match and reports coun
   );
 });
 
-test("--max-iterations still reports itself as the next slice", async () => {
+
+// ---------------------------------------------------------------- W-000037 optimization loop
+
+const { optimizeDescription, buildProposeDescriptionPrompt, parseProposedDescription } =
+  await import("../dist/cli/optimize-description-command.js");
+
+// Prober keyed on the description under test: maps description → set of prompt
+// texts it routes to the target. Everything else routes to "none".
+function proberFor(routingTable) {
+  return async (probe) => {
+    const userPrompt = probe.split("\n").find((l) => l.startsWith("User request: ")).slice("User request: ".length);
+    const descLine = probe.split("\n").find((l) => l.includes("demo-router: ")).split("demo-router: ")[1];
+    const triggers = routingTable[descLine] ?? new Set();
+    return triggers.has(userPrompt) ? "demo-router" : "none";
+  };
+}
+
+const P = Object.fromEntries(validSet.prompts.map((p) => [p.id, p.prompt]));
+const BASE = "Routes demo requests to the right handler.";
+const OVERFIT = "overfit description";
+const GOOD = "generalizing description";
+
+test("optimizeDescription picks the winner by held-out test accuracy, not train", async () => {
+  // baseline: routes only explicit-1 (train 1/2: near-miss-1 ok via none; explicit ok; wait—)
+  const routingTable = {
+    // baseline: misses implicit-1 (test trigger) → train 2/2? explicit-1 ✓, near-miss-1 → none ✓ = train 2/2…
+    // We need baseline train imperfect so candidates can beat it:
+    // baseline routes nothing → explicit-1 ✗ (train), implicit-1 ✗ (test), near-misses ✓
+    [BASE]: new Set(),
+    // overfit: fixes explicit-1 (train 2/2) but still misses implicit-1 (test 1/2 → same as baseline)
+    [OVERFIT]: new Set([P["explicit-1"]]),
+    // good: fixes both triggers, no over-trigger (train 2/2, test 2/2)
+    [GOOD]: new Set([P["explicit-1"], P["implicit-1"]]),
+  };
+  const proposals = [OVERFIT, GOOD];
+  const report = await optimizeDescription({
+    skillName: "demo-router",
+    skillText: SKILL_MD,
+    currentDescription: BASE,
+    distractors: [],
+    evalSet: validSet,
+    maxIterations: 3,
+    prober: proberFor(routingTable),
+    proposer: async () => proposals.shift() ?? GOOD,
+  });
+
+  assert.deepEqual(report.baseline.train, { correct: 1, total: 2, accuracy: 0.5 });
+  assert.deepEqual(report.baseline.test, { correct: 1, total: 2, accuracy: 0.5 });
+  assert.equal(report.iterations.length, 2, "stops early once train is perfect");
+  assert.equal(report.iterations[0].test.accuracy, 0.5, "overfit candidate evaluated on test but does not win");
+  assert.equal(report.winner.description, GOOD);
+  assert.equal(report.winner.test.accuracy, 1);
+});
+
+test("optimizeDescription reports no winner when nothing beats baseline on held-out prompts", async () => {
+  const routingTable = {
+    [BASE]: new Set([P["explicit-1"]]),          // train 2/2? explicit ✓, near-miss-1 ✓ → 2/2 train, test: implicit ✗, near-miss-2 ✓ → 1/2
+  };
+  const report = await optimizeDescription({
+    skillName: "demo-router",
+    skillText: SKILL_MD,
+    currentDescription: BASE,
+    distractors: [],
+    evalSet: validSet,
+    maxIterations: 3,
+    prober: proberFor(routingTable),
+    proposer: async () => { throw new Error("should not be called when train is already perfect"); },
+  });
+  assert.equal(report.winner, null);
+  assert.equal(report.iterations.length, 0, "perfect train baseline short-circuits the loop");
+});
+
+test("a failed proposal records the error and the loop continues", async () => {
+  const routingTable = {
+    [BASE]: new Set(),
+    [GOOD]: new Set([P["explicit-1"], P["implicit-1"]]),
+  };
+  let calls = 0;
+  const report = await optimizeDescription({
+    skillName: "demo-router",
+    skillText: SKILL_MD,
+    currentDescription: BASE,
+    distractors: [],
+    evalSet: validSet,
+    maxIterations: 3,
+    prober: proberFor(routingTable),
+    proposer: async () => {
+      calls += 1;
+      if (calls === 1) throw new Error("model unavailable");
+      return GOOD;
+    },
+  });
+  assert.equal(report.iterations[0].description, null);
+  assert.match(report.iterations[0].proposalError, /model unavailable/);
+  assert.equal(report.winner.description, GOOD);
+});
+
+test("buildProposeDescriptionPrompt names both failure directions; parseProposedDescription normalizes", () => {
+  const prompt = buildProposeDescriptionPrompt({
+    skillName: "demo-router",
+    currentDescription: BASE,
+    failures: [
+      { prompt: "Send this along.", expect: "trigger", got: "none" },
+      { prompt: "Explain routing.", expect: "no-trigger", got: "demo-router" },
+    ],
+    skillText: SKILL_MD,
+  });
+  assert.match(prompt, /SHOULD trigger, but the gate chose none: "Send this along\."/);
+  assert.match(prompt, /should NOT trigger, but the gate chose demo-router: "Explain routing\."/);
+  assert.match(prompt, /Return ONLY the new description text/);
+
+  assert.equal(parseProposedDescription('```\n"Routes things."\n```'), "Routes things.");
+  assert.equal(parseProposedDescription("description: Routes\nthings   neatly."), "Routes things neatly.");
+});
+
+test("optimize mode via the command returns the report with probe accounting", async () => {
   const skillDir = await makeSkillDir();
-  await assert.rejects(
-    optimizeDescriptionCommand({ skillDir, evalSetPath: "x.json", maxIterations: 3 }),
-    /W-000037/,
-  );
+  await mkdir(path.join(skillDir, "evals"), { recursive: true });
+  const setPath = path.join(skillDir, "evals", "description-evals.json");
+  await writeFile(setPath, JSON.stringify(validSet, null, 2), "utf8");
+
+  const result = await optimizeDescriptionCommand({
+    skillDir,
+    evalSetPath: setPath,
+    maxIterations: 1,
+    prober: async () => "demo-router",   // routes everything to target: train 1/2, test 1/2
+    proposer: async () => "A different description.",
+  });
+  assert.equal(result.mode, "optimize");
+  assert.ok(result.probeCount >= 4, "baseline train+test probes counted");
+  assert.equal(result.report.winner, null, "candidate identical behavior cannot beat baseline");
 });
