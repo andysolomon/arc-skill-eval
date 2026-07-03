@@ -162,6 +162,27 @@ arc-skill-eval run ./skills/arc-conventional-commits \
 
 In compare mode, `with_skill` receives the target plus extras. `without_skill` receives only the extras. That isolates whether the target skill adds value in a realistic crowded context.
 
+## Optimize the description for routing accuracy
+
+Most skill failures we've measured are routing failures: the description either misses implicit phrasings it should catch or captures adjacent requests it shouldn't. `optimize-description` turns that into a measurable loop:
+
+```bash
+# Generate should-trigger + adjacent near-miss prompts, tagged train/test
+arc-skill-eval optimize-description ./skills/my-skill --generate-only
+
+# Review evals/description-evals.json by hand — the near-miss negatives are
+# the ones worth editing — then score the current description
+arc-skill-eval optimize-description ./skills/my-skill \
+  --eval-set ./skills/my-skill/evals/description-evals.json
+
+# Optimize with a held-out split; nothing touches SKILL.md without --apply
+arc-skill-eval optimize-description ./skills/my-skill \
+  --eval-set ./skills/my-skill/evals/description-evals.json \
+  --max-iterations 5
+```
+
+Every probe is a single no-tools completion that pits the description against real sibling-skill descriptions in rotated order — cheap enough to run ~100 probes for less than one agent-session eval case. Candidates are proposed from **train**-split failures and the winner is chosen by **held-out test** accuracy, so a description that merely memorizes the train prompts never wins. Apply the winner only after the report shows a held-out improvement, and re-run your regular eval suite afterwards — a description tuned for routing must not break execution behavior.
+
 ## Run the bundled dogfood suite
 
 `arc-creating-evals` — the bundled skill that teaches eval authoring — ships with its own eval suite at `skills/arc-creating-evals/evals/`, so the eval-creation skill is held to the standard it teaches. From the repo root:
