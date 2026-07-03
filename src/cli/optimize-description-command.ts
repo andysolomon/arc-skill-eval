@@ -10,8 +10,8 @@ import { readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { ModelSelection } from "../contracts/types.js";
-import { parseSkillFrontmatter } from "./create-command.js";
-import { extractJsonObject, invokePiCompletion } from "./pi-completion.js";
+import { parseSkillFrontmatter, type SkillFrontmatter } from "./create-command.js";
+import { extractJsonObject, invokePiCompletion, invokePiCompletionDetailed } from "./pi-completion.js";
 import { CliCommandError } from "./types.js";
 
 // ---------------------------------------------------------------- eval set
@@ -152,6 +152,168 @@ function parseGeneratedTriggerSet(rawResponse: string, skillName: string): Descr
   return validateDescriptionEvalSetValue(parsed, "trigger-set generator response");
 }
 
+// ---------------------------------------------------------------- scoring
+
+export interface RoutingSkillOption {
+  name: string;
+  description: string;
+}
+
+/**
+ * One no-tools routing probe: numbered skill options plus "none", answer with
+ * the exact name. The target's position rotates with promptIndex so a
+ * position-biased model cannot inflate the score.
+ */
+export function buildRoutingProbePrompt(options: {
+  userPrompt: string;
+  target: RoutingSkillOption;
+  distractors: RoutingSkillOption[];
+  promptIndex: number;
+}): string {
+  const slots = options.distractors.length + 1;
+  const targetSlot = ((options.promptIndex % slots) + slots) % slots;
+  const ordered: RoutingSkillOption[] = [...options.distractors];
+  ordered.splice(targetSlot, 0, options.target);
+
+  return [
+    "You are the routing gate for an AI agent. Skills are optional extensions; most requests need none of them.",
+    "Given the user request and the available skills, decide which single skill (if any) should handle the request.",
+    "Answer with ONLY the exact skill name, or the word none. No punctuation, no explanation.",
+    "",
+    "Available skills:",
+    ...ordered.map((skill, index) => `${index + 1}. ${skill.name}: ${skill.description}`),
+    "",
+    `User request: ${options.userPrompt}`,
+  ].join("\n");
+}
+
+/** Normalize a routing answer to a known skill name, "none", or null (unparseable). */
+export function parseRoutingAnswer(raw: string, skillNames: string[]): string | null {
+  const lines = raw.trim().split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
+  const candidate = (lines.at(-1) ?? "").toLowerCase().replace(/^[^a-z0-9]*|[^a-z0-9]*$/g, "").replace(/^(skill|answer)[:\s]+/i, "");
+  if (candidate === "none" || candidate === "no skill" || candidate === "n/a") return "none";
+  for (const name of skillNames) {
+    if (candidate === name.toLowerCase()) return name;
+  }
+  // Fall back to a whole-response scan for exactly one mentioned skill name.
+  const haystack = raw.toLowerCase();
+  const mentioned = skillNames.filter((name) => haystack.includes(name.toLowerCase()));
+  if (mentioned.length === 1) return mentioned[0]!;
+  if (mentioned.length === 0 && /\bnone\b/i.test(raw)) return "none";
+  return null;
+}
+
+export interface RoutingVerdict {
+  id: string;
+  split: DescriptionEvalSplit;
+  expect: DescriptionEvalExpectation;
+  /** Parsed model choice: a skill name, "none", or null when unparseable. */
+  got: string | null;
+  correct: boolean;
+}
+
+export interface SplitScore {
+  correct: number;
+  total: number;
+  accuracy: number;
+}
+
+export interface DescriptionScore {
+  description: string;
+  verdicts: RoutingVerdict[];
+  train: SplitScore;
+  test: SplitScore;
+}
+
+export type RoutingProberFn = (probePrompt: string) => Promise<string>;
+
+function splitScore(verdicts: RoutingVerdict[], split: DescriptionEvalSplit): SplitScore {
+  const inSplit = verdicts.filter((v) => v.split === split);
+  const correct = inSplit.filter((v) => v.correct).length;
+  return { correct, total: inSplit.length, accuracy: inSplit.length > 0 ? correct / inSplit.length : 0 };
+}
+
+/**
+ * Score one description against the eval set. A "trigger" prompt is correct
+ * when the model picks the target skill; a "no-trigger" prompt is correct
+ * when it picks anything else (a distractor or none).
+ */
+export async function scoreDescription(options: {
+  skillName: string;
+  description: string;
+  distractors: RoutingSkillOption[];
+  evalSet: DescriptionEvalSet;
+  prober: RoutingProberFn;
+}): Promise<DescriptionScore> {
+  const target: RoutingSkillOption = { name: options.skillName, description: options.description };
+  const skillNames = [options.skillName, ...options.distractors.map((d) => d.name)];
+  const verdicts: RoutingVerdict[] = [];
+
+  for (const [index, entry] of options.evalSet.prompts.entries()) {
+    const probe = buildRoutingProbePrompt({
+      userPrompt: entry.prompt,
+      target,
+      distractors: options.distractors,
+      promptIndex: index,
+    });
+    const answer = await options.prober(probe);
+    const got = parseRoutingAnswer(answer, skillNames);
+    const pickedTarget = got === options.skillName;
+    verdicts.push({
+      id: entry.id,
+      split: entry.split,
+      expect: entry.expect,
+      got,
+      correct: entry.expect === "trigger" ? pickedTarget : got !== null && !pickedTarget,
+    });
+  }
+
+  return {
+    description: options.description,
+    verdicts,
+    train: splitScore(verdicts, "train"),
+    test: splitScore(verdicts, "test"),
+  };
+}
+
+/** Load distractor skill frontmatter from sibling skill dirs (deterministic order, capped). */
+export async function loadDistractorSkills(options: {
+  skillDir: string;
+  targetName: string;
+  explicitDirs?: string[];
+  cap?: number;
+}): Promise<RoutingSkillOption[]> {
+  const { readdir } = await import("node:fs/promises");
+  const cap = options.cap ?? 5;
+  const targetDir = path.resolve(options.skillDir);
+  const candidateDirs: string[] = [...(options.explicitDirs ?? []).map((dir) => path.resolve(dir))];
+
+  const parent = path.dirname(targetDir);
+  try {
+    const entries = await readdir(parent, { withFileTypes: true });
+    for (const entry of entries.filter((e) => e.isDirectory()).sort((a, b) => a.name.localeCompare(b.name))) {
+      const dir = path.join(parent, entry.name);
+      if (dir !== targetDir && !candidateDirs.includes(dir)) candidateDirs.push(dir);
+    }
+  } catch {
+    // No sibling directory to scan — explicit distractors (if any) still apply.
+  }
+
+  const distractors: RoutingSkillOption[] = [];
+  for (const dir of candidateDirs) {
+    if (distractors.length >= cap) break;
+    try {
+      const skillText = await readFile(path.join(dir, "SKILL.md"), "utf8");
+      const frontmatter = parseSkillFrontmatter(skillText, dir);
+      if (frontmatter.name === options.targetName || !frontmatter.description) continue;
+      distractors.push({ name: frontmatter.name, description: frontmatter.description });
+    } catch {
+      continue; // not a skill dir
+    }
+  }
+  return distractors;
+}
+
 // ---------------------------------------------------------------- command
 
 export interface OptimizeDescriptionCommandOptions {
@@ -164,8 +326,12 @@ export interface OptimizeDescriptionCommandOptions {
   model?: ModelSelection;
   agentDir?: string;
   maxIterations?: number;
+  /** Explicit distractor skill dirs (repeatable --distractor). */
+  distractorDirs?: string[];
   /** Injectable generator (tests); defaults to a single Pi completion. */
   generator?: TriggerSetGeneratorFn;
+  /** Injectable routing prober (tests); defaults to a single Pi completion per prompt. */
+  prober?: RoutingProberFn;
 }
 
 export interface GenerateTriggerSetResult {
@@ -178,17 +344,24 @@ export interface GenerateTriggerSetResult {
   testCount: number;
 }
 
-export type OptimizeDescriptionCommandResult = GenerateTriggerSetResult;
+export interface ScoreDescriptionResult {
+  mode: "score";
+  skillDir: string;
+  skillName: string;
+  evalSetPath: string;
+  score: DescriptionScore;
+  distractors: string[];
+  probeCount: number;
+  probeModel: string | null;
+  totalTokens: number;
+  totalCostUsd: number;
+}
+
+export type OptimizeDescriptionCommandResult = GenerateTriggerSetResult | ScoreDescriptionResult;
 
 export async function optimizeDescriptionCommand(options: OptimizeDescriptionCommandOptions): Promise<OptimizeDescriptionCommandResult> {
   const skillDir = path.resolve(options.skillDir);
   const skillPath = path.join(skillDir, "SKILL.md");
-
-  if (!options.generateOnly) {
-    throw new CliCommandError(
-      "Scoring and optimization arrive in the next slices (W-000036/W-000037). For now run with --generate-only to produce a routing eval set.",
-    );
-  }
 
   let skillText: string;
   try {
@@ -197,6 +370,10 @@ export async function optimizeDescriptionCommand(options: OptimizeDescriptionCom
     throw new CliCommandError(`Could not read SKILL.md at ${skillPath}: ${error instanceof Error ? error.message : String(error)}`);
   }
   const frontmatter = parseSkillFrontmatter(skillText, skillDir);
+
+  if (!options.generateOnly) {
+    return runScoreMode(options, { skillDir, frontmatter });
+  }
 
   const evalSetPath = path.resolve(options.output ?? path.join(skillDir, "evals", "description-evals.json"));
   if (!options.force && await fileExists(evalSetPath)) {
@@ -226,6 +403,78 @@ export async function optimizeDescriptionCommand(options: OptimizeDescriptionCom
     noTriggerCount: evalSet.prompts.filter((p) => p.expect === "no-trigger").length,
     trainCount: evalSet.prompts.filter((p) => p.split === "train").length,
     testCount: evalSet.prompts.filter((p) => p.split === "test").length,
+  };
+}
+
+async function runScoreMode(
+  options: OptimizeDescriptionCommandOptions,
+  context: { skillDir: string; frontmatter: SkillFrontmatter },
+): Promise<ScoreDescriptionResult> {
+  if (options.maxIterations !== undefined) {
+    throw new CliCommandError("--max-iterations (iterative optimization) arrives in the next slice (W-000037). Run without it to score the current description.");
+  }
+  if (!options.evalSetPath) {
+    throw new CliCommandError("Scoring requires --eval-set <path>. Generate one first with --generate-only.");
+  }
+  const description = context.frontmatter.description;
+  if (!description) {
+    throw new CliCommandError(`SKILL.md at ${context.skillDir} has no frontmatter description to score.`);
+  }
+
+  const evalSetPath = path.resolve(options.evalSetPath);
+  const evalSet = await readDescriptionEvalSet(evalSetPath);
+  if (evalSet.skill_name !== context.frontmatter.name) {
+    throw new CliCommandError(
+      `Eval set ${evalSetPath} is for skill "${evalSet.skill_name}" but the target skill is "${context.frontmatter.name}".`,
+    );
+  }
+
+  const distractors = await loadDistractorSkills({
+    skillDir: context.skillDir,
+    targetName: context.frontmatter.name,
+    explicitDirs: options.distractorDirs,
+  });
+
+  let probeCount = 0;
+  let totalTokens = 0;
+  let totalCostUsd = 0;
+  let probeModel: string | null = null;
+  const prober: RoutingProberFn = options.prober ?? (async (probePrompt) => {
+    const result = await invokePiCompletionDetailed({
+      prompt: probePrompt,
+      purpose: "routing probe",
+      model: options.model,
+      agentDir: options.agentDir,
+    });
+    probeModel = `${result.model.provider}/${result.model.id}`;
+    totalTokens += result.usage.inputTokens + result.usage.outputTokens;
+    totalCostUsd += result.usage.costUsd;
+    return result.text;
+  });
+  const countingProber: RoutingProberFn = async (probePrompt) => {
+    probeCount += 1;
+    return prober(probePrompt);
+  };
+
+  const score = await scoreDescription({
+    skillName: context.frontmatter.name,
+    description,
+    distractors,
+    evalSet,
+    prober: countingProber,
+  });
+
+  return {
+    mode: "score",
+    skillDir: context.skillDir,
+    skillName: context.frontmatter.name,
+    evalSetPath,
+    score,
+    distractors: distractors.map((d) => d.name),
+    probeCount,
+    probeModel,
+    totalTokens,
+    totalCostUsd,
   };
 }
 

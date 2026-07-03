@@ -72,7 +72,7 @@ export function renderHelp(): string {
     "  arc-skill-eval create <skill-dir> [--guided] [--interactive] [--model <provider/model[:thinking]>] [--agent-dir <path>] [--authoring-skill <path>] [--dry-run] [--summary] [--force]",
     "  arc-skill-eval browse [<skill-dir-or-repo>] [--no-baseline]",
     "  arc-skill-eval audit <skill-dir-or-repo> [--json] [--output <path>]",
-    "  arc-skill-eval optimize-description <skill-dir> --generate-only [--output <path>] [--model <provider/model[:thinking]>] [--agent-dir <path>] [--force]",
+    "  arc-skill-eval optimize-description <skill-dir> (--generate-only [--output <path>] [--force] | --eval-set <path> [--distractor <skill-dir>]...) [--model <provider/model[:thinking]>] [--agent-dir <path>]",
     "",
     "Notes:",
     "  - <skill-dir-or-repo> is either a skill directory containing evals/evals.json,",
@@ -94,7 +94,8 @@ export function renderHelp(): string {
     "  - browse opens an interactive terminal run browser (Ink TUI) over the artifacts under evals-runs/; defaults to the current directory.",
     "  - browse --no-baseline hides the without_skill comparison rows in the detail pane.",
     "  - audit performs deterministic skill-quality checks: frontmatter, sprawl, eval coverage, local links, and duplicate families.",
-    "  - optimize-description --generate-only asks a configured model for should-trigger and adjacent should-not-trigger routing prompts, writes <skillDir>/evals/description-evals.json with train/test split tags, and asks you to review it; scoring and iterative optimization build on the reviewed set.",
+    "  - optimize-description --generate-only asks a configured model for should-trigger and adjacent should-not-trigger routing prompts, writes <skillDir>/evals/description-evals.json with train/test split tags, and asks you to review it.",
+    "  - optimize-description --eval-set scores the skill's current frontmatter description: one no-tools routing probe per prompt (target + sibling/--distractor skill descriptions, rotated ordering), reporting per-prompt verdicts and train/test accuracy.",
     "  - Format reference: https://platform.claude.com/docs/en/agents-and-tools/agent-skills",
   ].join("\n");
 }
@@ -496,12 +497,20 @@ function parseOptimizeDescriptionCommandArgs(args: string[]) {
   let model: ModelSelection | undefined;
   let agentDir: string | undefined;
   let maxIterations: number | undefined;
+  const distractorDirs: string[] = [];
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
 
     if (arg === "--generate-only") {
       generateOnly = true;
+      continue;
+    }
+
+    if (arg === "--distractor" || arg.startsWith("--distractor=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      distractorDirs.push(parsed.value);
+      index += parsed.consumedNext ? 1 : 0;
       continue;
     }
 
@@ -572,6 +581,7 @@ function parseOptimizeDescriptionCommandArgs(args: string[]) {
     output,
     force,
     maxIterations,
+    distractorDirs,
     ...(model ? { model } : {}),
     ...(agentDir ? { agentDir } : {}),
   };

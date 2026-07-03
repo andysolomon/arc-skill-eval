@@ -65,6 +65,7 @@ export interface OptimizeDescriptionCliOptions {
   model?: ModelSelection;
   agentDir?: string;
   maxIterations?: number;
+  distractorDirs?: string[];
 }
 
 export interface AuditCliOptions {

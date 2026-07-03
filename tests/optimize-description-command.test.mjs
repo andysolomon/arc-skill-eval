@@ -137,10 +137,141 @@ test("argv: optimize-description parses flags and enforces the mode requirement"
   assert.equal(withSet.maxIterations, 5);
 });
 
-test("scoring path reports itself as a later slice for now", async () => {
+test("scoring with a missing eval set fails with a readable error", async () => {
   const skillDir = await makeSkillDir();
   await assert.rejects(
-    optimizeDescriptionCommand({ skillDir, evalSetPath: "whatever.json" }),
-    /next slices .*--generate-only/s,
+    optimizeDescriptionCommand({ skillDir, evalSetPath: path.join(skillDir, "missing.json") }),
+    /Could not read eval set at .*missing\.json/,
+  );
+});
+
+// ---------------------------------------------------------------- W-000036 scoring
+
+const { buildRoutingProbePrompt, parseRoutingAnswer, scoreDescription, loadDistractorSkills } =
+  await import("../dist/cli/optimize-description-command.js");
+
+const DISTRACTORS = [
+  { name: "alpha-planner", description: "Plans work items." },
+  { name: "beta-writer", description: "Writes long-form docs." },
+];
+
+test("buildRoutingProbePrompt rotates the target position and lists every option once", () => {
+  const target = { name: "demo-router", description: "Routes demo requests." };
+  const positions = new Set();
+  for (let i = 0; i < 3; i++) {
+    const probe = buildRoutingProbePrompt({ userPrompt: "Route this.", target, distractors: DISTRACTORS, promptIndex: i });
+    for (const skill of [target, ...DISTRACTORS]) {
+      const occurrences = probe.split(`${skill.name}: `).length - 1;
+      assert.equal(occurrences, 1, `${skill.name} listed exactly once`);
+    }
+    positions.add(probe.split("\n").findIndex((line) => line.includes("demo-router: ")));
+    assert.match(probe, /User request: Route this\./);
+  }
+  assert.ok(positions.size > 1, "target should not sit in a fixed slot");
+});
+
+test("parseRoutingAnswer normalizes names, none, and noisy answers", () => {
+  const names = ["demo-router", "alpha-planner"];
+  assert.equal(parseRoutingAnswer("demo-router", names), "demo-router");
+  assert.equal(parseRoutingAnswer("  Demo-Router.  ", names), "demo-router");
+  assert.equal(parseRoutingAnswer("Answer: alpha-planner", names), "alpha-planner");
+  assert.equal(parseRoutingAnswer("none", names), "none");
+  assert.equal(parseRoutingAnswer("None of these apply.", names), "none");
+  assert.equal(parseRoutingAnswer("I would pick demo-router for this.", names), "demo-router");
+  assert.equal(parseRoutingAnswer("either demo-router or alpha-planner", names), null);
+});
+
+test("scoreDescription computes split accuracy with the no-trigger rule", async () => {
+  // Scripted prober: trigger prompts route to the target; near-miss-1 wrongly
+  // routes to the target (a real failure); near-miss-2 picks a distractor (fine).
+  const byPrompt = {
+    "Use demo-router for this.": "demo-router",
+    "Send this request to the right handler.": "demo-router",
+    "Explain how HTTP routing works in general.": "demo-router",
+    "Review my nginx config.": "alpha-planner",
+  };
+  const prober = async (probe) => {
+    const line = probe.split("\n").find((l) => l.startsWith("User request: "));
+    return byPrompt[line.slice("User request: ".length)];
+  };
+
+  const score = await scoreDescription({
+    skillName: "demo-router",
+    description: "Routes demo requests.",
+    distractors: DISTRACTORS,
+    evalSet: validSet,
+    prober,
+  });
+
+  // train: explicit-1 ✓, near-miss-1 ✗ → 1/2. test: implicit-1 ✓, near-miss-2 ✓ → 2/2.
+  assert.deepEqual(score.train, { correct: 1, total: 2, accuracy: 0.5 });
+  assert.deepEqual(score.test, { correct: 2, total: 2, accuracy: 1 });
+  const nearMiss1 = score.verdicts.find((v) => v.id === "near-miss-1");
+  assert.equal(nearMiss1.correct, false);
+  assert.equal(nearMiss1.got, "demo-router");
+  const nearMiss2 = score.verdicts.find((v) => v.id === "near-miss-2");
+  assert.equal(nearMiss2.correct, true, "routing a no-trigger prompt to a distractor counts as correct");
+});
+
+test("an unparseable probe answer counts as incorrect for both expectations", async () => {
+  const prober = async () => "I cannot decide between these excellent options";
+  const score = await scoreDescription({
+    skillName: "demo-router",
+    description: "Routes demo requests.",
+    distractors: DISTRACTORS,
+    evalSet: validSet,
+    prober,
+  });
+  assert.ok(score.verdicts.every((v) => v.got === null && v.correct === false));
+});
+
+test("loadDistractorSkills reads sibling frontmatter, honors explicit dirs, and skips the target", async () => {
+  const parent = await mkdtemp(path.join(tmpdir(), "arc-optdesc-siblings-"));
+  const mk = async (name, description) => {
+    const dir = path.join(parent, name);
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, "SKILL.md"), `---\nname: ${name}\ndescription: ${description}\n---\n`, "utf8");
+    return dir;
+  };
+  const targetDir = await mk("demo-router", "Routes demo requests.");
+  await mk("alpha-planner", "Plans work items.");
+  await mk("beta-writer", "Writes long-form docs.");
+  await mkdir(path.join(parent, "not-a-skill"), { recursive: true });
+
+  const explicitDir = await mkdtemp(path.join(tmpdir(), "arc-optdesc-explicit-"));
+  await writeFile(path.join(explicitDir, "SKILL.md"), "---\nname: gamma-deployer\ndescription: Deploys things.\n---\n", "utf8");
+
+  const distractors = await loadDistractorSkills({ skillDir: targetDir, targetName: "demo-router", explicitDirs: [explicitDir] });
+  assert.deepEqual(distractors.map((d) => d.name), ["gamma-deployer", "alpha-planner", "beta-writer"], "explicit first, then sorted siblings, no target");
+});
+
+test("score mode via the command validates eval-set/skill match and reports counts", async () => {
+  const skillDir = await makeSkillDir();
+  await mkdir(path.join(skillDir, "evals"), { recursive: true });
+  const setPath = path.join(skillDir, "evals", "description-evals.json");
+  await writeFile(setPath, JSON.stringify(validSet, null, 2), "utf8");
+
+  const result = await optimizeDescriptionCommand({
+    skillDir,
+    evalSetPath: setPath,
+    prober: async () => "demo-router",
+  });
+  assert.equal(result.mode, "score");
+  assert.equal(result.probeCount, 4);
+  assert.equal(result.score.train.total, 2);
+
+  const mismatched = { ...structuredClone(validSet), skill_name: "other-skill" };
+  await writeFile(setPath, JSON.stringify(mismatched), "utf8");
+  await assert.rejects(
+    optimizeDescriptionCommand({ skillDir, evalSetPath: setPath, prober: async () => "none" }),
+    /is for skill "other-skill" but the target skill is "demo-router"/,
+  );
+});
+
+test("--max-iterations still reports itself as the next slice", async () => {
+  const skillDir = await makeSkillDir();
+  await assert.rejects(
+    optimizeDescriptionCommand({ skillDir, evalSetPath: "x.json", maxIterations: 3 }),
+    /W-000037/,
   );
 });
