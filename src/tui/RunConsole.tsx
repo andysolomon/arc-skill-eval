@@ -32,7 +32,7 @@ function reducer(state: RunState, ev: RunEvent | { type: 'reset' }): RunState {
     case 'init': return { ...initialRun, active: true, skill: ev.skill, compare: ev.compare, extraArgs: ev.extraArgs, cases: ev.cases };
     case 'case-start': return { ...state, cases: state.cases.map((c) => (c.id === ev.id ? { ...c, phase: 'running' } : c)) };
     case 'case-progress': return { ...state, cases: state.cases.map((c) => (c.id === ev.id ? { ...c, assertPass: ev.assertPass } : c)) };
-    case 'case-done': return { ...state, cases: state.cases.map((c) => (c.id === ev.id ? { ...c, phase: ev.phase, assertPass: ev.assertPass, assertTotal: ev.assertTotal || c.assertTotal, message: ev.message } : c)) };
+    case 'case-done': return { ...state, cases: state.cases.map((c) => (c.id === ev.id ? { ...c, phase: ev.phase, assertPass: ev.assertPass, assertTotal: ev.assertTotal || c.assertTotal, message: ev.message, errored: ev.errored } : c)) };
     case 'done': return { ...state, done: true, passed: ev.passed, failed: ev.failed };
     case 'error': return { ...state, done: true, error: ev.message };
     default: return state;
@@ -69,6 +69,9 @@ export function RunConsole({ state, elapsed, frame }: { state: RunState; elapsed
   const spinner = GLYPHS.spinner[frame % GLYPHS.spinner.length] ?? '.';
   const t = elapsed.toFixed(1) + 's';
   const doneN = state.cases.filter((c) => c.phase === 'pass' || c.phase === 'fail').length;
+  // Display-only: the run summary's pass/fail math is untouched; errored cases
+  // are counted from the rows so the header can call them out separately.
+  const erroredN = state.cases.filter((c) => c.errored).length;
 
   return (
     <Box flexDirection="column" borderStyle="round" borderColor={state.done ? (state.failed ? COLORS.red : COLORS.green) : COLORS.border} paddingX={2} paddingY={1} width={64}>
@@ -79,6 +82,7 @@ export function RunConsole({ state, elapsed, frame }: { state: RunState; elapsed
           <Text bold>{'  run complete   '}</Text>
           <Text color={COLORS.green}>{state.passed + ' passed'}</Text>
           {state.failed ? <Text color={COLORS.red}>{'  ' + state.failed + ' failed'}</Text> : null}
+          {erroredN ? <Text color={COLORS.orange}>{'  ' + erroredN + ' errored'}</Text> : null}
           <Text color={COLORS.comment}>{'   ' + t}</Text>
         </Text>
       ) : (
@@ -94,6 +98,20 @@ export function RunConsole({ state, elapsed, frame }: { state: RunState; elapsed
 
       {/* per-case rows */}
       {state.cases.map((c) => {
+        if (c.errored) {
+          // Errored cases never ran their assertions — a red 0/0 fail bar would
+          // read as "all assertions failed", so render a distinct error row.
+          return (
+            <Box key={c.id} flexDirection="column">
+              <Text>
+                <Text color={COLORS.orange} bold>{' !  '}</Text>
+                <Text color={COLORS.fg}>{c.id.padEnd(28)}</Text>
+                <Text color={COLORS.orange}>{'error'}</Text>
+              </Text>
+              {c.message ? <Text color={COLORS.dim} wrap="truncate">{'    ' + c.message}</Text> : null}
+            </Box>
+          );
+        }
         const g = c.phase === 'pass' ? GLYPHS.pass : c.phase === 'fail' ? GLYPHS.fail : c.phase === 'running' ? spinner : GLYPHS.bullet;
         const gc = c.phase === 'pass' ? COLORS.green : c.phase === 'fail' ? COLORS.red : c.phase === 'running' ? COLORS.cyan : COLORS.dim;
         return (
