@@ -462,6 +462,62 @@ export async function optimizeDescription(options: {
   return { baseline, iterations, winner: best };
 }
 
+// ---------------------------------------------------------------- apply
+
+function wrapWords(text: string, width: number): string[] {
+  const words = text.split(" ");
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    if (current.length > 0 && current.length + 1 + word.length > width) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = current.length > 0 ? `${current} ${word}` : word;
+    }
+  }
+  if (current.length > 0) lines.push(current);
+  return lines;
+}
+
+/**
+ * Replace the frontmatter `description` in a SKILL.md, preserving every other
+ * byte. Handles plain scalars, quoted scalars, and `description: >`/`|` block
+ * scalars (the style bundled skills use). The new value is always written as
+ * a block scalar so long descriptions stay readable. Returns null when the
+ * document cannot be rewritten with confidence (no frontmatter, no
+ * description key, or an empty replacement) — callers must refuse, not guess.
+ */
+export function replaceFrontmatterDescription(skillText: string, newDescription: string): string | null {
+  const description = newDescription.replace(/\s+/g, " ").trim();
+  if (description.length === 0) return null;
+
+  const match = skillText.match(/^(---\r?\n)([\s\S]*?)(\r?\n---)/);
+  if (!match) return null;
+  const head = match[1]!;
+  const body = match[2]!;
+  const tail = skillText.slice(head.length + body.length); // starts with \n---
+
+  const lines = body.split(/\r?\n/);
+  let start = -1;
+  let end = -1;
+  for (let index = 0; index < lines.length; index++) {
+    if (!/^description\s*:/.test(lines[index]!)) continue;
+    start = index;
+    end = index + 1;
+    if (/^description\s*:\s*[>|][+-]?\s*$/.test(lines[index]!)) {
+      while (end < lines.length && (lines[end]!.trim() === "" || /^\s+\S/.test(lines[end]!))) end++;
+      while (end > start + 1 && lines[end - 1]!.trim() === "") end--; // keep trailing blanks out of the block
+    }
+    break;
+  }
+  if (start < 0) return null;
+
+  const replacement = ["description: >", ...wrapWords(description, 96).map((line) => `  ${line}`)];
+  const newBody = [...lines.slice(0, start), ...replacement, ...lines.slice(end)].join("\n");
+  return head + newBody + tail;
+}
+
 // ---------------------------------------------------------------- command
 
 export interface OptimizeDescriptionCommandOptions {
@@ -476,6 +532,8 @@ export interface OptimizeDescriptionCommandOptions {
   maxIterations?: number;
   /** Explicit distractor skill dirs (repeatable --distractor). */
   distractorDirs?: string[];
+  /** Write the optimization winner's description into SKILL.md (W-000038). */
+  apply?: boolean;
   /** Injectable generator (tests); defaults to a single Pi completion. */
   generator?: TriggerSetGeneratorFn;
   /** Injectable routing prober (tests); defaults to a single Pi completion per prompt. */
@@ -518,6 +576,9 @@ export interface OptimizeDescriptionRunResult {
   probeModel: string | null;
   totalTokens: number;
   totalCostUsd: number;
+  /** True when --apply wrote the winner into SKILL.md. */
+  applied: boolean;
+  skillPath: string;
 }
 
 export type OptimizeDescriptionCommandResult = GenerateTriggerSetResult | ScoreDescriptionResult | OptimizeDescriptionRunResult;
@@ -656,7 +717,43 @@ async function runScoreMode(
     prober: countingProber,
     proposer,
   });
-  return { mode: "optimize", report, ...meta() };
+
+  const skillPath = path.join(context.skillDir, "SKILL.md");
+  let applied = false;
+  if (options.apply && report.winner) {
+    await applyWinningDescription({
+      skillPath,
+      skillDir: context.skillDir,
+      originalText: context.skillText,
+      newDescription: report.winner.description,
+    });
+    applied = true;
+  }
+  return { mode: "optimize", report, applied, skillPath, ...meta() };
+}
+
+/** Write the winner into SKILL.md and verify it reads back; restore on failure. */
+async function applyWinningDescription(options: {
+  skillPath: string;
+  skillDir: string;
+  originalText: string;
+  newDescription: string;
+}): Promise<void> {
+  const updated = replaceFrontmatterDescription(options.originalText, options.newDescription);
+  if (updated === null) {
+    throw new CliCommandError(
+      `Could not safely rewrite the frontmatter description in ${options.skillPath} (missing frontmatter or description key). Nothing was written.`,
+    );
+  }
+  await writeFile(options.skillPath, updated, "utf8");
+  const collapse = (value: string | undefined): string => (value ?? "").replace(/\s+/g, " ").trim();
+  const verified = parseSkillFrontmatter(await readFile(options.skillPath, "utf8"), options.skillDir);
+  if (collapse(verified.description) !== collapse(options.newDescription)) {
+    await writeFile(options.skillPath, options.originalText, "utf8");
+    throw new CliCommandError(
+      `Applied description did not read back cleanly from ${options.skillPath}; the original SKILL.md was restored.`,
+    );
+  }
 }
 
 async function fileExists(file: string): Promise<boolean> {

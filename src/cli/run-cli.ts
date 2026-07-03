@@ -64,7 +64,9 @@ function formatOptimizationReport(result: OptimizeDescriptionRunResult): string 
       "after:",
       `  ${report.winner.description}`,
       "",
-      "SKILL.md was not modified. Applying the winner arrives with --apply (W-000038).",
+      result.applied
+        ? `Applied the winning description to ${result.skillPath} (verified it reads back cleanly).`
+        : "SKILL.md was not modified. Re-run with --apply to write the winning description.",
     );
   } else {
     lines.push(
@@ -289,6 +291,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
           model: parsed.model,
           agentDir: parsed.agentDir,
           maxIterations: parsed.maxIterations,
+          apply: parsed.apply,
           distractorDirs: parsed.distractorDirs,
         });
         if (result.mode === "generate-only") {

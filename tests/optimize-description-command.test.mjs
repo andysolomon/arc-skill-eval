@@ -400,3 +400,94 @@ test("optimize mode via the command returns the report with probe accounting", a
   assert.ok(result.probeCount >= 4, "baseline train+test probes counted");
   assert.equal(result.report.winner, null, "candidate identical behavior cannot beat baseline");
 });
+
+// ---------------------------------------------------------------- W-000038 apply
+
+const { replaceFrontmatterDescription } = await import("../dist/cli/optimize-description-command.js");
+const { parseSkillFrontmatter } = await import("../dist/cli/create-command.js");
+
+const NEW_DESC = "Routes demo requests, including implicit handler-selection asks; does not trigger for conceptual routing questions or infra config reviews.";
+
+test("replaceFrontmatterDescription rewrites plain, quoted, and block-scalar descriptions", () => {
+  const bodies = {
+    plain: "---\nname: demo-router\ndescription: Routes demo requests.\nlicense: MIT\n---\n\n# Body\n\nUnchanged text.\n",
+    quoted: '---\nname: demo-router\ndescription: "Routes demo requests."\nlicense: MIT\n---\n\n# Body\n\nUnchanged text.\n',
+    block: "---\nname: demo-router\ndescription: >\n  Routes demo\n  requests.\nlicense: MIT\n---\n\n# Body\n\nUnchanged text.\n",
+  };
+  for (const [style, text] of Object.entries(bodies)) {
+    const updated = replaceFrontmatterDescription(text, NEW_DESC);
+    assert.ok(updated, `${style}: rewrite succeeds`);
+    const fm = parseSkillFrontmatter(updated, "/tmp/demo-router");
+    assert.equal(fm.description.replace(/\s+/g, " "), NEW_DESC, `${style}: new description reads back`);
+    assert.equal(fm.name, "demo-router", `${style}: other keys preserved`);
+    assert.match(updated, /license: MIT/, `${style}: sibling key intact`);
+    assert.match(updated, /# Body\n\nUnchanged text\.\n$/, `${style}: document body byte-identical`);
+    assert.match(updated, /description: >\n {2}\S/, `${style}: written as a block scalar`);
+  }
+});
+
+test("replaceFrontmatterDescription refuses ambiguous documents", () => {
+  assert.equal(replaceFrontmatterDescription("# No frontmatter\n", NEW_DESC), null);
+  assert.equal(replaceFrontmatterDescription("---\nname: x\n---\nbody\n", NEW_DESC), null, "no description key");
+  assert.equal(replaceFrontmatterDescription("---\nname: x\ndescription: y\n---\n", "   "), null, "empty replacement");
+});
+
+test("--apply writes the winner into SKILL.md and verifies the round-trip", async () => {
+  const skillDir = await makeSkillDir();
+  await mkdir(path.join(skillDir, "evals"), { recursive: true });
+  const setPath = path.join(skillDir, "evals", "description-evals.json");
+  await writeFile(setPath, JSON.stringify(validSet, null, 2), "utf8");
+
+  const winner = "Routes demo requests to handlers, including implicit selection asks.";
+  // Baseline routes nothing; the winner routes exactly the trigger prompts.
+  const prober = async (probe) => {
+    const userPrompt = probe.split("\n").find((l) => l.startsWith("User request: ")).slice("User request: ".length);
+    const isWinnerDesc = probe.includes(`demo-router: ${winner}`);
+    const isTriggerPrompt = userPrompt === P["explicit-1"] || userPrompt === P["implicit-1"];
+    return isWinnerDesc && isTriggerPrompt ? "demo-router" : "none";
+  };
+
+  const result = await optimizeDescriptionCommand({
+    skillDir,
+    evalSetPath: setPath,
+    maxIterations: 2,
+    apply: true,
+    prober,
+    proposer: async () => winner,
+  });
+  assert.equal(result.mode, "optimize");
+  assert.equal(result.report.winner.description, winner);
+  assert.equal(result.applied, true);
+
+  const fm = parseSkillFrontmatter(await readFile(path.join(skillDir, "SKILL.md"), "utf8"), skillDir);
+  assert.equal(fm.description.replace(/\s+/g, " "), winner);
+});
+
+test("--apply with no winner leaves SKILL.md untouched", async () => {
+  const skillDir = await makeSkillDir();
+  const before = await readFile(path.join(skillDir, "SKILL.md"), "utf8");
+  await mkdir(path.join(skillDir, "evals"), { recursive: true });
+  const setPath = path.join(skillDir, "evals", "description-evals.json");
+  await writeFile(setPath, JSON.stringify(validSet, null, 2), "utf8");
+
+  const result = await optimizeDescriptionCommand({
+    skillDir,
+    evalSetPath: setPath,
+    maxIterations: 1,
+    apply: true,
+    prober: async () => "none",          // candidate behaves identically → no winner
+    proposer: async () => "Some other description.",
+  });
+  assert.equal(result.report.winner, null);
+  assert.equal(result.applied, false);
+  assert.equal(await readFile(path.join(skillDir, "SKILL.md"), "utf8"), before);
+});
+
+test("argv: --apply requires --max-iterations", () => {
+  assert.throws(
+    () => parseCliArgs(["optimize-description", "./skills/demo", "--eval-set", "set.json", "--apply"]),
+    /--apply .* requires --max-iterations/,
+  );
+  const ok = parseCliArgs(["optimize-description", "./skills/demo", "--eval-set", "set.json", "--max-iterations", "3", "--apply"]);
+  assert.equal(ok.apply, true);
+});
