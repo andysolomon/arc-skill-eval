@@ -3,7 +3,7 @@ import { browseCommand } from "./browse-command.js";
 import { createCommand, type CreateCommandResult } from "./create-command.js";
 import { improveCommand, type ImproveCommandResult } from "./improve-command.js";
 import { initRuntimeCommand } from "./init-runtime-command.js";
-import { optimizeDescriptionCommand, type ScoreDescriptionResult } from "./optimize-description-command.js";
+import { optimizeDescriptionCommand, type OptimizeDescriptionRunResult, type ScoreDescriptionResult } from "./optimize-description-command.js";
 import { reviewCommand } from "./review-command.js";
 import { runEvalsCommand } from "./run-evals-command.js";
 import { renderHelp, parseCliArgs } from "./argv.js";
@@ -29,6 +29,48 @@ function formatDescriptionScore(result: ScoreDescriptionResult): string {
   for (const verdict of result.score.verdicts) {
     const got = verdict.got ?? "unparseable answer";
     lines.push(`${verdict.correct ? "✓" : "✗"} ${verdict.id} [${verdict.split}, ${verdict.expect}] → ${got}`);
+  }
+  lines.push("");
+  return `${lines.join("\n")}\n`;
+}
+
+function formatOptimizationReport(result: OptimizeDescriptionRunResult): string {
+  const pct = (value: number): string => `${Math.round(value * 100)}%`;
+  const fmt = (s: { correct: number; total: number; accuracy: number }): string => `${s.correct}/${s.total} (${pct(s.accuracy)})`;
+  const { report } = result;
+  const lines = [
+    `Description optimization — ${result.skillName}`,
+    `eval set: ${result.evalSetPath}`,
+    `distractors: ${result.distractors.length > 0 ? result.distractors.join(", ") : "none"}`,
+    `probes: ${result.probeCount}${result.probeModel ? ` · model ${result.probeModel}` : ""}${result.totalTokens > 0 ? ` · ${result.totalTokens} tokens · $${result.totalCostUsd.toFixed(4)}` : ""}`,
+    "",
+    `baseline  TRAIN ${fmt(report.baseline.train)} · TEST ${fmt(report.baseline.test)}`,
+  ];
+  for (const iteration of report.iterations) {
+    if (iteration.description === null) {
+      lines.push(`iter ${iteration.iteration}    proposal failed: ${iteration.proposalError}`);
+      continue;
+    }
+    const test = iteration.test ? ` · TEST ${fmt(iteration.test)}` : " · (did not beat baseline on train — test not evaluated)";
+    lines.push(`iter ${iteration.iteration}    TRAIN ${fmt(iteration.train!)}${test}`);
+  }
+  lines.push("");
+  if (report.winner) {
+    lines.push(
+      `winner: iteration ${report.winner.iteration} — held-out TEST ${fmt(report.baseline.test)} → ${fmt(report.winner.test)}`,
+      "",
+      "before:",
+      `  ${report.baseline.description}`,
+      "after:",
+      `  ${report.winner.description}`,
+      "",
+      "SKILL.md was not modified. Applying the winner arrives with --apply (W-000038).",
+    );
+  } else {
+    lines.push(
+      "No candidate beat the current description on the held-out test split — keep the current description.",
+      "Consider expanding the eval set (more near-miss negatives) before optimizing again.",
+    );
   }
   lines.push("");
   return `${lines.join("\n")}\n`;
@@ -266,7 +308,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
         }
         return {
           exitCode: 0,
-          stdout: formatDescriptionScore(result),
+          stdout: result.mode === "score" ? formatDescriptionScore(result) : formatOptimizationReport(result),
           stderr: "",
         };
       }
