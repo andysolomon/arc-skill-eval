@@ -28,6 +28,7 @@ import type {
   ToolSummaryJson,
 } from "../observability/types.js";
 import type { PiSdkSessionFactory } from "../pi/sdk-runner.js";
+import type { AgentRuntime } from "../runtime/types.js";
 import { CliCommandError } from "./types.js";
 
 export interface RunEvalsCommandOptions {
@@ -68,6 +69,8 @@ export interface RunEvalsCommandOptions {
   /** Test-injection points. */
   createSession?: PiSdkSessionFactory;
   judge?: LlmJudgeFn;
+  /** Agent runtime executing every case (programmatic; defaults to Pi SDK). */
+  runtime?: AgentRuntime;
   /**
    * Optional per-case progress callback. Purely additive — used by the in-TUI
    * run console (`browse` → `r`/`R`) to animate live progress without scraping
@@ -219,6 +222,7 @@ export async function runEvalsCommand(
           skillName: evalsFile.skill_name,
           createSession: options.createSession,
           judge: options.judge,
+          runtime: options.runtime,
         });
         result.cases.push(artifacts);
         result.observabilityExportFailures.push(...collectObservabilityExportFailures(artifacts));
@@ -400,6 +404,7 @@ async function runOneCase(args: {
   skillName: string;
   createSession: PiSdkSessionFactory | undefined;
   judge: LlmJudgeFn | undefined;
+  runtime: AgentRuntime | undefined;
 }): Promise<CaseRunArtifacts> {
   const caseSlug = sanitizeCaseId(args.evalCase.id);
   const caseDir = path.join(args.skillOutputDir, `eval-${caseSlug}`);
@@ -451,6 +456,7 @@ async function runOneCaseVariant(args: {
   agentDir: string | undefined;
   createSession: PiSdkSessionFactory | undefined;
   judge: LlmJudgeFn | undefined;
+  runtime: AgentRuntime | undefined;
   variant: EvalRunVariant;
   variantDir: string;
   attachSkill: boolean;
@@ -469,6 +475,7 @@ async function runOneCaseVariant(args: {
     model: args.model,
     agentDir: args.agentDir,
     createSession: args.createSession,
+    runtime: args.runtime,
     attachSkill: args.attachSkill,
     extraSkillPaths: args.extraSkillPaths,
     contextMode: args.contextMode,
