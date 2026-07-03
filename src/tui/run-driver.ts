@@ -24,13 +24,14 @@ export interface RunCaseState {
   assertTotal: number;
   assertPass: number;
   message?: string;   // error text for a failed/errored case
+  errored?: boolean;  // case never produced a verdict — it errored before assertions ran
 }
 
 export type RunEvent =
   | { type: 'init'; skill: string; compare: boolean; extraArgs?: string; cases: RunCaseState[] }
   | { type: 'case-start'; id: string }
   | { type: 'case-progress'; id: string; assertPass: number }
-  | { type: 'case-done'; id: string; phase: 'pass' | 'fail'; assertPass: number; assertTotal: number; message?: string }
+  | { type: 'case-done'; id: string; phase: 'pass' | 'fail'; assertPass: number; assertTotal: number; message?: string; errored?: boolean }
   | { type: 'done'; passed: number; failed: number; durationMs: number; result: RunEvalsCommandResult }
   | { type: 'error'; message: string };
 
@@ -53,6 +54,17 @@ interface ProgressEvent {
 }
 
 const THINKING_LEVELS = new Set<ThinkingLevel>(THINKING_LEVEL_VALUES);
+
+/**
+ * Build a case-done event. An errored case is exactly one that carries an
+ * error message with no assertions run (assertTotal 0) — that is how
+ * skill.errors backfill and the onProgress hook both report them — so the
+ * flag is decided here, at emit time, and the console reducer stays dumb.
+ */
+export function makeCaseDone(fields: { id: string; phase: 'pass' | 'fail'; assertPass: number; assertTotal: number; message?: string }): RunEvent {
+  const errored = fields.message != null && fields.assertTotal === 0;
+  return errored ? { type: 'case-done', ...fields, errored: true } : { type: 'case-done', ...fields };
+}
 
 function parseModel(raw: string, flag: string): ModelSelection {
   const slash = raw.indexOf('/');
@@ -148,7 +160,7 @@ export async function runInProcess(req: RunRequest, emit: (ev: RunEvent) => void
       ...( { onProgress: (ev: ProgressEvent) => {
         if (ev.phase === 'case-start') emit({ type: 'case-start', id: ev.caseId });
         else if (ev.phase === 'assertion') emit({ type: 'case-progress', id: ev.caseId, assertPass: ev.assertionsPassed ?? 0 });
-        else if (ev.phase === 'case-done') emit({ type: 'case-done', id: ev.caseId, phase: ev.passed ? 'pass' : 'fail', assertPass: ev.assertionsPassed ?? 0, assertTotal: ev.assertionsTotal ?? 0, message: ev.message });
+        else if (ev.phase === 'case-done') emit(makeCaseDone({ id: ev.caseId, phase: ev.passed ? 'pass' : 'fail', assertPass: ev.assertionsPassed ?? 0, assertTotal: ev.assertionsTotal ?? 0, message: ev.message }));
       } } as Record<string, unknown> ),
     } as Parameters<typeof runEvalsCommand>[0]);
 
@@ -156,10 +168,10 @@ export async function runInProcess(req: RunRequest, emit: (ev: RunEvent) => void
     for (const skill of result.skills) {
       for (const c of skill.cases) {
         const g = c.grading.summary;
-        emit({ type: 'case-done', id: String(c.caseId), phase: g.failed === 0 && g.total > 0 ? 'pass' : 'fail', assertPass: g.passed, assertTotal: g.total });
+        emit(makeCaseDone({ id: String(c.caseId), phase: g.failed === 0 && g.total > 0 ? 'pass' : 'fail', assertPass: g.passed, assertTotal: g.total }));
       }
       for (const err of skill.errors) {
-        emit({ type: 'case-done', id: String(err.caseId), phase: 'fail', assertPass: 0, assertTotal: 0, message: err.message });
+        emit(makeCaseDone({ id: String(err.caseId), phase: 'fail', assertPass: 0, assertTotal: 0, message: err.message }));
       }
     }
 
