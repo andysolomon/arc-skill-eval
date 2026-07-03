@@ -1,5 +1,4 @@
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -7,6 +6,7 @@ import type { ModelSelection } from "../contracts/types.js";
 import { readEvalsJson, validateEvalsJsonValue } from "../evals/loader.js";
 import type { EvalAssertion, EvalsJsonFile } from "../evals/types.js";
 import { reviewCreateProposalInteractively, type CreateInteractivePrompt } from "./create-interactive.js";
+import { extractJsonObject, invokePiCompletion } from "./pi-completion.js";
 import { CliCommandError } from "./types.js";
 
 export interface LlmEvalDesignProposal {
@@ -51,7 +51,7 @@ export interface CreateCommandResult {
   rationale: string[];
 }
 
-interface SkillFrontmatter {
+export interface SkillFrontmatter {
   name: string;
   description?: string;
 }
@@ -140,7 +140,7 @@ function createDefaultLlmEvalDesigner(options: { model?: ModelSelection; agentDi
   return async (input) => {
     const authoringSkill = await readEvalAuthoringSkill(options.authoringSkillPath);
     const prompt = buildGuidedCreatePrompt(input, { authoringSkill });
-    const rawResponse = await invokePiEvalDesigner({ prompt, model: options.model, agentDir: options.agentDir });
+    const rawResponse = await invokePiCompletion({ prompt, purpose: "guided create", model: options.model, agentDir: options.agentDir });
     return parseGuidedCreateResponse(rawResponse);
   };
 }
@@ -247,40 +247,6 @@ function readStringArrayField(value: Record<string, unknown>, field: string): st
   return raw.filter((item): item is string => typeof item === "string" && item.length > 0);
 }
 
-function extractJsonObject(raw: string): string | null {
-  const trimmed = raw.trim();
-  const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
-  const source = fenceMatch?.[1]?.trim() ?? trimmed;
-  const start = source.indexOf("{");
-  if (start < 0) return null;
-
-  let depth = 0;
-  let inString = false;
-  let escape = false;
-  for (let i = start; i < source.length; i++) {
-    const ch = source[i];
-    if (escape) {
-      escape = false;
-      continue;
-    }
-    if (ch === "\\" && inString) {
-      escape = true;
-      continue;
-    }
-    if (ch === '"') {
-      inString = !inString;
-      continue;
-    }
-    if (inString) continue;
-    if (ch === "{") depth++;
-    if (ch === "}") {
-      depth--;
-      if (depth === 0) return source.slice(start, i + 1);
-    }
-  }
-  return null;
-}
-
 async function readEvalAuthoringSkill(authoringSkillPath?: string): Promise<EvalAuthoringSkillReference> {
   const resolvedPath = path.resolve(authoringSkillPath ?? bundledArcCreatingEvalsSkillPath());
   try {
@@ -295,60 +261,6 @@ function bundledArcCreatingEvalsSkillPath(): string {
   return path.resolve(path.dirname(thisFile), "..", "..", "skills", "arc-creating-evals", "SKILL.md");
 }
 
-async function invokePiEvalDesigner(options: { prompt: string; model?: ModelSelection; agentDir?: string }): Promise<string> {
-  const pi = await import("@mariozechner/pi-coding-agent");
-  const { completeSimple } = await import("@mariozechner/pi-ai");
-
-  const credentialsAgentDir = options.agentDir ? path.resolve(options.agentDir) : pi.getAgentDir();
-  const settingsManager = pi.SettingsManager.create(process.cwd(), credentialsAgentDir);
-  const authStorage = pi.AuthStorage.create(path.join(credentialsAgentDir, "auth.json"));
-  const modelRegistry = pi.ModelRegistry.create(authStorage, path.join(credentialsAgentDir, "models.json"));
-  const configuredModel = options.model
-    ? modelRegistry.find(options.model.provider, options.model.id)
-    : settingsManager.getDefaultProvider() && settingsManager.getDefaultModel()
-      ? modelRegistry.find(settingsManager.getDefaultProvider()!, settingsManager.getDefaultModel()!)
-      : modelRegistry.getAvailable()[0];
-
-  if (!configuredModel) {
-    throw new CliCommandError(options.model
-      ? `Unable to resolve guided create model ${options.model.provider}/${options.model.id}.`
-      : "Unable to resolve a configured model for guided create. Pass --model or configure Pi defaults.");
-  }
-
-  const requestAuth = await modelRegistry.getApiKeyAndHeaders(configuredModel);
-  if (!requestAuth.ok) {
-    throw new CliCommandError(`Unable to authenticate guided create model ${configuredModel.provider}/${configuredModel.id}: ${requestAuth.error}`);
-  }
-
-  const thinking = options.model?.thinking ?? settingsManager.getDefaultThinkingLevel();
-  const { mkdtemp } = await import("node:fs/promises");
-  const isolatedCwd = await mkdtemp(path.join(tmpdir(), "arc-skill-eval-create-"));
-  const previousCwd = process.cwd();
-
-  try {
-    process.chdir(isolatedCwd);
-    const response = await completeSimple(
-      configuredModel,
-      {
-        messages: [{ role: "user", content: options.prompt, timestamp: Date.now() }],
-      },
-      {
-        apiKey: requestAuth.apiKey,
-        headers: requestAuth.headers,
-        reasoning: thinking && thinking !== "off" ? thinking as never : undefined,
-      },
-    );
-
-    return response.content
-      .filter((item): item is { type: "text"; text: string } => item.type === "text")
-      .map((item) => item.text)
-      .join("");
-  } finally {
-    process.chdir(previousCwd);
-    await rm(isolatedCwd, { recursive: true, force: true }).catch(() => undefined);
-  }
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -361,7 +273,7 @@ async function readSkillMd(skillPath: string): Promise<string> {
   }
 }
 
-function parseSkillFrontmatter(skillText: string, skillDir: string): SkillFrontmatter {
+export function parseSkillFrontmatter(skillText: string, skillDir: string): SkillFrontmatter {
   const frontmatterMatch = skillText.match(/^---\s*\n([\s\S]*?)\n---\s*\n?/);
   const frontmatter = frontmatterMatch?.[1] ?? "";
   const name = readYamlString(frontmatter, "name") ?? path.basename(skillDir);

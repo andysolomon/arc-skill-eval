@@ -50,6 +50,11 @@ export function parseCliArgs(argv: string[]): ParsedCliCommand {
         command: "audit",
         ...parseAuditCommandArgs(rest),
       };
+    case "optimize-description":
+      return {
+        command: "optimize-description",
+        ...parseOptimizeDescriptionCommandArgs(rest),
+      };
     default:
       throw new CliUsageError(`Unknown command: ${commandName}. Run \`arc-skill-eval --help\` for usage.`);
   }
@@ -67,6 +72,7 @@ export function renderHelp(): string {
     "  arc-skill-eval create <skill-dir> [--guided] [--interactive] [--model <provider/model[:thinking]>] [--agent-dir <path>] [--authoring-skill <path>] [--dry-run] [--summary] [--force]",
     "  arc-skill-eval browse [<skill-dir-or-repo>] [--no-baseline]",
     "  arc-skill-eval audit <skill-dir-or-repo> [--json] [--output <path>]",
+    "  arc-skill-eval optimize-description <skill-dir> --generate-only [--output <path>] [--model <provider/model[:thinking]>] [--agent-dir <path>] [--force]",
     "",
     "Notes:",
     "  - <skill-dir-or-repo> is either a skill directory containing evals/evals.json,",
@@ -88,6 +94,7 @@ export function renderHelp(): string {
     "  - browse opens an interactive terminal run browser (Ink TUI) over the artifacts under evals-runs/; defaults to the current directory.",
     "  - browse --no-baseline hides the without_skill comparison rows in the detail pane.",
     "  - audit performs deterministic skill-quality checks: frontmatter, sprawl, eval coverage, local links, and duplicate families.",
+    "  - optimize-description --generate-only asks a configured model for should-trigger and adjacent should-not-trigger routing prompts, writes <skillDir>/evals/description-evals.json with train/test split tags, and asks you to review it; scoring and iterative optimization build on the reviewed set.",
     "  - Format reference: https://platform.claude.com/docs/en/agents-and-tools/agent-skills",
   ].join("\n");
 }
@@ -478,6 +485,96 @@ function parseAuditCommandArgs(args: string[]) {
 
   if (!input) throw new CliUsageError("Missing required <skill-dir-or-repo> argument.");
   return { input, json, output };
+}
+
+function parseOptimizeDescriptionCommandArgs(args: string[]) {
+  let skillDir: string | undefined;
+  let generateOnly = false;
+  let evalSetPath: string | undefined;
+  let output: string | undefined;
+  let force = false;
+  let model: ModelSelection | undefined;
+  let agentDir: string | undefined;
+  let maxIterations: number | undefined;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+
+    if (arg === "--generate-only") {
+      generateOnly = true;
+      continue;
+    }
+
+    if (arg === "--force") {
+      force = true;
+      continue;
+    }
+
+    if (arg === "--eval-set" || arg.startsWith("--eval-set=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      evalSetPath = parsed.value;
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
+    if (arg === "--output" || arg.startsWith("--output=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      output = parsed.value;
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
+    if (arg === "--model" || arg.startsWith("--model=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      model = parseModelSelectionFlag("--model", parsed.value);
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
+    if (arg === "--agent-dir" || arg.startsWith("--agent-dir=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      agentDir = parsed.value;
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
+    if (arg === "--max-iterations" || arg.startsWith("--max-iterations=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      const parsedNumber = Number(parsed.value);
+      if (!Number.isInteger(parsedNumber) || parsedNumber < 1) {
+        throw new CliUsageError(`Invalid --max-iterations: ${parsed.value}. Expected a positive integer.`);
+      }
+      maxIterations = parsedNumber;
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
+    if (arg.startsWith("-")) {
+      throw new CliUsageError(`Unknown flag: ${arg}.`);
+    }
+
+    if (skillDir !== undefined) {
+      throw new CliUsageError("Only one <skill-dir> positional argument is allowed.");
+    }
+
+    skillDir = arg;
+  }
+
+  if (!skillDir) throw new CliUsageError("Missing required <skill-dir> argument.");
+  if (!generateOnly && !evalSetPath) {
+    throw new CliUsageError("optimize-description requires --generate-only (to create a routing eval set) or --eval-set <path> (to score/optimize against one).");
+  }
+
+  return {
+    skillDir,
+    generateOnly,
+    evalSetPath,
+    output,
+    force,
+    maxIterations,
+    ...(model ? { model } : {}),
+    ...(agentDir ? { agentDir } : {}),
+  };
 }
 
 function readFlagValue(arg: string, nextArg: string | undefined): { value: string; consumedNext: boolean } {
