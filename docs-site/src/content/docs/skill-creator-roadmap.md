@@ -101,9 +101,9 @@ Packaging is lower priority than runtime, review, and creation because distribut
 
 ## Runtime future
 
-Skeval should keep Pi as the default runtime for now. A future internal `AgentRuntime` interface can make Pi one runtime among several and allow an experimental OpenAI-compatible custom runtime behind the same eval contract.
+The groundwork is shipped: an internal `AgentRuntime` interface (`src/runtime/`) now sits between the eval pipeline and whatever executes a case. Pi's SDK runner is the default implementation behind it — unchanged behavior, unchanged artifacts — and the runtime's id is recorded in every trace identity. A deterministic **replay** runtime proves the seam is real: it runs cases with no model and no network, writing scripted files and assistant text so the full grade-and-artifact pipeline (including honest failures) can be exercised in tests and CI provider-free.
 
-That custom runtime would need a model adapter layer, a safe tool loop, read/write/edit/bash tools, skill loading, workspace safety, and trace normalization. It is worth exploring, but only after eval-owned Pi config and the review loop are working.
+Still future: an experimental OpenAI-compatible custom runtime behind the same interface. That needs a model adapter layer, a safe tool loop, read/write/edit/bash tools, skill loading, workspace safety, and trace normalization — the interface now defines exactly the contract it has to meet.
 
 ## Detailed planning artifacts
 
