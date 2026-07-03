@@ -75,6 +75,12 @@ export interface AuditCliOptions {
   output?: string;
 }
 
+export interface PackageCliOptions {
+  skillDir: string;
+  output?: string;
+  force?: boolean;
+}
+
 export interface CliRenderOptions {
   json?: boolean;
 }
@@ -98,7 +104,8 @@ export type ParsedCliCommand =
   | ({ command: "create" } & CreateCliOptions)
   | ({ command: "browse" } & BrowseCliOptions)
   | ({ command: "audit" } & AuditCliOptions)
-  | ({ command: "optimize-description" } & OptimizeDescriptionCliOptions);
+  | ({ command: "optimize-description" } & OptimizeDescriptionCliOptions)
+  | ({ command: "package" } & PackageCliOptions);
 
 export class CliUsageError extends Error {
   constructor(message: string) {

@@ -4,6 +4,7 @@ import { createCommand, type CreateCommandResult } from "./create-command.js";
 import { improveCommand, type ImproveCommandResult } from "./improve-command.js";
 import { initRuntimeCommand } from "./init-runtime-command.js";
 import { optimizeDescriptionCommand, type OptimizeDescriptionRunResult, type ScoreDescriptionResult } from "./optimize-description-command.js";
+import { packageCommand } from "./package-command.js";
 import { reviewCommand } from "./review-command.js";
 import { runEvalsCommand } from "./run-evals-command.js";
 import { renderHelp, parseCliArgs } from "./argv.js";
@@ -312,6 +313,24 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
         return {
           exitCode: 0,
           stdout: result.mode === "score" ? formatDescriptionScore(result) : formatOptimizationReport(result),
+          stderr: "",
+        };
+      }
+      case "package": {
+        const result = await packageCommand({
+          skillDir: parsed.skillDir,
+          output: parsed.output,
+          force: parsed.force,
+        });
+        return {
+          exitCode: 0,
+          stdout: [
+            `Packaged ${result.skillName} → ${result.outputPath}`,
+            `- files: ${result.fileCount}`,
+            `- total bytes: ${result.totalBytes}`,
+            `- manifest: ${result.manifest.files.length} files, sha256 recorded`,
+            "",
+          ].join("\n"),
           stderr: "",
         };
       }

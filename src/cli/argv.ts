@@ -55,6 +55,11 @@ export function parseCliArgs(argv: string[]): ParsedCliCommand {
         command: "optimize-description",
         ...parseOptimizeDescriptionCommandArgs(rest),
       };
+    case "package":
+      return {
+        command: "package",
+        ...parsePackageCommandArgs(rest),
+      };
     default:
       throw new CliUsageError(`Unknown command: ${commandName}. Run \`arc-skill-eval --help\` for usage.`);
   }
@@ -73,6 +78,7 @@ export function renderHelp(): string {
     "  arc-skill-eval browse [<skill-dir-or-repo>] [--no-baseline]",
     "  arc-skill-eval audit <skill-dir-or-repo> [--json] [--output <path>]",
     "  arc-skill-eval optimize-description <skill-dir> (--generate-only [--output <path>] [--force] | --eval-set <path> [--distractor <skill-dir>]... [--max-iterations <n> [--apply]]) [--model <provider/model[:thinking]>] [--agent-dir <path>]",
+    "  arc-skill-eval package <skill-dir> [--output <path>] [--force]",
     "",
     "Notes:",
     "  - <skill-dir-or-repo> is either a skill directory containing evals/evals.json,",
@@ -97,6 +103,7 @@ export function renderHelp(): string {
     "  - optimize-description --generate-only asks a configured model for should-trigger and adjacent should-not-trigger routing prompts, writes <skillDir>/evals/description-evals.json with train/test split tags, and asks you to review it.",
     "  - optimize-description --eval-set scores the skill's current frontmatter description: one no-tools routing probe per prompt (target + sibling/--distractor skill descriptions, rotated ordering), reporting per-prompt verdicts and train/test accuracy.",
     "  - optimize-description --max-iterations N proposes improved descriptions from train-split failures and selects the winner by held-out test accuracy; SKILL.md changes only with --apply (which verifies the rewrite reads back cleanly and restores the original otherwise).",
+    "  - package validates SKILL.md and evals/evals.json first, then bundles the skill directory plus a sha256 manifest.json into <name>.skill.tgz (excluding evals-runs/, node_modules/, dot-files, and prior *.skill.tgz artifacts); --output overrides the artifact path and --force overwrites an existing artifact.",
     "  - Format reference: https://platform.claude.com/docs/en/agents-and-tools/agent-skills",
   ].join("\n");
 }
@@ -596,6 +603,41 @@ function parseOptimizeDescriptionCommandArgs(args: string[]) {
     ...(model ? { model } : {}),
     ...(agentDir ? { agentDir } : {}),
   };
+}
+
+function parsePackageCommandArgs(args: string[]) {
+  let skillDir: string | undefined;
+  let output: string | undefined;
+  let force = false;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+
+    if (arg === "--force") {
+      force = true;
+      continue;
+    }
+
+    if (arg === "--output" || arg.startsWith("--output=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      output = parsed.value;
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
+    if (arg.startsWith("-")) {
+      throw new CliUsageError(`Unknown flag: ${arg}.`);
+    }
+
+    if (skillDir !== undefined) {
+      throw new CliUsageError("Only one <skill-dir> positional argument is allowed.");
+    }
+
+    skillDir = arg;
+  }
+
+  if (!skillDir) throw new CliUsageError("Missing required <skill-dir> argument.");
+  return { skillDir, output, force };
 }
 
 function readFlagValue(arg: string, nextArg: string | undefined): { value: string; consumedNext: boolean } {
