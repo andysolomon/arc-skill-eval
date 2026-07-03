@@ -1,12 +1,12 @@
 import type { PiSessionTelemetrySnapshot, PiSdkCaseRunResult, PiSdkSkillRunResult } from "../pi/types.js";
-import type { EvalTrace } from "./types.js";
+import type { EvalTrace, EvalTraceRuntime } from "./types.js";
 
-export function normalizePiSdkCaseRunResult(result: PiSdkCaseRunResult): EvalTrace {
+export function normalizePiSdkCaseRunResult(result: PiSdkCaseRunResult, runtime: EvalTraceRuntime = "pi-sdk"): EvalTrace {
   const telemetry = toTelemetrySnapshot(result.telemetry);
 
   return {
     identity: {
-      runtime: "pi-sdk",
+      runtime,
       source: result.source,
       skill: {
         name: result.skill.name,

@@ -11,14 +11,13 @@ import type {
   RepoSourceDescriptor,
   ValidatedSkillDiscovery,
 } from "../load/source-types.js";
-import {
-  runPiSdkCase,
-  type PiSdkSessionFactory,
-} from "../pi/sdk-runner.js";
+import type { PiSdkSessionFactory } from "../pi/sdk-runner.js";
 import type {
   PiSdkCaseRunResult,
   PiSdkExecutionCase,
 } from "../pi/types.js";
+import { piSdkRuntime } from "../runtime/pi-sdk.js";
+import type { AgentRuntime } from "../runtime/types.js";
 import {
   buildToolSummary,
   enrichContextManifestWithTrace,
@@ -67,6 +66,11 @@ export interface RunEvalCaseOptions {
    * so tests can assert on prompt flow without calling the API.
    */
   createSession?: PiSdkSessionFactory;
+  /**
+   * Agent runtime that executes the case. Defaults to the Pi SDK runtime;
+   * alternative runtimes run behind the same eval contract and artifacts.
+   */
+  runtime?: AgentRuntime;
 }
 
 /**
@@ -129,7 +133,8 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
     const caseDefinition = buildExecutionCase(options.skill, options.case);
     const source = buildSourceDescriptor(options.skill);
 
-    const piResult = await runPiSdkCase({
+    const runtime = options.runtime ?? piSdkRuntime;
+    const piResult = await runtime.runCase({
       source,
       skill: skillDiscovery,
       caseDefinition,
@@ -160,7 +165,7 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
       context_window_tokens: piResult.usage.contextWindowTokens,
       context_window_used_percent: piResult.usage.contextWindowUsedPercent,
     };
-    const trace = normalizePiSdkCaseRunResult(piResult);
+    const trace = normalizePiSdkCaseRunResult(piResult, runtime.id);
     const contextManifest = enrichContextManifestWithTrace(piResult.contextManifest, trace);
     const toolSummary = buildToolSummary(trace, contextManifest);
 
