@@ -502,6 +502,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
       skillDir={sk.dir}
       skillName={sk.id}
       hasSuite={sk.role !== 'distractor'}
+      recentModels={runs.map((r) => r.model).concat(sk.model).filter(Boolean)}
       onClose={(msg) => { setCreatingSuite(false); if (msg) setFlash(msg); void onReload?.(sk.dir); }}
     />
   );
