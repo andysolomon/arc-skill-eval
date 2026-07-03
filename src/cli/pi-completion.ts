@@ -19,7 +19,17 @@ export interface PiCompletionOptions {
   agentDir?: string;
 }
 
+export interface PiCompletionResult {
+  text: string;
+  model: { provider: string; id: string };
+  usage: { inputTokens: number; outputTokens: number; costUsd: number };
+}
+
 export async function invokePiCompletion(options: PiCompletionOptions): Promise<string> {
+  return (await invokePiCompletionDetailed(options)).text;
+}
+
+export async function invokePiCompletionDetailed(options: PiCompletionOptions): Promise<PiCompletionResult> {
   const pi = await import("@mariozechner/pi-coding-agent");
   const { completeSimple } = await import("@mariozechner/pi-ai");
 
@@ -77,7 +87,16 @@ export async function invokePiCompletion(options: PiCompletionOptions): Promise<
           (stopReason === "error" && typeof errorMessage === "string" ? `: ${errorMessage}` : " — check provider auth/quota or pass --model."),
       );
     }
-    return text;
+    const usage = (response as { usage?: { input?: number; output?: number; cost?: { total?: number } } }).usage;
+    return {
+      text,
+      model: { provider: configuredModel.provider, id: configuredModel.id },
+      usage: {
+        inputTokens: usage?.input ?? 0,
+        outputTokens: usage?.output ?? 0,
+        costUsd: usage?.cost?.total ?? 0,
+      },
+    };
   } finally {
     process.chdir(previousCwd);
     await rm(isolatedCwd, { recursive: true, force: true }).catch(() => undefined);

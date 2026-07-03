@@ -3,7 +3,7 @@ import { browseCommand } from "./browse-command.js";
 import { createCommand, type CreateCommandResult } from "./create-command.js";
 import { improveCommand, type ImproveCommandResult } from "./improve-command.js";
 import { initRuntimeCommand } from "./init-runtime-command.js";
-import { optimizeDescriptionCommand } from "./optimize-description-command.js";
+import { optimizeDescriptionCommand, type ScoreDescriptionResult } from "./optimize-description-command.js";
 import { reviewCommand } from "./review-command.js";
 import { runEvalsCommand } from "./run-evals-command.js";
 import { renderHelp, parseCliArgs } from "./argv.js";
@@ -11,6 +11,28 @@ import { formatRunEvalsResult } from "./render.js";
 import { resolveLaminarConfig } from "./laminar-config.js";
 import { createLaminarSink } from "../observability/sinks/laminar.js";
 import { CliCommandError, CliUsageError, type CliInvocationResult } from "./types.js";
+
+function formatDescriptionScore(result: ScoreDescriptionResult): string {
+  const pct = (value: number): string => `${Math.round(value * 100)}%`;
+  const split = (label: string, s: { correct: number; total: number; accuracy: number }): string =>
+    `${label}  ${s.correct}/${s.total} (${pct(s.accuracy)})`;
+  const lines = [
+    `Description routing score — ${result.skillName}`,
+    `eval set: ${result.evalSetPath}`,
+    `distractors: ${result.distractors.length > 0 ? result.distractors.join(", ") : "none"}`,
+    `probes: ${result.probeCount}${result.probeModel ? ` · model ${result.probeModel}` : ""}${result.totalTokens > 0 ? ` · ${result.totalTokens} tokens · $${result.totalCostUsd.toFixed(4)}` : ""}`,
+    "",
+    split("TRAIN", result.score.train),
+    split("TEST ", result.score.test),
+    "",
+  ];
+  for (const verdict of result.score.verdicts) {
+    const got = verdict.got ?? "unparseable answer";
+    lines.push(`${verdict.correct ? "✓" : "✗"} ${verdict.id} [${verdict.split}, ${verdict.expect}] → ${got}`);
+  }
+  lines.push("");
+  return `${lines.join("\n")}\n`;
+}
 
 function formatImproveSummary(result: ImproveCommandResult): string {
   const lines = [
@@ -225,18 +247,26 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
           model: parsed.model,
           agentDir: parsed.agentDir,
           maxIterations: parsed.maxIterations,
+          distractorDirs: parsed.distractorDirs,
         });
+        if (result.mode === "generate-only") {
+          return {
+            exitCode: 0,
+            stdout: [
+              `Wrote routing eval set: ${result.evalSetPath}`,
+              `- ${result.triggerCount} should-trigger, ${result.noTriggerCount} should-not-trigger prompts`,
+              `- split: ${result.trainCount} train / ${result.testCount} test`,
+              "",
+              "Review the prompts (especially the near-miss negatives) before optimizing:",
+              `arc-skill-eval optimize-description ${parsed.skillDir} --eval-set ${result.evalSetPath}`,
+              "",
+            ].join("\n"),
+            stderr: "",
+          };
+        }
         return {
           exitCode: 0,
-          stdout: [
-            `Wrote routing eval set: ${result.evalSetPath}`,
-            `- ${result.triggerCount} should-trigger, ${result.noTriggerCount} should-not-trigger prompts`,
-            `- split: ${result.trainCount} train / ${result.testCount} test`,
-            "",
-            "Review the prompts (especially the near-miss negatives) before optimizing:",
-            `arc-skill-eval optimize-description ${parsed.skillDir} --eval-set ${result.evalSetPath}`,
-            "",
-          ].join("\n"),
+          stdout: formatDescriptionScore(result),
           stderr: "",
         };
       }
