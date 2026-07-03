@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, writeFile, access } from "node:fs/promises";
+import { mkdtemp, writeFile, access, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { render } from "ink-testing-library";
@@ -186,6 +186,55 @@ test("an invalid model shows an inline error and generation does not start", asy
   stdin.write("\u001b"); // ESC back to confirm without a model
   assert.ok(await waitFor(() => /deterministic starter/.test(lastFrame() ?? "")));
   assert.doesNotMatch(lastFrame() ?? "", /model: /);
+  unmount();
+});
+
+test("space excludes the selected case and accept writes only included cases", async () => {
+  const skillDir = await makeSkillDir();
+  const closes = [];
+  const { lastFrame, stdin, unmount } = renderForm(skillDir, { onClose: (msg) => closes.push(msg) });
+
+  await waitFor(() => /Create eval suite/.test(lastFrame() ?? ""));
+  await sleep(150);
+  stdin.write("g");
+  assert.ok(await waitFor(() => /Proposal/.test(lastFrame() ?? "")));
+  await sleep(120);
+  stdin.write(" "); // exclude proposed-one (cursor starts on the first case)
+  assert.ok(await waitFor(() => /\(1\/2 cases\)/.test(lastFrame() ?? "")), "accept hint should count included cases");
+  await sleep(120);
+  stdin.write("\r"); // accept
+  assert.ok(await waitFor(() => closes.length === 1), "accept should close the form");
+  assert.match(closes[0], /wrote .*evals\.json \(1 cases\)/);
+  const written = JSON.parse(await readFile(path.join(skillDir, "evals", "evals.json"), "utf8"));
+  assert.deepEqual(written.evals.map((c) => c.id), ["proposed-two"]);
+  unmount();
+});
+
+test("excluding every case blocks accept with an inline message and writes nothing", async () => {
+  const skillDir = await makeSkillDir();
+  const closes = [];
+  const { lastFrame, stdin, unmount } = renderForm(skillDir, { onClose: (msg) => closes.push(msg) });
+
+  await waitFor(() => /Create eval suite/.test(lastFrame() ?? ""));
+  await sleep(150);
+  stdin.write("g");
+  assert.ok(await waitFor(() => /Proposal/.test(lastFrame() ?? "")));
+  await sleep(120);
+  stdin.write(" "); // exclude proposed-one
+  await sleep(120);
+  stdin.write("\u001b[B"); // down arrow to proposed-two
+  await sleep(120);
+  stdin.write(" "); // exclude proposed-two
+  assert.ok(await waitFor(() => /\(0\/2 cases\)/.test(lastFrame() ?? "")));
+  await sleep(120);
+  stdin.write("\r"); // accept must be blocked
+  assert.ok(await waitFor(() => /at least one case must be included/.test(lastFrame() ?? "")), "inline message should render");
+  assert.equal(closes.length, 0, "the form must stay open");
+  assert.equal(await exists(path.join(skillDir, "evals", "evals.json")), false, "nothing written");
+  await sleep(120);
+  stdin.write(" "); // re-including a case clears the message
+  assert.ok(await waitFor(() => /\(1\/2 cases\)/.test(lastFrame() ?? "")));
+  assert.doesNotMatch(lastFrame() ?? "", /at least one case must be included/);
   unmount();
 });
 

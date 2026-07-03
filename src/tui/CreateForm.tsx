@@ -65,6 +65,11 @@ export function CreateForm({ skillDir, skillName, hasSuite, onClose, designer, r
   const [model, setModel] = useState<ModelSelection | null>(null);
   const [modelText, setModelText] = useState('');
   const [modelError, setModelError] = useState('');
+  // Review-phase selection: a cursor over the proposed cases plus the ids the
+  // author excluded with space — excluded cases are dropped from the write.
+  const [reviewIdx, setReviewIdx] = useState(0);
+  const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  const [reviewError, setReviewError] = useState('');
   // Set when the author escapes mid-generation: the in-flight promise must
   // not call setState (or onClose) on a form that is already gone.
   const cancelled = useRef(false);
@@ -80,7 +85,16 @@ export function CreateForm({ skillDir, skillName, hasSuite, onClose, designer, r
     setGuided(useLlm);
     setPhase('generating');
     void generateCreateProposal({ skillDir, guided: useLlm, model: model ?? undefined, designer })
-      .then((p) => { if (!cancelled.current) { setProposal(p); setPhase('review'); } })
+      .then((p) => {
+        if (cancelled.current) return;
+        setProposal(p);
+        // Fresh proposal, fresh review state — a regenerate must not inherit
+        // the previous proposal's cursor or exclusions.
+        setReviewIdx(0);
+        setExcluded(new Set());
+        setReviewError('');
+        setPhase('review');
+      })
       .catch((err) => { if (!cancelled.current) { setError(errText(err)); setPhase('error'); } });
   };
 
@@ -97,8 +111,14 @@ export function CreateForm({ skillDir, skillName, hasSuite, onClose, designer, r
 
   const accept = () => {
     if (!proposal) return;
+    const included = proposal.evals.evals.filter((c) => !excluded.has(String(c.id)));
+    if (included.length === 0) { setReviewError('at least one case must be included'); return; }
+    // Build a filtered copy — the reviewed proposal itself is never mutated.
+    const toWrite: CreateProposal = excluded.size === 0
+      ? proposal
+      : { ...proposal, evals: { ...proposal.evals, evals: included } };
     setPhase('writing');
-    void writeCreateProposal({ skillDir, proposal, force: hasSuite })
+    void writeCreateProposal({ skillDir, proposal: toWrite, force: hasSuite })
       .then((res) => onClose(`wrote ${res.evalsJsonPath} (${res.evals.evals.length} cases)`))
       .catch((err) => { setError(errText(err)); setPhase('error'); });
   };
@@ -126,6 +146,21 @@ export function CreateForm({ skillDir, skillName, hasSuite, onClose, designer, r
       return;
     }
     if (phase === 'review') {
+      const reviewCases = proposal?.evals.evals ?? [];
+      if (key.upArrow) { setReviewIdx((i) => Math.max(0, i - 1)); return; }
+      if (key.downArrow) { setReviewIdx((i) => Math.min(Math.max(0, reviewCases.length - 1), i + 1)); return; }
+      if (input === ' ') {
+        const id = reviewCases[reviewIdx] ? String(reviewCases[reviewIdx]!.id) : null;
+        if (id != null) {
+          setExcluded((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+          });
+          setReviewError('');
+        }
+        return;
+      }
       if (key.return || input === 'a') { accept(); return; }
       if (key.escape) onClose('proposal rejected — nothing written');
       return;
@@ -139,6 +174,10 @@ export function CreateForm({ skillDir, skillName, hasSuite, onClose, designer, r
 
   const spinner = GLYPHS.spinner[frame % GLYPHS.spinner.length] ?? '.';
   const cases = proposal?.evals.evals ?? [];
+  const includedCount = cases.length - excluded.size;
+  // Display window follows the cursor so every case is reachable even past
+  // the MAX_REVIEW_CASES cap.
+  const winStart = Math.max(0, Math.min(reviewIdx - MAX_REVIEW_CASES + 1, cases.length - MAX_REVIEW_CASES));
 
   return (
     <Box flexDirection="column" borderStyle="round" borderColor={COLORS.borderActive} paddingX={2} paddingY={1} width={72}>
@@ -187,16 +226,25 @@ export function CreateForm({ skillDir, skillName, hasSuite, onClose, designer, r
             <Text key={i} color={COLORS.dim} wrap="truncate">{GLYPHS.bullet} {r}</Text>
           ))}
           <Box flexDirection="column" marginY={1}>
-            {cases.slice(0, MAX_REVIEW_CASES).map((c) => (
-              <Text key={String(c.id)} wrap="truncate">
-                <Text color={COLORS.fg}>{String(c.id)}</Text>
-                <Text color={COLORS.comment}>  {(c.assertions ?? []).length} assertions{c.description ? ` — ${c.description}` : ''}</Text>
-              </Text>
-            ))}
-            {cases.length > MAX_REVIEW_CASES && <Text color={COLORS.dim}>…and {cases.length - MAX_REVIEW_CASES} more</Text>}
+            {winStart > 0 && <Text color={COLORS.dim}>…{winStart} above</Text>}
+            {cases.slice(winStart, winStart + MAX_REVIEW_CASES).map((c, i) => {
+              const idx = winStart + i;
+              const sel = idx === reviewIdx;
+              const off = excluded.has(String(c.id));
+              return (
+                <Text key={String(c.id)} wrap="truncate">
+                  <Text color={sel ? COLORS.blue : COLORS.comment} bold={sel}>{sel ? '› ' : '  '}</Text>
+                  <Text color={off ? COLORS.dim : COLORS.green}>{off ? GLYPHS.fail : GLYPHS.pass} </Text>
+                  <Text color={off ? COLORS.dim : COLORS.fg} bold={sel}>{String(c.id)}</Text>
+                  <Text color={COLORS.comment}>  {(c.assertions ?? []).length} assertions{c.description ? ` — ${c.description}` : ''}</Text>
+                </Text>
+              );
+            })}
+            {cases.length > winStart + MAX_REVIEW_CASES && <Text color={COLORS.dim}>…and {cases.length - winStart - MAX_REVIEW_CASES} more</Text>}
           </Box>
+          {reviewError ? <Text color={COLORS.red}>{reviewError}</Text> : null}
           <Text color={COLORS.comment}>
-            <Text color={COLORS.yellow} bold>enter</Text> accept & write{hasSuite ? ' (overwrites)' : ''} · <Text color={COLORS.yellow} bold>esc</Text> reject
+            <Text color={COLORS.yellow} bold>↑↓</Text> case · <Text color={COLORS.yellow} bold>space</Text> toggle · <Text color={COLORS.yellow} bold>enter</Text> accept & write ({includedCount}/{cases.length} cases){hasSuite ? ' (overwrites)' : ''} · <Text color={COLORS.yellow} bold>esc</Text> reject
           </Text>
         </>
       )}
