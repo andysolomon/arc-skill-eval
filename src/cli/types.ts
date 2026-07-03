@@ -56,6 +56,17 @@ export interface BrowseCliOptions {
   noBaseline?: boolean;
 }
 
+export interface OptimizeDescriptionCliOptions {
+  skillDir: string;
+  generateOnly?: boolean;
+  evalSetPath?: string;
+  output?: string;
+  force?: boolean;
+  model?: ModelSelection;
+  agentDir?: string;
+  maxIterations?: number;
+}
+
 export interface AuditCliOptions {
   input: string;
   json?: boolean;
@@ -84,7 +95,8 @@ export type ParsedCliCommand =
   | ({ command: "improve" } & ImproveCliOptions)
   | ({ command: "create" } & CreateCliOptions)
   | ({ command: "browse" } & BrowseCliOptions)
-  | ({ command: "audit" } & AuditCliOptions);
+  | ({ command: "audit" } & AuditCliOptions)
+  | ({ command: "optimize-description" } & OptimizeDescriptionCliOptions);
 
 export class CliUsageError extends Error {
   constructor(message: string) {

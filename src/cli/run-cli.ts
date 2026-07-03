@@ -3,6 +3,7 @@ import { browseCommand } from "./browse-command.js";
 import { createCommand, type CreateCommandResult } from "./create-command.js";
 import { improveCommand, type ImproveCommandResult } from "./improve-command.js";
 import { initRuntimeCommand } from "./init-runtime-command.js";
+import { optimizeDescriptionCommand } from "./optimize-description-command.js";
 import { reviewCommand } from "./review-command.js";
 import { runEvalsCommand } from "./run-evals-command.js";
 import { renderHelp, parseCliArgs } from "./argv.js";
@@ -211,6 +212,31 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
         return {
           exitCode: 0,
           stdout: `${stdout}${outputNote}`,
+          stderr: "",
+        };
+      }
+      case "optimize-description": {
+        const result = await optimizeDescriptionCommand({
+          skillDir: parsed.skillDir,
+          generateOnly: parsed.generateOnly,
+          evalSetPath: parsed.evalSetPath,
+          output: parsed.output,
+          force: parsed.force,
+          model: parsed.model,
+          agentDir: parsed.agentDir,
+          maxIterations: parsed.maxIterations,
+        });
+        return {
+          exitCode: 0,
+          stdout: [
+            `Wrote routing eval set: ${result.evalSetPath}`,
+            `- ${result.triggerCount} should-trigger, ${result.noTriggerCount} should-not-trigger prompts`,
+            `- split: ${result.trainCount} train / ${result.testCount} test`,
+            "",
+            "Review the prompts (especially the near-miss negatives) before optimizing:",
+            `arc-skill-eval optimize-description ${parsed.skillDir} --eval-set ${result.evalSetPath}`,
+            "",
+          ].join("\n"),
           stderr: "",
         };
       }
