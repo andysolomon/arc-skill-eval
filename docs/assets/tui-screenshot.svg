@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
+  <title id="title">arc-skill-eval browse terminal UI screenshot</title>
+  <desc id="desc">Dark terminal interface with Skills, Cases, Assertions, Runs, and a main detail pane showing eval prompts, grading results, and benchmark metrics.</desc>
+  <defs>
+    <linearGradient id="top" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#7aa2f7"/>
+      <stop offset="0.5" stop-color="#bb9af7"/>
+      <stop offset="1" stop-color="#9ece6a"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+    <style>
+      .term { fill: #1a1b26; }
+      .panel { fill: #16161e; stroke: #414868; stroke-width: 1.2; }
+      .panel2 { fill: #1f2335; stroke: #414868; stroke-width: 1.2; }
+      .title { fill: #7aa2f7; font: 700 17px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .muted { fill: #565f89; font: 14px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .text { fill: #c0caf5; font: 15px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .small { fill: #a9b1d6; font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .green { fill: #9ece6a; font: 15px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .red { fill: #f7768e; font: 15px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .orange { fill: #ff9e64; font: 15px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .cyan { fill: #7dcfff; font: 15px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .purple { fill: #bb9af7; font: 15px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .tab { fill: #24283b; stroke: #414868; stroke-width: 1; }
+      .active { fill: #2f3549; stroke: #7aa2f7; stroke-width: 1.4; }
+    </style>
+  </defs>
+
+  <rect width="1280" height="760" fill="#0f111a"/>
+  <g filter="url(#shadow)">
+    <rect x="40" y="36" width="1200" height="688" rx="16" class="term"/>
+    <rect x="40" y="36" width="1200" height="34" rx="16" fill="#11131d"/>
+    <rect x="40" y="62" width="1200" height="8" fill="#11131d"/>
+    <circle cx="66" cy="53" r="6" fill="#f7768e"/>
+    <circle cx="88" cy="53" r="6" fill="#e0af68"/>
+    <circle cx="110" cy="53" r="6" fill="#9ece6a"/>
+    <rect x="40" y="70" width="1200" height="4" fill="url(#top)"/>
+
+    <text x="64" y="105" class="title">arc-skill-eval browse</text>
+    <text x="1030" y="105" class="muted">Tab panels · / filter · r run · ? help</text>
+
+    <rect x="64" y="124" width="260" height="500" rx="8" class="panel"/>
+    <rect x="340" y="124" width="260" height="500" rx="8" class="panel"/>
+    <rect x="616" y="124" width="260" height="500" rx="8" class="panel"/>
+    <rect x="892" y="124" width="324" height="500" rx="8" class="panel"/>
+
+    <rect x="64" y="124" width="260" height="38" rx="8" class="panel2"/>
+    <rect x="340" y="124" width="260" height="38" rx="8" class="panel2"/>
+    <rect x="616" y="124" width="260" height="38" rx="8" class="panel2"/>
+    <rect x="892" y="124" width="324" height="38" rx="8" class="panel2"/>
+    <text x="82" y="148" class="title">Skills</text>
+    <text x="358" y="148" class="title">Cases</text>
+    <text x="634" y="148" class="title">Assertions</text>
+    <text x="910" y="148" class="title">Runs</text>
+
+    <rect x="78" y="174" width="232" height="34" rx="6" class="active"/>
+    <text x="86" y="196" class="green">✓ arc-creating-evals</text>
+    <text x="86" y="232" class="green">✓ arc-bug-finder</text>
+    <text x="86" y="268" class="orange">◐ arc-conventional-commits</text>
+    <text x="86" y="304" class="muted">◌ hello-world     no runs</text>
+
+    <rect x="354" y="174" width="232" height="34" rx="6" class="active"/>
+    <text x="362" y="196" class="green">✓ golden-path</text>
+    <text x="362" y="232" class="green">✓ fixture-files</text>
+    <text x="362" y="268" class="red">✗ rejects-vague-evals</text>
+    <text x="362" y="304" class="muted">◌ new-case        not run</text>
+
+    <text x="638" y="196" class="green">✓ file-exists</text>
+    <text x="638" y="232" class="green">✓ regex-match</text>
+    <text x="638" y="268" class="green">✓ json-valid</text>
+    <text x="638" y="304" class="orange">◐ judge: rationale</text>
+
+    <text x="910" y="196" class="cyan">iteration-dogfood-2</text>
+    <text x="910" y="222" class="small">2026-07-04 03:29 · 7/8 pass</text>
+    <text x="910" y="262" class="muted">baseline: iteration-dogfood-1</text>
+    <text x="910" y="302" class="purple">with_skill vs without_skill</text>
+
+    <rect x="64" y="644" width="1152" height="56" rx="8" class="panel2"/>
+    <text x="84" y="678" class="small">1 Skills</text>
+    <text x="184" y="678" class="small">2 Cases</text>
+    <text x="284" y="678" class="small">3 Assertions</text>
+    <text x="414" y="678" class="small">4 Runs</text>
+    <text x="524" y="678" class="small">/ filter</text>
+    <text x="634" y="678" class="small">r run</text>
+    <text x="724" y="678" class="small">n new case</text>
+    <text x="864" y="678" class="small">v raw JSON</text>
+    <text x="1004" y="678" class="small">q quit</text>
+
+    <rect x="64" y="420" width="812" height="204" rx="8" class="panel2"/>
+    <text x="84" y="450" class="title">golden-path</text>
+    <text x="84" y="480" class="muted">Prompt</text>
+    <text x="154" y="480" class="text">Create a behavior-focused eval suite for this skill.</text>
+    <text x="84" y="512" class="muted">Grading</text>
+    <text x="154" y="512" class="green">4/4 passed</text>
+    <text x="280" y="512" class="muted">pass_rate 1.00</text>
+    <text x="84" y="544" class="muted">Trace</text>
+    <text x="154" y="544" class="text">tools 8 · writes 3 · edits 1 · reads 4</text>
+    <text x="84" y="576" class="muted">Bench</text>
+    <text x="154" y="576" class="cyan">+0.25 delta</text>
+    <text x="270" y="576" class="text">12.4s · 18,204 tokens · $0.0312</text>
+  </g>
+</svg>

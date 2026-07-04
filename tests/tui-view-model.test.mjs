@@ -137,3 +137,29 @@ test('buildMain falls back to the skill view when the selected skill has no case
   assert.match(viewText(view), /attached as --extra-skill distractor context/);
   assert.match(viewText(view), /no runs of its own/);
 });
+
+const { runDisplayName, runRows } = await import('../dist/tui/view-model.js');
+
+test('runDisplayName prefers the iteration bucket and humanizes bare runIds in local time', () => {
+  assert.equal(runDisplayName({ iteration: 'dogfood-1', runId: '2026-07-02T21-55-14-609Z' }), 'dogfood-1');
+
+  const runId = '2026-07-02T21-55-14-609Z';
+  const name = runDisplayName({ iteration: '—', runId });
+  assert.match(name, /^[A-Z][a-z]{2} \d{1,2} \d{2}:\d{2}$/, `short local stamp, got: ${name}`);
+  // Mirror the conversion so the assertion holds in any timezone.
+  const d = new Date('2026-07-02T21:55:14.609Z');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  assert.equal(name, `${months[d.getMonth()]} ${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`);
+
+  assert.equal(runDisplayName({ iteration: '—', runId: 'run-custom-thing' }), 'custom-thing', 'non-timestamp ids keep the legacy fallback');
+});
+
+test('runRows uses the humanized name instead of the raw runId', () => {
+  const run = {
+    iteration: '—', runId: '2026-07-02T21-55-14-609Z', mode: 'single', skill: 'demo', extra: '', ctxMode: 'isolated',
+    model: 'm/x', judge: '—', when: '2d ago', pass: '0/1', delta: '', cost: '$0.00', exit: 1, caseFilter: '',
+  };
+  const rowText = runRows([run])[0].map((s) => s.t).join('');
+  assert.doesNotMatch(rowText, /2026-07-02T/, 'raw ISO runId no longer shown in the panel row');
+  assert.match(rowText, /0\/1/);
+});

@@ -82,9 +82,15 @@ function mapAssertion(r: any): Assertion {
     const tgt = a.path ?? (a.target && (a.target.file ?? a.target));
     target = typeof tgt === 'string' ? tgt : '';
   }
+  // Script-assertion grading text repeats its own type ("file-exists: path");
+  // every view renders the type tag separately, so strip the prefix here.
+  const rawLabel = String(r?.text ?? '');
+  const label = det && rawLabel.toLowerCase().startsWith(`${type.toLowerCase()}:`)
+    ? rawLabel.slice(type.length + 1).trim()
+    : rawLabel;
   return {
     type, det,
-    label: String(r?.text ?? ''),
+    label,
     target,
     passed: !!r?.passed,
     evidence: String(r?.evidence ?? ''),

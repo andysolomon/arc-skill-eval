@@ -67,10 +67,31 @@ export function assertionRows(c: Case): Seg[][] {
   });
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * Human name for a run: the iteration bucket when one was set, else a short
+ * local-time stamp derived from the runId ("Jul 2 17:55"). The full runId
+ * stays visible in the run detail pane for artifact-path correlation.
+ */
+export function runDisplayName(r: Pick<Run, 'iteration' | 'runId'>): string {
+  if (r.iteration !== '—') return r.iteration;
+  const m = /^(\d{4}-\d{2}-\d{2}T\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/.exec(r.runId);
+  if (m) {
+    const date = new Date(`${m[1]}:${m[2]}:${m[3]}.${m[4]}Z`);
+    if (!Number.isNaN(date.getTime())) {
+      const hh = String(date.getHours()).padStart(2, '0');
+      const mm = String(date.getMinutes()).padStart(2, '0');
+      return `${MONTHS[date.getMonth()]} ${date.getDate()} ${hh}:${mm}`;
+    }
+  }
+  return r.runId.replace('run-', '');
+}
+
 export function runRows(runs: Run[], baseId?: string): Seg[][] {
   return runs.map((r) => {
     const [g, gc] = statusGlyph(r.exit === 0 ? 'pass' : 'fail');
-    const name = r.iteration !== '—' ? r.iteration : r.runId.replace('run-', '');
+    const name = runDisplayName(r);
     const [p, t] = passFrac(r.pass);
     const segs = [seg(g + ' ', gc, true), seg(pad(name, 16), COLORS.fg), seg(r.pass + ' ', rateColor(p, t))];
     if (r.mode === 'compare') segs.push(seg(GLYPHS.compare, COLORS.magenta));
@@ -333,7 +354,7 @@ function runView(r: Run | undefined, base?: Run): MainView {
     lines.push(row([seg('  cost   ', COLORS.comment), seg(base.cost, COLORS.fgDark), seg('  →  ', COLORS.comment), seg(r.cost, COLORS.fgDark), seg('   ' + signMoney(costMove), costMove > 0 ? COLORS.red : costMove < 0 ? COLORS.green : COLORS.comment)]));
     lines.push(row([seg('  model  ', COLORS.comment), seg(base.model + ' → ' + r.model, COLORS.dim)]));
   }
-  return { title: r.iteration !== '—' ? r.iteration : r.runId, sub: [seg(`${r.pass} passed`, rateColor(p, t)), seg('   ' + r.cost, COLORS.green)], lines, anchors };
+  return { title: runDisplayName(r), sub: [seg(`${r.pass} passed`, rateColor(p, t)), seg('   ' + r.cost, COLORS.green)], lines, anchors };
 }
 
 function costNum(c: string): number { const m = /-?\d+(\.\d+)?/.exec(c); return m ? Number(m[0]) : 0; }

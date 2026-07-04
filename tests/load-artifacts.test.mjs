@@ -103,6 +103,11 @@ test('loadWorkspace maps a single skill directory', async () => {
     assert.equal(a.assertions[1].det, false, 'string assertion is LLM-judged');
     assert.equal(a.assertions[1].passed, false);
 
+    // grading text repeats the script-assertion type; the label must not,
+    // since every view renders the type tag separately.
+    assert.equal(a.assertions[0].label, 'out.txt', 'type prefix stripped from script-assertion label');
+    assert.equal(a.assertions[1].label, 'A judged claim about the response.', 'judge labels untouched');
+
     // metrics from timing.json
     assert.match(a.model, /anthropic\/claude-opus-4-5:medium/);
     assert.equal(a.ttot, 1000);
