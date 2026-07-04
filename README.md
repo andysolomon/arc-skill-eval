@@ -279,6 +279,8 @@ arc-skill-eval browse .                                    # whole repo
 
 It renders a lazygit-style four-panel layout — Skills, Cases, Assertions, Runs — with the selected case's prompt, grading evidence, metrics, and with/without-skill comparison in the main pane. It reads the same per-case `grading.json` / `timing.json` artifacts that `run` emits, so no extra setup is needed.
 
+![Screenshot of the arc-skill-eval browse terminal UI showing Skills, Cases, Assertions, Runs, and case details](docs/assets/tui-screenshot.svg)
+
 Navigation:
 
 See the **[Keybindings reference](https://andysolomon.github.io/arc-skill-eval/keymap/)** for the full keymap — it's generated from [`src/tui/keymap.ts`](src/tui/keymap.ts), the same source the in-TUI `?` overlay renders from, so the two can't drift. Highlights: `Tab`/`1`–`4` panels, `j`/`k` move, `→`/`l`/`↵` enter the detail pane, `[`/`]` cycle case mode, `v` raw `grading.json`, `/` filter, `s` sort, `c` pin baseline, `r`/`R` run, `n` new case, `?` help, `q` quit.
