@@ -1,9 +1,10 @@
-import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { ModelSelection, SandboxMode } from "../contracts/types.js";
 import { discoverEvalSkills, type DiscoveredEvalSkill } from "../evals/discover.js";
 import { readEvalsJson } from "../evals/loader.js";
+import { writeCaseVariantArtifacts } from "../evals/artifacts.js";
 import { DEFAULT_JUDGE_MODEL, gradeEvalCase, type LlmJudgeFn } from "../evals/grade.js";
 import { runEvalCase } from "../evals/run-case.js";
 import type {
@@ -499,32 +500,16 @@ async function runOneCaseVariant(args: {
       agentDir: args.agentDir,
     });
 
-    const assistantPath = path.join(args.variantDir, "assistant.md");
-    const outputsDir = path.join(args.variantDir, "outputs");
-    const timingPath = path.join(args.variantDir, "timing.json");
-    const gradingPath = path.join(args.variantDir, "grading.json");
-    const tracePath = path.join(args.variantDir, "trace.json");
-    const toolSummaryPath = path.join(args.variantDir, "tool-summary.json");
-    const contextManifestPath = path.join(args.variantDir, "context-manifest.json");
-
-    await mkdir(outputsDir, { recursive: true });
-    await writeFile(assistantPath, formatAssistantArtifact(run.assistantText), "utf-8");
-    await cp(run.workspaceDir, outputsDir, { recursive: true, force: true });
-    await writeJsonArtifact(timingPath, run.timing);
-    await writeJsonArtifact(gradingPath, grading);
-    await writeJsonArtifact(tracePath, run.trace);
-    await writeJsonArtifact(toolSummaryPath, run.toolSummary);
-    await writeJsonArtifact(contextManifestPath, run.contextManifest);
-
-    const artifactPaths = {
-      assistant: assistantPath,
-      outputs: outputsDir,
-      timing: timingPath,
-      grading: gradingPath,
-      trace: tracePath,
-      tool_summary: toolSummaryPath,
-      context_manifest: contextManifestPath,
-    };
+    const { paths: artifactPaths } = await writeCaseVariantArtifacts({
+      variantDir: args.variantDir,
+      assistantText: run.assistantText,
+      workspaceDir: run.workspaceDir,
+      timing: run.timing,
+      grading,
+      trace: run.trace,
+      toolSummary: run.toolSummary,
+      contextManifest: run.contextManifest,
+    });
     const observabilityExports = await exportCaseVariantToSinks(args.observabilitySinks, {
       run_id: args.runId,
       ...(args.iteration ? { iteration: args.iteration } : {}),
@@ -545,13 +530,13 @@ async function runOneCaseVariant(args: {
 
     return {
       variant: args.variant,
-      assistantPath,
-      outputsDir,
-      timingPath,
-      gradingPath,
-      tracePath,
-      toolSummaryPath,
-      contextManifestPath,
+      assistantPath: artifactPaths.assistant,
+      outputsDir: artifactPaths.outputs,
+      timingPath: artifactPaths.timing,
+      gradingPath: artifactPaths.grading,
+      tracePath: artifactPaths.trace,
+      toolSummaryPath: artifactPaths.tool_summary,
+      contextManifestPath: artifactPaths.context_manifest,
       timing: run.timing,
       grading,
       toolSummary: run.toolSummary,
@@ -603,35 +588,6 @@ function collectObservabilityExportFailures(artifacts: CaseRunArtifacts): SkillR
   }
 
   return failures;
-}
-
-function formatAssistantArtifact(assistantText: string): string {
-  return assistantText.endsWith("\n") ? assistantText : `${assistantText}\n`;
-}
-
-async function writeJsonArtifact(pathname: string, value: unknown): Promise<void> {
-  await writeFile(pathname, `${JSON.stringify(value, createSafeJsonReplacer(), 2)}\n`, "utf-8");
-}
-
-function createSafeJsonReplacer(): (key: string, value: unknown) => unknown {
-  const seen = new WeakSet<object>();
-
-  return (_key, value) => {
-    if (typeof value === "bigint") {
-      return value.toString();
-    }
-
-    if (typeof value !== "object" || value === null) {
-      return value;
-    }
-
-    if (seen.has(value)) {
-      return "[Circular]";
-    }
-
-    seen.add(value);
-    return value;
-  };
 }
 
 function compareVariantPassRates(withSkill: GradingJson, withoutSkill: GradingJson): CaseRunComparison {
