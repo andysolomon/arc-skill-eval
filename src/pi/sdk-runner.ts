@@ -3,14 +3,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import {
-  AuthStorage,
-  createAgentSession,
   createCodingTools,
   DefaultResourceLoader,
-  getAgentDir,
   loadSkillsFromDir,
-  ModelRegistry,
-  SessionManager,
   SettingsManager,
   type ResourceLoader,
   type Skill,
@@ -55,6 +50,11 @@ import type {
 } from "./types.js";
 import { createPiSessionTelemetryObserverExtension } from "./observer-extension.js";
 import { loadPiSessionTelemetry } from "./session-telemetry.js";
+import {
+  createPiAgentSession,
+  createPiSessionBootstrap,
+  resolvePiModel,
+} from "./session-adapter.js";
 
 export interface PiSdkSessionLike {
   sessionId: string;
@@ -354,17 +354,14 @@ export async function runValidatedSkillViaPiSdk(
 async function createDefaultPiSdkSession(
   options: PiSdkSessionFactoryOptions,
 ): Promise<PiSdkSessionFactoryResult> {
-  const credentialsAgentDir = path.resolve(options.configAgentDir ?? getAgentDir());
-  const settingsManager = SettingsManager.create(options.workspaceDir, credentialsAgentDir);
-  settingsManager.applyOverrides({
-    compaction: { enabled: false },
+  const bootstrap = createPiSessionBootstrap({
+    runtimeDir: options.workspaceDir,
+    credentialsAgentDir: options.configAgentDir,
   });
-  const authStorage = AuthStorage.create(path.join(credentialsAgentDir, "auth.json"));
-  const modelRegistry = ModelRegistry.create(authStorage, path.join(credentialsAgentDir, "models.json"));
   const { resourceLoader, contextManifest } = await createPiSdkResourceLoader({
     workspaceDir: options.workspaceDir,
     agentDir: options.agentDir,
-    settingsManager,
+    settingsManager: bootstrap.settingsManager,
     skill: options.skill,
     caseDefinition: options.caseDefinition,
     skillFiles: options.skillFiles,
@@ -373,13 +370,15 @@ async function createDefaultPiSdkSession(
     extraSkillPaths: options.extraSkillPaths,
     contextMode: options.contextMode,
   });
-  const resolvedModel = resolveSdkModelSelection(modelRegistry, options.requestedModel);
+  const resolvedModel = options.requestedModel === undefined
+    ? undefined
+    : resolvePiModel(bootstrap.modelRegistry, options.requestedModel);
 
-  const { session } = await createAgentSession({
+  const { session } = await createPiAgentSession({
+    bootstrap,
     cwd: options.workspaceDir,
     agentDir: options.agentDir,
-    authStorage,
-    modelRegistry,
+    sessionDir: options.sessionDir,
     model: resolvedModel?.sdkModel,
     thinkingLevel: resolvedModel?.selection.thinking,
     noTools: "all",
@@ -389,8 +388,6 @@ async function createDefaultPiSdkSession(
         ? createJustBashCodingTools(options.workspaceDir, options.env, options.sandboxMocks)
         : createPiSdkCodingTools(options.workspaceDir, options.env),
     resourceLoader,
-    sessionManager: SessionManager.create(options.workspaceDir, options.sessionDir),
-    settingsManager,
   });
 
   return {
@@ -753,23 +750,6 @@ function resolveRequestedModel(
   }
 
   return contract.model;
-}
-
-function resolveSdkModelSelection(modelRegistry: ModelRegistry, selection: ModelSelection | undefined) {
-  if (selection === undefined) {
-    return undefined;
-  }
-
-  const sdkModel = modelRegistry.find(selection.provider, selection.id);
-
-  if (!sdkModel) {
-    throw new Error(`Unable to resolve Pi model ${selection.provider}/${selection.id}.`);
-  }
-
-  return {
-    sdkModel,
-    selection,
-  };
 }
 
 function selectPiSdkCases(
