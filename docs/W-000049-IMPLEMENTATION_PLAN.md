@@ -98,6 +98,12 @@ Preserve fail-fast compare behavior, artifact/trace schemas, progress timing, an
 - [ ] Confirm command no longer defines the old per-case helpers and the pipeline has no CLI/TUI imports.
 - [ ] Compare artifact and progress-event assertions against baseline.
 
+**Dependencies:** Milestones 1–3 are complete; W-000050 / #145 is merged before this work proceeds, preserving the #145 → #144 dependency order.
+
+**Risks:** Passing tests alone may not expose CLI/TUI coupling or changed fail-fast behavior. Pair structural searches with baseline artifact and progress-event assertion review.
+
+**Acceptance criteria:** Verification confirms one UI-independent pipeline lifecycle owner, unchanged command/TUI boundaries, sequential fail-fast comparison, and no artifact or progress-event drift.
+
 **Verification commands**
 
 ```sh

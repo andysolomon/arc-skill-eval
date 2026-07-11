@@ -95,6 +95,12 @@ Do not implement new trace-aware behavior/safety semantics or combine this work 
 - [ ] Run `npm run typecheck` and full offline `npm test`.
 - [ ] Verify the engine has no Pi imports and duplicate command/grader classifiers are gone.
 
+**Dependencies:** Milestones 1–3 are complete.
+
+**Risks:** A passing extraction can still leave duplicate classification authority or an indirect Pi dependency. Confirm both structural searches and the focused preflight/artifact regressions.
+
+**Acceptance criteria:** Offline verification confirms Pi-free deterministic grading, one authoritative classifier, unchanged grader orchestration, and stable persisted artifact behavior.
+
 **Verification commands**
 
 ```sh

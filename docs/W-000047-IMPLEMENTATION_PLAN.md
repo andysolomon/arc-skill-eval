@@ -93,6 +93,12 @@ This is an internal responsibility refactor. It does not redesign runtime input 
 - [ ] Run structural checks for forbidden direct Pi bootstrap and inspect exports/import graph.
 - [ ] Review generated artifact/trace fixtures or assertions for schema drift.
 
+**Dependencies:** Milestones 1–3 are complete.
+
+**Risks:** Structural checks can miss indirect export or schema drift. Review the import graph and persisted artifact/trace assertions alongside the automated gates.
+
+**Acceptance criteria:** Focused, typecheck, full offline, and structural verification confirm the stable façade, extraction boundaries, and persisted behavior remain unchanged.
+
 **Verification commands**
 
 ```sh

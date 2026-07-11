@@ -43,6 +43,8 @@ This issue is conditional. A NO-GO audit is a valid outcome and must stop implem
 
 **Dependencies:** W-000047 merged.
 
+**Risks:** The audit can mistake compatibility metadata for a standard-path requirement. Classify every caller before recording the GO/NO-GO decision.
+
 **GO criteria**
 
 1. Standard input needs only real identity/prompt/skill/files plus execution options—no placeholder profile/tier/routing/lane.
@@ -111,6 +113,12 @@ This issue is conditional. A NO-GO audit is a valid outcome and must stop implem
 - [ ] Run focused run-case, runtime, runner, trace, replay, artifact, and command tests.
 - [ ] Run `npm run typecheck` and full offline `npm test`.
 - [ ] Run structural searches and review the dependency graph against the GO criteria.
+
+**Dependencies:** Milestones 1–3 are complete, including the Milestone 1 GO decision; W-000047 / #142 is merged first, preserving the #142 → #146 dependency order.
+
+**Risks:** Compatibility defaults can conceal schema drift or reintroduce the legacy tunnel through an indirect caller. Review the dependency graph and retained trace/replay fields in addition to automated checks.
+
+**Acceptance criteria:** On GO only, verification demonstrates net simplification: neutral standard input, Pi-only translation, preserved legacy lanes and persisted schemas, and no synthetic normalization in the standard path.
 
 **Verification commands**
 
