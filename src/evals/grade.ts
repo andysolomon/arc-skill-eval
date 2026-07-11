@@ -14,6 +14,7 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 import type { ModelSelection } from "../contracts/types.js";
+import { piJudgeSessionRunner } from "../pi/session-adapter.js";
 
 import type {
   AssertionResult,
@@ -563,7 +564,11 @@ function toCaseId(id: string | number): EvalCaseId {
 export function createDefaultLlmJudge(options: { model: ModelSelection; agentDir?: string }): LlmJudgeFn {
   return async (input) => {
     const prompt = buildJudgePrompt(input);
-    const rawResponse = await invokePiJudge({ model: options.model, agentDir: options.agentDir, prompt });
+    const rawResponse = await piJudgeSessionRunner.run({
+      model: options.model,
+      credentialsAgentDir: options.agentDir,
+      prompt,
+    });
     return parseJudgeResponse(rawResponse, input.assertions.length);
   };
 }
@@ -708,102 +713,4 @@ function extractJsonBlob(raw: string): string | null {
   }
 
   return null;
-}
-
-/**
- * Invoke Pi to grade a batch of string assertions. Kept as a thin seam
- * so tests that want to avoid Pi altogether can pass their own `judge`.
- * The default judge constructs a Pi agent session with no skills
- * attached and sends a single prompt.
- */
-async function invokePiJudge(options: { model: ModelSelection; agentDir?: string; prompt: string }): Promise<string> {
-  const pi = await import("@mariozechner/pi-coding-agent");
-  const { mkdtemp, rm } = await import("node:fs/promises");
-  const { tmpdir } = await import("node:os");
-
-  const agentDir = await mkdtemp(path.join(tmpdir(), "arc-skill-eval-judge-"));
-
-  try {
-    const credentialsAgentDir = options.agentDir ? path.resolve(options.agentDir) : pi.getAgentDir();
-    const settingsManager = pi.SettingsManager.create(agentDir, credentialsAgentDir);
-    settingsManager.applyOverrides({ compaction: { enabled: false } });
-    const authStorage = pi.AuthStorage.create(path.join(credentialsAgentDir, "auth.json"));
-    const modelRegistry = pi.ModelRegistry.create(
-      authStorage,
-      path.join(credentialsAgentDir, "models.json"),
-    );
-    const sdkModel = modelRegistry.find(options.model.provider, options.model.id);
-    if (!sdkModel) {
-      throw new Error(`Unable to resolve Pi judge model ${options.model.provider}/${options.model.id}.`);
-    }
-
-    const baseLoader = new pi.DefaultResourceLoader({
-      cwd: agentDir,
-      agentDir,
-      settingsManager,
-      noExtensions: true,
-      noSkills: true,
-      noPromptTemplates: true,
-      noThemes: true,
-      noContextFiles: true,
-    });
-    await baseLoader.reload();
-
-    const { session } = await pi.createAgentSession({
-      cwd: agentDir,
-      agentDir,
-      authStorage,
-      modelRegistry,
-      model: sdkModel,
-      resourceLoader: baseLoader,
-      sessionManager: pi.SessionManager.create(agentDir, path.join(agentDir, "sessions")),
-      settingsManager,
-    });
-
-    let assistantText = "";
-    const unsubscribe = session.subscribe((event: unknown) => {
-      if (isTextDeltaEvent(event)) {
-        assistantText += event.assistantMessageEvent.delta;
-      }
-    });
-
-    try {
-      await session.prompt(options.prompt);
-    } finally {
-      unsubscribe();
-      session.dispose();
-    }
-
-    if (assistantText.trim().length === 0) {
-      // A prompt that "succeeds" but streams no text is a provider-side
-      // failure (most commonly missing credentials for the judge model).
-      // Surfacing it here keeps it from being misreported as unparseable.
-      throw new Error(
-        `Judge model ${options.model.provider}/${options.model.id} returned no output — ` +
-          "check that the provider is authenticated, or pass --judge-model.",
-      );
-    }
-
-    return assistantText;
-  } finally {
-    await rm(agentDir, { recursive: true, force: true }).catch(() => undefined);
-  }
-}
-
-function isTextDeltaEvent(
-  event: unknown,
-): event is { type: "message_update"; assistantMessageEvent: { type: "text_delta"; delta: string } } {
-  return (
-    typeof event === "object" &&
-    event !== null &&
-    "type" in event &&
-    (event as { type?: unknown }).type === "message_update" &&
-    "assistantMessageEvent" in event &&
-    typeof (event as { assistantMessageEvent?: unknown }).assistantMessageEvent === "object" &&
-    (event as { assistantMessageEvent?: unknown }).assistantMessageEvent !== null &&
-    "type" in (event as { assistantMessageEvent: Record<string, unknown> }).assistantMessageEvent &&
-    (event as { assistantMessageEvent: { type?: unknown } }).assistantMessageEvent.type === "text_delta" &&
-    "delta" in (event as { assistantMessageEvent: Record<string, unknown> }).assistantMessageEvent &&
-    typeof (event as { assistantMessageEvent: { delta?: unknown } }).assistantMessageEvent.delta === "string"
-  );
 }

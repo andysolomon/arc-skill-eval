@@ -574,3 +574,104 @@ test("parseJudgeResponse returns malformed-fallback on garbage input", () => {
     assert.equal(r.evidence, "Judge returned unparseable output");
   }
 });
+
+test("createDefaultLlmJudge routes through piJudgeSessionRunner with isolated no-skills config", async () => {
+  const { createDefaultLlmJudge, gradeEvalCase } = await import("../dist/evals/grade.js");
+  const { ISOLATED_PI_SESSION_RESOURCE_CONFIG, piJudgeSessionDeps, piJudgeSessionRunner } =
+    await import("../dist/pi/session-adapter.js");
+
+  const adapterCalls = [];
+  const isolatedLoaderCalls = [];
+  const originalDeps = { ...piJudgeSessionDeps };
+  const originalRun = piJudgeSessionRunner.run;
+
+  piJudgeSessionRunner.run = async (options) => {
+    adapterCalls.push(options);
+    return JSON.stringify({
+      results: [{ passed: true, evidence: "adapter mock ok" }],
+    });
+  };
+
+  const ws = await makeTempWorkspace();
+  try {
+    const judge = createDefaultLlmJudge({
+      model: { provider: "mock-provider", id: "mock-model" },
+      agentDir: "/tmp/eval-agent-dir",
+    });
+    const output = await judge({
+      assistantText: "done",
+      assertions: ["The assistant reports success."],
+    });
+
+    assert.equal(adapterCalls.length, 1);
+    assert.deepEqual(adapterCalls[0], {
+      model: { provider: "mock-provider", id: "mock-model" },
+      credentialsAgentDir: "/tmp/eval-agent-dir",
+      prompt: buildJudgePrompt({
+        assistantText: "done",
+        assertions: ["The assistant reports success."],
+      }),
+    });
+    assert.deepEqual(output.results, [{ passed: true, evidence: "adapter mock ok" }]);
+
+    adapterCalls.length = 0;
+    const graded = await gradeEvalCase({
+      case: { id: "default-judge-adapter", prompt: "noop", assertions: ["Assistant succeeded."] },
+      workspaceDir: ws.dir,
+      assistantText: "Success.",
+      judgeModel: { provider: "mock-provider", id: "mock-model" },
+    });
+    assert.equal(adapterCalls.length, 1);
+    assert.equal(graded.summary.passed, 1);
+
+    piJudgeSessionRunner.run = originalRun;
+    piJudgeSessionDeps.createPiSessionBootstrap = () => ({
+      credentialsAgentDir: "/mock/credentials",
+      settingsManager: { tag: "mock-settings" },
+      authStorage: { tag: "mock-auth" },
+      modelRegistry: { tag: "mock-registry" },
+    });
+    piJudgeSessionDeps.resolvePiModel = () => ({
+      sdkModel: { tag: "mock-sdk-model" },
+      selection: { provider: "mock-provider", id: "mock-model" },
+    });
+    piJudgeSessionDeps.createIsolatedResourceLoader = async (options) => {
+      isolatedLoaderCalls.push(options);
+      return { tag: "mock-loader" };
+    };
+    piJudgeSessionDeps.createPiAgentSession = async () => ({
+      session: {
+        subscribe: () => () => undefined,
+        prompt: async () => undefined,
+        dispose: () => undefined,
+      },
+    });
+
+    try {
+      await piJudgeSessionRunner.run({
+        model: { provider: "mock-provider", id: "mock-model" },
+        credentialsAgentDir: "/tmp/eval-agent-dir",
+        prompt: "grade this",
+      });
+      assert.fail("expected empty judge output error");
+    } catch (error) {
+      assert.match(error.message, /returned no output/);
+    }
+
+    assert.equal(isolatedLoaderCalls.length, 1);
+    assert.match(isolatedLoaderCalls[0].cwd, /arc-skill-eval-judge-/);
+    assert.match(isolatedLoaderCalls[0].agentDir, /arc-skill-eval-judge-/);
+    assert.equal(isolatedLoaderCalls[0].settingsManager.tag, "mock-settings");
+    assert.deepEqual(ISOLATED_PI_SESSION_RESOURCE_CONFIG, {
+      noExtensions: true,
+      noSkills: true,
+      noPromptTemplates: true,
+      noThemes: true,
+      noContextFiles: true,
+    });
+  } finally {
+    piJudgeSessionRunner.run = originalRun;
+    Object.assign(piJudgeSessionDeps, originalDeps);
+    await ws.cleanup();
+  }
+});
