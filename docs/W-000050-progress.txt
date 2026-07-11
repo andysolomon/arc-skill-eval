@@ -1,0 +1,22 @@
+W-000050 - Extract Deterministic Assertion Engine - Progress
+Generated: 2026-07-11 14:14:07 EDT
+On completion, move this file and the plan to docs/archive/.
+
+[ ] 1.0 - Define assertion-engine contract
+    [ ] 1.1 - Add Pi-free engine module and ownership documentation
+    [ ] 1.2 - Define authoritative judge/deterministic classification
+    [ ] 1.3 - Define deterministic grading input and preserve unsupported-form behavior
+[ ] 2.0 - Move deterministic grading
+    [ ] 2.1 - Move script assertion grading
+    [ ] 2.2 - Move intent assertion grading, path safety, summaries, and evidence helpers
+    [ ] 2.3 - Add focused offline classifier and engine tests
+[ ] 3.0 - Re-center grader and migrate consumers
+    [ ] 3.1 - Make gradeEvalCase delegate deterministic assertions while retaining judge orchestration
+    [ ] 3.2 - Replace command preflight classifier duplication
+    [ ] 3.3 - Safely reconcile artifact-view classification metadata
+    [ ] 3.4 - Preserve judge adapter and prompt/parser regression behavior
+[ ] 4.0 - Verify and ship
+    [ ] 4.1 - Run focused engine, grader, command, and artifact tests
+    [ ] 4.2 - Run typecheck, full offline test suite, and structural checks
+    [ ] 4.3 - Open one PR with Closes #145
+    [ ] 4.4 - On merge: move docs/W-000050-IMPLEMENTATION_PLAN.md + docs/W-000050-progress.txt to docs/archive/

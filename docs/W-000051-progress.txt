@@ -1,0 +1,24 @@
+W-000051 - Eval-Native Runtime Input - Progress
+Generated: 2026-07-11 14:14:07 EDT
+On completion, move this file and the plan to docs/archive/.
+
+[ ] 1.0 - Audit callers and decide GO or NO-GO
+    [ ] 1.1 - Inventory normalized contract, discovery contract, lane, runtime, and injection callers
+    [ ] 1.2 - Classify standard, legacy, adapter, trace/replay, telemetry, and removable uses
+    [ ] 1.3 - Specify minimum neutral input and Pi compatibility translation
+    [ ] 1.4 - Post caller matrix and explicit GO/NO-GO decision to #146
+[ ] 2.0 - Define protocol-neutral runtime input (GO only)
+    [ ] 2.1 - Add eval-native case identity/prompt/skill type
+    [ ] 2.2 - Replace Pi-shaped runtime input alias with a neutral contract
+    [ ] 2.3 - Preserve focused injection and compatible result requirements
+[ ] 3.0 - Move translation to Pi adapter (GO only)
+    [ ] 3.1 - Remove synthetic normalization from run-case
+    [ ] 3.2 - Translate neutral input in runtime/pi-sdk
+    [ ] 3.3 - Adapt replay to neutral input with compatible output
+    [ ] 3.4 - Preserve genuine routing, parity, and live-smoke legacy lanes
+[ ] 4.0 - Verify and ship or stop
+    [ ] 4.1 - On GO: run focused runtime, runner, trace, replay, artifact, and command tests
+    [ ] 4.2 - On GO: run typecheck, full offline test suite, and structural checks
+    [ ] 4.3 - On GO: open one PR with Closes #146
+    [ ] 4.4 - On NO-GO: update and defer/close #146 without code changes
+    [ ] 4.5 - On completion: move docs/W-000051-IMPLEMENTATION_PLAN.md + docs/W-000051-progress.txt to docs/archive/
