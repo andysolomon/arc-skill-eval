@@ -6,6 +6,7 @@
 
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
+import { mapAssertionResultForView, readGradingJson } from '../evals/artifacts.js';
 import type { Workspace, Skill, Case, Assertion, Run, CaseStatus, TraceInfo, ContextInfo, OutputFile } from './types.js';
 
 // ---------------------------------------------------------------- fs helpers
@@ -67,34 +68,16 @@ function relTime(mtimeMs: number): string {
 
 // ---------------------------------------------------------------- mapping
 
-const DET_TYPES = new Set(['file-exists', 'regex-match', 'json-valid']);
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
 function mapAssertion(r: any): Assertion {
-  const a = r?.assertion;
-  const isStr = typeof a === 'string';
-  let type = 'llm-judge';
-  let det = false;
-  let target = '';
-  if (!isStr && a && typeof a === 'object') {
-    if (typeof a.type === 'string') { type = a.type; det = DET_TYPES.has(a.type); }
-    else if (a.kind && a.method) { type = `${a.kind}/${a.method}`; det = a.method !== 'judge'; }
-    const tgt = a.path ?? (a.target && (a.target.file ?? a.target));
-    target = typeof tgt === 'string' ? tgt : '';
-  }
-  // Script-assertion grading text repeats its own type ("file-exists: path");
-  // every view renders the type tag separately, so strip the prefix here.
-  const rawLabel = String(r?.text ?? '');
-  const label = det && rawLabel.toLowerCase().startsWith(`${type.toLowerCase()}:`)
-    ? rawLabel.slice(type.length + 1).trim()
-    : rawLabel;
+  const mapped = mapAssertionResultForView(r);
   return {
-    type, det,
-    label,
-    target,
-    passed: !!r?.passed,
-    evidence: String(r?.evidence ?? ''),
-    raw: a === undefined ? '' : JSON.stringify(a),
+    type: mapped.type,
+    det: mapped.det,
+    label: mapped.label,
+    target: mapped.target,
+    passed: mapped.passed,
+    evidence: mapped.evidence,
+    raw: mapped.raw,
   };
 }
 
@@ -206,7 +189,7 @@ async function loadCase(caseDir: string, ec: any): Promise<Case> {
 
   let withP = passed, withT = total, withoutP = passed, withoutT = total, delta = '';
   if (compare) {
-    const wo = await readJson<any>(path.join(caseDir, 'without_skill', 'grading.json'));
+    const wo = await readGradingJson(path.join(caseDir, 'without_skill'));
     withoutP = wo?.summary?.passed ?? 0;
     withoutT = wo?.summary?.total ?? total;
     delta = pct((withT ? withP / withT : 0) - (withoutT ? withoutP / withoutT : 0));
