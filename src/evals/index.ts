@@ -3,4 +3,5 @@ export * from "./loader.js";
 export * from "./discover.js";
 export * from "./run-case.js";
 export * from "./grade.js";
+export * from "./assertion-engine.js";
 export * from "./artifacts.js";
