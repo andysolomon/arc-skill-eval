@@ -4,10 +4,15 @@ import path from "node:path";
 import type { ModelSelection, SandboxMode } from "../contracts/types.js";
 import { discoverEvalSkills, type DiscoveredEvalSkill } from "../evals/discover.js";
 import { readEvalsJson } from "../evals/loader.js";
-import { writeCaseVariantArtifacts } from "../evals/artifacts.js";
 import { isJudgeAssertion } from "../evals/assertion-engine.js";
-import { DEFAULT_JUDGE_MODEL, gradeEvalCase, type LlmJudgeFn } from "../evals/grade.js";
-import { runEvalCase } from "../evals/run-case.js";
+import { DEFAULT_JUDGE_MODEL, type LlmJudgeFn } from "../evals/grade.js";
+import {
+  collectObservabilityExportFailures,
+  executeCasePipeline,
+  type CaseRunArtifacts,
+  type CaseRunComparison,
+  type VariantRunArtifacts,
+} from "../evals/case-pipeline.js";
 import type {
   BenchmarkCaseResult,
   BenchmarkJson,
@@ -18,15 +23,10 @@ import type {
   EvalRunVariant,
   EvalsJsonFile,
   GradingJson,
-  TimingJson,
 } from "../evals/types.js";
 import type {
-  ContextManifestJson,
   EvalContextMode,
-  ObservabilityCaseVariantPayload,
-  ObservabilityExportResult,
   ObservabilitySink,
-  ToolSummaryJson,
 } from "../observability/types.js";
 import type { PiSdkSessionFactory } from "../pi/sdk-runner.js";
 import type { AgentRuntime } from "../runtime/types.js";
@@ -87,34 +87,7 @@ export interface RunEvalsCommandOptions {
   }) => void;
 }
 
-export interface VariantRunArtifacts {
-  variant: EvalRunVariant;
-  assistantPath: string;
-  outputsDir: string;
-  timingPath: string;
-  gradingPath: string;
-  tracePath: string;
-  toolSummaryPath: string;
-  contextManifestPath: string;
-  timing: TimingJson;
-  grading: GradingJson;
-  toolSummary: ToolSummaryJson;
-  contextManifest: ContextManifestJson;
-  observabilityExports: ObservabilityExportResult[];
-}
-
-export interface CaseRunComparison {
-  withSkillPassRate: number | null;
-  withoutSkillPassRate: number | null;
-  /** `null` when either variant has no assertion pass rate. */
-  delta: number | null;
-}
-
-export interface CaseRunArtifacts extends VariantRunArtifacts {
-  caseId: string;
-  variants?: Partial<Record<EvalRunVariant, VariantRunArtifacts>>;
-  comparison?: CaseRunComparison;
-}
+export type { CaseRunArtifacts, CaseRunComparison, VariantRunArtifacts } from "../evals/case-pipeline.js";
 
 export interface SkillRunResult {
   skillName: string;
@@ -204,26 +177,28 @@ export async function runEvalsCommand(
     for (const evalCase of selectedCases) {
       options.onProgress?.({ phase: "case-start", caseId: String(evalCase.id) });
       try {
-        const artifacts = await runOneCase({
-          skill,
-          evalCase,
-          evalsDir: path.dirname(skill.evalsJsonPath),
-          skillOutputDir,
-          model: options.model,
-          judgeModel: options.judgeModel,
-          agentDir: options.agentDir,
-          compare: options.compare ?? false,
-          extraSkillPaths: options.extraSkillPaths ?? [],
-          contextMode: options.contextMode ?? "isolated",
-          // Precedence: CLI override > per-case field > default.
-          sandbox: options.sandbox ?? evalCase.sandbox ?? "none",
-          observabilitySinks: options.observabilitySinks ?? [],
-          runId,
-          iteration,
-          skillName: evalsFile.skill_name,
-          createSession: options.createSession,
-          judge: options.judge,
-          runtime: options.runtime,
+        const artifacts = await executeCasePipeline({
+          specification: {
+            skill,
+            evalCase,
+            evalsDir: path.dirname(skill.evalsJsonPath),
+            skillName: evalsFile.skill_name,
+          },
+          execution: {
+            model: options.model,
+            judgeModel: options.judgeModel,
+            agentDir: options.agentDir,
+            compare: options.compare ?? false,
+            extraSkillPaths: options.extraSkillPaths ?? [],
+            contextMode: options.contextMode ?? "isolated",
+            // Precedence: CLI override > per-case field > default.
+            sandbox: options.sandbox ?? evalCase.sandbox ?? "none",
+            observabilitySinks: options.observabilitySinks ?? [],
+            createSession: options.createSession,
+            judge: options.judge,
+            runtime: options.runtime,
+          },
+          context: { outputDir: skillOutputDir, runId, iteration },
         });
         result.cases.push(artifacts);
         result.observabilityExportFailures.push(...collectObservabilityExportFailures(artifacts));
@@ -381,219 +356,6 @@ async function readJsonFile<T>(file: string): Promise<{ ok: true; value: T } | {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-async function runOneCase(args: {
-  skill: DiscoveredEvalSkill;
-  evalCase: EvalCase;
-  evalsDir: string;
-  skillOutputDir: string;
-  model: ModelSelection | undefined;
-  judgeModel: ModelSelection | undefined;
-  agentDir: string | undefined;
-  compare: boolean;
-  extraSkillPaths: string[];
-  contextMode: EvalContextMode;
-  sandbox: SandboxMode;
-  observabilitySinks: ObservabilitySink[];
-  runId: string;
-  iteration: string | undefined;
-  skillName: string;
-  createSession: PiSdkSessionFactory | undefined;
-  judge: LlmJudgeFn | undefined;
-  runtime: AgentRuntime | undefined;
-}): Promise<CaseRunArtifacts> {
-  const caseSlug = sanitizeCaseId(args.evalCase.id);
-  const caseDir = path.join(args.skillOutputDir, `eval-${caseSlug}`);
-
-  if (!args.compare) {
-    const single = await runOneCaseVariant({
-      ...args,
-      variant: "with_skill",
-      variantDir: caseDir,
-      attachSkill: true,
-    });
-
-    return {
-      caseId: String(args.evalCase.id),
-      ...single,
-    };
-  }
-
-  const withSkill = await runOneCaseVariant({
-    ...args,
-    variant: "with_skill",
-    variantDir: path.join(caseDir, "with_skill"),
-    attachSkill: true,
-  });
-  const withoutSkill = await runOneCaseVariant({
-    ...args,
-    variant: "without_skill",
-    variantDir: path.join(caseDir, "without_skill"),
-    attachSkill: false,
-  });
-
-  return {
-    caseId: String(args.evalCase.id),
-    ...withSkill,
-    variants: {
-      with_skill: withSkill,
-      without_skill: withoutSkill,
-    },
-    comparison: compareVariantPassRates(withSkill.grading, withoutSkill.grading),
-  };
-}
-
-async function runOneCaseVariant(args: {
-  skill: DiscoveredEvalSkill;
-  evalCase: EvalCase;
-  evalsDir: string;
-  model: ModelSelection | undefined;
-  judgeModel: ModelSelection | undefined;
-  agentDir: string | undefined;
-  createSession: PiSdkSessionFactory | undefined;
-  judge: LlmJudgeFn | undefined;
-  runtime: AgentRuntime | undefined;
-  variant: EvalRunVariant;
-  variantDir: string;
-  attachSkill: boolean;
-  extraSkillPaths: string[];
-  contextMode: EvalContextMode;
-  sandbox: SandboxMode;
-  observabilitySinks: ObservabilitySink[];
-  runId: string;
-  iteration: string | undefined;
-  skillName: string;
-}): Promise<VariantRunArtifacts> {
-  const run = await runEvalCase({
-    skill: args.skill,
-    case: args.evalCase,
-    evalsDir: args.evalsDir,
-    model: args.model,
-    agentDir: args.agentDir,
-    createSession: args.createSession,
-    runtime: args.runtime,
-    attachSkill: args.attachSkill,
-    extraSkillPaths: args.extraSkillPaths,
-    contextMode: args.contextMode,
-    sandbox: args.sandbox,
-  });
-
-  try {
-    // Judge model precedence: --judge-model > the model that actually ran
-    // the case (guaranteed usable — the run just used it) > the built-in
-    // last-resort default inside gradeEvalCase.
-    const runnerModel = run.timing.model;
-    const judgeModel =
-      args.judgeModel ??
-      (runnerModel ? { provider: runnerModel.provider, id: runnerModel.id } : undefined);
-    const grading = await gradeEvalCase({
-      case: args.evalCase,
-      workspaceDir: run.workspaceDir,
-      assistantText: run.assistantText,
-      judge: args.judge,
-      judgeModel,
-      agentDir: args.agentDir,
-    });
-
-    const { paths: artifactPaths } = await writeCaseVariantArtifacts({
-      variantDir: args.variantDir,
-      assistantText: run.assistantText,
-      workspaceDir: run.workspaceDir,
-      timing: run.timing,
-      grading,
-      trace: run.trace,
-      toolSummary: run.toolSummary,
-      contextManifest: run.contextManifest,
-    });
-    const observabilityExports = await exportCaseVariantToSinks(args.observabilitySinks, {
-      run_id: args.runId,
-      ...(args.iteration ? { iteration: args.iteration } : {}),
-      skill: {
-        name: args.skillName,
-        dir: args.skill.skillDir,
-      },
-      case_id: String(args.evalCase.id),
-      variant: args.variant,
-      timing: run.timing,
-      grading_summary: grading.summary,
-      grading,
-      trace: run.trace,
-      tool_summary: run.toolSummary,
-      context_manifest: run.contextManifest,
-      artifact_paths: artifactPaths,
-    });
-
-    return {
-      variant: args.variant,
-      assistantPath: artifactPaths.assistant,
-      outputsDir: artifactPaths.outputs,
-      timingPath: artifactPaths.timing,
-      gradingPath: artifactPaths.grading,
-      tracePath: artifactPaths.trace,
-      toolSummaryPath: artifactPaths.tool_summary,
-      contextManifestPath: artifactPaths.context_manifest,
-      timing: run.timing,
-      grading,
-      toolSummary: run.toolSummary,
-      contextManifest: run.contextManifest,
-      observabilityExports,
-    };
-  } finally {
-    await run.cleanup().catch(() => undefined);
-  }
-}
-
-async function exportCaseVariantToSinks(
-  sinks: ObservabilitySink[],
-  payload: ObservabilityCaseVariantPayload,
-): Promise<ObservabilityExportResult[]> {
-  const results: ObservabilityExportResult[] = [];
-
-  for (const sink of sinks) {
-    try {
-      const result = await sink.exportCaseVariant(payload);
-      results.push(result ?? { sink: sink.name, status: "success" });
-    } catch (error) {
-      results.push({
-        sink: sink.name,
-        status: "failed",
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-
-  return results;
-}
-
-function collectObservabilityExportFailures(artifacts: CaseRunArtifacts): SkillRunResult["observabilityExportFailures"] {
-  const failures: SkillRunResult["observabilityExportFailures"] = [];
-  const variants = artifacts.variants ? Object.values(artifacts.variants) : [artifacts];
-
-  for (const variant of variants) {
-    if (!variant) continue;
-    for (const result of variant.observabilityExports) {
-      if (result.status !== "failed") continue;
-      failures.push({
-        caseId: artifacts.caseId,
-        variant: variant.variant,
-        sink: result.sink,
-        message: result.message ?? "Observability export failed",
-      });
-    }
-  }
-
-  return failures;
-}
-
-function compareVariantPassRates(withSkill: GradingJson, withoutSkill: GradingJson): CaseRunComparison {
-  const withSkillPassRate = withSkill.summary.pass_rate;
-  const withoutSkillPassRate = withoutSkill.summary.pass_rate;
-  const delta = withSkillPassRate === null || withoutSkillPassRate === null
-    ? null
-    : withSkillPassRate - withoutSkillPassRate;
-
-  return { withSkillPassRate, withoutSkillPassRate, delta };
 }
 
 function buildBenchmarkJson(args: {
@@ -807,8 +569,4 @@ function normalizeIteration(iteration: string | undefined): string | undefined {
   if (trimmed.length === 0) return undefined;
   const normalized = trimmed.startsWith("iteration-") ? trimmed : `iteration-${trimmed}`;
   return normalized.replace(/[^A-Za-z0-9_.-]/g, "-");
-}
-
-function sanitizeCaseId(id: string | number): string {
-  return String(id).replace(/[^A-Za-z0-9_.-]/g, "-");
 }
