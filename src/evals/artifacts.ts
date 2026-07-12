@@ -9,7 +9,11 @@ import path from "node:path";
 import type { ContextManifestJson, ToolSummaryJson } from "../observability/types.js";
 import type { EvalTrace } from "../traces/types.js";
 
+import { isJudgeAssertion } from "./assertion-engine.js";
 import type { GradingJson, TimingJson } from "./types.js";
+
+/** @deprecated Use the assertion engine classifier for new presentation code. */
+export { DETERMINISTIC_ASSERTION_TYPES } from "./assertion-engine.js";
 
 export const CASE_VARIANT_ARTIFACT_NAMES = {
   assistant: "assistant.md",
@@ -103,9 +107,6 @@ export async function readGradingJson(variantDir: string): Promise<GradingJson |
   return readJsonFile<GradingJson>(path.join(variantDir, CASE_VARIANT_ARTIFACT_NAMES.grading));
 }
 
-/** Script assertion types graded deterministically (not LLM-judge). */
-export const DETERMINISTIC_ASSERTION_TYPES = new Set(["file-exists", "regex-match", "json-valid"]);
-
 export interface MappedAssertionView {
   type: string;
   det: boolean;
@@ -116,7 +117,11 @@ export interface MappedAssertionView {
   raw: string;
 }
 
-/** Map one grading.json assertion_result entry for TUI display. */
+/**
+ * Map one grading.json assertion_result entry for TUI display.
+ * Classification is delegated to the assertion engine; this reader never
+ * grades or mutates persisted artifacts.
+ */
 export function mapAssertionResultForView(result: {
   text?: string;
   passed?: boolean;
@@ -133,10 +138,10 @@ export function mapAssertionResultForView(result: {
     const record = assertion as Record<string, unknown>;
     if (typeof record.type === "string") {
       type = record.type;
-      det = DETERMINISTIC_ASSERTION_TYPES.has(record.type);
+      det = !isJudgeAssertion(assertion);
     } else if (record.kind && record.method) {
       type = `${record.kind}/${record.method}`;
-      det = record.method !== "judge";
+      det = !isJudgeAssertion(assertion);
     }
     const tgt = record.path ?? (record.target && ((record.target as Record<string, unknown>).file ?? record.target));
     target = typeof tgt === "string" ? tgt : "";

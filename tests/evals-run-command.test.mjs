@@ -214,6 +214,36 @@ test("runEvalsCommand accepts a sandbox override and per-case sandbox without ch
   }
 });
 
+test("runEvalsCommand sends only shared-classifier judge assertions to the judge", async () => {
+  const { repoRoot, skillDir } = await createSkillFixture({
+    skillName: "classifier",
+    evals: [{
+      id: "deterministic-output",
+      prompt: "Say done.",
+      assertions: [{ id: "exact", kind: "output", method: "exact", expected: "done" }],
+    }],
+  });
+  let judgeCalls = 0;
+
+  try {
+    const result = await runEvalsCommand({
+      input: skillDir,
+      runId: "run-classifier",
+      createSession: async () => ({ model: null, session: createInjectedSession("done") }),
+      judge: async () => {
+        judgeCalls++;
+        return { results: [] };
+      },
+    });
+
+    assert.equal(judgeCalls, 0);
+    assert.equal(result.summary.passedAssertions, 1);
+    assert.equal(result.skills[0].cases[0].grading.judge_model, undefined);
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
 test("runEvalsCommand exports complete case variant payloads to observability sinks", async () => {
   const { repoRoot, skillDir } = await createSkillFixture({
     skillName: "sample",

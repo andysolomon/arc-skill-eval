@@ -5,6 +5,7 @@ import type { ModelSelection, SandboxMode } from "../contracts/types.js";
 import { discoverEvalSkills, type DiscoveredEvalSkill } from "../evals/discover.js";
 import { readEvalsJson } from "../evals/loader.js";
 import { writeCaseVariantArtifacts } from "../evals/artifacts.js";
+import { isJudgeAssertion } from "../evals/assertion-engine.js";
 import { DEFAULT_JUDGE_MODEL, gradeEvalCase, type LlmJudgeFn } from "../evals/grade.js";
 import { runEvalCase } from "../evals/run-case.js";
 import type {
@@ -12,7 +13,6 @@ import type {
   BenchmarkJson,
   BenchmarkVariantArtifacts,
   BenchmarkVariantSummary,
-  EvalAssertion,
   EvalCase,
   EvalCaseId,
   EvalRunVariant,
@@ -365,10 +365,6 @@ function validateProviderSelection(options: {
 
 function selectedCasesNeedJudge(evalsFiles: EvalsJsonFile[], caseIds: string[] | undefined): boolean {
   return evalsFiles.some((evalsFile) => filterCases(evalsFile, caseIds).some((evalCase) => (evalCase.assertions ?? []).some(isJudgeAssertion)));
-}
-
-function isJudgeAssertion(assertion: EvalAssertion): boolean {
-  return typeof assertion === "string" || (isRecord(assertion) && assertion.method === "judge");
 }
 
 function looksLikeRequiredEnvVar(value: string): boolean {
