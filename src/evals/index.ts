@@ -5,3 +5,4 @@ export * from "./run-case.js";
 export * from "./grade.js";
 export * from "./assertion-engine.js";
 export * from "./artifacts.js";
+export * from "./case-pipeline.js";
