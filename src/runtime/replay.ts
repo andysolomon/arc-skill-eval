@@ -6,10 +6,14 @@
 // Deterministic script assertions (file-exists / regex-match / json-valid)
 // then grade against the replayed workspace, which lets integration tests
 // exercise the full grade-and-artifact path provider-free.
+//
+// Consumes protocol-neutral RuntimeCaseOptions and synthesizes Pi-compatible
+// result fields (profile/tier/kind/lane) only at this return boundary.
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import type { PiSdkExecutionCase } from "../pi/types.js";
 import type { AgentRuntime, RuntimeCaseOptions, RuntimeCaseResult } from "./types.js";
 
 export interface ReplayFixture {
@@ -81,16 +85,17 @@ async function replayCase(fixture: ReplayFixture, options: RuntimeCaseOptions): 
   const finishedAt = new Date();
   const inputTokens = fixture.usage?.inputTokens ?? 0;
   const outputTokens = fixture.usage?.outputTokens ?? 0;
+  const caseDefinition = toCompatibilityExecutionCase(options);
 
   return {
     source: options.source,
     skill: {
-      name: options.skill.contract.skill,
-      relativeSkillDir: options.skill.files.relativeSkillDir,
-      profile: options.skill.contract.profile,
-      targetTier: options.skill.contract.targetTier,
+      name: options.skill.name,
+      relativeSkillDir: options.skill.relativeSkillDir,
+      profile: "repo-mutation",
+      targetTier: 1,
     },
-    caseDefinition: options.caseDefinition,
+    caseDefinition,
     workspaceDir: workspaceRoot,
     agentDir: options.agentDir ?? "",
     sessionDir: "",
@@ -100,11 +105,11 @@ async function replayCase(fixture: ReplayFixture, options: RuntimeCaseOptions): 
     finishedAt: finishedAt.toISOString(),
     durationMs: finishedAt.getTime() - startedAt.getTime(),
     session: {
-      sessionId: `replay-${options.caseDefinition.caseId}`,
+      sessionId: `replay-${options.case.caseId}`,
       sessionFile: "",
       assistantText: fixture.assistantText,
       messages: [
-        { role: "user", content: options.caseDefinition.prompt },
+        { role: "user", content: options.case.prompt },
         { role: "assistant", content: fixture.assistantText },
       ],
       events: [],
@@ -140,5 +145,22 @@ async function replayCase(fixture: ReplayFixture, options: RuntimeCaseOptions): 
     },
     telemetry: null,
     cleanup: async () => ({ fixture: null, environment: { agentDirRemoved: false } }),
+  };
+}
+
+/** Synthesize Pi-compatible case metadata only at the replay result boundary. */
+function toCompatibilityExecutionCase(options: RuntimeCaseOptions): PiSdkExecutionCase {
+  return {
+    kind: "execution",
+    lane: "execution-deterministic",
+    caseId: options.case.caseId,
+    prompt: options.case.prompt,
+    skillName: options.case.skillName,
+    contractModel: undefined,
+    definition: {
+      id: options.case.caseId,
+      prompt: options.case.prompt,
+      fixture: undefined,
+    },
   };
 }
