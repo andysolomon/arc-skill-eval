@@ -32,12 +32,22 @@ function stubResult(options) {
   return {
     source: options.source,
     skill: {
-      name: options.skill.contract.skill,
-      relativeSkillDir: options.skill.files.relativeSkillDir,
-      profile: options.skill.contract.profile,
-      targetTier: options.skill.contract.targetTier,
+      name: options.skill.name,
+      relativeSkillDir: options.skill.relativeSkillDir,
+      profile: "repo-mutation",
+      targetTier: 1,
     },
-    caseDefinition: options.caseDefinition,
+    caseDefinition: {
+      kind: "execution",
+      lane: "execution-deterministic",
+      caseId: options.case.caseId,
+      prompt: options.case.prompt,
+      skillName: options.case.skillName,
+      definition: {
+        id: options.case.caseId,
+        prompt: options.case.prompt,
+      },
+    },
     workspaceDir: options.workspaceDir,
     agentDir: "/tmp/stub-agent",
     sessionDir: "/tmp/stub-sessions",

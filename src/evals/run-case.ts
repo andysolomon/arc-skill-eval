@@ -3,21 +3,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import type { ModelSelection, SandboxMode, SeededWorkspaceSetup, WorkspaceSetup } from "../contracts/types.js";
-import { normalizeSkillEvalContract } from "../contracts/normalize.js";
 import { materializeFixture } from "../fixtures/materialize.js";
 import type { MaterializedFixture } from "../fixtures/types.js";
-import type {
-  DiscoveredSkillFiles,
-  RepoSourceDescriptor,
-  ValidatedSkillDiscovery,
-} from "../load/source-types.js";
+import type { DiscoveredSkillFiles, RepoSourceDescriptor } from "../load/source-types.js";
 import type { PiSdkSessionFactory } from "../pi/sdk-runner.js";
-import type {
-  PiSdkCaseRunResult,
-  PiSdkExecutionCase,
-} from "../pi/types.js";
 import { piSdkRuntime } from "../runtime/pi-sdk.js";
-import type { AgentRuntime } from "../runtime/types.js";
+import type { AgentRuntime, RuntimeSkillIdentity } from "../runtime/types.js";
 import {
   buildToolSummary,
   enrichContextManifestWithTrace,
@@ -98,12 +89,13 @@ export interface EvalCaseRunResult {
 }
 
 /**
- * Execute one {@link EvalCase} against its parent skill via the Pi SDK.
+ * Execute one {@link EvalCase} against its parent skill via an
+ * {@link AgentRuntime}.
  *
- * This is the M2A "runner" half of the MVP pipeline — it runs the
- * prompt once with the skill attached by default, captures assistant text +
- * timing + trace, and hands the populated workspace back to the caller
- * for downstream assertion grading (M2B).
+ * Constructs protocol-neutral runtime input (skill identity + case id/prompt)
+ * and delegates Pi-specific contract/lane synthesis to the Pi adapter.
+ * Captures assistant text + timing + trace and hands the populated workspace
+ * back for downstream assertion grading.
  */
 export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCaseRunResult> {
   const workspaceDir = await mkdtemp(path.join(tmpdir(), "arc-skill-eval-case-"));
@@ -111,14 +103,14 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
   let materializedFixture: MaterializedFixture | undefined;
 
   try {
-    const skillDiscovery = buildSkillDiscovery(options.skill);
+    const skillFiles = buildSkillFiles(options.skill);
 
     if (options.case.setup) {
       materializedFixture = await materializeWorkspaceSetup({
         evalsDir: options.evalsDir,
         setup: options.case.setup,
         workspaceDir,
-        skillDiscovery,
+        skillFiles,
       });
     }
 
@@ -130,14 +122,18 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
       });
     }
 
-    const caseDefinition = buildExecutionCase(options.skill, options.case);
+    const skillIdentity = toRuntimeSkillIdentity(skillFiles);
     const source = buildSourceDescriptor(options.skill);
 
     const runtime = options.runtime ?? piSdkRuntime;
-    const piResult = await runtime.runCase({
+    const runtimeResult = await runtime.runCase({
       source,
-      skill: skillDiscovery,
-      caseDefinition,
+      skill: skillIdentity,
+      case: {
+        caseId: String(options.case.id),
+        prompt: options.case.prompt,
+        skillName: skillIdentity.name,
+      },
       workspaceDir,
       agentDir: options.agentDir,
       model: options.model,
@@ -150,23 +146,23 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
     });
 
     const timing: TimingJson = {
-      total_tokens: piResult.usage.totalTokens,
-      duration_ms: piResult.durationMs,
-      model: piResult.usage.model,
-      thinking_level: piResult.usage.thinkingLevel,
+      total_tokens: runtimeResult.usage.totalTokens,
+      duration_ms: runtimeResult.durationMs,
+      model: runtimeResult.usage.model,
+      thinking_level: runtimeResult.usage.thinkingLevel,
       token_usage: {
-        input_tokens: piResult.usage.inputTokens,
-        output_tokens: piResult.usage.outputTokens,
-        cache_read_tokens: piResult.usage.cacheReadTokens,
-        cache_write_tokens: piResult.usage.cacheWriteTokens,
-        total_tokens: piResult.usage.totalTokens,
+        input_tokens: runtimeResult.usage.inputTokens,
+        output_tokens: runtimeResult.usage.outputTokens,
+        cache_read_tokens: runtimeResult.usage.cacheReadTokens,
+        cache_write_tokens: runtimeResult.usage.cacheWriteTokens,
+        total_tokens: runtimeResult.usage.totalTokens,
       },
-      estimated_cost_usd: piResult.usage.estimatedCostUsd,
-      context_window_tokens: piResult.usage.contextWindowTokens,
-      context_window_used_percent: piResult.usage.contextWindowUsedPercent,
+      estimated_cost_usd: runtimeResult.usage.estimatedCostUsd,
+      context_window_tokens: runtimeResult.usage.contextWindowTokens,
+      context_window_used_percent: runtimeResult.usage.contextWindowUsedPercent,
     };
-    const trace = normalizePiSdkCaseRunResult(piResult, runtime.id);
-    const contextManifest = enrichContextManifestWithTrace(piResult.contextManifest, trace);
+    const trace = normalizePiSdkCaseRunResult(runtimeResult, runtime.id);
+    const contextManifest = enrichContextManifestWithTrace(runtimeResult.contextManifest, trace);
     const toolSummary = buildToolSummary(trace, contextManifest);
 
     const cleanup = async () => {
@@ -175,12 +171,12 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
         await materializedFixture?.cleanup().catch(() => undefined);
         await rm(workspaceDir, { recursive: true, force: true });
       }
-      await piResult.cleanup().catch(() => undefined);
+      await runtimeResult.cleanup().catch(() => undefined);
     };
 
     return {
       caseId: options.case.id,
-      assistantText: piResult.session.assistantText,
+      assistantText: runtimeResult.session.assistantText,
       workspaceDir,
       timing,
       trace,
@@ -218,7 +214,7 @@ async function materializeWorkspaceSetup(options: {
   evalsDir: string;
   setup: WorkspaceSetup;
   workspaceDir: string;
-  skillDiscovery: ValidatedSkillDiscovery;
+  skillFiles: DiscoveredSkillFiles;
 }): Promise<MaterializedFixture | undefined> {
   switch (options.setup.kind) {
     case "empty":
@@ -233,7 +229,7 @@ async function materializeWorkspaceSetup(options: {
     case "fixture":
       return await materializeFixture({
         fixture: options.setup.fixture,
-        skillFiles: options.skillDiscovery.files,
+        skillFiles: options.skillFiles,
         workspaceDir: options.workspaceDir,
       });
   }
@@ -293,10 +289,9 @@ function resolveWorkspaceDestination(workspaceDir: string, relativePath: string)
   return absolute;
 }
 
-function buildSkillDiscovery(skill: DiscoveredEvalSkill): ValidatedSkillDiscovery {
-  const skillName = path.basename(skill.skillDir);
-  const files: DiscoveredSkillFiles = {
-    skillName,
+function buildSkillFiles(skill: DiscoveredEvalSkill): DiscoveredSkillFiles {
+  return {
+    skillName: path.basename(skill.skillDir),
     skillDir: skill.skillDir,
     relativeSkillDir: skill.relativeSkillDir,
     skillDefinitionPath: skill.skillDefinitionPath,
@@ -304,47 +299,15 @@ function buildSkillDiscovery(skill: DiscoveredEvalSkill): ValidatedSkillDiscover
     // so callers that log it still get a meaningful path.
     evalDefinitionPath: skill.evalsJsonPath,
   };
-  const contract = normalizeSkillEvalContract({
-    skill: skillName,
-    // Profile + targetTier are required by the legacy contract shape but
-    // irrelevant to the MVP runner; the Anthropic pivot drops them from
-    // the authoring surface. Pick conservative defaults.
-    profile: "repo-mutation",
-    targetTier: 1,
-    routing: {
-      explicit: [],
-      implicitPositive: [],
-      adjacentNegative: [],
-    },
-  });
-
-  return { files, contract };
 }
 
-function buildExecutionCase(
-  skill: DiscoveredEvalSkill,
-  caseInput: EvalCase,
-): PiSdkExecutionCase {
-  const skillName = path.basename(skill.skillDir);
-  const caseId = String(caseInput.id);
-
+function toRuntimeSkillIdentity(files: DiscoveredSkillFiles): RuntimeSkillIdentity {
   return {
-    kind: "execution",
-    lane: "execution-deterministic",
-    caseId,
-    prompt: caseInput.prompt,
-    skillName,
-    // Leave contractModel undefined — model resolution falls back to
-    // `options.model` or runtime defaults.
-    contractModel: undefined,
-    definition: {
-      id: caseId,
-      prompt: caseInput.prompt,
-      // No fixture — the M2A runner handles `files` itself so we can
-      // keep the declarative Anthropic shape without tunneling it
-      // through the legacy `FixtureRef` type.
-      fixture: undefined,
-    },
+    name: files.skillName,
+    skillDir: files.skillDir,
+    relativeSkillDir: files.relativeSkillDir,
+    skillDefinitionPath: files.skillDefinitionPath,
+    evalDefinitionPath: files.evalDefinitionPath,
   };
 }
 
@@ -365,4 +328,3 @@ function buildSourceDescriptor(skill: DiscoveredEvalSkill): RepoSourceDescriptor
     git: null,
   };
 }
-
