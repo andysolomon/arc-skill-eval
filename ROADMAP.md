@@ -98,9 +98,11 @@ The slim MVP is complete: discovery, loading/validation, workspace setup, Pi exe
 
 ---
 
-### P4 — Pilot skill onboarding
+### P4 — Pilot skill onboarding 🚧
 
 **Goal:** prove the framework against representative real skills.
+
+**Status:** `arc-conventional-commits` pilot vendored at `pilots/arc-conventional-commits/` with runbook in `docs/pilot/arc-conventional-commits.md`. Loader tests pass in CI; first live `--compare` run pending.
 
 **Initial pilot cohort**
 1. `arc-conventional-commits` — first pilot; lowest external dependency risk and strong fixture/workspace assertion coverage.

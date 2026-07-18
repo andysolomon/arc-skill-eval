@@ -1,6 +1,7 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+
+import { resolveBundledSkillPath } from "./package-root.js";
 
 import type { ModelSelection } from "../contracts/types.js";
 import { readEvalsJson, validateEvalsJsonValue } from "../evals/loader.js";
@@ -257,8 +258,7 @@ async function readEvalAuthoringSkill(authoringSkillPath?: string): Promise<Eval
 }
 
 function bundledArcCreatingEvalsSkillPath(): string {
-  const thisFile = fileURLToPath(import.meta.url);
-  return path.resolve(path.dirname(thisFile), "..", "..", "skills", "arc-creating-evals", "SKILL.md");
+  return path.join(resolveBundledSkillPath("arc-creating-evals"), "SKILL.md");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

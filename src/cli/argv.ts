@@ -60,6 +60,11 @@ export function parseCliArgs(argv: string[]): ParsedCliCommand {
         command: "package",
         ...parsePackageCommandArgs(rest),
       };
+    case "bundled":
+      return {
+        command: "bundled",
+        ...parseBundledCommandArgs(rest),
+      };
     default:
       throw new CliUsageError(`Unknown command: ${commandName}. Run \`arc-skill-eval --help\` for usage.`);
   }
@@ -79,6 +84,7 @@ export function renderHelp(): string {
     "  arc-skill-eval audit <skill-dir-or-repo> [--json] [--output <path>]",
     "  arc-skill-eval optimize-description <skill-dir> (--generate-only [--output <path>] [--force] | --eval-set <path> [--distractor <skill-dir>]... [--max-iterations <n> [--apply]]) [--model <provider/model[:thinking]>] [--agent-dir <path>]",
     "  arc-skill-eval package <skill-dir> [--output <path>] [--force]",
+    "  arc-skill-eval bundled [<skill-name>] [--json]",
     "",
     "Notes:",
     "  - <skill-dir-or-repo> is either a skill directory containing evals/evals.json,",
@@ -104,6 +110,7 @@ export function renderHelp(): string {
     "  - optimize-description --eval-set scores the skill's current frontmatter description: one no-tools routing probe per prompt (target + sibling/--distractor skill descriptions, rotated ordering), reporting per-prompt verdicts and train/test accuracy.",
     "  - optimize-description --max-iterations N proposes improved descriptions from train-split failures and selects the winner by held-out test accuracy; SKILL.md changes only with --apply (which verifies the rewrite reads back cleanly and restores the original otherwise).",
     "  - package validates SKILL.md and evals/evals.json first, then bundles the skill directory plus a sha256 manifest.json into <name>.skill.tgz (excluding evals-runs/, node_modules/, dot-files, and prior *.skill.tgz artifacts); --output overrides the artifact path and --force overwrites an existing artifact.",
+    "  - bundled prints absolute paths to skills shipped with the npm package; use in shell substitution, e.g. arc-skill-eval run \"$(arc-skill-eval bundled hello-world)\".",
     "  - Format reference: https://platform.claude.com/docs/en/agents-and-tools/agent-skills",
   ].join("\n");
 }
@@ -638,6 +645,32 @@ function parsePackageCommandArgs(args: string[]) {
 
   if (!skillDir) throw new CliUsageError("Missing required <skill-dir> argument.");
   return { skillDir, output, force };
+}
+
+function parseBundledCommandArgs(args: string[]) {
+  let skillName: string | undefined;
+  let json = false;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+
+    if (arg.startsWith("-")) {
+      throw new CliUsageError(`Unknown flag: ${arg}.`);
+    }
+
+    if (skillName !== undefined) {
+      throw new CliUsageError("Only one <skill-name> positional argument is allowed.");
+    }
+
+    skillName = arg;
+  }
+
+  return { skillName, json };
 }
 
 function readFlagValue(arg: string, nextArg: string | undefined): { value: string; consumedNext: boolean } {
