@@ -109,7 +109,7 @@ test("runEvalCase returns assistantText + timing when case has no files", async 
         assertions: ["The response contains 'hello'"],
       },
       createSession: async (options) => {
-        assert.equal(options.skill.contract.skill, "sample");
+        assert.equal(options.skillFiles.skillName, "sample");
         assert.equal(options.caseDefinition.caseId, "1");
         assert.equal(options.caseDefinition.kind, "execution");
         assert.equal(options.caseDefinition.lane, "execution-deterministic");

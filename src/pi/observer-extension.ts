@@ -1,8 +1,10 @@
 import type { ExtensionAPI, ExtensionFactory } from "@mariozechner/pi-coding-agent";
 import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
 
-import type { ValidatedSkillDiscovery } from "../load/source-types.js";
+import type { DiscoveredSkillFiles } from "../load/source-types.js";
 import type {
+  PiSdkCaseKind,
+  PiSdkCaseLane,
   PiSessionTelemetryEntry,
   PiSessionTelemetryToolCall,
   PiSessionTelemetryToolInfo,
@@ -18,13 +20,25 @@ import {
 } from "./telemetry-helpers.js";
 
 export interface CreatePiSessionTelemetryObserverOptions {
-  skill: ValidatedSkillDiscovery;
+  skillFiles: DiscoveredSkillFiles;
   caseDefinition: PiSdkRunnableCase;
+  telemetryContext: {
+    skillName: string;
+    caseId: string;
+    lane?: PiSdkCaseLane;
+    kind?: PiSdkCaseKind;
+  };
 }
 
 export function createPiSessionTelemetryObserverExtension(
   options: CreatePiSessionTelemetryObserverOptions,
 ): ExtensionFactory {
+  const telemetry = {
+    skillName: options.telemetryContext.skillName,
+    caseId: options.telemetryContext.caseId,
+    lane: options.telemetryContext.lane ?? options.caseDefinition.lane,
+  };
+
   return function piSessionTelemetryObserver(pi: ExtensionAPI): void {
     let sequence = 0;
 
@@ -33,13 +47,13 @@ export function createPiSessionTelemetryObserverExtension(
         sequence: ++sequence,
         timestamp: new Date().toISOString(),
         kind: "run-start",
-        skillName: options.skill.contract.skill,
-        caseId: options.caseDefinition.caseId,
-        lane: options.caseDefinition.lane,
+        skillName: telemetry.skillName,
+        caseId: telemetry.caseId,
+        lane: telemetry.lane,
         sessionId: ctx.sessionManager.getSessionId(),
         data: {
-          kind: options.caseDefinition.kind,
-          relativeSkillDir: options.skill.files.relativeSkillDir,
+          kind: options.telemetryContext.kind ?? options.caseDefinition.kind,
+          relativeSkillDir: options.skillFiles.relativeSkillDir,
           activeTools: safeGetStringArray(() => pi.getActiveTools()),
           allTools: safeGetToolInfo(() => pi.getAllTools()),
         },
@@ -57,9 +71,9 @@ export function createPiSessionTelemetryObserverExtension(
         sequence: ++sequence,
         timestamp: new Date().toISOString(),
         kind: "tool-call",
-        skillName: options.skill.contract.skill,
-        caseId: options.caseDefinition.caseId,
-        lane: options.caseDefinition.lane,
+        skillName: telemetry.skillName,
+        caseId: telemetry.caseId,
+        lane: telemetry.lane,
         sessionId: ctx.sessionManager.getSessionId(),
         data: toolCall,
       });
@@ -72,9 +86,9 @@ export function createPiSessionTelemetryObserverExtension(
             sequence: ++sequence,
             timestamp: new Date().toISOString(),
             kind: "skill-read",
-            skillName: options.skill.contract.skill,
-            caseId: options.caseDefinition.caseId,
-            lane: options.caseDefinition.lane,
+            skillName: telemetry.skillName,
+            caseId: telemetry.caseId,
+            lane: telemetry.lane,
             sessionId: ctx.sessionManager.getSessionId(),
             data: skillRead,
           });
@@ -86,9 +100,9 @@ export function createPiSessionTelemetryObserverExtension(
           sequence: ++sequence,
           timestamp: new Date().toISOString(),
           kind: "bash-command",
-          skillName: options.skill.contract.skill,
-          caseId: options.caseDefinition.caseId,
-          lane: options.caseDefinition.lane,
+          skillName: telemetry.skillName,
+          caseId: telemetry.caseId,
+          lane: telemetry.lane,
           sessionId: ctx.sessionManager.getSessionId(),
           data: {
             toolCallId: event.toolCallId,
@@ -102,9 +116,9 @@ export function createPiSessionTelemetryObserverExtension(
             sequence: ++sequence,
             timestamp: new Date().toISOString(),
             kind: "external-call",
-            skillName: options.skill.contract.skill,
-            caseId: options.caseDefinition.caseId,
-            lane: options.caseDefinition.lane,
+            skillName: telemetry.skillName,
+            caseId: telemetry.caseId,
+            lane: telemetry.lane,
             sessionId: ctx.sessionManager.getSessionId(),
             data: externalCall,
           });
@@ -123,9 +137,9 @@ export function createPiSessionTelemetryObserverExtension(
         sequence: ++sequence,
         timestamp: new Date().toISOString(),
         kind: "tool-result",
-        skillName: options.skill.contract.skill,
-        caseId: options.caseDefinition.caseId,
-        lane: options.caseDefinition.lane,
+        skillName: telemetry.skillName,
+        caseId: telemetry.caseId,
+        lane: telemetry.lane,
         sessionId: ctx.sessionManager.getSessionId(),
         data: toolResult,
       });
@@ -141,9 +155,9 @@ export function createPiSessionTelemetryObserverExtension(
           sequence: ++sequence,
           timestamp: new Date().toISOString(),
           kind: "file-touch",
-          skillName: options.skill.contract.skill,
-          caseId: options.caseDefinition.caseId,
-          lane: options.caseDefinition.lane,
+          skillName: telemetry.skillName,
+          caseId: telemetry.caseId,
+          lane: telemetry.lane,
           sessionId: ctx.sessionManager.getSessionId(),
           data: fileTouch,
         });
