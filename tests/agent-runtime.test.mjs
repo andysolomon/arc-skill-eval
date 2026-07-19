@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import * as path from "node:path";
 
 import { runEvalCase } from "../dist/evals/run-case.js";
-import { piSdkRuntime } from "../dist/runtime/pi-sdk.js";
+import { piSdkRuntime } from "../dist/pi/sdk-eval-case.js";
 
 // W-000044: run-case executes cases through an injected AgentRuntime; the
 // runtime's id flows into trace identity instead of a hardcoded literal.

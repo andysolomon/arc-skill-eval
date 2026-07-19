@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { toPiSdkEvalCaseOptions } from "../dist/runtime/pi-sdk.js";
+import { toPiSdkEvalCaseOptions } from "../dist/pi/sdk-eval-case.js";
 
 test("toPiSdkEvalCaseOptions maps eval-native input without a normalized contract", () => {
   const piOptions = toPiSdkEvalCaseOptions({
