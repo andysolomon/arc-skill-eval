@@ -7,7 +7,7 @@ import { materializeFixture } from "../fixtures/materialize.js";
 import type { MaterializedFixture } from "../fixtures/types.js";
 import type { DiscoveredSkillFiles, RepoSourceDescriptor } from "../load/source-types.js";
 import type { PiSdkSessionFactory } from "../pi/sdk-runner.js";
-import { piSdkRuntime } from "../runtime/pi-sdk.js";
+import { piSdkRuntime } from "../pi/sdk-eval-case.js";
 import type { AgentRuntime, RuntimeSkillIdentity } from "../runtime/types.js";
 import {
   buildToolSummary,

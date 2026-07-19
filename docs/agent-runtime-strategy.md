@@ -211,12 +211,14 @@ Then explore Option B behind an experimental runtime interface.
 
 ## Proposed architecture
 
+See [ADR-0001: Defer AgentRuntime expansion](./adr/ADR-0001-defer-agent-runtime-expansion.md) for why broader runtime expansion (custom tool loop, CLI `--runtime` flag) is deferred while the seam ships in minimal form.
+
 Introduce a runtime abstraction without replacing Pi yet:
 
 ```ts
 export interface AgentRuntime {
-  name: string;
-  runCase(options: AgentRunCaseOptions): Promise<AgentRunCaseResult>;
+  id: EvalTraceRuntime;
+  runCase(options: RuntimeCaseOptions): Promise<RuntimeCaseResult>;
 }
 ```
 

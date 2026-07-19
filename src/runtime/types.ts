@@ -6,7 +6,7 @@
 //   execution options only — no NormalizedSkillEvalContract, Pi kind/lane,
 //   profile, targetTier, or routing placeholders.
 // - Pi-specific compatibility metadata is synthesized exclusively in
-//   src/runtime/pi-sdk.ts before calling runPiSdkCase.
+//   src/pi/sdk-eval-case.ts before calling runPiSdkCase.
 // - RuntimeCaseResult remains the Pi result shape so trace/replay/artifact
 //   consumers stay compatible without a persisted-schema migration.
 // - createSession is a focused Pi test-injection hook; non-Pi runtimes may

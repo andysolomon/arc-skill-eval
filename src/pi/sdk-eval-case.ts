@@ -1,5 +1,6 @@
 import type { DiscoveredSkillFiles } from "../load/source-types.js";
-import type { RuntimeCaseOptions, RuntimeSkillIdentity } from "../runtime/types.js";
+import type { AgentRuntime, RuntimeCaseOptions, RuntimeSkillIdentity } from "../runtime/types.js";
+import { runPiSdkEvalCase } from "./sdk-runner.js";
 import type { PiSdkExecutionCase, RunPiSdkEvalCaseOptions } from "./types.js";
 
 export type PiSdkEvalSkill = RunPiSdkEvalCaseOptions["skill"];
@@ -58,3 +59,9 @@ export function toPiSdkEvalCaseOptions(
     createSession: options.createSession,
   };
 }
+
+/** Default AgentRuntime: translates protocol-neutral eval input into the eval-native Pi runner. */
+export const piSdkRuntime: AgentRuntime = {
+  id: "pi-sdk",
+  runCase: (options) => runPiSdkEvalCase(toPiSdkEvalCaseOptions(options)),
+};
