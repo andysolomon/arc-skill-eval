@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { ModelSelection } from "../../contracts/types.js";
-import { discoverEvalSkills, type DiscoveredEvalSkill } from "../discover.js";
+import { discoverEvalSkills, type DiscoveredEvalSkill } from "../../skills/intake.js";
 import { isJudgeAssertion } from "../assertion-engine.js";
 import { DEFAULT_JUDGE_MODEL, type LlmJudgeFn } from "../grade.js";
 import { readEvalsJson } from "../loader.js";

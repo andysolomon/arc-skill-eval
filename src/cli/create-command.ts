@@ -8,7 +8,10 @@ import { readEvalsJson, validateEvalsJsonValue } from "../evals/loader.js";
 import type { EvalAssertion, EvalsJsonFile } from "../evals/types.js";
 import { reviewCreateProposalInteractively, type CreateInteractivePrompt } from "./create-interactive.js";
 import { extractJsonObject, invokePiCompletion } from "./pi-completion.js";
+import { parseSkillFrontmatter, type SkillFrontmatter } from "../skills/intake.js";
 import { CliCommandError } from "./types.js";
+
+export { parseSkillFrontmatter, type SkillFrontmatter } from "../skills/intake.js";
 
 export interface LlmEvalDesignProposal {
   evals: EvalsJsonFile;
@@ -50,11 +53,6 @@ export interface CreateCommandResult {
   guided: boolean;
   interactive: boolean;
   rationale: string[];
-}
-
-export interface SkillFrontmatter {
-  name: string;
-  description?: string;
 }
 
 export async function createCommand(options: CreateCommandOptions): Promise<CreateCommandResult> {
@@ -271,51 +269,6 @@ async function readSkillMd(skillPath: string): Promise<string> {
   } catch (error) {
     throw new CliCommandError(`Could not read SKILL.md at ${skillPath}: ${error instanceof Error ? error.message : String(error)}`);
   }
-}
-
-export function parseSkillFrontmatter(skillText: string, skillDir: string): SkillFrontmatter {
-  const frontmatterMatch = skillText.match(/^---\s*\n([\s\S]*?)\n---\s*\n?/);
-  const frontmatter = frontmatterMatch?.[1] ?? "";
-  const name = readYamlString(frontmatter, "name") ?? path.basename(skillDir);
-  const description = readYamlString(frontmatter, "description");
-  return { name, description };
-}
-
-function readYamlString(frontmatter: string, key: string): string | undefined {
-  const blockValue = readYamlBlockScalar(frontmatter, key);
-  if (blockValue !== undefined) return blockValue;
-
-  const pattern = new RegExp(`^${escapeRegExp(key)}\\s*:\\s*(.+?)\\s*$`, "m");
-  const match = frontmatter.match(pattern);
-  if (!match) return undefined;
-  return unquoteYamlScalar(match[1]!.trim());
-}
-
-function readYamlBlockScalar(frontmatter: string, key: string): string | undefined {
-  const lines = frontmatter.split(/\r?\n/);
-  const startIndex = lines.findIndex((line) => new RegExp(`^${escapeRegExp(key)}\\s*:\\s*[>|]\\s*$`).test(line));
-  if (startIndex === -1) return undefined;
-
-  const blockLines: string[] = [];
-  for (const line of lines.slice(startIndex + 1)) {
-    if (/^\S[^:]*:\s*/.test(line)) break;
-    if (line.trim() === "") {
-      blockLines.push("");
-      continue;
-    }
-    if (!/^\s+/.test(line)) break;
-    blockLines.push(line.replace(/^\s{2}/, ""));
-  }
-
-  const value = blockLines.join("\n").trim();
-  return value ? value.replace(/\n+/g, " ") : undefined;
-}
-
-function unquoteYamlScalar(value: string): string {
-  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-    return value.slice(1, -1);
-  }
-  return value;
 }
 
 function buildStarterEvals(skill: SkillFrontmatter, skillText: string): { evals: EvalsJsonFile; fixtureInputs: string[]; adjacentNegativeAssumption: string } {
@@ -614,8 +567,4 @@ async function fileExists(file: string): Promise<boolean> {
 
 function isMissingFileError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

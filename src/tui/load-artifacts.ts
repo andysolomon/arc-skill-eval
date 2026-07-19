@@ -1,12 +1,12 @@
 // Maps real evals-runs/ artifacts into the TUI view-model.
 // This is the integration seam: the documented artifact JSON shapes
 // (grading.json / timing.json / tool-summary.json / benchmark.json / evals.json)
-// in, view-model out. Swap discoverSkillDirs() for the repo's own
-// discoverEvalSkills() (src/evals/discover.ts) once you wire this into src/.
+// in, view-model out.
 
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { mapAssertionResultForView, readGradingJson } from '../evals/artifacts.js';
+import { DEFAULT_IGNORED_DIRS, discoverEvalSkills } from '../skills/intake.js';
 import type { Workspace, Skill, Case, Assertion, Run, CaseStatus, TraceInfo, ContextInfo, OutputFile } from './types.js';
 
 // ---------------------------------------------------------------- fs helpers
@@ -379,21 +379,6 @@ async function loadRuns(skillDir: string): Promise<Run[]> {
   return out;
 }
 
-/** Shallow walk for directories that ship evals/evals.json (depth-limited). */
-async function discoverSkillDirs(root: string, depth = 3): Promise<string[]> {
-  const found: string[] = [];
-  async function walk(dir: string, d: number): Promise<void> {
-    if (await exists(path.join(dir, 'evals', 'evals.json'))) { found.push(dir); return; }
-    if (d <= 0) return;
-    for (const name of await listDirs(dir)) {
-      if (name.startsWith('.') || name === 'node_modules' || name === 'evals-runs') continue;
-      await walk(path.join(dir, name), d - 1);
-    }
-  }
-  await walk(root, depth);
-  return found;
-}
-
 /**
  * Skills attached via --extra-skill never get runs of their own, so loadSkill()
  * can't surface them. Synthesize a Skills-panel entry for each unique `extra`
@@ -458,10 +443,15 @@ export async function loadWorkspace(input: string): Promise<Workspace> {
   // repo root: discover skill dirs
   const skills: Skill[] = [];
   const runs: Run[] = [];
-  for (const dir of await discoverSkillDirs(abs)) {
-    const sk = await loadSkill(dir);
+  const discovered = await discoverEvalSkills(abs, {
+    maxDepth: 3,
+    requireSkillMd: false,
+    ignoredDirs: new Set([...DEFAULT_IGNORED_DIRS, 'evals-runs']),
+  });
+  for (const skill of discovered) {
+    const sk = await loadSkill(skill.skillDir);
     if (sk) skills.push(sk);
-    for (const r of await loadRuns(dir)) runs.push(r);
+    for (const r of await loadRuns(skill.skillDir)) runs.push(r);
   }
   appendDistractorSkills(skills);
   return { skills, runs };

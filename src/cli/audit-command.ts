@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { lstat, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { parseFrontmatter } from "../skills/intake.js";
 import { CliCommandError } from "./types.js";
 
 export interface AuditCommandOptions {
@@ -41,12 +42,6 @@ export interface AuditCommandResult {
     infoCount: number;
   };
   outputPath?: string;
-}
-
-interface SkillFrontmatter {
-  name?: string;
-  description?: string;
-  disableModelInvocation: boolean;
 }
 
 export async function auditCommand(options: AuditCommandOptions): Promise<AuditCommandResult> {
@@ -207,49 +202,6 @@ async function walk(dir: string, depth: number, found: string[]): Promise<void> 
   }
 }
 
-function parseFrontmatter(text: string): SkillFrontmatter {
-  const match = text.match(/^---\s*\n([\s\S]*?)\n---\s*\n?/);
-  const frontmatter = match?.[1] ?? "";
-  return {
-    name: readYamlString(frontmatter, "name"),
-    description: readYamlString(frontmatter, "description"),
-    disableModelInvocation: readYamlBoolean(frontmatter, "disable-model-invocation") || readYamlBoolean(frontmatter, "disable-model-invoked-skill"),
-  };
-}
-
-function readYamlString(frontmatter: string, key: string): string | undefined {
-  const block = readYamlBlockScalar(frontmatter, key);
-  if (block !== undefined) return block;
-  const match = frontmatter.match(new RegExp(`^${escapeRegExp(key)}\\s*:\\s*(.+?)\\s*$`, "m"));
-  if (!match) return undefined;
-  return unquote(match[1]!.trim());
-}
-
-function readYamlBlockScalar(frontmatter: string, key: string): string | undefined {
-  const lines = frontmatter.split(/\r?\n/);
-  const index = lines.findIndex((line) => new RegExp(`^${escapeRegExp(key)}\\s*:\\s*[>|]`).test(line));
-  if (index === -1) return undefined;
-  const values: string[] = [];
-  for (const line of lines.slice(index + 1)) {
-    if (/^\S[^:]*:\s*/.test(line)) break;
-    if (line.trim() === "") continue;
-    if (!/^\s+/.test(line)) break;
-    values.push(line.trim());
-  }
-  const value = values.join(" ").trim();
-  return value || undefined;
-}
-
-function readYamlBoolean(frontmatter: string, key: string): boolean {
-  const match = frontmatter.match(new RegExp(`^${escapeRegExp(key)}\\s*:\\s*(true|false)\\s*$`, "mi"));
-  return match?.[1]?.toLowerCase() === "true";
-}
-
-function unquote(value: string): string {
-  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) return value.slice(1, -1);
-  return value;
-}
-
 function findMissingMarkdownLinks(text: string, skillDir: string): string[] {
   const missing: string[] = [];
   const regex = /\[[^\]]+\]\(([^)]+\.md)(?:#[^)]+)?\)/g;
@@ -300,10 +252,6 @@ function summarize(skills: SkillAuditRecord[]): AuditCommandResult["summary"] {
     warnCount: findings.filter((finding) => finding.severity === "warn").length,
     infoCount: findings.filter((finding) => finding.severity === "info").length,
   };
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function escapeTable(value: string): string {
