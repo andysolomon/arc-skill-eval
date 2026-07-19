@@ -114,6 +114,7 @@ interface PiSdkCaseRunCoreOptions {
   environment: PiSdkRunEnvironment;
   workspaceDir: string;
   materializedFixture: MaterializedFixture | null;
+  workspaceEnv?: Record<string, string>;
   requestedModel: ModelSelection | undefined;
   configAgentDir?: string;
   appendSystemPrompt?: string[];
@@ -158,6 +159,7 @@ export async function runPiSdkEvalCase(
     environment,
     workspaceDir: options.workspaceDir,
     materializedFixture: null,
+    workspaceEnv: options.workspaceEnv,
     requestedModel: options.model,
     configAgentDir: options.agentDir,
     appendSystemPrompt: options.appendSystemPrompt,
@@ -172,6 +174,8 @@ export async function runPiSdkEvalCase(
 
 /**
  * Legacy contract-mapped Pi run. Prefer {@link runPiSdkEvalCase} for evals.json.
+ * Fixture materialization here is legacy-contract-only; eval-native runs prepare
+ * workspaces upstream and pass `workspaceEnv` instead.
  */
 export async function runPiSdkCase(
   options: RunPiSdkCaseOptions & { createSession?: PiSdkSessionFactory },
@@ -225,7 +229,7 @@ async function runPiSdkCaseCore(options: PiSdkCaseRunCoreOptions): Promise<PiSdk
   const contextMode = options.contextMode ?? "isolated";
   const sandbox = options.sandbox ?? "none";
   const sandboxMocks = options.sandboxMocks ?? [];
-  const env = options.materializedFixture?.env ?? {};
+  const env = options.materializedFixture?.env ?? options.workspaceEnv ?? {};
   const cleanup = createCaseCleanup(options.environment, options.materializedFixture);
 
   let sessionResult: PiSdkSessionFactoryResult;

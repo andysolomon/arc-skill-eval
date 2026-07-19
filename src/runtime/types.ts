@@ -52,6 +52,8 @@ export interface RuntimeCaseOptions {
   skill: RuntimeSkillIdentity;
   case: RuntimeExecutionCase;
   workspaceDir: string;
+  /** Fixture env from pre-prepared workspace; used when Pi does not materialize fixtures. */
+  workspaceEnv?: Record<string, string>;
   agentDir?: string;
   model?: ModelSelection;
   /** Attach the target skill to the session. Defaults to true for Pi. */

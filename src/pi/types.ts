@@ -111,6 +111,8 @@ export interface RunPiSdkEvalCaseOptions {
     skillName: string;
   };
   workspaceDir: string;
+  /** Fixture env from pre-prepared workspace; Pi eval-native path does not re-materialize. */
+  workspaceEnv?: Record<string, string>;
   environment?: PiSdkRunEnvironment;
   agentDir?: string;
   sessionDir?: string;

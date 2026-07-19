@@ -57,7 +57,7 @@ New code should distinguish classification, capabilities, policy, and environmen
 ### Evals JSON File (`src/evals/types.ts`, `src/evals/loader.ts`)
 `{ version?, skill_name, evals: EvalCase[] }`. Loaded + validated via `readEvalsJson` with an issue-collecting error type. Each `EvalCase` has `{ id, description?, prompt, expected_output?, setup?, files?, assertions?, metadata? }`. Prefer `setup` for new cases; `files` remains supported as a legacy shorthand.
 
-### Workspace Setup (`src/contracts/types.ts`, `src/evals/run-case.ts`)
+### Workspace Setup (`src/contracts/types.ts`, `src/evals/workspace.ts`)
 `WorkspaceSetup` unifies the ways a case prepares its workspace:
 - **`{ kind: "empty" }`** — start with an empty temp workspace.
 - **`{ kind: "seeded", sources, mountMode? }`** — copy files from `evals/`, either preserving source paths or flattening directory contents into `to`.
@@ -74,8 +74,8 @@ Discriminated union:
   - `kind: "workspace"` with `method: "file-exists" | "file-contains" | "json-valid" | "snapshot-diff"`.
   - `kind: "behavior"` and `kind: "safety"` for trace-aware checks. These validate now; deterministic grading for them is still deferred.
 
-### Eval Case Runner (`src/evals/run-case.ts`)
-`runEvalCase({ skill, case, evalsDir, model?, createSession? })` → `{ caseId, assistantText, workspaceDir, timing, trace, contextManifest, toolSummary, cleanup }`. Materializes `case.setup` and legacy `case.files` into a temp workspace before invoking Pi. Caller owns `cleanup()`.
+### Eval Case Runner (`src/evals/run-case.ts`, `src/evals/workspace.ts`)
+`runEvalCase({ skill, case, evalsDir, model?, createSession? })` → `{ caseId, assistantText, workspaceDir, timing, trace, contextManifest, toolSummary, cleanup }`. Delegates workspace prepare/cleanup to `prepareCaseWorkspace` in `src/evals/workspace.ts` before invoking the runtime. Caller owns `cleanup()`.
 
 ### Grader (`src/evals/grade.ts`)
 `gradeEvalCase({ case, workspaceDir, assistantText, judge?, judgeModel? })` → `GradingJson`. Batches legacy string assertions and `output/judge` assertions into one LLM-judge call; runs legacy scripts plus `output/regex`, `output/exact`, and workspace intent assertions synchronously. Path-traversal guard remains on every workspace path.
