@@ -10,7 +10,7 @@ import { readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { ModelSelection } from "../contracts/types.js";
-import { parseSkillFrontmatter, type SkillFrontmatter } from "./create-command.js";
+import { parseSkillFrontmatter, type SkillFrontmatter } from "../skills/intake.js";
 import { extractJsonObject, invokePiCompletion, invokePiCompletionDetailed } from "./pi-completion.js";
 import { CliCommandError } from "./types.js";
 

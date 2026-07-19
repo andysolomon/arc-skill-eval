@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { readEvalsJson } from "../evals/loader.js";
-import { parseSkillFrontmatter } from "./create-command.js";
+import { parseSkillFrontmatter } from "../skills/intake.js";
 import { CliCommandError } from "./types.js";
 
 const execFileAsync = promisify(execFile);
