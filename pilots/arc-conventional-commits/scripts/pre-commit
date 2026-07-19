@@ -1,0 +1,15 @@
+#!/bin/sh
+# Husky pre-commit hook: prevents commits directly to main/master.
+# Users should create a feature branch and open a PR instead.
+
+branch=$(git rev-parse --abbrev-ref HEAD)
+
+if [ "$branch" = "main" ] || [ "$branch" = "master" ]; then
+  echo ""
+  echo "  Direct commits to $branch are not allowed."
+  echo "  Create a feature branch and open a PR instead:"
+  echo ""
+  echo "    git checkout -b feat/your-feature"
+  echo ""
+  exit 1
+fi

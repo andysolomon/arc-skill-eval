@@ -81,6 +81,11 @@ export interface PackageCliOptions {
   force?: boolean;
 }
 
+export interface BundledCliOptions {
+  skillName?: string;
+  json?: boolean;
+}
+
 export interface CliRenderOptions {
   json?: boolean;
 }
@@ -105,7 +110,8 @@ export type ParsedCliCommand =
   | ({ command: "browse" } & BrowseCliOptions)
   | ({ command: "audit" } & AuditCliOptions)
   | ({ command: "optimize-description" } & OptimizeDescriptionCliOptions)
-  | ({ command: "package" } & PackageCliOptions);
+  | ({ command: "package" } & PackageCliOptions)
+  | ({ command: "bundled" } & BundledCliOptions);
 
 export class CliUsageError extends Error {
   constructor(message: string) {

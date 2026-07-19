@@ -218,3 +218,13 @@ test("parseCliArgs rejects model pins without provider", () => {
     CliUsageError,
   );
 });
+
+test("parseCliArgs accepts bundled command", () => {
+  const parsed = parseCliArgs(["bundled", "hello-world", "--json"]);
+
+  assert.deepEqual(parsed, {
+    command: "bundled",
+    skillName: "hello-world",
+    json: true,
+  });
+});

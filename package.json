@@ -22,11 +22,19 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "files": [
+    "dist",
+    "skills",
+    "README.md",
+    "CHANGELOG.md",
+    "!**/evals-runs/**"
+  ],
   "bin": {
     "arc-skill-eval": "dist/bin/arc-skill-eval.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "release": "semantic-release",
     "test": "npm run build && node --test tests/*.test.mjs",

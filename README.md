@@ -75,6 +75,7 @@ arc-skill-eval --help
 ```bash
 npm install --global arc-skill-eval
 arc-skill-eval --help
+arc-skill-eval run "$(arc-skill-eval bundled hello-world)"
 ```
 
 ## Usage

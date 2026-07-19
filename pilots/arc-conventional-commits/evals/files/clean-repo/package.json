@@ -1,0 +1,11 @@
+{
+  "name": "clean-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A repo with no existing versioning tooling.",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"no tests\" && exit 0"
+  },
+  "devDependencies": {}
+}

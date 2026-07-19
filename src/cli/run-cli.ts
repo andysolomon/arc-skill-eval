@@ -1,4 +1,5 @@
 import { auditCommand, renderAuditMarkdown } from "./audit-command.js";
+import { bundledCommand } from "./bundled-command.js";
 import { browseCommand } from "./browse-command.js";
 import { createCommand, type CreateCommandResult } from "./create-command.js";
 import { improveCommand, type ImproveCommandResult } from "./improve-command.js";
@@ -331,6 +332,31 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
             `- manifest: ${result.manifest.files.length} files, sha256 recorded`,
             "",
           ].join("\n"),
+          stderr: "",
+        };
+      }
+      case "bundled": {
+        const result = await bundledCommand({
+          skillName: parsed.skillName,
+          json: parsed.json,
+        });
+        if (parsed.json) {
+          return {
+            exitCode: 0,
+            stdout: `${JSON.stringify(result.entries, null, 2)}\n`,
+            stderr: "",
+          };
+        }
+        if (parsed.skillName) {
+          return {
+            exitCode: 0,
+            stdout: `${result.entries[0]!.path}\n`,
+            stderr: "",
+          };
+        }
+        return {
+          exitCode: 0,
+          stdout: `${result.entries.map((entry) => entry.path).join("\n")}\n`,
           stderr: "",
         };
       }

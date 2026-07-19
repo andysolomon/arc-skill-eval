@@ -12,8 +12,6 @@ This page gets you from zero to a green eval run on the bundled `hello-world` sk
 
 ## Install
 
-From a published package (recommended once it's on npm):
-
 ```bash
 npm install --global arc-skill-eval
 arc-skill-eval --help
@@ -32,7 +30,13 @@ arc-skill-eval --help
 
 ## Run the bundled `hello-world` skill
 
-The repo ships a deterministic reference skill at `skills/hello-world/`. It writes `greeting.txt` with one line of text and confirms by name. Three cases — default, named, and one that asserts the assistant's reply mentions the file:
+The package ships a deterministic reference skill. Resolve its path with `bundled` so you never need to know where npm installed the package:
+
+```bash
+arc-skill-eval run "$(arc-skill-eval bundled hello-world)"
+```
+
+From a local checkout you can also use the repo-relative path:
 
 ```bash
 arc-skill-eval run ./skills/hello-world

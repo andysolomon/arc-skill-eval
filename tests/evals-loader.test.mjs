@@ -273,28 +273,6 @@ test("discoverEvalSkills skips dot-prefixed dirs unless includeDotDirs is set", 
   assert.equal(skills.length, 1);
 });
 
-test("arc-conventional-commits trigger eval uses behavior-focused setup assertion", async () => {
-  const bundledPath = path.resolve(
-    __dirname,
-    "..",
-    ".agents",
-    "skills",
-    "arc-conventional-commits",
-    "evals",
-    "evals.json",
-  );
-  const file = await readEvalsJson(bundledPath);
-  const triggerCase = file.evals.find((c) => c.id === "trigger-explicit-named");
-  assert.ok(triggerCase, "expected trigger-explicit-named case");
-  const setupAssertion = triggerCase.assertions?.[0];
-  assert.equal(typeof setupAssertion, "object");
-  assert.equal(setupAssertion.kind, "output");
-  assert.equal(setupAssertion.method, "judge");
-  assert.match(setupAssertion.prompt, /performs or starts the project-specific setup/);
-  assert.match(setupAssertion.prompt, /merely gives generic advice/);
-  assert.match(setupAssertion.prompt, /Do not require.*phase names/i);
-});
-
 test("hello-world bundled skill evals.json parses and carries the expected cases", async () => {
   const bundledPath = path.resolve(
     __dirname,

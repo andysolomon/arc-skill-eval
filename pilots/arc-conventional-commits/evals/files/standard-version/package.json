@@ -1,0 +1,14 @@
+{
+  "name": "legacy-app",
+  "version": "1.4.2",
+  "private": true,
+  "description": "A repo currently using standard-version for releases.",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"no tests\" && exit 0",
+    "release": "standard-version"
+  },
+  "devDependencies": {
+    "standard-version": "^9.5.0"
+  }
+}
