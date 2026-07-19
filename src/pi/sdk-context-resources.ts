@@ -17,9 +17,10 @@ import type {
   ContextSkillRole,
   EvalContextMode,
 } from "../observability/types.js";
-import type { DiscoveredSkillFiles, ValidatedSkillDiscovery } from "../load/source-types.js";
+import type { DiscoveredSkillFiles } from "../load/source-types.js";
 import { createPiSessionTelemetryObserverExtension } from "./observer-extension.js";
 import type { PiSdkRunnableCase } from "./types.js";
+import type { PiSdkSessionTelemetryContext } from "./sdk-runner.js";
 
 interface LoadedContextSkill {
   skill: Skill;
@@ -31,9 +32,9 @@ export async function createPiSdkResourceLoader(options: {
   workspaceDir: string;
   agentDir: string;
   settingsManager: SettingsManager;
-  skill: ValidatedSkillDiscovery;
-  caseDefinition: PiSdkRunnableCase;
   skillFiles: DiscoveredSkillFiles;
+  caseDefinition: PiSdkRunnableCase;
+  telemetryContext: PiSdkSessionTelemetryContext;
   appendSystemPrompt: string[];
   attachSkill: boolean;
   extraSkillPaths: string[];
@@ -45,7 +46,11 @@ export async function createPiSdkResourceLoader(options: {
     agentDir: options.agentDir,
     settingsManager: options.settingsManager,
     noExtensions: !ambientEnabled,
-    extensionFactories: [createPiSessionTelemetryObserverExtension({ skill: options.skill, caseDefinition: options.caseDefinition })],
+    extensionFactories: [createPiSessionTelemetryObserverExtension({
+      skillFiles: options.skillFiles,
+      caseDefinition: options.caseDefinition,
+      telemetryContext: options.telemetryContext,
+    })],
     noSkills: !ambientEnabled,
     noPromptTemplates: !ambientEnabled,
     noThemes: !ambientEnabled,

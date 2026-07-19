@@ -138,7 +138,7 @@ test("runPiSdkCase captures prompt output, events, and session artifacts from in
 
   assert.equal(receivedOptions.workspaceDir, process.cwd());
   assert.equal(receivedOptions.skillFiles.skillName, "alpha");
-  assert.equal(receivedOptions.skill.contract.skill, "alpha");
+  assert.equal(receivedOptions.telemetryContext.skillName, "alpha");
   assert.equal(receivedOptions.caseDefinition.caseId, "routing-explicit-001");
   assert.deepEqual(receivedOptions.requestedModel, {
     provider: "anthropic",

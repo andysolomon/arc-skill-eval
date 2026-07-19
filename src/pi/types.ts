@@ -11,7 +11,7 @@ import type {
 } from "../contracts/types.js";
 import type { ContextManifestJson, EvalContextMode } from "../observability/types.js";
 import type { MaterializedFixtureDetails, FixtureCleanupResult } from "../fixtures/types.js";
-import type { RepoSourceDescriptor, ValidatedSkillDiscovery } from "../load/source-types.js";
+import type { DiscoveredSkillFiles, RepoSourceDescriptor, ValidatedSkillDiscovery } from "../load/source-types.js";
 
 export type PiSdkCaseKind = "routing" | "execution" | "cli-parity" | "live-smoke";
 
@@ -96,6 +96,30 @@ export interface RunPiSdkCaseOptions {
   /** Execution isolation mode. Defaults to "none" (host shell + real FS). */
   sandbox?: SandboxMode;
   /** Deterministic external-command mocks for the just-bash sandbox. */
+  sandboxMocks?: SandboxCommandMock[];
+}
+
+/** Eval-native Pi run options — no NormalizedSkillEvalContract or legacy lane mapping. */
+export interface RunPiSdkEvalCaseOptions {
+  source: RepoSourceDescriptor;
+  skill: {
+    files: DiscoveredSkillFiles;
+  };
+  evalCase: {
+    caseId: string;
+    prompt: string;
+    skillName: string;
+  };
+  workspaceDir: string;
+  environment?: PiSdkRunEnvironment;
+  agentDir?: string;
+  sessionDir?: string;
+  model?: ModelSelection;
+  appendSystemPrompt?: string[];
+  attachSkill?: boolean;
+  extraSkillPaths?: string[];
+  contextMode?: EvalContextMode;
+  sandbox?: SandboxMode;
   sandboxMocks?: SandboxCommandMock[];
 }
 

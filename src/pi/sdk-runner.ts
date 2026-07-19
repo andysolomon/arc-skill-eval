@@ -1,4 +1,4 @@
-import type { ModelSelection, SandboxCommandMock, SandboxMode } from "../contracts/types.js";
+import type { ModelSelection, SandboxCommandMock, SandboxMode, SkillProfile, TargetTier } from "../contracts/types.js";
 import type { ContextManifestJson, EvalContextMode } from "../observability/types.js";
 import type { DiscoveredSkillFiles, ValidatedSkillDiscovery } from "../load/source-types.js";
 import {
@@ -6,6 +6,7 @@ import {
   resolveRequestedModel,
   selectPiSdkCases,
 } from "./sdk-case-mapping.js";
+import { buildEvalCompatibilityCaseDefinition } from "./sdk-eval-case.js";
 import { buildRequestedContextManifest } from "./sdk-context-resources.js";
 import {
   createCaseCleanup,
@@ -24,10 +25,17 @@ import {
 } from "./sdk-run-observation.js";
 import { createDefaultPiSdkSession } from "./sdk-session-factory.js";
 import type {
+  MaterializedFixture,
+} from "../fixtures/types.js";
+import type {
+  PiSdkCaseKind,
+  PiSdkCaseLane,
   PiSdkCaseRunResult,
   PiSdkRunnableCase,
+  PiSdkRunEnvironment,
   PiSdkSkillRunResult,
   RunPiSdkCaseOptions,
+  RunPiSdkEvalCaseOptions,
   RunValidatedSkillViaPiSdkOptions,
 } from "./types.js";
 
@@ -39,26 +47,29 @@ export interface PiSdkSessionLike {
   sessionId: string;
   sessionFile: string | undefined;
   messages: unknown[];
-  /** Present on real Pi sessions; optional so tests can inject small fakes. */
   model?: { provider?: unknown; id?: unknown; contextWindow?: unknown };
-  /** Present on real Pi sessions. */
   thinkingLevel?: unknown;
-  /** Present on real Pi sessions. */
   getContextUsage?: () => unknown;
   subscribe(listener: (event: unknown) => void): () => void;
   prompt(text: string): Promise<void>;
   dispose(): void;
 }
 
+export interface PiSdkSessionTelemetryContext {
+  skillName: string;
+  caseId: string;
+  lane?: PiSdkCaseLane;
+  kind?: PiSdkCaseKind;
+}
+
 export interface PiSdkSessionFactoryOptions {
   workspaceDir: string;
   agentDir: string;
-  /** User-supplied eval-owned Pi config directory, if any. Undefined means use normal Pi defaults. */
   configAgentDir?: string;
   sessionDir: string;
-  skill: ValidatedSkillDiscovery;
-  caseDefinition: PiSdkRunnableCase;
   skillFiles: DiscoveredSkillFiles;
+  caseDefinition: PiSdkRunnableCase;
+  telemetryContext: PiSdkSessionTelemetryContext;
   requestedModel: ModelSelection | undefined;
   appendSystemPrompt: string[];
   env: Record<string, string>;
@@ -89,9 +100,78 @@ export class PiSdkCaseRunError extends Error {
   }
 }
 
+interface PiSdkCaseRunCoreOptions {
+  source: RunPiSdkCaseOptions["source"];
+  skillFiles: DiscoveredSkillFiles;
+  skillResult: {
+    name: string;
+    relativeSkillDir: string;
+    profile: SkillProfile;
+    targetTier: TargetTier;
+  };
+  caseDefinition: PiSdkRunnableCase;
+  telemetryContext: PiSdkSessionTelemetryContext;
+  environment: PiSdkRunEnvironment;
+  workspaceDir: string;
+  materializedFixture: MaterializedFixture | null;
+  requestedModel: ModelSelection | undefined;
+  configAgentDir?: string;
+  appendSystemPrompt?: string[];
+  attachSkill?: boolean;
+  extraSkillPaths?: string[];
+  contextMode?: EvalContextMode;
+  sandbox?: SandboxMode;
+  sandboxMocks?: SandboxCommandMock[];
+  createSession?: PiSdkSessionFactory;
+}
+
 /**
- * Stable Pi run façade: prepare owned resources, create a session, observe the
- * prompt, assemble the persisted result, then enforce terminal failures.
+ * Eval-native Pi run: maps evals.json cases directly to a Pi session without
+ * synthesizing a NormalizedSkillEvalContract or sdk-case-mapping lanes.
+ */
+export async function runPiSdkEvalCase(
+  options: RunPiSdkEvalCaseOptions & { createSession?: PiSdkSessionFactory },
+): Promise<PiSdkCaseRunResult> {
+  const environment =
+    options.environment ??
+    (await createPiSdkRunEnvironment({
+      workspaceDir: options.workspaceDir,
+      agentDir: options.agentDir,
+      sessionDir: options.sessionDir,
+    }));
+  const caseDefinition = buildEvalCompatibilityCaseDefinition(options.evalCase);
+
+  return runPiSdkCaseCore({
+    source: options.source,
+    skillFiles: options.skill.files,
+    skillResult: {
+      name: options.skill.files.skillName,
+      relativeSkillDir: options.skill.files.relativeSkillDir,
+      profile: "repo-mutation",
+      targetTier: 1,
+    },
+    caseDefinition,
+    telemetryContext: {
+      skillName: options.evalCase.skillName,
+      caseId: options.evalCase.caseId,
+    },
+    environment,
+    workspaceDir: options.workspaceDir,
+    materializedFixture: null,
+    requestedModel: options.model,
+    configAgentDir: options.agentDir,
+    appendSystemPrompt: options.appendSystemPrompt,
+    attachSkill: options.attachSkill,
+    extraSkillPaths: options.extraSkillPaths,
+    contextMode: options.contextMode,
+    sandbox: options.sandbox,
+    sandboxMocks: options.sandboxMocks,
+    createSession: options.createSession,
+  });
+}
+
+/**
+ * Legacy contract-mapped Pi run. Prefer {@link runPiSdkEvalCase} for evals.json.
  */
 export async function runPiSdkCase(
   options: RunPiSdkCaseOptions & { createSession?: PiSdkSessionFactory },
@@ -104,28 +184,61 @@ export async function runPiSdkCase(
       sessionDir: options.sessionDir,
     }));
   const requestedModel = resolveRequestedModel(options.skill.contract, options.caseDefinition, options.model);
+  const materializedFixture = await maybeMaterializeCaseFixture(options.skill, options.caseDefinition);
+  const workspaceDir = materializedFixture?.workspaceDir ?? environment.workspaceDir;
+
+  return runPiSdkCaseCore({
+    source: options.source,
+    skillFiles: options.skill.files,
+    skillResult: {
+      name: options.skill.contract.skill,
+      relativeSkillDir: options.skill.files.relativeSkillDir,
+      profile: options.skill.contract.profile,
+      targetTier: options.skill.contract.targetTier,
+    },
+    caseDefinition: options.caseDefinition,
+    telemetryContext: {
+      skillName: options.skill.contract.skill,
+      caseId: options.caseDefinition.caseId,
+      lane: options.caseDefinition.lane,
+      kind: options.caseDefinition.kind,
+    },
+    environment,
+    workspaceDir,
+    materializedFixture,
+    requestedModel,
+    configAgentDir: options.agentDir,
+    appendSystemPrompt: options.appendSystemPrompt,
+    attachSkill: options.attachSkill,
+    extraSkillPaths: options.extraSkillPaths,
+    contextMode: options.contextMode,
+    sandbox: options.sandbox,
+    sandboxMocks: options.sandboxMocks,
+    createSession: options.createSession,
+  });
+}
+
+async function runPiSdkCaseCore(options: PiSdkCaseRunCoreOptions): Promise<PiSdkCaseRunResult> {
   const appendSystemPrompt = [...(options.appendSystemPrompt ?? [])];
   const attachSkill = options.attachSkill ?? true;
   const extraSkillPaths = [...(options.extraSkillPaths ?? [])];
   const contextMode = options.contextMode ?? "isolated";
   const sandbox = options.sandbox ?? "none";
   const sandboxMocks = options.sandboxMocks ?? [];
-  const materializedFixture = await maybeMaterializeCaseFixture(options.skill, options.caseDefinition);
-  const workspaceDir = materializedFixture?.workspaceDir ?? environment.workspaceDir;
-  const env = materializedFixture?.env ?? {};
-  const cleanup = createCaseCleanup(environment, materializedFixture);
+  const env = options.materializedFixture?.env ?? {};
+  const cleanup = createCaseCleanup(options.environment, options.materializedFixture);
 
   let sessionResult: PiSdkSessionFactoryResult;
   try {
     sessionResult = await (options.createSession ?? createDefaultPiSdkSession)({
-      workspaceDir,
-      agentDir: environment.agentDir,
-      configAgentDir: options.agentDir,
-      sessionDir: environment.sessionDir,
-      skill: options.skill,
+      workspaceDir: options.workspaceDir,
+      agentDir: options.environment.agentDir,
+      configAgentDir: options.configAgentDir,
+      sessionDir: options.environment.sessionDir,
+      skillFiles: options.skillFiles,
       caseDefinition: options.caseDefinition,
-      skillFiles: options.skill.files,
-      requestedModel,
+      telemetryContext: options.telemetryContext,
+      requestedModel: options.requestedModel,
       appendSystemPrompt,
       env,
       attachSkill,
@@ -156,25 +269,20 @@ export async function runPiSdkCase(
   const finishedAt = new Date();
   const usage = collectPiSdkUsageMetrics(session, sessionResult.model);
   const contextManifest = sessionResult.contextManifest ?? buildRequestedContextManifest({
-    skillFiles: options.skill.files,
-    agentDir: environment.agentDir,
+    skillFiles: options.skillFiles,
+    agentDir: options.environment.agentDir,
     attachSkill,
     extraSkillPaths,
     contextMode,
   });
   const result: PiSdkCaseRunResult = {
     source: options.source,
-    skill: {
-      name: options.skill.contract.skill,
-      relativeSkillDir: options.skill.files.relativeSkillDir,
-      profile: options.skill.contract.profile,
-      targetTier: options.skill.contract.targetTier,
-    },
+    skill: options.skillResult,
     caseDefinition: options.caseDefinition,
-    workspaceDir,
-    agentDir: environment.agentDir,
-    sessionDir: environment.sessionDir,
-    fixture: snapshotFixture(materializedFixture),
+    workspaceDir: options.workspaceDir,
+    agentDir: options.environment.agentDir,
+    sessionDir: options.environment.sessionDir,
+    fixture: snapshotFixture(options.materializedFixture),
     model: usage.model,
     startedAt: startedAt.toISOString(),
     finishedAt: finishedAt.toISOString(),
