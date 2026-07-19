@@ -1,10 +1,6 @@
-import { cp, lstat, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import path from "node:path";
 
-import type { ModelSelection, SandboxMode, SeededWorkspaceSetup, WorkspaceSetup } from "../contracts/types.js";
-import { materializeFixture } from "../fixtures/materialize.js";
-import type { MaterializedFixture } from "../fixtures/types.js";
+import type { ModelSelection, SandboxMode } from "../contracts/types.js";
 import type { DiscoveredSkillFiles, RepoSourceDescriptor } from "../load/source-types.js";
 import type { PiSdkSessionFactory } from "../pi/sdk-runner.js";
 import { piSdkRuntime } from "../pi/sdk-eval-case.js";
@@ -19,6 +15,7 @@ import type { EvalTrace } from "../traces/types.js";
 
 import type { DiscoveredEvalSkill } from "./discover.js";
 import type { EvalCase, TimingJson } from "./types.js";
+import { prepareCaseWorkspace } from "./workspace.js";
 
 /**
  * Options accepted by {@link runEvalCase}. Intentionally scoped to the
@@ -98,30 +95,16 @@ export interface EvalCaseRunResult {
  * back for downstream assertion grading.
  */
 export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCaseRunResult> {
-  const workspaceDir = await mkdtemp(path.join(tmpdir(), "arc-skill-eval-case-"));
-  let workspaceCleaned = false;
-  let materializedFixture: MaterializedFixture | undefined;
+  const skillFiles = buildSkillFiles(options.skill);
+
+  const prepared = await prepareCaseWorkspace({
+    evalsDir: options.evalsDir,
+    setup: options.case.setup,
+    files: options.case.files,
+    skillFiles,
+  });
 
   try {
-    const skillFiles = buildSkillFiles(options.skill);
-
-    if (options.case.setup) {
-      materializedFixture = await materializeWorkspaceSetup({
-        evalsDir: options.evalsDir,
-        setup: options.case.setup,
-        workspaceDir,
-        skillFiles,
-      });
-    }
-
-    if (options.case.files && options.case.files.length > 0) {
-      await materializeCaseFiles({
-        evalsDir: options.evalsDir,
-        files: options.case.files,
-        workspaceDir,
-      });
-    }
-
     const skillIdentity = toRuntimeSkillIdentity(skillFiles);
     const source = buildSourceDescriptor(options.skill);
 
@@ -134,7 +117,8 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
         prompt: options.case.prompt,
         skillName: skillIdentity.name,
       },
-      workspaceDir,
+      workspaceDir: prepared.workspaceDir,
+      workspaceEnv: prepared.materializedFixture?.env,
       agentDir: options.agentDir,
       model: options.model,
       createSession: options.createSession,
@@ -166,18 +150,14 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
     const toolSummary = buildToolSummary(trace, contextManifest);
 
     const cleanup = async () => {
-      if (!workspaceCleaned) {
-        workspaceCleaned = true;
-        await materializedFixture?.cleanup().catch(() => undefined);
-        await rm(workspaceDir, { recursive: true, force: true });
-      }
+      await prepared.cleanup();
       await runtimeResult.cleanup().catch(() => undefined);
     };
 
     return {
       caseId: options.case.id,
       assistantText: runtimeResult.session.assistantText,
-      workspaceDir,
+      workspaceDir: prepared.workspaceDir,
       timing,
       trace,
       contextManifest,
@@ -185,108 +165,9 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
       cleanup,
     };
   } catch (error) {
-    if (!workspaceCleaned) {
-      workspaceCleaned = true;
-      await materializedFixture?.cleanup().catch(() => undefined);
-      await rm(workspaceDir, { recursive: true, force: true }).catch(() => undefined);
-    }
+    await prepared.cleanup().catch(() => undefined);
     throw error;
   }
-}
-
-async function materializeCaseFiles(options: {
-  evalsDir: string;
-  files: string[];
-  workspaceDir: string;
-}): Promise<void> {
-  await materializeSeededWorkspace({
-    evalsDir: options.evalsDir,
-    workspaceDir: options.workspaceDir,
-    setup: {
-      kind: "seeded",
-      sources: options.files.map((file) => ({ from: file, to: file })),
-      mountMode: "preserve-path",
-    },
-  });
-}
-
-async function materializeWorkspaceSetup(options: {
-  evalsDir: string;
-  setup: WorkspaceSetup;
-  workspaceDir: string;
-  skillFiles: DiscoveredSkillFiles;
-}): Promise<MaterializedFixture | undefined> {
-  switch (options.setup.kind) {
-    case "empty":
-      return undefined;
-    case "seeded":
-      await materializeSeededWorkspace({
-        evalsDir: options.evalsDir,
-        setup: options.setup,
-        workspaceDir: options.workspaceDir,
-      });
-      return undefined;
-    case "fixture":
-      return await materializeFixture({
-        fixture: options.setup.fixture,
-        skillFiles: options.skillFiles,
-        workspaceDir: options.workspaceDir,
-      });
-  }
-}
-
-async function materializeSeededWorkspace(options: {
-  evalsDir: string;
-  setup: SeededWorkspaceSetup;
-  workspaceDir: string;
-}): Promise<void> {
-  const mountMode = options.setup.mountMode ?? "preserve-path";
-
-  for (const source of options.setup.sources) {
-    const sourcePath = path.resolve(options.evalsDir, source.from);
-    const defaultDestination = mountMode === "flatten-contents" ? "." : source.from;
-    const destination = source.to ?? defaultDestination;
-    const destPath = resolveWorkspaceDestination(options.workspaceDir, destination);
-
-    if (mountMode === "flatten-contents") {
-      await copyFlattened(sourcePath, destPath);
-    } else {
-      await mkdir(path.dirname(destPath), { recursive: true });
-      await cp(sourcePath, destPath, { recursive: true, force: true });
-    }
-  }
-}
-
-async function copyFlattened(sourcePath: string, destPath: string): Promise<void> {
-  const stats = await lstat(sourcePath);
-  if (!stats.isDirectory()) {
-    const destStats = await lstat(destPath).catch(() => null);
-    const fileDest = destStats?.isDirectory() ? path.join(destPath, path.basename(sourcePath)) : destPath;
-    await mkdir(path.dirname(fileDest), { recursive: true });
-    await cp(sourcePath, fileDest, { recursive: true, force: true });
-    return;
-  }
-
-  await mkdir(destPath, { recursive: true });
-  const entries = await readdir(sourcePath);
-  for (const entry of entries) {
-    await cp(path.join(sourcePath, entry), path.join(destPath, entry), {
-      recursive: true,
-      force: true,
-    });
-  }
-}
-
-function resolveWorkspaceDestination(workspaceDir: string, relativePath: string): string {
-  const root = path.resolve(workspaceDir);
-  const absolute = path.resolve(root, relativePath);
-  const rel = path.relative(root, absolute);
-
-  if (rel.startsWith("..") || path.isAbsolute(rel)) {
-    throw new Error(`Workspace setup destination escapes workspace: ${relativePath}`);
-  }
-
-  return absolute;
 }
 
 function buildSkillFiles(skill: DiscoveredEvalSkill): DiscoveredSkillFiles {

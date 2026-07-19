@@ -49,6 +49,7 @@ export function toPiSdkEvalCaseOptions(
       skillName: options.case.skillName,
     },
     workspaceDir: options.workspaceDir,
+    workspaceEnv: options.workspaceEnv,
     agentDir: options.agentDir,
     model: options.model,
     attachSkill: options.attachSkill,
