@@ -1,5 +1,7 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
+
+import { writeJsonArtifact } from "../artifacts.js";
 
 import type { CaseRunArtifacts, VariantRunArtifacts } from "../case-pipeline.js";
 import type {
@@ -59,7 +61,7 @@ export async function writeSkillBenchmark(args: {
   const benchmark = buildBenchmarkJson(args);
   const benchmarkPath = path.join(args.outputDir, "benchmark.json");
   await mkdir(args.outputDir, { recursive: true });
-  await writeFile(benchmarkPath, `${JSON.stringify(benchmark, null, 2)}\n`, "utf-8");
+  await writeJsonArtifact(benchmarkPath, benchmark);
   return { benchmarkPath, benchmark };
 }
 

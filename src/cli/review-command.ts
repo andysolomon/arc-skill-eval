@@ -1,6 +1,8 @@
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { loadRun, type LoadedCase } from "../evals/artifacts.js";
+import type { BenchmarkJson } from "../evals/types.js";
 import { CliCommandError } from "./types.js";
 
 export interface ReviewCommandOptions {
@@ -20,7 +22,7 @@ export interface ReviewCommandResult {
 interface ReviewRun {
   runDir: string;
   compare: boolean;
-  benchmark: any | null;
+  benchmark: BenchmarkJson | null;
   cases: ReviewCase[];
 }
 
@@ -34,10 +36,10 @@ interface ReviewVariant {
   name: string;
   dir: string;
   assistant: string;
-  grading: any | null;
-  timing: any | null;
-  toolSummary: any | null;
-  contextManifest: any | null;
+  grading: LoadedCase["grading"];
+  timing: LoadedCase["timing"];
+  toolSummary: LoadedCase["toolSummary"];
+  contextManifest: LoadedCase["contextManifest"];
 }
 
 export async function reviewCommand(options: ReviewCommandOptions): Promise<ReviewCommandResult> {
@@ -47,13 +49,49 @@ export async function reviewCommand(options: ReviewCommandOptions): Promise<Revi
   const feedbackPath = path.join(outputDir, "feedback.json");
 
   if (!options.force) {
-    const existing = await listExistingFiles([reviewPath, feedbackPath]);
+    const existing: string[] = [];
+    for (const file of [reviewPath, feedbackPath]) {
+      try {
+        const fileStat = await stat(file);
+        if (fileStat.isFile()) existing.push(file);
+      } catch (error) {
+        if (!isMissingFileError(error)) throw error;
+      }
+    }
     if (existing.length > 0) {
       throw new CliCommandError(`Refusing to overwrite existing review file(s): ${existing.join(", ")}. Re-run with --force to overwrite.`);
     }
   }
 
-  const run = await loadReviewRun(runDir);
+  const entries = await readdir(runDir, { withFileTypes: true }).catch((error) => {
+    throw new CliCommandError(`Could not read run directory ${runDir}: ${error instanceof Error ? error.message : String(error)}`);
+  });
+  const caseDirCount = entries.filter((entry) => entry.isDirectory() && entry.name.startsWith("eval-")).length;
+  if (caseDirCount === 0) {
+    throw new CliCommandError(`No eval case directories found in ${runDir}.`);
+  }
+
+  const loaded = await loadRun(runDir);
+  if (loaded.cases.length === 0) {
+    throw new CliCommandError(`No reviewable grading artifacts found in ${runDir}.`);
+  }
+
+  const run: ReviewRun = {
+    runDir: loaded.runDir,
+    compare: loaded.compare,
+    benchmark: loaded.benchmark,
+    cases: loaded.cases.map((item) => ({
+      id: item.id,
+      delta: item.delta,
+      variants: item.compare && item.variants
+        ? [
+            toReviewVariant("with_skill", path.join(item.caseDir, "with_skill"), item.variants.with_skill),
+            toReviewVariant("without_skill", path.join(item.caseDir, "without_skill"), item.variants.without_skill),
+          ]
+        : [toReviewVariant("run", item.caseDir, item)],
+    })),
+  };
+
   await mkdir(outputDir, { recursive: true });
   await writeFile(reviewPath, renderReviewHtml(run), "utf8");
   await writeFile(feedbackPath, `${JSON.stringify(buildFeedbackSkeleton(run), null, 2)}\n`, "utf8");
@@ -61,54 +99,19 @@ export async function reviewCommand(options: ReviewCommandOptions): Promise<Revi
   return { runDir, reviewPath, feedbackPath, compare: run.compare, caseCount: run.cases.length };
 }
 
-async function loadReviewRun(runDir: string): Promise<ReviewRun> {
-  const benchmark = await readJsonIfExists(path.join(runDir, "benchmark.json"));
-  const entries = await readdir(runDir, { withFileTypes: true }).catch((error) => {
-    throw new CliCommandError(`Could not read run directory ${runDir}: ${error instanceof Error ? error.message : String(error)}`);
-  });
-  const caseDirs = entries.filter((entry) => entry.isDirectory() && entry.name.startsWith("eval-")).map((entry) => path.join(runDir, entry.name)).sort();
-
-  if (caseDirs.length === 0) throw new CliCommandError(`No eval case directories found in ${runDir}.`);
-
-  const cases: ReviewCase[] = [];
-  for (const caseDir of caseDirs) {
-    const directGrading = await readJsonIfExists(path.join(caseDir, "grading.json"));
-    const caseId = directGrading?.case_id ?? stripEvalPrefix(path.basename(caseDir));
-
-    if (directGrading !== null) {
-      cases.push({
-        id: caseId,
-        delta: findBenchmarkDelta(benchmark, caseId),
-        variants: [await loadVariant("run", caseDir, directGrading)],
-      });
-      continue;
-    }
-
-    const variants: ReviewVariant[] = [];
-    for (const variantName of ["with_skill", "without_skill"]) {
-      const variantDir = path.join(caseDir, variantName);
-      const grading = await readJsonIfExists(path.join(variantDir, "grading.json"));
-      if (grading !== null) variants.push(await loadVariant(variantName, variantDir, grading));
-    }
-
-    if (variants.length > 0) {
-      cases.push({ id: variants[0]?.grading?.case_id ?? caseId, delta: findBenchmarkDelta(benchmark, caseId), variants });
-    }
-  }
-
-  if (cases.length === 0) throw new CliCommandError(`No reviewable grading artifacts found in ${runDir}.`);
-  return { runDir, compare: benchmark !== null || cases.some((item) => item.variants.length > 1), benchmark, cases };
-}
-
-async function loadVariant(name: string, dir: string, grading: any): Promise<ReviewVariant> {
+function toReviewVariant(
+  name: string,
+  dir: string,
+  loaded: Pick<LoadedCase, "assistantText" | "grading" | "timing" | "toolSummary" | "contextManifest">,
+): ReviewVariant {
   return {
     name,
     dir,
-    assistant: await readTextIfExists(path.join(dir, "assistant.md")),
-    grading,
-    timing: await readJsonIfExists(path.join(dir, "timing.json")),
-    toolSummary: await readJsonIfExists(path.join(dir, "tool-summary.json")),
-    contextManifest: await readJsonIfExists(path.join(dir, "context-manifest.json")),
+    assistant: loaded.assistantText,
+    grading: loaded.grading,
+    timing: loaded.timing,
+    toolSummary: loaded.toolSummary,
+    contextManifest: loaded.contextManifest,
   };
 }
 
@@ -137,7 +140,7 @@ ${run.cases.map(renderCase).join("\n")}
 </main></body></html>`;
 }
 
-function renderBenchmark(benchmark: any): string {
+function renderBenchmark(benchmark: BenchmarkJson): string {
   const summary = benchmark.summary ?? {};
   return `<section><h2>Benchmark</h2><div class="cards">
     <div class="card"><strong>With skill</strong><br>${formatPercent(summary.with_skill_pass_rate)}</div>
@@ -151,7 +154,7 @@ function renderCase(item: ReviewCase): string {
 }
 
 function renderVariant(variant: ReviewVariant): string {
-  const summary = variant.grading?.summary ?? {};
+  const summary = (variant.grading?.summary ?? {}) as Record<string, unknown>;
   const assertions = Array.isArray(variant.grading?.assertion_results) ? variant.grading.assertion_results : [];
   return `<article class="variant"><h3>${escapeHtml(variant.name)}</h3>
   <p><strong>Assertions:</strong> <span class="pass">${summary.passed ?? 0} passed</span> / <span class="fail">${summary.failed ?? 0} failed</span> (${formatPercent(summary.pass_rate)})</p>
@@ -162,10 +165,16 @@ function renderVariant(variant: ReviewVariant): string {
 }
 
 function renderMetadata(variant: ReviewVariant): string {
-  const duration = variant.timing?.duration_ms ?? variant.timing?.durationMs;
-  const tokens = variant.toolSummary?.usage?.total_tokens ?? variant.toolSummary?.total_tokens ?? variant.toolSummary?.summary?.total_tokens;
-  const model = variant.contextManifest?.model ?? variant.toolSummary?.model;
-  const toolCalls = variant.toolSummary?.summary?.tool_call_count ?? variant.toolSummary?.tool_call_count;
+  const timing = variant.timing as Record<string, unknown> | null;
+  const toolSummary = variant.toolSummary as Record<string, unknown> | null;
+  const contextManifest = variant.contextManifest as Record<string, unknown> | null;
+  const duration = timing?.duration_ms ?? timing?.durationMs;
+  const tokens = (toolSummary?.usage as Record<string, unknown> | undefined)?.total_tokens
+    ?? toolSummary?.total_tokens
+    ?? (toolSummary?.summary as Record<string, unknown> | undefined)?.total_tokens;
+  const model = contextManifest?.model ?? toolSummary?.model;
+  const toolCalls = (toolSummary?.summary as Record<string, unknown> | undefined)?.tool_call_count
+    ?? toolSummary?.tool_call_count;
   return `<table><tbody>
     ${duration == null ? "" : `<tr><th>Duration</th><td>${escapeHtml(String(duration))} ms</td></tr>`}
     ${tokens == null ? "" : `<tr><th>Tokens</th><td>${escapeHtml(String(tokens))}</td></tr>`}
@@ -174,7 +183,7 @@ function renderMetadata(variant: ReviewVariant): string {
   </tbody></table>`;
 }
 
-function renderAssertions(assertions: any[]): string {
+function renderAssertions(assertions: Array<{ passed?: boolean; text?: string; assertion?: unknown; evidence?: string }>): string {
   if (assertions.length === 0) return "<p class=\"muted\">No assertion results found.</p>";
   return `<table><thead><tr><th>Status</th><th>Assertion</th><th>Evidence</th></tr></thead><tbody>${assertions.map((assertion) => `<tr><td class="${assertion.passed ? "pass" : "fail"}">${assertion.passed ? "pass" : "fail"}</td><td>${escapeHtml(assertion.text ?? JSON.stringify(assertion.assertion ?? ""))}</td><td>${escapeHtml(assertion.evidence ?? "")}</td></tr>`).join("")}</tbody></table>`;
 }
@@ -210,42 +219,6 @@ function summarizeRun(run: ReviewRun) {
   return { totalCases: run.cases.length, passedAssertions, failedAssertions, passRate: total === 0 ? null : passedAssertions / total };
 }
 
-function findBenchmarkDelta(benchmark: any | null, caseId: string): number | null {
-  const found = benchmark?.cases?.find?.((item: any) => item.case_id === caseId);
-  return typeof found?.delta === "number" ? found.delta : null;
-}
-
-async function readTextIfExists(file: string): Promise<string> {
-  try {
-    return await readFile(file, "utf8");
-  } catch (error) {
-    if (isMissingFileError(error)) return "";
-    throw error;
-  }
-}
-
-async function readJsonIfExists(file: string): Promise<any | null> {
-  const text = await readTextIfExists(file);
-  return text ? JSON.parse(text) : null;
-}
-
-async function listExistingFiles(files: string[]): Promise<string[]> {
-  const existing: string[] = [];
-  for (const file of files) {
-    try {
-      const fileStat = await stat(file);
-      if (fileStat.isFile()) existing.push(file);
-    } catch (error) {
-      if (!isMissingFileError(error)) throw error;
-    }
-  }
-  return existing;
-}
-
-function stripEvalPrefix(value: string): string {
-  return value.startsWith("eval-") ? value.slice("eval-".length) : value;
-}
-
 function formatPercent(value: unknown): string {
   return typeof value === "number" ? `${Math.round(value * 1000) / 10}%` : "n/a";
 }
@@ -254,9 +227,12 @@ function formatDelta(value: unknown): string {
   return typeof value === "number" ? `${value >= 0 ? "+" : ""}${Math.round(value * 1000) / 10}%` : "n/a";
 }
 
-function formatModel(model: any): string {
+function formatModel(model: unknown): string {
   if (typeof model === "string") return model;
-  if (model?.provider && model?.id) return `${model.provider}/${model.id}${model.thinking ? `:${model.thinking}` : ""}`;
+  if (model && typeof model === "object" && "provider" in model && "id" in model) {
+    const record = model as { provider: string; id: string; thinking?: string };
+    return `${record.provider}/${record.id}${record.thinking ? `:${record.thinking}` : ""}`;
+  }
   return JSON.stringify(model);
 }
 
