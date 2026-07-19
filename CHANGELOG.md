@@ -1,3 +1,13 @@
+## [0.3.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.2.0...v0.3.0) (2026-07-19)
+
+### Features
+
+* replace run-case contract tunnel with eval-native runtime input ([#153](https://github.com/andysolomon/arc-skill-eval/issues/153)) ([5619a6e](https://github.com/andysolomon/arc-skill-eval/commit/5619a6e3de8e741970cedb8d0435dbfdb9c54a97)), closes [#146](https://github.com/andysolomon/arc-skill-eval/issues/146)
+
+### Bug Fixes
+
+* harden npm publish and start arc-conventional-commits pilot ([#154](https://github.com/andysolomon/arc-skill-eval/issues/154)) ([a63889c](https://github.com/andysolomon/arc-skill-eval/commit/a63889c3b233a77c0e6d8b2fc34d04bbd1451f83))
+
 ## [0.2.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.1.0...v0.2.0) (2026-07-04)
 
 ### Features
