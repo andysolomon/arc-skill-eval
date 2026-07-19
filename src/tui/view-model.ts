@@ -6,12 +6,70 @@
 // (assertion rows in the case view, case rows in the skill view). Views with
 // no cursorable items return an empty anchors array.
 
+import { isJudgeAssertion } from '../evals/assertion-engine.js';
 import {
   COLORS, seg, pad, trunc, num, bar, wrap, statusGlyph, rateColor, deltaColor, passFrac,
 } from './theme.js';
 import type { Seg, Line } from './theme.js';
 import { GLYPHS } from './caps.js';
 import type { Skill, Case, Assertion, Run, Focus, CaseMode } from './types.js';
+
+export interface MappedAssertionView {
+  type: string;
+  det: boolean;
+  label: string;
+  target: string;
+  passed: boolean;
+  evidence: string;
+  raw: string;
+}
+
+/**
+ * Map one grading.json assertion_result entry for TUI display.
+ * Classification is delegated to the assertion engine; this reader never
+ * grades or mutates persisted artifacts.
+ */
+export function mapAssertionResultForView(result: {
+  text?: string;
+  passed?: boolean;
+  evidence?: string;
+  assertion?: unknown;
+}): MappedAssertionView {
+  const assertion = result.assertion;
+  const isString = typeof assertion === 'string';
+  let type = 'llm-judge';
+  let det = false;
+  let target = '';
+
+  if (!isString && assertion && typeof assertion === 'object') {
+    const record = assertion as Record<string, unknown>;
+    if (typeof record.type === 'string') {
+      type = record.type;
+      det = !isJudgeAssertion(assertion);
+    } else if (record.kind && record.method) {
+      type = `${record.kind}/${record.method}`;
+      det = !isJudgeAssertion(assertion);
+    }
+    const tgt = record.path ?? (record.target && ((record.target as Record<string, unknown>).file ?? record.target));
+    target = typeof tgt === 'string' ? tgt : '';
+  }
+
+  const rawLabel = String(result.text ?? '');
+  const label =
+    det && rawLabel.toLowerCase().startsWith(`${type.toLowerCase()}:`)
+      ? rawLabel.slice(type.length + 1).trim()
+      : rawLabel;
+
+  return {
+    type,
+    det,
+    label,
+    target,
+    passed: Boolean(result.passed),
+    evidence: String(result.evidence ?? ''),
+    raw: assertion === undefined ? '' : JSON.stringify(assertion),
+  };
+}
 
 const sectionRow = (label: string, extra: Seg[] = []): Line => ({ segs: [seg(pad(label, 13), COLORS.cyan, true), ...extra] });
 const row = (segs: Seg[], bg?: string): Line => ({ segs, ...(bg ? { bg } : {}) });

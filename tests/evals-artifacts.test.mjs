@@ -5,10 +5,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import {
-  mapAssertionResultForView,
   readCaseVariantArtifacts,
   writeCaseVariantArtifacts,
 } from "../dist/evals/artifacts.js";
+import { mapAssertionResultForView } from "../dist/tui/view-model.js";
 
 test("writeCaseVariantArtifacts round-trips through readCaseVariantArtifacts", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "arc-artifacts-"));

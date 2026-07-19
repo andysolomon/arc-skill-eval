@@ -3,53 +3,17 @@
 // (grading.json / timing.json / tool-summary.json / benchmark.json / evals.json)
 // in, view-model out.
 
-import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
-import { mapAssertionResultForView, readGradingJson } from '../evals/artifacts.js';
-import { DEFAULT_IGNORED_DIRS, discoverEvalSkills } from '../skills/intake.js';
-import type { Workspace, Skill, Case, Assertion, Run, CaseStatus, TraceInfo, ContextInfo, OutputFile } from './types.js';
-
-// ---------------------------------------------------------------- fs helpers
-
-async function readJson<T = unknown>(p: string): Promise<T | null> {
-  try { return JSON.parse(await fs.readFile(p, 'utf8')) as T; } catch { return null; }
-}
-async function readText(p: string): Promise<string> {
-  try { return await fs.readFile(p, 'utf8'); } catch { return ''; }
-}
-async function exists(p: string): Promise<boolean> {
-  try { await fs.access(p); return true; } catch { return false; }
-}
-async function listDirs(p: string): Promise<string[]> {
-  try {
-    const entries = await fs.readdir(p, { withFileTypes: true });
-    return entries.filter((e) => e.isDirectory()).map((e) => e.name);
-  } catch { return []; }
-}
-
-/** Recursively list files under outputs/ (relative paths + sizes), capped. */
-async function listOutputFiles(dir: string, cap = 200): Promise<OutputFile[]> {
-  const out: OutputFile[] = [];
-  async function walk(d: string, rel: string): Promise<void> {
-    if (out.length >= cap) return;
-    let entries: import('node:fs').Dirent[];
-    try { entries = await fs.readdir(d, { withFileTypes: true }); } catch { return; }
-    for (const e of entries) {
-      if (out.length >= cap) return;
-      const full = path.join(d, e.name);
-      const r = rel ? rel + '/' + e.name : e.name;
-      if (e.isDirectory()) await walk(full, r);
-      else {
-        let size = 0;
-        try { size = (await fs.stat(full)).size; } catch { /* ignore */ }
-        out.push({ path: r, size });
-      }
-    }
-  }
-  await walk(dir, '');
-  out.sort((a, b) => (a.path < b.path ? -1 : 1));
-  return out;
-}
+import {
+  loadWorkspaceArtifacts,
+  reloadSkillArtifacts,
+  type LoadedCase,
+  type LoadedRun,
+  type LoadedSkill,
+} from '../evals/artifacts.js';
+import type { EvalsJsonFile } from '../evals/types.js';
+import { mapAssertionResultForView } from './view-model.js';
+import type { Workspace, Skill, Case, Assertion, Run, CaseStatus, TraceInfo, ContextInfo } from './types.js';
 
 // ---------------------------------------------------------------- formatting
 
@@ -68,7 +32,7 @@ function relTime(mtimeMs: number): string {
 
 // ---------------------------------------------------------------- mapping
 
-function mapAssertion(r: any): Assertion {
+function mapAssertion(r: { text?: string; passed?: boolean; evidence?: string; assertion?: unknown }): Assertion {
   const mapped = mapAssertionResultForView(r);
   return {
     type: mapped.type,
@@ -81,14 +45,13 @@ function mapAssertion(r: any): Assertion {
   };
 }
 
-function modelStr(timing: any): string {
+function modelStr(timing: LoadedCase['timing']): string {
   const m = timing?.model;
   if (!m) return '—';
   return `${m.provider}/${m.id}${m.thinking ? ':' + m.thinking : ''}`;
 }
 
-// grading.json carries judge_model only when an LLM-judge actually ran for the case.
-function judgeStr(grading: any): string {
+function judgeStr(grading: LoadedCase['grading']): string {
   const j = grading?.judge_model;
   if (!j) return '—';
   if (typeof j === 'string') return j;
@@ -101,11 +64,11 @@ function deriveStatus(passed: number, total: number): CaseStatus {
   return passed > 0 ? 'partial' : 'fail';
 }
 
-function formatSetup(ec: any): string {
+function formatSetup(ec: EvalsJsonFile['evals'][number] | undefined): string {
   return ec?.setup ? JSON.stringify(ec.setup) : Array.isArray(ec?.files) ? 'seeded · ' + ec.files.join(', ') : 'empty';
 }
 
-function unloadedCase(ec: any): Case {
+function unloadedCase(ec: EvalsJsonFile['evals'][number]): Case {
   return {
     id: String(ec?.id ?? ''),
     status: 'not-run',
@@ -142,7 +105,7 @@ function unloadedCase(ec: any): Case {
   };
 }
 
-function buildTrace(tools: any): TraceInfo {
+function buildTrace(tools: LoadedCase['toolSummary']): TraceInfo {
   return {
     callCount: tools?.tool_call_count ?? 0,
     errors: tools?.tool_error_count ?? 0,
@@ -153,55 +116,58 @@ function buildTrace(tools: any): TraceInfo {
     writtenFiles: Array.isArray(tools?.written_files) ? tools.written_files.map(String) : [],
     editedFiles: Array.isArray(tools?.edited_files) ? tools.edited_files.map(String) : [],
     externalCalls: Array.isArray(tools?.external_calls)
-      ? tools.external_calls.map((c: any) => ({ system: String(c?.system ?? ''), operation: String(c?.operation ?? ''), ...(c?.target ? { target: String(c.target) } : {}) }))
+      ? tools.external_calls.map((c) => ({ system: String(c?.system ?? ''), operation: String(c?.operation ?? ''), ...(c?.target ? { target: String(c.target) } : {}) }))
       : [],
   };
 }
 
-function buildContext(m: any): ContextInfo {
+function buildContext(m: LoadedCase['contextManifest']): ContextInfo {
   return {
     mode: String(m?.mode ?? 'isolated'),
     agentDir: m?.agent_dir ? String(m.agent_dir) : '',
-    attachedSkills: Array.isArray(m?.attached_skills) ? m.attached_skills.map((s: any) => ({ name: String(s?.name ?? ''), path: String(s?.path ?? ''), role: String(s?.role ?? '') })) : [],
+    attachedSkills: Array.isArray(m?.attached_skills) ? m.attached_skills.map((s) => ({ name: String(s?.name ?? ''), path: String(s?.path ?? ''), role: String(s?.role ?? '') })) : [],
     activeTools: Array.isArray(m?.active_tools) ? m.active_tools.map(String) : [],
-    availableTools: Array.isArray(m?.available_tools) ? m.available_tools.map((t: any) => ({ name: String(t?.name ?? ''), source: String(t?.source ?? '') })) : [],
-    mcpTools: Array.isArray(m?.mcp_tools) ? m.mcp_tools.map((t: any) => String(t?.name ?? t)) : [],
+    availableTools: Array.isArray(m?.available_tools) ? m.available_tools.map((t) => ({ name: String(t?.name ?? ''), source: String(t?.source ?? '') })) : [],
+    mcpTools: Array.isArray(m?.mcp_tools) ? m.mcp_tools.map((t) => String(t?.name ?? t)) : [],
     mcpServers: Array.isArray(m?.mcp_servers) ? m.mcp_servers.map(String) : [],
     ambient: m?.ambient && typeof m.ambient === 'object' ? m.ambient : {},
   };
 }
 
-async function loadCase(caseDir: string, ec: any): Promise<Case> {
-  const compare = await exists(path.join(caseDir, 'with_skill'));
-  const base = compare ? path.join(caseDir, 'with_skill') : caseDir;
-
-  const grading = await readJson<any>(path.join(base, 'grading.json'));
-  const timing = await readJson<any>(path.join(base, 'timing.json'));
-  const tools = await readJson<any>(path.join(base, 'tool-summary.json'));
-  const manifest = await readJson<any>(path.join(base, 'context-manifest.json'));
-  const assistant = await readText(path.join(base, 'assistant.md'));
-  const assistantWithout = compare ? await readText(path.join(caseDir, 'without_skill', 'assistant.md')) : '';
-  const outputs = await listOutputFiles(path.join(base, 'outputs'));
-
+function mapLoadedCase(loaded: LoadedCase, ec: EvalsJsonFile['evals'][number] | undefined): Case {
+  const grading = loaded.grading;
+  const timing = loaded.timing;
+  const tools = loaded.toolSummary;
+  const manifest = loaded.contextManifest;
   const assertions: Assertion[] = (grading?.assertion_results ?? []).map(mapAssertion);
   const passed = grading?.summary?.passed ?? assertions.filter((a) => a.passed).length;
   const total = grading?.summary?.total ?? assertions.length;
 
-  let withP = passed, withT = total, withoutP = passed, withoutT = total, delta = '';
-  if (compare) {
-    const wo = await readGradingJson(path.join(caseDir, 'without_skill'));
+  let withP = passed;
+  let withT = total;
+  let withoutP = passed;
+  let withoutT = total;
+  let delta = '';
+  if (loaded.compare && loaded.variants) {
+    const wo = loaded.variants.without_skill.grading;
     withoutP = wo?.summary?.passed ?? 0;
     withoutT = wo?.summary?.total ?? total;
     delta = pct((withT ? withP / withT : 0) - (withoutT ? withoutP / withoutT : 0));
   }
 
-  const tu = timing?.token_usage ?? {};
+  const tu = timing?.token_usage ?? {
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_read_tokens: 0,
+    cache_write_tokens: 0,
+    total_tokens: 0,
+  };
   const toolPairs: [string, number][] = Object.entries(tools?.tool_calls_by_name ?? {}).map(([k, v]) => [k, Number(v)]);
   const skillReads = Object.entries(tools?.skill_reads_by_name ?? {}).map(([k, v]) => `${k} ×${v}`).join(', ') || '—';
 
   return {
-    id: String(ec?.id ?? path.basename(caseDir).replace(/^eval-/, '')),
-    status: deriveStatus(passed, total),
+    id: loaded.id || String(ec?.id ?? ''),
+    status: loaded.grading ? deriveStatus(passed, total) : 'not-run',
     prompt: String(ec?.prompt ?? ''),
     expected: String(ec?.expected_output ?? ''),
     setup: formatSetup(ec),
@@ -222,75 +188,23 @@ async function loadCase(caseDir: string, ec: any): Promise<Case> {
     ext: tools?.external_call_count ?? 0,
     mcp: tools?.mcp_tool_call_count ?? 0,
     withP, withT, withoutP, withoutT, delta,
-    assistant,
-    assistantWithout,
+    assistant: loaded.assistantText,
+    assistantWithout: loaded.variants?.without_skill.assistantText ?? '',
     trace: buildTrace(tools),
     context: buildContext(manifest),
-    outputs,
+    outputs: loaded.outputFiles,
     assertions,
   };
 }
 
-/** Newest run directory for a skill (handles `iteration-<n>/<runId>/` buckets). */
-async function runDirsFor(skillDir: string): Promise<string[]> {
-  const root = path.join(skillDir, 'evals-runs');
-  if (!(await exists(root))) return [];
-  const out: string[] = [];
-  for (const name of await listDirs(root)) {
-    const full = path.join(root, name);
-    if (name.startsWith('iteration-')) {
-      for (const r of await listDirs(full)) out.push(path.join(full, r));
-    } else {
-      out.push(full);
-    }
-  }
-  // keep only dirs that actually contain eval-* case dirs
-  const valid: string[] = [];
-  for (const d of out) {
-    if ((await listDirs(d)).some((n) => n.startsWith('eval-'))) valid.push(d);
-  }
-  return valid;
-}
-
-async function mtime(p: string): Promise<number> {
-  try { return (await fs.stat(p)).mtimeMs; } catch { return 0; }
-}
-
-async function loadSkill(skillDir: string): Promise<Skill | null> {
-  const evals = await readJson<any>(path.join(skillDir, 'evals', 'evals.json'));
-  const runDirs = await runDirsFor(skillDir);
-  if (runDirs.length === 0) {
-    if (!evals) return null;
-    const cases = (evals.evals ?? []).map(unloadedCase);
-    return {
-      id: String(evals.skill_name ?? path.basename(skillDir)),
-      dir: path.resolve(skillDir),
-      runDir: '',
-      role: 'target',
-      model: '—',
-      judge: '—',
-      passed: 0,
-      total: 0,
-      withP: 0, withT: 0, withoutP: 0, withoutT: 0, delta: '',
-      totalCost: money2(0),
-      totalTokens: 0,
-      avgDur: '—',
-      cases,
-    };
-  }
-
-  // newest run wins for the detail view
-  let runDir = runDirs[0]!;
-  let best = -1;
-  for (const d of runDirs) { const t = await mtime(d); if (t > best) { best = t; runDir = d; } }
-
-  const evalById = new Map<string, any>((evals?.evals ?? []).map((e: any) => [String(e.id), e]));
-  const caseDirs = (await listDirs(runDir)).filter((n) => n.startsWith('eval-'));
-  const cases: Case[] = [];
-  for (const cd of caseDirs) {
-    const id = cd.replace(/^eval-/, '');
-    cases.push(await loadCase(path.join(runDir, cd), evalById.get(id)));
-  }
+function mapLoadedSkill(loaded: LoadedSkill): Skill {
+  const evalById = new Map<string, EvalsJsonFile['evals'][number]>(
+    (loaded.evals?.evals ?? []).map((entry) => [String(entry.id), entry]),
+  );
+  const cases: Case[] = loaded.cases.map((loadedCase) => {
+    if (!loadedCase.grading) return unloadedCase(evalById.get(loadedCase.id) ?? { id: loadedCase.id, prompt: '', expected_output: '' });
+    return mapLoadedCase(loadedCase, evalById.get(loadedCase.id));
+  });
 
   const passed = cases.filter((c) => c.status === 'pass').length;
   const totalTokens = cases.reduce((a, c) => a + c.ttot, 0);
@@ -301,17 +215,18 @@ async function loadSkill(skillDir: string): Promise<Skill | null> {
   const woT = cases.reduce((a, c) => a + c.withoutT, 0);
   const compare = cases.some((c) => c.delta !== '');
   const delta = compare ? pct((withT ? withP / withT : 0) - (woT ? woP / woT : 0)) : '';
+  const first = cases.find((c) => c.status !== 'not-run');
+  const hasRuns = Boolean(loaded.runDir);
 
-  const first = cases[0];
   return {
-    id: String(evals?.skill_name ?? path.basename(skillDir)),
-    dir: path.resolve(skillDir),
-    runDir: path.resolve(runDir),
-    role: 'target', // a skill with its own runs is a target; --extra-skill distractors are appended by appendDistractorSkills()
+    id: loaded.skillName,
+    dir: loaded.skillDir,
+    runDir: loaded.runDir ?? '',
+    role: 'target',
     model: first?.model ?? '—',
     judge: first?.judge ?? '—',
     passed,
-    total: cases.length,
+    total: hasRuns ? cases.length : 0,
     withP, withT, withoutP: woP, withoutT: woT, delta,
     totalCost: money2(totalCost),
     totalTokens,
@@ -320,70 +235,34 @@ async function loadSkill(skillDir: string): Promise<Skill | null> {
   };
 }
 
-async function aggregateRun(dir: string): Promise<{ pass: string; exit: number; cost: number }> {
-  const caseDirs = (await listDirs(dir)).filter((n) => n.startsWith('eval-'));
-  let cp = 0; let exit = 0; let cost = 0;
-  for (const cd of caseDirs) {
-    const hasCompare = await exists(path.join(dir, cd, 'with_skill'));
-    const base = hasCompare ? path.join(dir, cd, 'with_skill') : path.join(dir, cd);
-    const g = await readJson<any>(path.join(base, 'grading.json'));
-    const failed = g?.summary?.failed ?? 1;
-    if (failed === 0) cp++; else exit = 1;
-    const t = await readJson<any>(path.join(base, 'timing.json'));
-    cost += Number(t?.estimated_cost_usd ?? 0);
-    if (hasCompare) {
-      const t2 = await readJson<any>(path.join(dir, cd, 'without_skill', 'timing.json'));
-      cost += Number(t2?.estimated_cost_usd ?? 0);
-    }
-  }
-  return { pass: `${cp}/${caseDirs.length}`, exit, cost };
+function mapLoadedRun(loaded: LoadedRun, fallbackSkillName: string): Run {
+  const skillName = loaded.skillName ?? fallbackSkillName;
+  const firstCase = loaded.cases[0];
+  const timing = firstCase?.timing ?? null;
+  const manifest = firstCase?.contextManifest ?? null;
+  const grading = firstCase?.grading ?? null;
+  const extras = Array.isArray(manifest?.attached_skills)
+    ? manifest.attached_skills.filter((s) => s?.role === 'extra').map((s) => String(s?.name))
+    : [];
+
+  return {
+    iteration: loaded.iteration ?? '—',
+    runId: loaded.runId,
+    mode: loaded.benchmark ? 'compare' : 'single',
+    skill: skillName,
+    extra: extras.join(', '),
+    ctxMode: String(manifest?.mode ?? 'isolated'),
+    model: modelStr(timing),
+    judge: judgeStr(grading),
+    when: relTime(loaded.mtimeMs),
+    pass: `${loaded.summary.passCount}/${loaded.summary.totalCases}`,
+    delta: loaded.benchmark?.summary?.delta != null ? pct(Number(loaded.benchmark.summary.delta)) : '',
+    cost: money2(loaded.summary.totalCost),
+    exit: loaded.summary.exitCode,
+    caseFilter: '',
+  };
 }
 
-async function loadRuns(skillDir: string): Promise<Run[]> {
-  const out: Run[] = [];
-  for (const dir of await runDirsFor(skillDir)) {
-    const benchmark = await readJson<any>(path.join(dir, 'benchmark.json'));
-    const mode: Run['mode'] = benchmark ? 'compare' : 'single';
-    const { pass, exit, cost } = await aggregateRun(dir);
-    const rel = path.relative(path.join(skillDir, 'evals-runs'), dir);
-    const segments = rel.split(path.sep);
-    const iteration = segments[0]?.startsWith('iteration-') ? segments[0].replace('iteration-', '') : '—';
-    const runId = segments[segments.length - 1] ?? rel;
-    // peek one case's with_skill (or single) artifacts for model + context
-    const firstCase = (await listDirs(dir)).find((n) => n.startsWith('eval-'));
-    const tBase = firstCase ? ((await exists(path.join(dir, firstCase, 'with_skill'))) ? path.join(dir, firstCase, 'with_skill') : path.join(dir, firstCase)) : '';
-    const timing = tBase ? await readJson<any>(path.join(tBase, 'timing.json')) : null;
-    const manifest = tBase ? await readJson<any>(path.join(tBase, 'context-manifest.json')) : null;
-    const grading = tBase ? await readJson<any>(path.join(tBase, 'grading.json')) : null;
-    const extras = Array.isArray(manifest?.attached_skills)
-      ? manifest.attached_skills.filter((s: any) => s?.role === 'extra').map((s: any) => String(s?.name))
-      : [];
-    out.push({
-      iteration,
-      runId,
-      mode,
-      skill: path.basename(skillDir),
-      extra: extras.join(', '),
-      ctxMode: String(manifest?.mode ?? 'isolated'),
-      model: modelStr(timing),
-      judge: judgeStr(grading),
-      when: relTime(await mtime(dir)),
-      pass,
-      delta: benchmark?.summary?.delta != null ? pct(Number(benchmark.summary.delta)) : '',
-      cost: money2(cost),
-      exit,
-      caseFilter: '',
-    });
-  }
-  out.sort((a, b) => (a.when < b.when ? -1 : 1));
-  return out;
-}
-
-/**
- * Skills attached via --extra-skill never get runs of their own, so loadSkill()
- * can't surface them. Synthesize a Skills-panel entry for each unique `extra`
- * attachment found in the loaded cases' context manifests.
- */
 function appendDistractorSkills(skills: Skill[]): void {
   const known = new Set<string>();
   for (const s of skills) { known.add(s.dir); known.add(s.id); }
@@ -423,36 +302,17 @@ function appendDistractorSkills(skills: Skill[]): void {
 
 /** Reload a single skill + its runs after a re-run (cheaper than loadWorkspace). */
 export async function reloadSkill(skillDir: string): Promise<{ skill: Skill | null; runs: Run[] }> {
-  const skill = await loadSkill(skillDir);
-  const runs = await loadRuns(skillDir);
-  return { skill, runs };
+  const { skill, runs } = await reloadSkillArtifacts(skillDir);
+  return {
+    skill: skill ? mapLoadedSkill(skill) : null,
+    runs: runs.map((run) => mapLoadedRun(run, skill?.skillName ?? path.basename(skillDir))),
+  };
 }
 
 export async function loadWorkspace(input: string): Promise<Workspace> {
-  const abs = path.resolve(input);
-
-  // single skill directory
-  if (await exists(path.join(abs, 'evals', 'evals.json'))) {
-    const sk = await loadSkill(abs);
-    const runs = await loadRuns(abs);
-    const skills = sk ? [sk] : [];
-    appendDistractorSkills(skills);
-    return { skills, runs };
-  }
-
-  // repo root: discover skill dirs
-  const skills: Skill[] = [];
-  const runs: Run[] = [];
-  const discovered = await discoverEvalSkills(abs, {
-    maxDepth: 3,
-    requireSkillMd: false,
-    ignoredDirs: new Set([...DEFAULT_IGNORED_DIRS, 'evals-runs']),
-  });
-  for (const skill of discovered) {
-    const sk = await loadSkill(skill.skillDir);
-    if (sk) skills.push(sk);
-    for (const r of await loadRuns(skill.skillDir)) runs.push(r);
-  }
+  const { skills: loadedSkills, runs: loadedRuns } = await loadWorkspaceArtifacts(input);
+  const skills = loadedSkills.map(mapLoadedSkill);
+  const runs = loadedRuns.map((run) => mapLoadedRun(run, run.skillName ?? 'unknown'));
   appendDistractorSkills(skills);
   return { skills, runs };
 }
