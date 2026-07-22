@@ -3,6 +3,7 @@ import { PrimitivesStory } from './components/primitives/__stories__/primitives'
 import { SectionNav } from './components/SectionNav';
 import { StatusBar } from './components/StatusBar';
 import { BrowseApp } from './sections/browse';
+import { CreateApp } from './sections/create';
 import { ReviewApp } from './sections/review';
 import { RunApp } from './sections/run';
 import { useSection } from './state/section';
@@ -20,6 +21,10 @@ const Main = () => {
 
   if (activeSection.name === 'browse') {
     return <BrowseApp />;
+  }
+
+  if (activeSection.name === 'create') {
+    return <CreateApp />;
   }
 
   return (
