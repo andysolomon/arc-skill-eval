@@ -1,3 +1,9 @@
+## [0.8.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.7.0...v0.8.0) (2026-07-22)
+
+### Features
+
+* **web:** add browse section (hosted variant) ([#208](https://github.com/andysolomon/arc-skill-eval/issues/208)) ([48485a5](https://github.com/andysolomon/arc-skill-eval/commit/48485a50c2f53b0acdc300e1f2f5c39f3b0a476e)), closes [#193](https://github.com/andysolomon/arc-skill-eval/issues/193)
+
 ## [0.7.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.6.0...v0.7.0) (2026-07-22)
 
 ### Features
