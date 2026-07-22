@@ -1,3 +1,9 @@
+## [0.17.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.16.0...v0.17.0) (2026-07-22)
+
+### Features
+
+* **web:** add Vercel config + CI + Playwright smoke for hosted deploy ([#218](https://github.com/andysolomon/arc-skill-eval/issues/218)) ([72d2c93](https://github.com/andysolomon/arc-skill-eval/commit/72d2c93005750fe91986bad470407d630e0c4221)), closes [#203](https://github.com/andysolomon/arc-skill-eval/issues/203)
+
 ## [0.16.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.15.0...v0.16.0) (2026-07-22)
 
 ### Features
