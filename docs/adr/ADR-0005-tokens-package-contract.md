@@ -111,3 +111,4 @@ This is ADR-0003 Option A, narrowed into an explicit consumer contract.
 - ADR-0002 — Web app stack (Vite / Tailwind / `[data-theme]`)
 - `src/tui/theme.ts` — current TUI token source (future import site)
 - `docs/web-app/CONTEXT.md` — web surface vocabulary
+- ADR-0006 — Tailwind v4 + `[data-theme]` consumer integration (closes #166)
