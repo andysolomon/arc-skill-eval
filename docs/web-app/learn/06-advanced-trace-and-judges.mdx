@@ -1,9 +1,112 @@
-Advanced review starts when the shaped surfaces do not explain a failure and the trace or judge prompt needs direct inspection.
+<Kicker>trace as evidence</Kicker>
 
-<Note>Use trace evidence to connect runtime behavior back to the assertion that passed or failed.</Note>
+Advanced review starts when the shaped surfaces do not explain a case. At that point, read the trace, tool summary, context manifest, and judge output directly.
 
-```json
-{ "trace": "tool-call-summary", "judge": "evidence-focused" }
-```
+The goal is still calm and concrete: find the evidence chain that explains the verdict.
+
+<Note>Trace is useful because it connects what the agent said to what the Runtime gave it, what tools it called, and what the judge graded.</Note>
+
+## Pi Runtime
+
+Pi is the runtime that gives an eval case an agent session with tools, context, model selection, and trace capture.
+
+`learn` teaches that runtime. It does not execute it.
+
+Execution belongs to `run`. Artifact reading belongs to `browse`. Feedback and Improve Plans belong to `review`.
+
+That division keeps every section honest about what it can mutate.
+
+## Turn By Turn Trace
+
+`trace.json` should let you reconstruct the run one turn at a time.
+
+Look for:
+
+- messages sent to the model
+- tool calls and tool results
+- skill or reference reads
+- file writes or edits
+- external or MCP-looking calls
+- runtime errors
+- judge requests and responses, when captured
+
+The trace is the audit trail when the Overview tab is too compressed.
+
+## Tool Calls
+
+Tool evidence is often stronger than prose evidence.
+
+If a skill says to inspect a repo before writing a plan, the trace should show file search or reads. If a skill says to reuse a script, the trace should show that script path or execution. If a skill says not to mutate GitHub, the trace should not show GitHub write calls.
+
+The `browse` Trace tab summarizes this through `tool-summary.json`, but the raw trace is where ordering and arguments live.
+
+## Judge Calibration
+
+A judge is another model call, so it needs a rubric.
+
+Good judge prompts ask for concrete evidence, state what counts as a pass, and make room for failure when the evidence is missing.
+
+Weak judge prompts reward fluent explanations. They pass because the assistant sounds plausible, not because the artifact proves the behavior.
+
+<CodeBlock language="md" code={`Judge rubric:
+- PASS only if the response names a blocking risk before summary text.
+- PASS only if at least one finding cites a file path and line.
+- FAIL if the response merely says it reviewed the change.
+- Quote or summarize the evidence used for the verdict.`} />
+
+Calibrate by comparing the judge verdict with a human read of `assistant.md`, `grading.json`, and trace evidence.
+
+## Artifact Bundle
+
+For each case, expect the useful files under:
+
+<CodeBlock language="text" code={`evals-runs/<id>/<caseId>/
+  assistant.md
+  grading.json
+  trace.json
+  context-manifest.json
+  tool-summary.json`} />
+
+For compare runs, the same case may include `with_skill/`, `without_skill/`, and a run-level `benchmark.json`.
+
+The shaped tabs in `browse` exist to keep these artifacts approachable. Raw files remain the source of truth when the shaped read is not enough.
+
+## What Goes Where
+
+Put the assistant's final response in `assistant.md`. This is the answer a human can read without knowing the trace schema.
+
+Put assertion verdicts, evidence, and summary status in `grading.json`. This is the file Overview depends on.
+
+Put ordered runtime events in `trace.json`. This is the deepest behavioral record.
+
+Put included skills, references, fixtures, and context policy in `context-manifest.json`. This explains what the model was allowed to see.
+
+Put tool counts, errors, skill reads, external calls, and written files in `tool-summary.json`. This gives the Trace tab its fast scan.
+
+## Failure Reading Order
+
+Start with `grading.json` to understand the verdict.
+
+Then read `assistant.md` to see whether the answer itself explains the failure.
+
+Then inspect `tool-summary.json` and `context-manifest.json` to check whether the skill and context were available.
+
+Then open `trace.json` when ordering, arguments, or hidden runtime behavior matter.
+
+That order keeps advanced review from becoming raw JSON first.
+
+## Closing Boundary
+
+When a failure points to unclear judging, edit the rubric or assertion.
+
+When a failure points to missing behavior, edit the skill.
+
+When a failure points to prompt leakage, edit the case.
+
+When a failure points to runtime context, edit the suite setup or command flags.
+
+The trace does not replace judgment. It gives judgment a better record.
 
 format · Anthropic evals.json / method · OpenAI eval-skills / runtime · Pi
+
+<small>Source: [docs/web-app/section-browse.md](../section-browse.md) (PR #⁠171) - deep-dive at [docs/web-app/section-browse.md](../section-browse.md)</small>

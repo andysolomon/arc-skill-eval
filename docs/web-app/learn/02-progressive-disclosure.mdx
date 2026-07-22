@@ -1,11 +1,88 @@
-Progressive disclosure keeps the case focused by loading only the skill instructions and context needed for the behavior under test.
+<Kicker>learning gradient</Kicker>
 
-<Note>Small context makes regressions easier to explain when the with-skill and without-skill arms diverge.</Note>
+Progressive disclosure is the habit of loading the smallest useful amount of context at each step. In this app it applies to both the learning path and the eval cases themselves.
 
-```md
-- include SKILL.md
-- add one relevant reference
-- omit unrelated examples
-```
+The five App Sections form a gradient: `run` shows the command, `browse` shows evidence, `create` shapes the suite, `review` turns observations into an Improve Plan, and `learn` explains the model behind those moves.
+
+<Note>Small context is not austerity. It is how a failure becomes legible enough to fix.</Note>
+
+## The Section Gradient
+
+`run` is first because execution creates the artifact trail. The Composer Rows make flags visible, and the Console keeps the command close to the result.
+
+`browse` is second because a run without inspection is just a score. The Mode Tabs separate response, grading, diff, trace, and raw JSON so each question has a place.
+
+`create` is third because authoring is easier after you have seen a real run. The Step Rail moves from behaviors to prompts to assertions to review.
+
+`review` is fourth because improvement should be grounded in evidence. Feedback Notes attach to cases, and Improve Plans stay proposed until the user explicitly applies them.
+
+`learn` is fifth because it is the map. It teaches the loop without becoming another execution surface.
+
+## Context Inside A Case
+
+A good case includes enough context for the behavior to be possible, but not so much that the answer leaks through unrelated examples.
+
+Start with the target skill. Add one reference only when the behavior needs it. Add fixtures when the expected output depends on files. Avoid adjacent skills unless the case is deliberately testing distractor handling.
+
+<CodeBlock language="text" code={`include:
+  SKILL.md
+  one relevant reference
+  one small fixture
+
+avoid:
+  unrelated examples
+  broad repo context
+  duplicate instructions
+  hidden answers in the prompt`} />
+
+The point is not to starve the model. The point is to make attribution possible.
+
+## Skill Signal
+
+When the same case passes with and without the skill, the suite may be too easy, the prompt may leak the behavior, or the assertion may not aim at the skill's value.
+
+When the `with_skill` arm passes and the `without_skill` arm fails, the delta is more meaningful. The strongest signal appears when both arms have the same prompt, model, and runtime settings, but only one arm gets the target skill.
+
+For the deeper economics of that delta, see [cost of the win](./05-cost-of-the-win.mdx).
+
+## IndexedDB As Memory, Not Authority
+
+Progressive disclosure also shapes persistence.
+
+The app can keep chrome preferences, Feedback Notes, Improve Plans, and learn progress in IndexedDB. That is enough for the user to refresh and continue.
+
+It does not turn hosted into a hidden backend. Hosted has no filesystem, no LLM execution, and no silent writes.
+
+For `learn`, the `learnProgress` store can remember:
+
+- `chapterId`
+- `position`
+- `completed`
+- `updatedAt`
+
+That memory helps the reader feel continuous without changing what the section is allowed to do.
+
+## Theme Picker
+
+Theme choice is a low-cost personalization layer. It should never change content, layout, assertions, or artifacts.
+
+The handoff pins the visual vocabulary to token roles: `var(--tt-cyan)` for Section Kickers, `var(--tt-comment)` for quiet labels, and other `var(--tt-*)` tokens for semantic accents.
+
+Chapter content should describe those roles rather than embed raw colors. The same prose should hold up across `tokyonight`, `gruvbox`, and `nord`.
+
+## Practical Rule
+
+When a case is hard to explain, reduce the context before you expand the suite.
+
+Ask:
+
+- what behavior is this one case measuring?
+- what is the minimum context needed to make that behavior possible?
+- what evidence would prove the skill mattered?
+- which artifact will carry that evidence?
+
+Those questions keep the suite small enough to debug and strong enough to trust.
 
 format · Anthropic evals.json / method · OpenAI eval-skills / runtime · Pi
+
+<small>Source: [docs/web-app/section-create.md](../section-create.md) (PR #⁠172) - deep-dive at [docs/web-app/section-create.md](../section-create.md)</small>

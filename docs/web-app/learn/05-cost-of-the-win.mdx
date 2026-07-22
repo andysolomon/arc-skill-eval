@@ -1,9 +1,100 @@
-A positive skill delta is only part of the decision; authors should also weigh runtime cost, latency, maintenance, and how often the task occurs.
+<Kicker>delta with a price tag</Kicker>
 
-<Note tone="warning">A suite that wins by making every case bigger may be less useful than a smaller suite with a clear signal.</Note>
+A positive skill delta is only part of the decision. The win also has a cost: tokens, latency, judge spend, authoring time, maintenance, and the risk of hiding a weak case behind a large suite.
 
-```ts
-const value = skillLift - (tokenCost + maintenanceCost);
-```
+The app makes cost visible because evaluation is an engineering loop, not a trophy case.
+
+<Note tone="warning">A suite that wins by making every case larger may be less useful than a smaller suite with a clearer signal.</Note>
+
+## Token Economics
+
+Every run spends context on the prompt, skill instructions, references, fixtures, model output, judge prompts, and sometimes trace capture.
+
+The cost line, such as `Σ $0.87`, is a quick yardstick. It lets you compare the value of a run against the decision it supports.
+
+Cheap runs are good for editing. Expensive runs need a reason: release checks, benchmark comparisons, high-variance cases, or judge calibration.
+
+## The Benchmark Delta
+
+The Benchmark Delta compares `with_skill` and `without_skill` pass rates.
+
+It is not a generic score. It answers a narrower question: did the skill create lift on these cases under these settings?
+
+For run artifact inspection, see [the artifact reading order](./06-advanced-trace-and-judges.mdx#artifact-bundle).
+
+<CodeBlock language="json" code={`{
+  "with_skill": { "passed": 4, "total": 5 },
+  "without_skill": { "passed": 2, "total": 5 },
+  "delta": "+40.0%",
+  "estimatedCostUsd": 0.87
+}`} />
+
+The delta and the cost belong together. A large lift that costs little is easy to keep. A small lift that costs a lot needs scrutiny.
+
+## Use `--judge-model` Sparingly
+
+Changing `--judge-model` can improve grading quality, but it also changes the measurement.
+
+Use a stronger judge when:
+
+- the rubric requires subtle reading
+- deterministic assertions cannot capture the behavior
+- false positives are more expensive than judge cost
+- calibration failures are blocking the suite
+
+Avoid changing the judge casually while also changing prompts, skills, fixtures, or models. One variable at a time keeps the result interpretable.
+
+## When A Win Is Too Easy
+
+If the `without_skill` arm already passes, the skill may not be adding value.
+
+That does not automatically make the skill useless. It may mean the case is too simple, the prompt reveals the method, or the assertion measures generic quality.
+
+The fix is usually to add a sharper scenario:
+
+- a distractor skill
+- a negative case
+- an incomplete fixture
+- a prompt that implies the behavior without naming it
+- a process assertion that checks the promised workflow
+
+## Feedback Notes
+
+Cost questions belong in Feedback Notes too.
+
+A note can say the assertion passed but the trace was wasteful. It can say the judge needed too much context. It can say a case is useful but should move to a slower release suite.
+
+Those notes drive the Improve Plan in `review`.
+
+## Improve Plans And `--apply`
+
+An Improve Plan is proposed from Feedback Notes and run evidence. It is not a silent edit.
+
+On `localhost`, `--apply` sends the plan to the Workspace Picker daemon, stages changes, and requires a later review and commit gate.
+
+On `hosted`, `--apply` downloads JSON. The browser does not write to a workspace it cannot see.
+
+This is the same persistence boundary in another form: feedback can be local browser state, but changing a skill or suite requires explicit user action.
+
+## Practical Budgeting
+
+Use cheap settings while shaping the suite:
+
+- one case
+- one iteration
+- default judge
+- isolated context
+- deterministic assertions where possible
+
+Use expensive settings when the question justifies them:
+
+- compare mode for skill lift
+- extra iterations for variance
+- stronger judges for nuanced rubrics
+- broader case sets before release
+
+The win is not just pass rate. It is pass rate, evidence quality, and cost in one read.
 
 format · Anthropic evals.json / method · OpenAI eval-skills / runtime · Pi
+
+<small>Source: [docs/web-app/section-review.md](../section-review.md) (PR #⁠173) - deep-dive at [docs/web-app/section-review.md](../section-review.md)</small>

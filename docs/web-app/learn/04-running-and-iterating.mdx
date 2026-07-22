@@ -1,9 +1,101 @@
-Run results are useful when they point to a concrete prompt gap, weak assertion, missing fixture, or skill behavior that needs tightening.
+<Kicker>from command to evidence</Kicker>
 
-<Note>Read the grading summary first, then compare the answer and trace before changing the suite.</Note>
+Running an eval is the moment the suite stops being an idea and starts producing evidence. The `run` section keeps that transition concrete: flags on the left, command and lifecycle on the right.
 
-```sh
-arc-skill-eval run evals/evals.json --compare
-```
+The goal is not to run often. The goal is to run in a way that makes the next edit obvious.
+
+<Note>Read a failed run in this order: grading summary, assistant response, trace or tool evidence, then raw JSON only when the shaped surfaces do not explain it.</Note>
+
+## Workspace Picker
+
+On `localhost`, `run` starts with the Workspace Picker. It gives the app a skill directory and lets the CLI daemon own filesystem access.
+
+On `hosted`, the Workspace Picker is hidden. Hosted can import `evals.json`, validate it, and pass artifacts to other sections, but it cannot execute.
+
+That split keeps the command honest. If the run needs disk or model access, it belongs to `localhost`.
+
+## Composer Flags
+
+The Composer Rows expose the runtime choices that affect evidence.
+
+`--case` selects a case id, `*`, or all cases. Use one case while debugging a failure, then broaden the run.
+
+`--model` selects the agent model. Keep it stable while comparing prompt or skill edits.
+
+`--judge-model` selects the grading model. Let it match `--model` by default; change it deliberately when judge quality is the variable.
+
+`--compare` controls whether the suite runs with the target skill, without it, or both.
+
+`--extra-skill` adds distractor skills when the behavior depends on choosing the right package.
+
+`--iteration` repeats cases to expose variance.
+
+`--context-mode` chooses isolated or ambient context.
+
+`--sandbox` controls tool access; `none` and `just-bash` are the v0 surface.
+
+<CodeBlock language="sh" code={`arc-skill-eval run ./skills/reviewer \\
+  --case review-finding-order \\
+  --model gpt-5 \\
+  --judge-model gpt-5 \\
+  --compare on \\
+  --iteration 3 \\
+  --context-mode isolated \\
+  --sandbox just-bash`} />
+
+## Lifecycle State
+
+The run lifecycle is intentionally small:
+
+- `idle`
+- `running`
+- `done`
+
+`idle` shows the assembled command. `running` appends per-case progress rows. `done` freezes the result and reveals the Benchmark block when compare mode is on.
+
+That state machine is enough for the user to know whether the command is pending, producing evidence, or ready to inspect.
+
+## Compare Runs
+
+With `--compare on`, the useful output is the delta between arms.
+
+The `with_skill` arm has the target skill available. The `without_skill` arm removes that skill while keeping the case, model, judge, iteration count, and runtime settings aligned.
+
+The result is strongest when the task actually needs the skill. If both arms pass easily, the suite may be measuring general model ability.
+
+## Assertions As Evidence
+
+Assertions should point to files the run actually produced.
+
+For details on where those files appear, see [advanced trace and judges](./06-advanced-trace-and-judges.mdx#artifact-bundle).
+
+Good assertion evidence can come from:
+
+- the assistant's final answer in `assistant.md`
+- assertion verdicts in `grading.json`
+- tool-call counts in `tool-summary.json`
+- ordered runtime events in `trace.json`
+- context and skill reads in `context-manifest.json`
+- diffs between expected and produced output
+
+When an assertion fails, the failure message should name the missing evidence, not just say the case failed.
+
+## Iteration Loop
+
+After a run, do not edit everything at once.
+
+If the prompt leaked the answer, rewrite the prompt.
+
+If the assertion passed for weak evidence, tighten the assertion.
+
+If the trace shows the skill was never needed, add a harder case or a distractor.
+
+If the model used too much context, revisit progressive disclosure.
+
+If the judge disagrees with human reading, calibrate the rubric before blaming the skill.
+
+That sequence keeps the suite explainable across iterations.
 
 format · Anthropic evals.json / method · OpenAI eval-skills / runtime · Pi
+
+<small>Source: [docs/web-app/section-run.md](../section-run.md) (PR #⁠170) - deep-dive at [docs/web-app/section-run.md](../section-run.md)</small>
