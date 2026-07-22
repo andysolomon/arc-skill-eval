@@ -1,3 +1,9 @@
+## [0.7.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.6.0...v0.7.0) (2026-07-22)
+
+### Features
+
+* **web:** add review section (hosted variant) ([#207](https://github.com/andysolomon/arc-skill-eval/issues/207)) ([7442a0e](https://github.com/andysolomon/arc-skill-eval/commit/7442a0e4e313e912b3506fb8bbe62be9fdecd6d4)), closes [#200](https://github.com/andysolomon/arc-skill-eval/issues/200) [#192](https://github.com/andysolomon/arc-skill-eval/issues/192)
+
 ## [0.6.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.5.0...v0.6.0) (2026-07-22)
 
 ### Features
