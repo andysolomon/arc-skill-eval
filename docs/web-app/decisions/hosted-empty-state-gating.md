@@ -123,7 +123,7 @@ Primary surface per App Section × Env Variant:
 ## References
 
 - [#168 — Pin the hosted-empty-state gating convention](https://github.com/andysolomon/arc-skill-eval/issues/168)
-- [#167 — Workspace picker mechanism (localhost)](https://github.com/andysolomon/arc-skill-eval/issues/167) (open; visibility only here)
+- [#167 — Workspace picker mechanism (localhost)](https://github.com/andysolomon/arc-skill-eval/issues/167) (open; visibility only here); mechanism: [workspace-picker.md](./workspace-picker.md)
 - [#170](https://github.com/andysolomon/arc-skill-eval/issues/170)–[#174](https://github.com/andysolomon/arc-skill-eval/issues/174) section specs; [#175](https://github.com/andysolomon/arc-skill-eval/issues/175) README
 - [ADR-0002](../../adr/ADR-0002-web-app-stack-vite-react-ts-tailwind-token-mapped.md) — Vite + React + Zustand
 - [ADR-0004](../../adr/ADR-0004-no-auth-single-user-indexeddb-hosted.md) — no-auth IndexedDB on hosted
