@@ -1,0 +1,35 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: install
+        run: npm ci
+
+      - name: typecheck web
+        run: npm --prefix web exec -- tsc --noEmit
+
+      - name: build web
+        run: npm --prefix web run build
+
+      - name: install chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: smoke test web
+        run: npm --prefix web run test:e2e

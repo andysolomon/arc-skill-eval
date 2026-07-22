@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { EmptyState } from '@/components/primitives';
+import { EmptyState, Kicker } from '@/components/primitives';
 
 export const RUN_INSTALL_COMMAND = 'arc-skill-eval run --compare';
 
@@ -66,6 +66,9 @@ export const InstallCommandPill = ({ command = RUN_INSTALL_COMMAND }: InstallCom
 
 export const RunEmptyState = () => (
   <div style={{ display: 'grid', gap: 12, width: 'min(100%, 560px)' }}>
+    <div data-testid="run-empty-state-kicker">
+      <Kicker tone="warning">localhost only</Kicker>
+    </div>
     <EmptyState
       title="localhost only"
       body="Hosted can prepare the command, but eval execution needs a local workspace and the CLI."

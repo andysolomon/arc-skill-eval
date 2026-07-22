@@ -9,7 +9,7 @@ export const StatusBar = () => {
       return;
     }
 
-    void resetHostedData();
+    void resetHostedData().then(() => window.location.reload());
   };
 
   return (
@@ -18,7 +18,12 @@ export const StatusBar = () => {
       <span>localhost:5173</span>
       <span className="status-bar__spacer" />
       <span>env {env}</span>
-      <button className="status-bar__reset" onClick={handleReset} type="button">
+      <button
+        className="status-bar__reset"
+        data-testid="status-reset-hosted-data"
+        onClick={handleReset}
+        type="button"
+      >
         Reset hosted data
       </button>
     </footer>
