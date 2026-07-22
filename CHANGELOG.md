@@ -1,3 +1,10 @@
+## [0.4.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.3.0...v0.4.0) (2026-07-22)
+
+### Features
+
+* **tokens:** extract shared design token package ([#177](https://github.com/andysolomon/arc-skill-eval/issues/177)) ([75e961a](https://github.com/andysolomon/arc-skill-eval/commit/75e961a37b055ca94d25567e185544976d93cb28)), closes [#165](https://github.com/andysolomon/arc-skill-eval/issues/165)
+* **web:** scaffold web/ with Vite + React 18 + Tailwind v4 + @arc-skill-eval/tokens ([#204](https://github.com/andysolomon/arc-skill-eval/issues/204)) ([24154c8](https://github.com/andysolomon/arc-skill-eval/commit/24154c8128e1570afd687dacbfe6e4cc73c8384d)), closes [#189](https://github.com/andysolomon/arc-skill-eval/issues/189)
+
 ## [0.3.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.2.0...v0.3.0) (2026-07-19)
 
 ### Features

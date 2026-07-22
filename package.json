@@ -1,7 +1,10 @@
 {
   "name": "arc-skill-eval",
-  "version": "0.3.0",
-  "workspaces": ["packages/*", "web"],
+  "version": "0.4.0",
+  "workspaces": [
+    "packages/*",
+    "web"
+  ],
   "description": "Pi-native library and CLI that runs Anthropic-standard skill evals (evals/evals.json) with LLM-judged + script assertions.",
   "type": "module",
   "license": "MIT",
