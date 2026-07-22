@@ -1,4 +1,5 @@
 import { GlobalHeader } from './components/GlobalHeader';
+import { PrimitivesStory } from './components/primitives/__stories__/primitives';
 import { SectionNav } from './components/SectionNav';
 import { StatusBar } from './components/StatusBar';
 import { useSection } from './state/section';
@@ -21,11 +22,22 @@ const Main = () => {
   );
 };
 
-export const App = () => (
-  <div className="app-shell">
-    <GlobalHeader />
-    <SectionNav />
-    <Main />
-    <StatusBar />
-  </div>
-);
+const shouldRenderPrimitivesStory = () =>
+  import.meta.env.DEV &&
+  typeof window !== 'undefined' &&
+  (window.location.pathname === '/_primitives' || window.location.hash === '#primitives');
+
+export const App = () => {
+  if (shouldRenderPrimitivesStory()) {
+    return <PrimitivesStory />;
+  }
+
+  return (
+    <div className="app-shell">
+      <GlobalHeader />
+      <SectionNav />
+      <Main />
+      <StatusBar />
+    </div>
+  );
+};
