@@ -4,6 +4,7 @@ import { SectionNav } from './components/SectionNav';
 import { StatusBar } from './components/StatusBar';
 import { BrowseApp } from './sections/browse';
 import { CreateApp } from './sections/create';
+import { LearnApp } from './sections/learn';
 import { ReviewApp } from './sections/review';
 import { RunApp } from './sections/run';
 import { useSection } from './state/section';
@@ -25,6 +26,10 @@ const Main = () => {
 
   if (activeSection.name === 'create') {
     return <CreateApp />;
+  }
+
+  if (activeSection.name === 'learn') {
+    return <LearnApp />;
   }
 
   return (
