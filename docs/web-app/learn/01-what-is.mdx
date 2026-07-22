@@ -1,9 +1,90 @@
-A skill eval is a focused check that asks whether a skill changes observable agent behavior in a promised direction.
+<Kicker>single source of truth</Kicker>
 
-<Note>Good evals measure produced answers, files, tool use, or traces instead of checking whether the model claims it used a skill.</Note>
+A skill eval is a focused measurement of whether a skill changes observable agent behavior in the promised direction. The target is not a file. The target is the behavior contract that `SKILL.md` and its supporting material create.
 
-```ts
-const evidence = ["assistant output", "workspace artifact", "trace event"];
-```
+At the center is `evals.json`. It is the suite document the author owns, the Runtime loads, the judge grades against, and the app renders back in `run`, `browse`, `create`, and `review`.
+
+<Note>Useful evals ask, "Did the skill change the answer, edit, tool use, or decision path?" They do not stop at, "Did the model say it used the skill?"</Note>
+
+## The Thing Under Test
+
+A skill is usually a bounded instruction package. It may include:
+
+- `SKILL.md` trigger rules and workflow steps
+- references that deepen a domain or API
+- scripts that should be reused instead of retyped
+- templates, fixtures, or assets
+- constraints that shape when the agent should decline, ask, or act
+
+The eval author's job is to turn that package into observable expectations.
+
+If a skill promises to create GitHub issues, a case should inspect the issue shape or the command plan. If a skill promises to write eval suites, a case should inspect `evals/evals.json`, fixture files, and assertion coverage.
+
+## `evals.json` As The Contract
+
+`evals.json` is the single source of truth for the suite. It names cases, prompts, expected behavior, fixtures or context, and assertions.
+
+The app can help write it, but it should never feel like magic output. The best suites read like a small technical document:
+
+- the case id names the scenario
+- the prompt creates the situation
+- the expected behavior describes the promised skill effect
+- the assertions say what evidence proves or disproves it
+- the fixture setup is narrow enough to understand
+
+<CodeBlock language="json" code={`{
+  "id": "writes-review-findings-first",
+  "prompt": "Review this pull request for behavioral regressions.",
+  "expected": "Findings lead, with file and line references.",
+  "assertions": [
+    { "kind": "judge", "text": "Findings are ordered before summary." },
+    { "kind": "script", "text": "Response contains at least one file:line reference." }
+  ]
+}`} />
+
+The exact schema belongs to the Runtime loader. The authoring posture belongs to you: small cases, plain names, narrow evidence.
+
+## Judge And Script Assertions
+
+Assertions bridge human intent and repeatable grading.
+
+A judge assertion asks a model to evaluate evidence against a rubric. Use it when the expectation needs judgment: quality of a review finding, adequacy of a rationale, or whether a plan respects a constraint.
+
+A script assertion checks something deterministic. Use it when the evidence is structural: a file exists, JSON parses, a regex matches, a tool summary includes a command, or a value stays under a budget.
+
+Most serious suites use both. The judge reads nuance. The script keeps the suite honest.
+
+## Localhost And Hosted Split
+
+The same `evals.json` can move across Env Variants, but execution cannot.
+
+On `localhost`, `run` can dispatch the suite through Pi and write artifacts under `evals-runs/<id>/`. The Workspace Picker gives the app a path, and the CLI daemon owns the filesystem boundary.
+
+On `hosted`, `run` can validate or import `evals.json`; it cannot execute a model or write artifacts to disk. Hosted `review` can import an artifact bundle and persist Feedback Notes in IndexedDB.
+
+That split is a design constraint, not a missing feature. It keeps the hosted app inspectable without accounts or secrets.
+
+## Evidence Over Engagement
+
+Skill engagement evidence is still useful. A trace that shows the target skill was read explains why a passing result may be credible.
+
+Outcome evidence is stronger. A passing result should show that the assistant produced the promised answer, file, plan, or tool use.
+
+The distinction matters when comparing with and without a skill; see [cost and lift](./05-cost-of-the-win.mdx) for how a suite separates general model ability from skill-specific value.
+
+## What A Pass Means
+
+A pass means the case produced enough evidence for its assertions. It does not mean the skill is done.
+
+A failure is also useful when it is specific. The best failure points to one of four fixes:
+
+- tighten the prompt
+- narrow the assertion
+- add or remove context
+- improve the skill instructions
+
+The rest of this reader teaches that loop in increasing detail.
 
 format · Anthropic evals.json / method · OpenAI eval-skills / runtime · Pi
+
+<small>Source: [docs/web-app/section-learn.md](../section-learn.md) (PR #⁠174) - deep-dive at [docs/web-app/section-learn.md](../section-learn.md)</small>

@@ -1,9 +1,108 @@
-An eval suite should start from one manual example, capture the behavior contract, and grow only after the first case produces inspectable evidence.
+<Kicker>suite shape</Kicker>
 
-<Note>Case names should describe scenarios, not implementation details.</Note>
+Good eval suites start smaller than most authors expect. One representative case that produces inspectable evidence is worth more than ten broad prompts with vague verdicts.
 
-```json
-{ "id": "writes-actionable-pr-review", "assertions": ["names blocking risk"] }
-```
+The `create` section uses four steps because the work has four different questions: what behavior matters, what prompt exercises it, what assertion proves it, and whether the resulting `evals.json` is ready to run.
+
+<Note>Case names should describe scenarios. If a name only describes implementation, it will not help you read failures later.</Note>
+
+## Dimension Coverage
+
+The behavior list should cover dimensions, not just examples.
+
+Use `outcome` when the final response or produced file is the evidence.
+
+Use `process` when the skill promises a decision path, tool call, skill read, or ordered workflow.
+
+Use `style` when the skill promises format, tone, structure, or review stance.
+
+Use `efficiency` when the skill should reduce tokens, avoid unnecessary tools, or keep a task within a budget.
+
+Dimension coverage keeps the suite from becoming a pile of similar prompts.
+
+## Prompt Shape
+
+A prompt should create the situation, then get out of the way.
+
+Strong prompts are specific about the task but quiet about the answer. They give the agent enough context to act and leave the skill to supply the method.
+
+Weak prompts often include the rubric verbatim, over-explain the expected answer, or bundle multiple behaviors into one case.
+
+<CodeBlock language="md" code={`id: review-finding-order
+prompt: |
+  Review this patch for behavioral regressions.
+  Return your findings before any summary.
+expected:
+  The response leads with actionable findings and cites files.
+dimension:
+  style + outcome`} />
+
+The prompt above tests a visible review stance. It does not say what the findings are or which phrases the model must use.
+
+## Assertions As A Separate Design Step
+
+Assertions deserve their own pass. They are not decorations after the prompt.
+
+Use judge assertions when quality matters and deterministic checks when structure matters. Use diff assertions when produced files or response snapshots need line-level comparison.
+
+For more detail on judge, script, and diff checks, read [running assertions as evidence](./04-running-and-iterating.mdx#assertions-as-evidence).
+
+## Assertion Types
+
+Judge assertions are good for:
+
+- rationale quality
+- whether a plan respects a constraint
+- whether feedback is actionable
+- whether a response avoids a prohibited pattern
+
+Script assertions are good for:
+
+- file existence
+- JSON validity
+- regular expressions
+- cost ceilings
+- tool-summary contents
+
+Diff assertions are good for:
+
+- generated files
+- before/after snapshots
+- comparing `without_skill` to `with_skill`
+- checking that an Improve Plan changes the right line
+
+The best suites use the cheapest assertion that can carry the evidence.
+
+## Sample Size
+
+Start with one case. Run it. Read the artifacts. Then add cases along one dimension at a time.
+
+Three to five cases can be enough for a first signal when each case isolates a behavior. Larger suites are useful only when failures stay explainable.
+
+Iteration count matters too. A single run can reveal obvious defects. Multiple iterations help when model variance is part of the question.
+
+## Why `Σ $0.87` Is Useful
+
+Cost is not a vanity metric. The `Σ $0.87` style summary gives the author a concrete yardstick for the price of the signal.
+
+If a three-case suite costs that much, you will be careful about running it on every edit. If a thirty-case suite costs that much and catches real regressions, it may be cheap.
+
+Cost turns "good enough" into an engineering choice.
+
+## Ownership
+
+The generated JSON is still yours.
+
+Before treating a suite as real, read it like code:
+
+- do the ids explain the cases?
+- does each prompt isolate one behavior?
+- do assertions point at artifacts?
+- is there a negative or distractor case where the skill could overfire?
+- does the runtime setup belong in the suite or in the command?
+
+When those answers are clear, the run is much easier to interpret.
 
 format · Anthropic evals.json / method · OpenAI eval-skills / runtime · Pi
+
+<small>Source: [docs/web-app/section-create.md](../section-create.md) (PR #⁠172) - deep-dive at [docs/web-app/section-create.md](../section-create.md)</small>

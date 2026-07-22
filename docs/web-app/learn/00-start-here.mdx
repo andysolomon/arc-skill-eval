@@ -1,9 +1,89 @@
-The learn reader starts with the same loop the app supports: choose a skill, write a small suite, run it with and without the skill, then inspect the evidence.
+<Kicker>format · method · runtime</Kicker>
 
-<Note>Use this chapter as a map; the full teaching copy lands in the follow-up content ticket.</Note>
+Start here if the app feels bigger than the job. `arc-skill-eval` is built around one loop: pick a skill, write cases that describe behavior worth measuring, run those cases, inspect the artifacts, and turn failures into an Improve Plan.
 
-```json
-{ "chapter": "00-start-here", "next": "01-what-is" }
-```
+The five App Sections keep that loop visible. `run` composes execution, `browse` reads what happened, `create` authors `evals.json`, `review` records Feedback Notes, and `learn` explains the system without invoking it.
+
+<Note>Use the sections in order the first time: run, browse, create, review, learn. After that, jump to the section that answers the question in front of you.</Note>
+
+## The Product Loop
+
+The app does not try to prove that a skill is universally correct. It gives you evidence about named cases.
+
+The narrow loop is:
+
+- choose a target skill through the Workspace Picker on `localhost`
+- describe behavior the skill promises to change
+- write the cases into `evals/evals.json`
+- run the suite with the target skill and, when useful, without it
+- inspect `assistant.md`, `grading.json`, trace files, and cost metadata
+- write Feedback Notes for cases that failed, passed weakly, or cost too much
+- derive an Improve Plan and apply it only through an explicit gate
+
+That is the shape behind every chapter in this reader.
+
+<CodeBlock language="text" code={`run -> browse -> create -> review -> learn
+skill -> evals.json -> evals-runs/<id> -> feedback -> improve plan`} />
+
+## Five Sections, One Boundary
+
+`run` is the execution surface. On `localhost`, it can use the Workspace Picker and local CLI daemon to launch the Runtime. On `hosted`, it imports `evals.json`; it never runs a model.
+
+`browse` is the read-only artifact browser. It reads the `evals-runs/` tree on `localhost` and explains the result through Overview, Response, Diff, Trace, and Raw tabs.
+
+`create` is the authoring surface. It helps you move from behaviors to prompts to assertions to a final `evals/evals.json`, with localhost-only generation helpers when a local model channel exists.
+
+`review` is the feedback surface. It turns run evidence into Feedback Notes and then into an Improve Plan. The `--apply` action is deliberately explicit; hosted downloads JSON, localhost stages changes through the daemon.
+
+`learn` is this reader. It persists progress, but it does not execute runs, upload data, write artifacts, or require an account.
+
+## Localhost And Hosted
+
+The Env Variant is not cosmetic. It changes what the app is allowed to do.
+
+On `localhost`, the app can see a workspace through the Workspace Picker and can ask the CLI daemon to run, list artifacts, or stage an Improve Plan.
+
+On `hosted`, there is no filesystem and no LLM execution. Hosted can import JSON, persist browser-local state, and teach the same concepts. It cannot silently write to disk.
+
+<Note tone="warning">When a hosted branch looks quieter, that is intentional. The boundary is part of the product: no filesystem, no model execution, no account requirement.</Note>
+
+## Persistence Boundary
+
+The browser may remember preferences, the active Env Variant, Theme Variant, Feedback Notes, Improve Plans, and learn progress in IndexedDB.
+
+It does not treat IndexedDB as a runtime artifact store. Run evidence belongs under `evals-runs/<id>/` on disk when the run happened locally, or inside an imported bundle when the user brought artifacts to hosted review.
+
+For this reader, persistence is small and local:
+
+- active chapter id
+- reader position
+- completion state
+- chrome preferences such as theme and env
+
+That is enough for context to survive a refresh without pretending the reader is an execution surface.
+
+## Theme Swap
+
+The design handoff expects calm, concrete interfaces that keep the user's eye on evidence. Theme changes are handled through `var(--tt-*)` design tokens, so the same MDX content reads correctly in `tokyonight`, `gruvbox`, and `nord`.
+
+Raw color values do not belong in chapter content. When the prose names a visual role, it should name the role: Section Kicker, Benchmark Delta, Feedback Note, Import Card, or Empty State Hero.
+
+## How To Read The Rest
+
+Start with [what a skill eval is](./01-what-is.mdx), then use [progressive disclosure](./02-progressive-disclosure.mdx) to keep context focused.
+
+Move from there into [authoring good eval suites](./03-authoring-good-eval-suites.mdx), then [running and iterating](./04-running-and-iterating.mdx).
+
+Close the loop with [cost of the win](./05-cost-of-the-win.mdx) and [advanced trace and judges](./06-advanced-trace-and-judges.mdx).
+
+The recurring anchors are deliberately simple:
+
+- `format` means Anthropic `evals.json`
+- `method` means OpenAI eval-skills
+- `runtime` means Pi
+
+The reader should leave you with a bias toward small cases, inspectable evidence, and explicit improvement gates.
 
 format · Anthropic evals.json / method · OpenAI eval-skills / runtime · Pi
+
+<small>Source: [docs/web-app/section-learn.md](../section-learn.md) (PR #⁠174) - deep-dive at [docs/web-app/section-learn.md](../section-learn.md)</small>
