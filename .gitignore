@@ -21,3 +21,4 @@ docs-site/.astro/
 docs-site/.env
 docs-site/.env.local
 .firecrawl/
+wt/
