@@ -4,10 +4,15 @@ import { SectionNav } from './components/SectionNav';
 import { StatusBar } from './components/StatusBar';
 import { BrowseApp } from './sections/browse';
 import { ReviewApp } from './sections/review';
+import { RunApp } from './sections/run';
 import { useSection } from './state/section';
 
 const Main = () => {
   const { activeSection } = useSection();
+
+  if (activeSection.name === 'run') {
+    return <RunApp />;
+  }
 
   if (activeSection.name === 'review') {
     return <ReviewApp />;
