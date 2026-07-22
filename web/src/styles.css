@@ -1,25 +1,11 @@
 @import "@arc-skill-eval/tokens/web-theme.css";
 
-@theme {
-  --color-bg: var(--tt-bg);
-  --color-bg-dark: var(--tt-bg-dark);
-  --color-bg-hi: var(--tt-bg-hi);
-  --color-fg: var(--tt-fg);
-  --color-fg-dark: var(--tt-fg-dark);
-  --color-comment: var(--tt-comment);
-  --color-blue: var(--tt-blue);
-  --color-cyan: var(--tt-cyan);
-  --color-green: var(--tt-green);
-  --color-magenta: var(--tt-magenta);
-  --color-red: var(--tt-red);
-  --color-orange: var(--tt-orange);
-  --color-yellow: var(--tt-yellow);
-  --color-teal: var(--tt-teal);
-  --color-selection: var(--tt-selection);
-  --color-border: var(--tt-border);
-  --color-border-active: var(--tt-border-active);
-  --color-dim: var(--tt-dim);
-}
+/*
+ * The web app hand-rolls all CSS classes (no Tailwind utility classes are
+ * used in src/), so we do NOT register the tokens here via @theme. Tailwind
+ * v4's @theme directive only generates utility classes; the runtime CSS
+ * variables come from the @arc-skill-eval/tokens package above.
+ */
 
 * {
   box-sizing: border-box;
