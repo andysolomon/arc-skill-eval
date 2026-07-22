@@ -1,3 +1,9 @@
+## [0.12.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.11.0...v0.12.0) (2026-07-22)
+
+### Features
+
+* **web:** add workspace-picker CLI companion dev daemon ([#212](https://github.com/andysolomon/arc-skill-eval/issues/212)) ([ff20a32](https://github.com/andysolomon/arc-skill-eval/commit/ff20a3236a6d9491b13b2197a9f1c1730d63d66b)), closes [#199](https://github.com/andysolomon/arc-skill-eval/issues/199) [#197](https://github.com/andysolomon/arc-skill-eval/issues/197)
+
 ## [0.11.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.10.0...v0.11.0) (2026-07-22)
 
 ### Features
