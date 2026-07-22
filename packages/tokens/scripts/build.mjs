@@ -40,10 +40,11 @@ const renderVars = (themeName, palette) =>
         throw new Error(`Invalid hex token ${themeName}.${role}: ${String(value)}`);
       }
 
-      return [
-        `  --tt-${themeName}-${toKebab(role)}: ${value};`,
-        `  --color-tt-${themeName}-${toKebab(role)}: ${value};`,
-      ].join('\n');
+      // IMPORTANT: only emit --tt-* names. Tailwind v4 treats `--color-*`
+      // declarations as theme tokens and wraps them in @theme { ... }, which
+      // does NOT emit runtime CSS variables. We need these to be plain
+      // :root-level custom properties.
+      return `  --tt-${themeName}-${toKebab(role)}: ${value};`;
     })
     .join('\n');
 
@@ -52,16 +53,13 @@ const renderAssignments = (themeName) =>
     .map((role) => {
       const kebabRole = toKebab(role);
 
-      return [
-        `  --tt-${kebabRole}: var(--tt-${themeName}-${kebabRole});`,
-        `  --color-tt-${kebabRole}: var(--color-tt-${themeName}-${kebabRole});`,
-      ].join('\n');
+      return `  --tt-${kebabRole}: var(--tt-${themeName}-${kebabRole});`;
     })
     .join('\n');
 
 const themeVariables = Object.entries(themes)
-  .map(([themeName, palette]) => renderVars(themeName, palette))
-  .join('\n');
+  .map(([themeName, palette]) => `:root {\n${renderVars(themeName, palette)}\n}`)
+  .join('\n\n');
 
 const themeBlocks = Object.keys(themes)
   .filter((themeName) => themeName !== defaultTheme)
