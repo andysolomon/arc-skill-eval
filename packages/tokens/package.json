@@ -1,0 +1,25 @@
+{
+  "name": "@arc-skill-eval/tokens",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared design tokens for arc-skill-eval TUI and web themes.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./tokens": {
+      "types": "./dist/tokens.d.ts",
+      "default": "./dist/tokens.js"
+    },
+    "./tailwind-theme.css.template": "./tailwind-theme.css.template"
+  },
+  "files": [
+    "dist",
+    "tailwind-theme.css.template"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  }
+}

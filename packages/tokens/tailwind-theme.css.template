@@ -1,0 +1,12 @@
+/* Generated from @arc-skill-eval/tokens. Do not edit directly. */
+
+@theme {
+{{themeVariables}}
+}
+
+:root,
+[data-theme="{{defaultTheme}}"] {
+{{defaultAssignments}}
+}
+
+{{themeBlocks}}
