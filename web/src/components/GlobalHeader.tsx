@@ -21,6 +21,7 @@ export const GlobalHeader = () => {
             className="theme-control__option"
             data-active={theme === themeName}
             data-theme-option={themeName}
+            data-testid={`theme-option-${themeName}`}
             key={themeName}
             onClick={() => setTheme(themeName)}
             role="radio"

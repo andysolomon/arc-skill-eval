@@ -8,6 +8,7 @@
     "daemon": "npm --prefix daemon start",
     "build": "npm --prefix .. --workspace @arc-skill-eval/tokens run build && vite build",
     "preview": "npm --prefix .. --workspace @arc-skill-eval/tokens run build && vite preview --host 127.0.0.1",
+    "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -24,5 +25,8 @@
     "tailwindcss": "4.3.2",
     "typescript": "5.9.3",
     "vite": "5.4.21"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1"
   }
 }

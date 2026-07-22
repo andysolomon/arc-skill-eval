@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ImportCard } from '@/components/primitives';
+import { ImportCard, Kicker } from '@/components/primitives';
 import type { ReviewRun } from './useReviewData';
 
 type ReviewEmptyStateProps = {
@@ -35,6 +35,9 @@ export const ReviewEmptyState = ({
       style={{ alignItems: 'center', display: 'grid', justifyItems: 'center', padding: 16 }}
     >
       <div style={{ display: 'grid', gap: 12, justifyItems: 'center', width: 'min(100%, 620px)' }}>
+        <div data-testid="review-empty-state-kicker">
+          <Kicker>review imports</Kicker>
+        </div>
         <div
           aria-label="accepted import files"
           style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}

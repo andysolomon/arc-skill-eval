@@ -18,7 +18,9 @@ export const BrowseEmptyState = ({ env }: BrowseEmptyStateProps) => {
       style={{ alignItems: 'center', display: 'grid', justifyItems: 'center', padding: 16 }}
     >
       <div style={{ display: 'grid', gap: 12, width: 'min(100%, 560px)' }}>
-        <Kicker tone="warning">localhost only</Kicker>
+        <div data-testid="browse-empty-state-kicker">
+          <Kicker tone="warning">localhost only</Kicker>
+        </div>
         <EmptyState
           title="browse reads local run artifacts"
           body="Browsing a run means reading the files an eval writes to disk: assistant.md, grading.json, trace and tool summaries. The hosted app has no filesystem, so import an artifact bundle in review first."

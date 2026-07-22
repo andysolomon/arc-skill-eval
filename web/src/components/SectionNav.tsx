@@ -10,6 +10,7 @@ export const SectionNav = () => {
           aria-current={activeSection.name === section.name ? 'page' : undefined}
           className="section-nav__tab"
           data-active={activeSection.name === section.name}
+          data-testid={`section-nav-tab-${section.name}`}
           key={section.name}
           onClick={() => setActiveSection(section)}
           type="button"
