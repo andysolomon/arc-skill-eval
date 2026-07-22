@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "npm --prefix .. --workspace @arc-skill-eval/tokens run build && vite --host 127.0.0.1",
+    "daemon": "npm --prefix daemon start",
     "build": "npm --prefix .. --workspace @arc-skill-eval/tokens run build && vite build",
     "preview": "npm --prefix .. --workspace @arc-skill-eval/tokens run build && vite preview --host 127.0.0.1",
     "typecheck": "tsc --noEmit"
