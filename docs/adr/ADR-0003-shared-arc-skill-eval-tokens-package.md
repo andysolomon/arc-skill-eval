@@ -90,3 +90,4 @@ Constraints considered:
 - `src/tui/theme.ts` *(current TUI token source, to import from `@arc-skill-eval/tokens`)*
 - `docs/Arc skill eval web design/design_handoff_arc_skill_eval/design.md`
 - ADR-0002 (web app stack — Vite/Tailwind/React)
+- ADR-0005 (tokens package contract — exports, build, versioning; closes #164)
