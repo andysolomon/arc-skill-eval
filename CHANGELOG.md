@@ -1,3 +1,9 @@
+## [0.9.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.8.0...v0.9.0) (2026-07-22)
+
+### Features
+
+* **web:** add run section (hosted variant stub) ([#209](https://github.com/andysolomon/arc-skill-eval/issues/209)) ([f5ebedb](https://github.com/andysolomon/arc-skill-eval/commit/f5ebedb2bc8de4fc6c6dc94c56eec16d1f1146b0)), closes [#194](https://github.com/andysolomon/arc-skill-eval/issues/194)
+
 ## [0.8.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.7.0...v0.8.0) (2026-07-22)
 
 ### Features
