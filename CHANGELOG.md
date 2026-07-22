@@ -1,3 +1,9 @@
+## [0.13.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.12.0...v0.13.0) (2026-07-22)
+
+### Features
+
+* **web:** wire run section to localhost daemon ([#213](https://github.com/andysolomon/arc-skill-eval/issues/213)) ([b612551](https://github.com/andysolomon/arc-skill-eval/commit/b6125513fdcd5aa6f717f8eb4a338813723b6c90)), closes [#212](https://github.com/andysolomon/arc-skill-eval/issues/212) [#198](https://github.com/andysolomon/arc-skill-eval/issues/198)
+
 ## [0.12.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.11.0...v0.12.0) (2026-07-22)
 
 ### Features
