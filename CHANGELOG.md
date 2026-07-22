@@ -1,3 +1,9 @@
+## [0.10.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.9.0...v0.10.0) (2026-07-22)
+
+### Features
+
+* **web:** add create section (hosted variant wizard) ([#210](https://github.com/andysolomon/arc-skill-eval/issues/210)) ([5093fc9](https://github.com/andysolomon/arc-skill-eval/commit/5093fc936165162c3e9ffc3d76d410f47ab00778)), closes [#195](https://github.com/andysolomon/arc-skill-eval/issues/195)
+
 ## [0.9.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.8.0...v0.9.0) (2026-07-22)
 
 ### Features
