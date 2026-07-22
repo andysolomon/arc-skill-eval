@@ -96,6 +96,8 @@ export const ReviewApp = () => {
             onSelectCase={setSelectedCaseId}
           />
           <ReviewFeedbackImprove
+            activeRunId={selectedRun.id}
+            env={env}
             feedback={feedbackByRun.get(selectedRun.id) ?? []}
             improvePlans={improvePlansByRun.get(selectedRun.id) ?? []}
             onRecordFeedback={recordFeedback}

@@ -1,9 +1,14 @@
 import { useState } from 'react';
 import type { FeedbackRecord } from '@/persistence/feedback';
 import type { ImprovePlanRecord } from '@/persistence/improvePlans';
+import type { EnvName } from '@/persistence/preferences';
+import { ReviewFeedbackImproveHosted } from './ReviewFeedbackImprove.hosted';
+import { ReviewFeedbackImproveLocalhost } from './ReviewFeedbackImprove.localhost';
 import type { ReviewRun } from './useReviewData';
 
 type ReviewFeedbackImproveProps = {
+  activeRunId: string;
+  env: EnvName;
   run: ReviewRun;
   selectedCaseId?: string;
   feedback: FeedbackRecord[];
@@ -12,7 +17,14 @@ type ReviewFeedbackImproveProps = {
   onRemoveFeedback: (noteId: string) => Promise<void>;
 };
 
-const panelStyle = {
+export type ReviewImproveVariantProps = {
+  activeRunId: string;
+  feedbackCount: number;
+  improvePlans: ImprovePlanRecord[];
+  run: ReviewRun;
+};
+
+export const reviewPanelStyle = {
   background: 'var(--tt-bg-dark)',
   border: '1px solid var(--tt-border)',
   color: 'var(--tt-fg)',
@@ -21,7 +33,7 @@ const panelStyle = {
   padding: 14,
 };
 
-const buttonStyle = {
+export const reviewButtonStyle = {
   background: 'var(--tt-selection)',
   border: '1px solid var(--tt-border-active)',
   color: 'var(--tt-fg)',
@@ -30,6 +42,8 @@ const buttonStyle = {
 };
 
 export const ReviewFeedbackImprove = ({
+  activeRunId,
+  env,
   run,
   selectedCaseId,
   feedback,
@@ -51,7 +65,7 @@ export const ReviewFeedbackImprove = ({
 
   return (
     <aside aria-label="Feedback and improve" style={{ display: 'grid', gap: 12, width: 360 }}>
-      <section style={panelStyle}>
+      <section style={reviewPanelStyle}>
         <header style={{ display: 'grid', gap: 4 }}>
           <h2 style={{ fontSize: 15, lineHeight: 1.2, margin: 0 }}>feedback.json</h2>
           <p
@@ -88,7 +102,7 @@ export const ReviewFeedbackImprove = ({
           }}
           type="button"
           style={{
-            ...buttonStyle,
+            ...reviewButtonStyle,
             cursor: trimmedNote ? 'pointer' : 'not-allowed',
             opacity: trimmedNote ? 1 : 0.6,
           }}
@@ -148,48 +162,21 @@ export const ReviewFeedbackImprove = ({
           ))}
         </div>
       </section>
-      <section style={panelStyle}>
-        <header style={{ display: 'grid', gap: 4 }}>
-          <h2 style={{ fontSize: 15, lineHeight: 1.2, margin: 0 }}>improve --from-feedback</h2>
-          <p style={{ color: 'var(--tt-fg-dark)', lineHeight: 1.45, margin: 0 }}>
-            We'll derive a proposed plan from your feedback notes against the eval suite +
-            grading.json. Nothing is written without --apply.
-          </p>
-        </header>
-        {improvePlans.length > 0 ? (
-          <div style={{ display: 'grid', gap: 8 }}>
-            {improvePlans.map((plan) => (
-              <div
-                key={plan.planId}
-                style={{
-                  border: '1px solid var(--tt-border)',
-                  color: 'var(--tt-comment)',
-                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-                  fontSize: 12,
-                  overflowWrap: 'anywhere',
-                  padding: 8,
-                }}
-              >
-                {plan.status} · {plan.planId}
-              </div>
-            ))}
-          </div>
-        ) : null}
-        <button
-          disabled
-          title="locked until localhost improve wiring lands"
-          type="button"
-          style={{
-            ...buttonStyle,
-            borderColor: 'var(--tt-magenta)',
-            color: 'var(--tt-magenta)',
-            cursor: 'not-allowed',
-            opacity: 0.6,
-          }}
-        >
-          propose changes
-        </button>
-      </section>
+      {env === 'localhost' ? (
+        <ReviewFeedbackImproveLocalhost
+          activeRunId={activeRunId}
+          feedbackCount={feedback.length}
+          improvePlans={improvePlans}
+          run={run}
+        />
+      ) : (
+        <ReviewFeedbackImproveHosted
+          activeRunId={activeRunId}
+          feedbackCount={feedback.length}
+          improvePlans={improvePlans}
+          run={run}
+        />
+      )}
     </aside>
   );
 };

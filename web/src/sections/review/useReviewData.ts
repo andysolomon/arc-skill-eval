@@ -17,6 +17,8 @@ export type ReviewCase = {
 export type ReviewRun = {
   id: string;
   skill: string;
+  workspaceRoot: string;
+  evalsJson?: unknown;
   finishedAt: string;
   status?: ReviewCaseStatus;
   cost?: number;
@@ -119,6 +121,13 @@ const normalizeRun = (value: unknown, index: number): ReviewRun => {
   return {
     id: asString(record.id ?? record.runId, `run-${index + 1}`),
     skill: asString(record.skill ?? record.skillName, 'unknown-skill'),
+    workspaceRoot: asString(record.workspaceRoot ?? record.skillPath, ''),
+    evalsJson:
+      record.evalsJson ??
+      record.evals_json ??
+      record.evalSuite ??
+      record.suite ??
+      { evals: cases.map(({ id, prompt }) => ({ id, prompt })) },
     finishedAt: asString(record.finishedAt, new Date().toISOString()),
     status: normalizeRunStatus(record.status, cases),
     cost: asNumber(record.cost),
@@ -179,6 +188,19 @@ const deleteFeedback = async (noteId: string): Promise<void> => {
 export const createSampleReviewRun = (): ReviewRun => ({
   id: 'sample-review-run',
   skill: 'sample-skill',
+  workspaceRoot: './sample-skill',
+  evalsJson: {
+    evals: [
+      {
+        id: 'case-pass',
+        prompt: 'Summarize the notes into a concise project update.',
+      },
+      {
+        id: 'case-fail',
+        prompt: 'Flag missing acceptance criteria before creating implementation work.',
+      },
+    ],
+  },
   finishedAt: new Date().toISOString(),
   status: 'fail',
   exitCode: 1,
