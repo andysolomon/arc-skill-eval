@@ -1,0 +1,23 @@
+{
+  "name": "@arc-skill-eval/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npm --prefix .. --workspace @arc-skill-eval/tokens run build && vite --host 127.0.0.1",
+    "build": "npm --prefix .. --workspace @arc-skill-eval/tokens run build && vite build",
+    "preview": "npm --prefix .. --workspace @arc-skill-eval/tokens run build && vite preview --host 127.0.0.1",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@arc-skill-eval/tokens": "0.1.0",
+    "@vitejs/plugin-react": "4.7.0",
+    "autoprefixer": "10.4.27",
+    "postcss": "8.5.16",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tailwindcss": "4.3.2",
+    "typescript": "5.9.3",
+    "vite": "5.4.21"
+  }
+}
