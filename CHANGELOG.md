@@ -1,3 +1,9 @@
+## [0.11.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.10.0...v0.11.0) (2026-07-22)
+
+### Features
+
+* **web:** add learn section (hosted variant + MDX runtime) ([#211](https://github.com/andysolomon/arc-skill-eval/issues/211)) ([576b947](https://github.com/andysolomon/arc-skill-eval/commit/576b94751fbe0259e10ec4f6431293213f88b67f)), closes [#202](https://github.com/andysolomon/arc-skill-eval/issues/202) [#196](https://github.com/andysolomon/arc-skill-eval/issues/196)
+
 ## [0.10.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.9.0...v0.10.0) (2026-07-22)
 
 ### Features
