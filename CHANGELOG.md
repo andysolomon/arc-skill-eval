@@ -1,3 +1,9 @@
+## [0.6.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.5.0...v0.6.0) (2026-07-22)
+
+### Features
+
+* **web:** add section primitives library (Column, Kicker, EmptyState, ...) ([#206](https://github.com/andysolomon/arc-skill-eval/issues/206)) ([164439b](https://github.com/andysolomon/arc-skill-eval/commit/164439b0feba8c6f54fd5565a0eae1a1f71f04c0)), closes [#primitives](https://github.com/andysolomon/arc-skill-eval/issues/primitives) [#191](https://github.com/andysolomon/arc-skill-eval/issues/191)
+
 ## [0.5.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.4.0...v0.5.0) (2026-07-22)
 
 ### Features
