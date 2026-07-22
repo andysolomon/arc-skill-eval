@@ -1,9 +1,12 @@
 import { Kicker } from '@/components/primitives';
-import type { BrowseCase, BrowseVariant } from '../useBrowseData';
+import { artifactKindForVariant, useArtifactSource } from '../useArtifactSource';
+import type { BrowseCase, BrowseRun, BrowseVariant } from '../useBrowseData';
 
 type ResponseProps = {
+  run: BrowseRun;
   testCase: BrowseCase;
   variant: BrowseVariant;
+  workspaceRoot: string;
 };
 
 const renderLine = (line: string, index: number) => {
@@ -26,34 +29,44 @@ const renderLine = (line: string, index: number) => {
   return <p key={index} style={{ margin: line ? '0 0 8px' : '8px 0' }}>{line || ' '}</p>;
 };
 
-export const Response = ({ testCase, variant }: ResponseProps) => (
-  <section style={{ display: 'grid', gap: 10, minWidth: 0 }}>
-    <Kicker>assistant.md / {variant}</Kicker>
-    {testCase.response.trim().length > 0 ? (
-      <article
-        style={{
-          background: 'var(--tt-bg)',
-          border: '1px solid var(--tt-border)',
-          color: 'var(--tt-fg)',
-          lineHeight: 1.6,
-          maxHeight: 520,
-          overflow: 'auto',
-          padding: 14,
-        }}
-      >
-        {testCase.response.split('\n').map(renderLine)}
-      </article>
-    ) : (
-      <p
-        style={{
-          border: '1px dashed var(--tt-border-active)',
-          color: 'var(--tt-comment)',
-          margin: 0,
-          padding: 12,
-        }}
-      >
-        assistant.md is empty for this variant.
-      </p>
-    )}
-  </section>
-);
+export const Response = ({ run, testCase, variant, workspaceRoot }: ResponseProps) => {
+  const assistantArtifact = useArtifactSource({
+    caseId: testCase.id,
+    kind: artifactKindForVariant(run.compare, variant, 'assistant.md'),
+    runId: run.id,
+    workspaceRoot,
+  });
+  const responseText = assistantArtifact.text || testCase.response;
+
+  return (
+    <section style={{ display: 'grid', gap: 10, minWidth: 0 }}>
+      <Kicker>assistant.md / {variant}</Kicker>
+      {responseText.trim().length > 0 && !assistantArtifact.error ? (
+        <article
+          style={{
+            background: 'var(--tt-bg)',
+            border: '1px solid var(--tt-border)',
+            color: 'var(--tt-fg)',
+            lineHeight: 1.6,
+            maxHeight: 520,
+            overflow: 'auto',
+            padding: 14,
+          }}
+        >
+          {responseText.split('\n').map(renderLine)}
+        </article>
+      ) : (
+        <p
+          style={{
+            border: '1px dashed var(--tt-border-active)',
+            color: 'var(--tt-comment)',
+            margin: 0,
+            padding: 12,
+          }}
+        >
+          {assistantArtifact.error ?? 'assistant.md is empty for this variant.'}
+        </p>
+      )}
+    </section>
+  );
+};

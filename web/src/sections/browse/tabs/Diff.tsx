@@ -1,30 +1,56 @@
 import { Kicker } from '@/components/primitives';
+import { artifactKindForVariant, useArtifactSource } from '../useArtifactSource';
 import type { BrowseCase, BrowseRun, BrowseVariant } from '../useBrowseData';
 
 type DiffProps = {
   run: BrowseRun;
   testCase: BrowseCase;
   variant: BrowseVariant;
+  workspaceRoot: string;
 };
 
-const diffRows = (testCase: BrowseCase) => [
-  { sign: '-', text: testCase.expected, tone: 'var(--tt-red)' },
-  { sign: '+', text: testCase.response, tone: 'var(--tt-green)' },
+const diffRows = (expected: string, response: string) => [
+  { sign: '-', text: expected, tone: 'var(--tt-red)' },
+  { sign: '+', text: response, tone: 'var(--tt-green)' },
 ];
 
-const rowsForArm = (testCase: BrowseCase, arm: BrowseVariant) =>
+const rowsForArm = (
+  expected: string,
+  response: string,
+  arm: BrowseVariant,
+  hostedSource: boolean,
+) =>
   arm === 'with_skill'
-    ? diffRows(testCase)
+    ? diffRows(expected, response)
     : [
-        { sign: '-', text: testCase.expected, tone: 'var(--tt-red)' },
+        { sign: '-', text: expected, tone: 'var(--tt-red)' },
         {
           sign: ' ',
-          text: 'without_skill assistant.md is not included in the hosted import shape yet.',
+          text: hostedSource
+            ? 'without_skill assistant.md is not included in the hosted import shape yet.'
+            : response,
           tone: 'var(--tt-comment)',
         },
       ];
 
-export const Diff = ({ run, testCase, variant }: DiffProps) => {
+export const Diff = ({ run, testCase, variant, workspaceRoot }: DiffProps) => {
+  const withSkillArtifact = useArtifactSource({
+    caseId: testCase.id,
+    kind: artifactKindForVariant(run.compare, 'with_skill', 'assistant.md'),
+    runId: run.id,
+    workspaceRoot,
+  });
+  const withoutSkillArtifact = useArtifactSource({
+    caseId: testCase.id,
+    kind: artifactKindForVariant(run.compare, 'without_skill', 'assistant.md'),
+    runId: run.id,
+    workspaceRoot,
+  });
+  const responseByArm: Record<BrowseVariant, string> = {
+    with_skill: withSkillArtifact.error ?? (withSkillArtifact.text || testCase.response),
+    without_skill: withoutSkillArtifact.error ?? (withoutSkillArtifact.text || testCase.response),
+  };
+
   if (!run.compare) {
     return (
       <section style={{ display: 'grid', gap: 10, minWidth: 0 }}>
@@ -64,7 +90,12 @@ export const Diff = ({ run, testCase, variant }: DiffProps) => {
               padding: 12,
             }}
           >
-            {rowsForArm(testCase, arm).map((row, index) => (
+            {rowsForArm(
+              testCase.expected,
+              responseByArm[arm],
+              arm,
+              withoutSkillArtifact.source === 'hosted',
+            ).map((row, index) => (
               <div
                 key={`${row.sign}-${index}`}
                 style={{

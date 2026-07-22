@@ -10,6 +10,7 @@ import type { BrowseCase, BrowseRun, BrowseTab, BrowseVariant } from './useBrows
 type BrowseDetailProps = {
   run: BrowseRun;
   testCase: BrowseCase;
+  workspaceRoot: string;
 };
 
 const tabs: { id: BrowseTab; label: string }[] = [
@@ -22,28 +23,28 @@ const tabs: { id: BrowseTab; label: string }[] = [
 
 const variants: BrowseVariant[] = ['with_skill', 'without_skill'];
 
-export const BrowseDetail = ({ run, testCase }: BrowseDetailProps) => {
+export const BrowseDetail = ({ run, testCase, workspaceRoot }: BrowseDetailProps) => {
   const [activeTab, setActiveTab] = useState<BrowseTab>('overview');
   const [variant, setVariant] = useState<BrowseVariant>('with_skill');
   const activeSurface = useMemo(() => {
     if (activeTab === 'response') {
-      return <Response testCase={testCase} variant={variant} />;
+      return <Response run={run} testCase={testCase} variant={variant} workspaceRoot={workspaceRoot} />;
     }
 
     if (activeTab === 'diff') {
-      return <Diff run={run} testCase={testCase} variant={variant} />;
+      return <Diff run={run} testCase={testCase} variant={variant} workspaceRoot={workspaceRoot} />;
     }
 
     if (activeTab === 'trace') {
-      return <Trace testCase={testCase} />;
+      return <Trace run={run} testCase={testCase} variant={variant} workspaceRoot={workspaceRoot} />;
     }
 
     if (activeTab === 'raw') {
-      return <Raw run={run} testCase={testCase} variant={variant} />;
+      return <Raw run={run} testCase={testCase} variant={variant} workspaceRoot={workspaceRoot} />;
     }
 
-    return <Overview run={run} testCase={testCase} variant={variant} />;
-  }, [activeTab, run, testCase, variant]);
+    return <Overview run={run} testCase={testCase} variant={variant} workspaceRoot={workspaceRoot} />;
+  }, [activeTab, run, testCase, variant, workspaceRoot]);
 
   return (
     <section
