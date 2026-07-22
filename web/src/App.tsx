@@ -2,6 +2,7 @@ import { GlobalHeader } from './components/GlobalHeader';
 import { PrimitivesStory } from './components/primitives/__stories__/primitives';
 import { SectionNav } from './components/SectionNav';
 import { StatusBar } from './components/StatusBar';
+import { BrowseApp } from './sections/browse';
 import { ReviewApp } from './sections/review';
 import { useSection } from './state/section';
 
@@ -10,6 +11,10 @@ const Main = () => {
 
   if (activeSection.name === 'review') {
     return <ReviewApp />;
+  }
+
+  if (activeSection.name === 'browse') {
+    return <BrowseApp />;
   }
 
   return (
