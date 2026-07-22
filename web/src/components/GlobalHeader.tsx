@@ -1,5 +1,5 @@
 import { useTheme } from '@/theme/ThemeProvider';
-import { themeNames } from '@/theme/useTheme';
+import { themeNames } from '@/state/theme';
 import type { ThemeName } from '@/types';
 
 const themeLabels: Record<ThemeName, string> = {
