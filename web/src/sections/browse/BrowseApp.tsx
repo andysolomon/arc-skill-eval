@@ -105,7 +105,11 @@ export const BrowseApp = () => {
           selectedCaseId={selectedCase.id}
           onSelectCase={setSelectedCaseId}
         />
-        <BrowseDetail run={selectedRun} testCase={selectedCase} />
+        <BrowseDetail
+          run={selectedRun}
+          testCase={selectedCase}
+          workspaceRoot={selectedRun.workspaceRoot}
+        />
       </section>
     </main>
   );
