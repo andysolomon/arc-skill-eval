@@ -215,6 +215,25 @@ button {
   flex: 1;
 }
 
+.status-bar__reset {
+  background: transparent;
+  border: 0;
+  color: var(--tt-yellow);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.status-bar__reset:hover,
+.status-bar__reset:focus-visible {
+  color: var(--tt-fg);
+  outline: 1px solid var(--tt-border-active);
+  outline-offset: 2px;
+}
+
 @media (max-width: 600px) {
   .global-header {
     gap: 8px;

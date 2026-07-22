@@ -1,6 +1,7 @@
 import { GlobalHeader } from './components/GlobalHeader';
-import { SectionNav, SectionProvider, useSection } from './components/SectionNav';
+import { SectionNav } from './components/SectionNav';
 import { StatusBar } from './components/StatusBar';
+import { useSection } from './state/section';
 
 const Main = () => {
   const { activeSection } = useSection();
@@ -21,12 +22,10 @@ const Main = () => {
 };
 
 export const App = () => (
-  <SectionProvider>
-    <div className="app-shell">
-      <GlobalHeader />
-      <SectionNav />
-      <Main />
-      <StatusBar />
-    </div>
-  </SectionProvider>
+  <div className="app-shell">
+    <GlobalHeader />
+    <SectionNav />
+    <Main />
+    <StatusBar />
+  </div>
 );
