@@ -1,3 +1,9 @@
+## [0.16.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.15.0...v0.16.0) (2026-07-22)
+
+### Features
+
+* **web:** wire browse section to localhost daemon artifacts ([#216](https://github.com/andysolomon/arc-skill-eval/issues/216)) ([04a41db](https://github.com/andysolomon/arc-skill-eval/commit/04a41db6f239f1a65e65d44e285024020d7f2a8f)), closes [#201](https://github.com/andysolomon/arc-skill-eval/issues/201)
+
 ## [0.15.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.14.0...v0.15.0) (2026-07-22)
 
 ### Features
