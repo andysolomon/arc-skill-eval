@@ -1,3 +1,9 @@
+## [0.17.1](https://github.com/andysolomon/arc-skill-eval/compare/v0.17.0...v0.17.1) (2026-07-22)
+
+### Bug Fixes
+
+* **web:** emit tokens as runtime :root vars (not Tailwind [@theme](https://github.com/theme) tokens) ([#219](https://github.com/andysolomon/arc-skill-eval/issues/219)) ([e420391](https://github.com/andysolomon/arc-skill-eval/commit/e4203915466acce2f2beb56d245d0204dc174be9))
+
 ## [0.17.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.16.0...v0.17.0) (2026-07-22)
 
 ### Features
