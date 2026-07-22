@@ -1,3 +1,9 @@
+## [0.5.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.4.0...v0.5.0) (2026-07-22)
+
+### Features
+
+* **web:** wire IndexedDB persistence (preferences, feedback, improvePlans, learnProgress) ([#205](https://github.com/andysolomon/arc-skill-eval/issues/205)) ([a332caf](https://github.com/andysolomon/arc-skill-eval/commit/a332cafa1cfc7243840617aaf0696d85784ec240)), closes [#190](https://github.com/andysolomon/arc-skill-eval/issues/190)
+
 ## [0.4.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.3.0...v0.4.0) (2026-07-22)
 
 ### Features
