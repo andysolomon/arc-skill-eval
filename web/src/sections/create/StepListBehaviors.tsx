@@ -1,9 +1,10 @@
 import { Column, Kicker } from '@/components/primitives';
-import { useEnv } from '@/state/env';
+import { useGenerateEvals } from './useGenerateEvals';
 import type { CreateDraft } from './useDraft';
 
 type StepListBehaviorsProps = {
   draft: CreateDraft;
+  env: 'hosted' | 'localhost';
   onChange: (patch: Partial<CreateDraft>) => void;
 };
 
@@ -18,8 +19,42 @@ const fieldStyle = {
   width: '100%',
 };
 
-export const StepListBehaviors = ({ draft, onChange }: StepListBehaviorsProps) => {
-  const { env } = useEnv();
+const parseBehaviorBullets = (value: string): string[] =>
+  value
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^[-*]\s*/, '').trim())
+    .filter(Boolean);
+
+const formatBehaviorBullets = (behaviors: string[]) =>
+  behaviors.map((behavior) => `- ${behavior}`).join('\n');
+
+const appendBehaviors = (currentValue: string, generated: string[]) => {
+  const current = parseBehaviorBullets(currentValue);
+  const next = [...current];
+
+  generated.forEach((behavior) => {
+    if (!next.includes(behavior)) {
+      next.push(behavior);
+    }
+  });
+
+  return formatBehaviorBullets(next);
+};
+
+export const StepListBehaviors = ({ draft, env, onChange }: StepListBehaviorsProps) => {
+  const { error, generateEvals, isGenerating } = useGenerateEvals();
+
+  const handleGenerate = () => {
+    const behaviors = parseBehaviorBullets(draft.behaviorBullets);
+
+    void generateEvals({ workspaceRoot: draft.skillPath, behaviors })
+      .then((result) => {
+        if (result.behaviors.length > 0) {
+          onChange({ behaviorBullets: appendBehaviors(draft.behaviorBullets, result.behaviors) });
+        }
+      })
+      .catch(() => undefined);
+  };
 
   return (
     <Column gap={4}>
@@ -122,7 +157,60 @@ export const StepListBehaviors = ({ draft, onChange }: StepListBehaviorsProps) =
             generate evals unavailable
           </button>
         </section>
-      ) : null}
+      ) : (
+        <section
+          aria-label="localhost generate starter evals"
+          data-env={env}
+          style={{
+            background: 'var(--tt-bg-dark)',
+            border: '1px solid var(--tt-green)',
+            borderLeft: '4px solid var(--tt-green)',
+            display: 'grid',
+            gap: 10,
+            padding: 12,
+          }}
+        >
+          <p style={{ color: 'var(--tt-fg)', margin: 0 }}>
+            Generate starter evals from the selected local workspace.
+          </p>
+          <div
+            aria-label="selected skill workspace"
+            style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}
+          >
+            <span
+              style={{
+                border: '1px solid var(--tt-border)',
+                color: 'var(--tt-green)',
+                fontSize: 12,
+                padding: '3px 6px',
+              }}
+            >
+              {draft.skillPath || '<workspace picker>'}
+            </span>
+          </div>
+          <button
+            disabled={isGenerating}
+            onClick={handleGenerate}
+            type="button"
+            style={{
+              background: isGenerating ? 'var(--tt-selection)' : 'var(--tt-green)',
+              border: '1px solid var(--tt-border-active)',
+              color: isGenerating ? 'var(--tt-comment)' : 'var(--tt-bg)',
+              cursor: isGenerating ? 'wait' : 'pointer',
+              fontWeight: 700,
+              justifySelf: 'start',
+              padding: '8px 10px',
+            }}
+          >
+            {isGenerating ? 'generating' : 'generate evals'}
+          </button>
+          {error ? (
+            <span role="alert" style={{ color: 'var(--tt-red)', fontSize: 13 }}>
+              {error}
+            </span>
+          ) : null}
+        </section>
+      )}
     </Column>
   );
 };

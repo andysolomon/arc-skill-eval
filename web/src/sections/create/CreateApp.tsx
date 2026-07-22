@@ -98,12 +98,13 @@ export const CreateApp = () => {
         >
           <div style={{ minHeight: 0, overflow: 'auto' }}>
             {activeStep === 'behaviors' ? (
-              <StepListBehaviors draft={draft} onChange={updateDraft} />
+              <StepListBehaviors draft={draft} env={env} onChange={updateDraft} />
             ) : null}
             {activeStep === 'prompts' ? (
               <StepPrompts
                 behaviorCount={behaviorCount}
                 draft={draft}
+                env={env}
                 onAdd={addPrompt}
                 onGoToBehaviors={() => setActiveStep('behaviors')}
                 onRemove={removePrompt}
@@ -113,13 +114,19 @@ export const CreateApp = () => {
             {activeStep === 'assertions' ? (
               <StepAssertions
                 draft={draft}
+                env={env}
                 onAdd={addAssertion}
                 onRemove={removeAssertion}
                 onUpdate={updateAssertion}
               />
             ) : null}
             {activeStep === 'review' ? (
-              <StepReview assertionCount={assertionCount} draft={draft} evalsJson={evalsJson} />
+              <StepReview
+                assertionCount={assertionCount}
+                draft={draft}
+                env={env}
+                evalsJson={evalsJson}
+              />
             ) : null}
           </div>
 
