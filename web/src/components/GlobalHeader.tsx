@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import { FolderPicker } from '@/components/FolderPicker';
 import { SectionNav } from '@/components/SectionNav';
 import { useEnv } from '@/state/env';
-import { useWorkspace, workspaceSkills } from '@/state/workspace';
+import { useWorkspace } from '@/state/workspace';
 import type { EnvName } from '@/persistence/preferences';
 import { themeNames } from '@/state/theme';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -21,29 +22,51 @@ const envMeta: Array<{ name: EnvName; label: string; dot: string }> = [
 
 export const INSTALL_COMMAND = 'npm i -g arc-skill-eval';
 
-const directoryInputProps = {
-  directory: 'true',
-  webkitdirectory: 'true',
-} as Record<string, string>;
-
 const WorkspaceChip = () => {
-  const { workspace, favorites, setWorkspace, pickWorkspace } = useWorkspace();
+  const {
+    workspace,
+    favorites,
+    skills,
+    skillsStatus,
+    resolvedPath,
+    source,
+    workspaceError,
+    setWorkspace,
+    pickWorkspace,
+  } = useWorkspace();
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<'home' | 'browse'>('home');
+  const [reference, setReference] = useState('');
+
+  useEffect(() => {
+    if (!open) {
+      setMode('home');
+      return undefined;
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open]);
 
   const choose = (path: string) => {
     setWorkspace(path);
     setOpen(false);
   };
 
-  const onFolderPick = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) {
+  const submitReference = () => {
+    const next = reference.trim();
+    if (!next) {
       return;
     }
 
-    const rel = files[0].webkitRelativePath || files[0].name;
-    const dir = rel.split('/')[0] || files[0].name;
-    pickWorkspace(dir);
+    pickWorkspace(next);
+    setReference('');
     setOpen(false);
   };
 
@@ -87,25 +110,41 @@ const WorkspaceChip = () => {
               border: '1px solid var(--tt-border-active)',
               borderRadius: 8,
               left: 0,
-              overflow: 'hidden',
+              maxHeight: 'calc(100vh - 64px)',
+              overflowX: 'hidden',
+              overflowY: 'auto',
               position: 'absolute',
               top: 36,
               width: 288,
               zIndex: 70,
             }}
           >
-            <div
-              style={{
-                borderBottom: '1px solid var(--tt-border)',
-                color: 'var(--tt-comment)',
-                fontSize: 11,
-                lineHeight: 1.5,
-                padding: '7px 12px',
-              }}
-            >
-              workspace — arc-skill-eval runs from a directory root, no skill file needed. pick
-              one:
-            </div>
+            {mode === 'browse' ? (
+              <FolderPicker
+                initialPath={
+                  resolvedPath ??
+                  (workspace.startsWith('~') || workspace.startsWith('/') ? workspace : undefined)
+                }
+                onExit={() => setMode('home')}
+                onPick={(picked) => {
+                  pickWorkspace(picked);
+                  setOpen(false);
+                }}
+              />
+            ) : (
+              <>
+                <div
+                  style={{
+                    borderBottom: '1px solid var(--tt-border)',
+                    color: 'var(--tt-comment)',
+                    fontSize: 11,
+                    lineHeight: 1.5,
+                    padding: '7px 12px',
+                  }}
+                >
+                  workspace — arc-skill-eval runs from a directory root, no skill file needed. pick
+                  one:
+                </div>
             <div
               style={{
                 color: 'var(--tt-comment)',
@@ -149,9 +188,50 @@ const WorkspaceChip = () => {
               })}
             </div>
             <div style={{ padding: '0 10px 8px' }}>
-              <label
+              <div
                 style={{
                   alignItems: 'center',
+                  border: '1px dashed var(--tt-border)',
+                  borderRadius: 6,
+                  display: 'flex',
+                  gap: 7,
+                  height: 32,
+                  padding: '0 9px',
+                }}
+              >
+                <span aria-hidden="true" style={{ color: 'var(--tt-fg-dark)', fontSize: 12 }}>
+                  ⇱
+                </span>
+                <input
+                  aria-label="reference a folder or github repo"
+                  onChange={(event) => setReference(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      submitReference();
+                    }
+                  }}
+                  placeholder="~/path or github.com/owner/repo…"
+                  spellCheck={false}
+                  value={reference}
+                  style={{
+                    background: 'transparent',
+                    border: 0,
+                    color: 'var(--tt-fg)',
+                    flex: 1,
+                    fontSize: 12,
+                    minWidth: 0,
+                    outline: 'none',
+                  }}
+                />
+              </div>
+              <button
+                aria-label="browse folders"
+                onClick={() => setMode('browse')}
+                type="button"
+                style={{
+                  alignItems: 'center',
+                  background: 'transparent',
                   border: '1px dashed var(--tt-border)',
                   borderRadius: 6,
                   color: 'var(--tt-fg-dark)',
@@ -159,27 +239,42 @@ const WorkspaceChip = () => {
                   display: 'flex',
                   fontSize: 12,
                   gap: 7,
-                  height: 32,
+                  height: 30,
                   justifyContent: 'center',
+                  marginTop: 6,
+                  width: '100%',
                 }}
               >
-                ⇱ choose a folder…
-                <input
-                  multiple
-                  onChange={onFolderPick}
-                  style={{ display: 'none' }}
-                  type="file"
-                  {...directoryInputProps}
-                />
-              </label>
+                ⇱ browse folders…
+              </button>
             </div>
             <div style={{ borderTop: '1px solid var(--tt-border)', padding: '7px 12px' }}>
               <div style={{ color: 'var(--tt-comment)', fontSize: 11, marginBottom: 5 }}>
                 skills found here
+                {skillsStatus === 'loading' ? (
+                  <span style={{ color: 'var(--tt-dim)' }}> · scanning…</span>
+                ) : null}
+                {skillsStatus === 'offline' ? (
+                  <span style={{ color: 'var(--tt-dim)' }}> · sample — daemon offline</span>
+                ) : null}
+                {skillsStatus === 'live' && source === 'github' ? (
+                  <span style={{ color: 'var(--tt-dim)' }}> · cloned from github</span>
+                ) : null}
               </div>
-              {workspaceSkills.map((skill) => (
+              {workspaceError ? (
+                <div style={{ color: 'var(--tt-red)', fontSize: 11.5, padding: '1px 0' }}>
+                  ✗ {workspaceError}
+                </div>
+              ) : null}
+              {!workspaceError && skills.length === 0 && skillsStatus === 'live' ? (
+                <div style={{ color: 'var(--tt-comment)', fontSize: 12, padding: '1px 0' }}>
+                  no skills found under this directory
+                </div>
+              ) : null}
+              {skills.map((skill) => (
                 <div
                   key={skill.id}
+                  title={skill.description}
                   style={{
                     color: skill.role === 'distractor' ? 'var(--tt-comment)' : 'var(--tt-fg-dark)',
                     fontSize: 12,
@@ -187,9 +282,28 @@ const WorkspaceChip = () => {
                   }}
                 >
                   └ {skill.id}/
+                  {skill.hasEvals ? (
+                    <span style={{ color: 'var(--tt-green)' }}> · evals</span>
+                  ) : null}
                 </div>
               ))}
+              {skillsStatus === 'live' && resolvedPath ? (
+                <div
+                  style={{
+                    color: 'var(--tt-dim)',
+                    fontSize: 10.5,
+                    marginTop: 5,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {resolvedPath}
+                </div>
+              ) : null}
             </div>
+              </>
+            )}
           </div>
         </>
       ) : null}
