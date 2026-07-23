@@ -5,7 +5,7 @@ const sectionCases = [
   { name: 'browse', tab: 'section-nav-tab-browse', screen: 'browse-empty-state', kicker: 'localhost only' },
   { name: 'create', tab: 'section-nav-tab-create', screen: 'create-app', kicker: 'step 01' },
   { name: 'review', tab: 'section-nav-tab-review', screen: 'review-empty-state', kicker: 'review imports' },
-  { name: 'learn', tab: 'section-nav-tab-learn', screen: 'learn-app', kicker: 'chapter 00' },
+  { name: 'learn', tab: 'section-nav-tab-learn', screen: 'learn-app', kicker: 'chapter 01' },
 ] as const;
 
 const themes = ['tokyonight', 'gruvbox', 'nord'] as const;
