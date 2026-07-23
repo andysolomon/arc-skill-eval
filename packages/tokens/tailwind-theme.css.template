@@ -8,6 +8,8 @@
  * were declared via @theme.
  */
 
+{{dimensionVariables}}
+
 {{themeVariables}}
 
 :root,

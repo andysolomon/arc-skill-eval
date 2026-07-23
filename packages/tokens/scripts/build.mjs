@@ -19,12 +19,26 @@ const defaultThemeMatch = source.match(
   /export const defaultTheme = '([^']+)' satisfies ThemeName;/,
 );
 
+const dimensionsMatch = source.match(
+  /export const dimensions = (\{[\s\S]*?\n\}) as const;/,
+);
+
+const fontFamilyMatch = source.match(
+  /export const fontFamilyMono =\s*\n?\s*("[^"]+"|'[^']+')/,
+);
+
 if (!themesMatch?.[1] || !defaultThemeMatch?.[1]) {
   throw new Error('Unable to extract themes/defaultTheme from src/tokens.ts');
 }
 
+if (!dimensionsMatch?.[1] || !fontFamilyMatch?.[1]) {
+  throw new Error('Unable to extract dimensions/fontFamilyMono from src/tokens.ts');
+}
+
 const themes = Function(`"use strict"; return (${themesMatch[1]});`)();
 const defaultTheme = defaultThemeMatch[1];
+const dimensions = Function(`"use strict"; return (${dimensionsMatch[1]});`)();
+const fontFamilyMono = Function(`"use strict"; return (${fontFamilyMatch[1]});`)();
 const roles = Object.keys(themes[defaultTheme] ?? {});
 
 if (roles.length === 0) {
@@ -66,11 +80,42 @@ const themeBlocks = Object.keys(themes)
   .map((themeName) => `[data-theme="${themeName}"] {\n${renderAssignments(themeName)}\n}`)
   .join('\n\n');
 
+const renderDimensionValue = (group, key, value) => {
+  if (typeof value === 'number') {
+    // leading tokens are unitless line-height multipliers
+    return group === 'leading' ? String(value) : `${value}px`;
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  throw new Error(`Invalid dimension token ${group}.${key}: ${String(value)}`);
+};
+
+const dimensionVariables = Object.entries(dimensions)
+  .flatMap(([group, tokens]) => {
+    if (Array.isArray(tokens)) {
+      // value-named scale: --tt-space-4: 4px;
+      return tokens.map(
+        (value) => `  --tt-${group}-${value}: ${renderDimensionValue(group, value, value)};`,
+      );
+    }
+
+    const prefix = group === 'layout' ? '' : `${group}-`;
+
+    return Object.entries(tokens).map(
+      ([key, value]) => `  --tt-${prefix}${key}: ${renderDimensionValue(group, key, value)};`,
+    );
+  })
+  .join('\n');
+
 const output = renderTemplate(template, {
   defaultTheme,
   themeVariables,
   defaultAssignments: renderAssignments(defaultTheme),
   themeBlocks,
+  dimensionVariables: `:root {\n  --tt-font-mono: ${fontFamilyMono};\n${dimensionVariables}\n}`,
 }).trimEnd() + '\n';
 
 await mkdir(dirname(outputPath), { recursive: true });
