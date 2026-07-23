@@ -22,3 +22,5 @@ docs-site/.env
 docs-site/.env.local
 .firecrawl/
 wt/
+.vercel
+web/test-results/
