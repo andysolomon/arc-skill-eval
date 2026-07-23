@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useEnv } from '@/state/env';
-import { ReviewEmptyState } from './ReviewEmptyState';
 import { ReviewFeedbackImprove } from './ReviewFeedbackImprove';
+import { ReviewImportPanel } from './ReviewImportPanel';
 import { ReviewRuns } from './ReviewRuns';
 import { ReviewSummary } from './ReviewSummary';
 import { useReviewData } from './useReviewData';
@@ -14,7 +14,6 @@ export const ReviewApp = () => {
     importRuns,
     improvePlansByRun,
     lastRunId,
-    parseReviewRuns,
     recordFeedback,
     removeFeedback,
     runs,
@@ -51,34 +50,22 @@ export const ReviewApp = () => {
     }
   }, [selectedCaseId, selectedRun]);
 
-  if (runs.length === 0) {
-    return (
-      <ReviewEmptyState
-        createSampleRun={createSampleReviewRun}
-        onImport={importRuns}
-        parseImport={parseReviewRuns}
-      />
-    );
-  }
-
-  if (!selectedRun) {
-    return null;
-  }
+  const hasRuns = runs.length > 0 && selectedRun;
 
   return (
     <main
       className="app-main"
-      data-testid="review-app"
+      data-testid={hasRuns ? 'review-app' : 'review-empty-state'}
       style={{
         display: 'flex',
         flexDirection: 'column',
         minHeight: 0,
-        minWidth: 1100,
+        minWidth: hasRuns ? 1100 : 0,
         overflow: 'hidden',
         padding: 0,
       }}
     >
-      {env === 'localhost' ? (
+      {env === 'localhost' && hasRuns ? (
         <div
           style={{
             borderBottom: '1px solid var(--tt-border)',
@@ -96,34 +83,40 @@ export const ReviewApp = () => {
             — pick one on the left. hosted users import a JSON file to review it.
           </span>
         </div>
+      ) : (
+        <div style={{ flex: 'none', padding: hasRuns ? '16px 16px 0' : 16 }}>
+          <ReviewImportPanel createSampleRun={createSampleReviewRun} onImport={importRuns} />
+        </div>
+      )}
+      {hasRuns ? (
+        <section
+          aria-label="Review workspace"
+          style={{
+            display: 'flex',
+            flex: 1,
+            gap: 12,
+            minHeight: 0,
+            padding: 16,
+          }}
+        >
+          <ReviewRuns runs={runs} selectedRunId={selectedRun.id} onSelectRun={setSelectedRunId} />
+          <ReviewSummary
+            run={selectedRun}
+            selectedCaseId={selectedCaseId}
+            onSelectCase={setSelectedCaseId}
+          />
+          <ReviewFeedbackImprove
+            activeRunId={selectedRun.id}
+            env={env}
+            feedback={feedbackByRun.get(selectedRun.id) ?? []}
+            improvePlans={improvePlansByRun.get(selectedRun.id) ?? []}
+            onRecordFeedback={recordFeedback}
+            onRemoveFeedback={removeFeedback}
+            run={selectedRun}
+            selectedCaseId={selectedCaseId}
+          />
+        </section>
       ) : null}
-      <section
-        aria-label="Review workspace"
-        style={{
-          display: 'flex',
-          flex: 1,
-          gap: 12,
-          minHeight: 0,
-          padding: 16,
-        }}
-      >
-        <ReviewRuns runs={runs} selectedRunId={selectedRun.id} onSelectRun={setSelectedRunId} />
-        <ReviewSummary
-          run={selectedRun}
-          selectedCaseId={selectedCaseId}
-          onSelectCase={setSelectedCaseId}
-        />
-        <ReviewFeedbackImprove
-          activeRunId={selectedRun.id}
-          env={env}
-          feedback={feedbackByRun.get(selectedRun.id) ?? []}
-          improvePlans={improvePlansByRun.get(selectedRun.id) ?? []}
-          onRecordFeedback={recordFeedback}
-          onRemoveFeedback={removeFeedback}
-          run={selectedRun}
-          selectedCaseId={selectedCaseId}
-        />
-      </section>
     </main>
   );
 };

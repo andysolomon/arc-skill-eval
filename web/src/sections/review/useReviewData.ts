@@ -173,6 +173,184 @@ export const parseReviewRuns = (text: string): ReviewRun[] => {
   return runs;
 };
 
+export type ImportCheck = { ok: boolean; label: string };
+
+export type ReviewImportInspection = {
+  ok: boolean;
+  kind: string;
+  summary: string;
+  checks: ImportCheck[];
+  advisories: ImportCheck[];
+  error: string;
+  runs?: ReviewRun[];
+};
+
+const inspectSuite = (record: Record<string, unknown>): ReviewImportInspection => {
+  const checks: ImportCheck[] = [];
+  const add = (ok: boolean, label: string) => checks.push({ ok, label });
+  const hasName = typeof record.skill_name === 'string' && record.skill_name.trim().length > 0;
+
+  add(hasName, 'has a skill_name');
+
+  const evals = Array.isArray(record.evals) ? record.evals : [];
+  add(evals.length > 0, 'has at least one eval case');
+
+  let allPrompts = evals.length > 0;
+  let allAsserts = evals.length > 0;
+  let wellFormed = evals.length > 0;
+  let anyDeterministic = false;
+  let anyNegative = false;
+
+  evals.forEach((rawCase) => {
+    const caseRecord = toRecord(rawCase);
+
+    if (typeof caseRecord?.prompt !== 'string' || !caseRecord.prompt.trim()) {
+      allPrompts = false;
+    }
+
+    const assertions = Array.isArray(caseRecord?.assertions) ? caseRecord.assertions : [];
+    if (assertions.length === 0) {
+      allAsserts = false;
+    }
+
+    assertions.forEach((assertion) => {
+      if (typeof assertion === 'string') {
+        return;
+      }
+
+      const assertionRecord = toRecord(assertion);
+      if (typeof assertionRecord?.type !== 'string') {
+        wellFormed = false;
+      } else if (assertionRecord.type !== 'judge') {
+        anyDeterministic = true;
+      }
+    });
+
+    if (/absent|negative|no release|docs-only|should not/i.test(JSON.stringify(rawCase ?? ''))) {
+      anyNegative = true;
+    }
+  });
+
+  add(allPrompts, 'every case has a prompt');
+  add(allAsserts, 'every case has ≥1 assertion');
+  add(wellFormed, 'assertions are well-formed');
+
+  const ok = checks.every((check) => check.ok);
+
+  return {
+    ok,
+    kind: 'evals.json · suite',
+    summary: `${evals.length} cases · ${asString(record.skill_name, '?')}`,
+    checks,
+    advisories: [
+      { ok: anyDeterministic, label: 'uses deterministic checks, not only judge' },
+      { ok: anyNegative, label: 'includes an adjacent-negative case' },
+    ],
+    error: '',
+  };
+};
+
+export const inspectReviewArtifact = (text: string): ReviewImportInspection => {
+  let parsed: unknown = null;
+  let parseError = '';
+
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    parseError = `not valid JSON — ${error instanceof Error ? error.message : String(error)}`;
+  }
+
+  const record = toRecord(parsed);
+
+  if (!record) {
+    return {
+      ok: false,
+      kind: '',
+      summary: '',
+      checks: [{ ok: false, label: 'parses as JSON' }],
+      advisories: [],
+      error: parseError || 'not a JSON object',
+    };
+  }
+
+  if (Array.isArray(record.runs) || Array.isArray(record.cases)) {
+    try {
+      const runs = parseReviewRuns(text);
+      const caseCount = runs.reduce((total, run) => total + run.cases.length, 0);
+
+      return {
+        ok: true,
+        kind: 'run results',
+        summary: `${caseCount} cases · ${runs[0]?.skill ?? '?'}`,
+        checks: [
+          { ok: true, label: 'parses as JSON' },
+          { ok: true, label: 'recognized as run results' },
+        ],
+        advisories: [],
+        error: '',
+        runs,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        kind: 'run results',
+        summary: '',
+        checks: [
+          { ok: true, label: 'parses as JSON' },
+          { ok: false, label: 'run results are well-formed' },
+        ],
+        advisories: [],
+        error: error instanceof Error ? error.message : 'run results could not be parsed',
+      };
+    }
+  }
+
+  if (Array.isArray(record.evals)) {
+    return inspectSuite(record);
+  }
+
+  let kind = '';
+  let summary = '';
+
+  if (Array.isArray(record.assertion_results) || record.summary) {
+    kind = 'grading.json';
+    const summaryRecord = toRecord(record.summary) ?? {};
+    summary =
+      (summaryRecord.passed != null
+        ? `${summaryRecord.passed}/${summaryRecord.total ?? '?'} passed`
+        : 'per-assertion results') + (record.case_id ? ` · ${record.case_id}` : '');
+  } else if (record.delta != null || (record.with != null && record.without != null)) {
+    kind = 'benchmark.json';
+    summary = `with ${record.with ?? '?'} · without ${record.without ?? '?'} · Δ ${record.delta ?? '?'}`;
+  } else if (record.duration_ms != null || record.tokens != null || record.cost != null) {
+    kind = 'timing.json';
+    summary =
+      [
+        record.duration_ms != null ? `${record.duration_ms}ms` : null,
+        record.cost != null ? `$${record.cost}` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ') || 'duration & cost';
+  } else if (Array.isArray(record.notes) || record.feedback != null) {
+    kind = 'feedback.json';
+    summary = Array.isArray(record.notes) ? `${record.notes.length} notes` : 'review notes';
+  }
+
+  const ok = kind.length > 0;
+
+  return {
+    ok,
+    kind: ok ? kind : 'unrecognized',
+    summary,
+    checks: [
+      { ok: true, label: 'parses as JSON' },
+      { ok, label: ok ? `recognized as ${kind}` : 'a recognized arc-skill-eval artifact' },
+    ],
+    advisories: [],
+    error: ok ? '' : 'not a recognized arc-skill-eval JSON file',
+  };
+};
+
 const readFeedback = async (): Promise<FeedbackRecord[]> => {
   const db = await openDatabase();
   const tx = db.transaction('feedback', 'readonly');
