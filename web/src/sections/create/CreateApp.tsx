@@ -1,13 +1,19 @@
 import { useState } from 'react';
 import { useEnv } from '@/state/env';
-import { useWorkspace, workspaceSkills } from '@/state/workspace';
+import { useWorkspace } from '@/state/workspace';
 import { LivePreview } from './LivePreview';
 import { StepAssertions } from './StepAssertions';
 import { StepListBehaviors } from './StepListBehaviors';
 import { StepPrompts } from './StepPrompts';
 import { StepReview } from './StepReview';
 import { useGenerateEvals } from './useGenerateEvals';
-import { makeBehaviorRow, type CreateStepId, useDraft } from './useDraft';
+import {
+  behaviorsFromEvalsJson,
+  makeBehaviorRow,
+  type BehaviorRow,
+  type CreateStepId,
+  useDraft,
+} from './useDraft';
 
 const railSteps: Array<{ id: CreateStepId; num: string; label: string }> = [
   { id: 'behaviors', num: '01', label: 'List behaviors' },
@@ -42,27 +48,81 @@ const HostedBanner = () => (
 
 type GenerateBannerProps = {
   onGenerated: (skill: string, behaviors: string[]) => void;
+  onLoadEvals: (skill: string, rows: BehaviorRow[], path: string) => void;
   workspaceRoot: string;
 };
 
-const GenerateBanner = ({ onGenerated, workspaceRoot }: GenerateBannerProps) => {
+const GenerateBanner = ({ onGenerated, onLoadEvals, workspaceRoot }: GenerateBannerProps) => {
+  const { skills } = useWorkspace();
   const { error, generateEvals, isGenerating } = useGenerateEvals();
   const [selected, setSelected] = useState('');
   const [generated, setGenerated] = useState<{ skill: string; count: number } | null>(null);
-  const active = Boolean(selected) && !isGenerating;
+  const [loaded, setLoaded] = useState<{ skill: string; count: number } | null>(null);
+  const [loadError, setLoadError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const selectedSkill = skills.find((skill) => skill.id === selected);
+  const isEdit = Boolean(selectedSkill?.hasEvals);
+  const active = Boolean(selected) && !isGenerating && !isLoading;
 
   const handleGenerate = () => {
     if (!selected) {
       return;
     }
 
-    void generateEvals({ workspaceRoot: `${workspaceRoot}/${selected}`, behaviors: [] })
+    setLoaded(null);
+    setLoadError('');
+
+    const skillPath =
+      skills.find((skill) => skill.id === selected)?.path ?? `${workspaceRoot}/${selected}`;
+
+    void generateEvals({ workspaceRoot: skillPath, behaviors: [] })
       .then((result) => {
         setGenerated({ skill: selected, count: result.behaviors.length });
         onGenerated(selected, result.behaviors);
       })
       .catch(() => undefined);
   };
+
+  const handleEdit = () => {
+    if (!selectedSkill?.path) {
+      setLoadError('could not resolve the selected skill path');
+      return;
+    }
+
+    const skillPath = selectedSkill.path;
+    setIsLoading(true);
+    setGenerated(null);
+    setLoadError('');
+
+    void fetch(
+      `http://localhost:7357/skill-evals?root=${encodeURIComponent(skillPath)}`,
+    )
+      .then(async (response) => {
+        const data = (await response.json()) as {
+          ok?: boolean;
+          evals?: unknown;
+          error?: string;
+        };
+
+        if (!data.ok) {
+          throw new Error(data.error || 'could not load evals.json');
+        }
+
+        const { skill, rows } = behaviorsFromEvalsJson(data.evals);
+        const loadedSkill = skill || selected;
+        setLoaded({ skill: loadedSkill, count: rows.length });
+        onLoadEvals(loadedSkill, rows, skillPath);
+      })
+      .catch((loadFailure: unknown) => {
+        setLoaded(null);
+        setLoadError(
+          loadFailure instanceof Error ? loadFailure.message : 'could not load evals.json',
+        );
+      })
+      .finally(() => setIsLoading(false));
+  };
+
+  const accent = isEdit ? 'var(--tt-blue)' : 'var(--tt-green)';
 
   return (
     <div
@@ -95,7 +155,7 @@ const GenerateBanner = ({ onGenerated, workspaceRoot }: GenerateBannerProps) => 
       </div>
       <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         <span style={{ color: 'var(--tt-comment)', fontSize: 12 }}>skill:</span>
-        {workspaceSkills.map((skill) => {
+        {skills.map((skill) => {
           const isSelected = selected === skill.id;
 
           return (
@@ -118,7 +178,16 @@ const GenerateBanner = ({ onGenerated, workspaceRoot }: GenerateBannerProps) => 
                 gap: 6,
                 padding: '5px 11px',
               }}
+              title={skill.hasEvals ? 'already has an eval suite — you can edit it' : undefined}
             >
+              {skill.hasEvals ? (
+                <span
+                  aria-label="has evals"
+                  style={{ color: 'var(--tt-green)', flex: 'none', fontSize: 8 }}
+                >
+                  ●
+                </span>
+              ) : null}
               {skill.id}
             </button>
           );
@@ -126,14 +195,14 @@ const GenerateBanner = ({ onGenerated, workspaceRoot }: GenerateBannerProps) => 
         <span style={{ flex: 1 }} />
         <button
           disabled={!active}
-          onClick={handleGenerate}
+          onClick={isEdit ? handleEdit : handleGenerate}
           type="button"
           style={{
             alignItems: 'center',
             background: 'transparent',
-            border: `1px solid ${active ? 'var(--tt-green)' : 'var(--tt-border)'}`,
+            border: `1px solid ${active ? accent : 'var(--tt-border)'}`,
             borderRadius: 6,
-            color: active ? 'var(--tt-green)' : 'var(--tt-dim)',
+            color: active ? accent : 'var(--tt-dim)',
             cursor: active ? 'pointer' : 'default',
             display: 'inline-flex',
             fontSize: 12.5,
@@ -142,7 +211,13 @@ const GenerateBanner = ({ onGenerated, workspaceRoot }: GenerateBannerProps) => 
             padding: '6px 13px',
           }}
         >
-          {isGenerating ? '✦ generating…' : '✦ generate evals'}
+          {isLoading
+            ? '✎ loading…'
+            : isGenerating
+              ? '✦ generating…'
+              : isEdit
+                ? '✎ edit existing evals'
+                : '✦ generate evals'}
         </button>
       </div>
       {generated ? (
@@ -152,9 +227,21 @@ const GenerateBanner = ({ onGenerated, workspaceRoot }: GenerateBannerProps) => 
           refine each. add more by hand anytime.
         </div>
       ) : null}
+      {loaded ? (
+        <div style={{ color: 'var(--tt-green)', fontSize: 12, marginTop: 10 }}>
+          ✓ loaded {loaded.count} cases from{' '}
+          <span style={{ color: 'var(--tt-teal)' }}>{loaded.skill}</span>'s evals.json — edit and
+          re-write.
+        </div>
+      ) : null}
       {error ? (
         <div role="alert" style={{ color: 'var(--tt-red)', fontSize: 12, marginTop: 10 }}>
           ✗ {error}
+        </div>
+      ) : null}
+      {loadError ? (
+        <div role="alert" style={{ color: 'var(--tt-red)', fontSize: 12, marginTop: 10 }}>
+          ✗ {loadError}
         </div>
       ) : null}
     </div>
@@ -164,6 +251,7 @@ const GenerateBanner = ({ onGenerated, workspaceRoot }: GenerateBannerProps) => 
 export const CreateApp = () => {
   const { env } = useEnv();
   const { workspace } = useWorkspace();
+  const [editTargetPath, setEditTargetPath] = useState<string>();
   const {
     activeStep,
     activeStepIndex,
@@ -193,7 +281,7 @@ export const CreateApp = () => {
       className="app-main"
       data-screen-label={`create (${env})`}
       data-testid="create-app"
-      style={{ display: 'flex', minHeight: 0, minWidth: 1100, padding: 0 }}
+      style={{ display: 'flex', minHeight: 0, minWidth: 0, padding: 0 }}
     >
       <aside
         aria-label="Create wizard steps"
@@ -294,14 +382,19 @@ export const CreateApp = () => {
           <div style={{ maxWidth: 700 }}>
             {env === 'localhost' ? (
               <GenerateBanner
-                onGenerated={(skill, behaviors) =>
+                onGenerated={(skill, behaviors) => {
+                  setEditTargetPath(undefined);
                   seedBehaviors(
                     skill,
                     behaviors.map((text) =>
                       makeBehaviorRow({ text: text.replace(/\.$/, ''), flavor: 'implicit' }),
                     ),
-                  )
-                }
+                  );
+                }}
+                onLoadEvals={(skill, rows, path) => {
+                  seedBehaviors(skill, rows);
+                  setEditTargetPath(path);
+                }}
                 workspaceRoot={workspace}
               />
             ) : (
@@ -314,7 +407,10 @@ export const CreateApp = () => {
                 env={env}
                 onAddBehavior={addBehavior}
                 onRemoveBehavior={removeBehavior}
-                onSkill={setSkill}
+                onSkill={(skill) => {
+                  setEditTargetPath(undefined);
+                  setSkill(skill);
+                }}
                 onUpdateBehavior={updateBehavior}
               />
             ) : null}
@@ -343,7 +439,7 @@ export const CreateApp = () => {
                 evalsJson={evalsJson}
                 judgeCount={judgeCount}
                 onWritten={markWritten}
-                workspaceRoot={workspace}
+                workspaceRoot={editTargetPath ?? workspace}
                 wrote={wrote}
               />
             ) : null}

@@ -199,6 +199,75 @@ export const assembleEvalsJson = (draft: CreateDraft): EvalsJsonDraft => ({
   })),
 });
 
+export const behaviorsFromEvalsJson = (
+  evals: unknown,
+): { skill: string; rows: BehaviorRow[] } => {
+  if (!evals || typeof evals !== 'object') {
+    return { skill: '', rows: [] };
+  }
+
+  const candidate = evals as Record<string, unknown>;
+  const skill =
+    typeof candidate.skill_name === 'string' && candidate.skill_name.trim()
+      ? candidate.skill_name
+      : '';
+
+  if (!Array.isArray(candidate.evals)) {
+    return { skill: '', rows: [] };
+  }
+
+  const rows = candidate.evals.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      return [];
+    }
+
+    const evalEntry = entry as Record<string, unknown>;
+    const asserts = Array.isArray(evalEntry.assertions)
+      ? evalEntry.assertions.flatMap((assertion): BehaviorAssertion[] => {
+          if (typeof assertion === 'string') {
+            return [{ kind: 'judge', val: assertion }];
+          }
+
+          if (!assertion || typeof assertion !== 'object' || Array.isArray(assertion)) {
+            return [];
+          }
+
+          const assertionObject = assertion as Record<string, unknown>;
+          const type = assertionObject.type;
+          if (
+            typeof type !== 'string' ||
+            !assertionKinds.includes(type as AssertionKind)
+          ) {
+            return [];
+          }
+
+          const kind = type as AssertionKind;
+          return [
+            {
+              kind,
+              val: String(
+                assertionObject[assertionField(kind)] ??
+                  assertionObject.path ??
+                  assertionObject.pattern ??
+                  '',
+              ),
+            },
+          ];
+        })
+      : [];
+
+    return [
+      makeBehaviorRow({
+        text: typeof evalEntry.id === 'string' ? evalEntry.id.replace(/-/g, ' ') : '',
+        prompt: typeof evalEntry.prompt === 'string' ? evalEntry.prompt : '',
+        asserts,
+      }),
+    ];
+  });
+
+  return { skill, rows };
+};
+
 export const useDraft = () => {
   const [draft, setDraft] = useState<CreateDraft>(defaultDraft);
   const [activeStep, setActiveStep] = useState<CreateStepId>('behaviors');

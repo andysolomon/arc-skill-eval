@@ -1,7 +1,8 @@
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { useRunLifecycle } from '@/state/runLifecycle';
-import { WorkspacePicker } from './WorkspacePicker';
+import { useWorkspace } from '@/state/workspace';
+import { readLastRunIdPreference } from './WorkspacePicker';
 import { useSpinner } from './useSpinner';
 import {
   useRunDaemon,
@@ -184,9 +185,26 @@ const OptionList = <T extends string | number>({
 export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostProps) => {
   const [openField, setOpenField] = useState<FieldName | null>('skill');
   const [extraSkillDraft, setExtraSkillDraft] = useState('');
+  const { skills, workspace } = useWorkspace();
   const { state } = useRunLifecycle();
   const { startRun, cancelRun, resetRun } = useRunDaemon();
   const spinner = useSpinner(state.status === 'running');
+  const [lastRunId, setLastRunId] = useState<string>();
+
+  useEffect(() => {
+    let cancelled = false;
+    void readLastRunIdPreference().then((id) => {
+      if (!cancelled) {
+        setLastRunId(id);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [state.status]);
+
+  const selectedSkill = skills.find((skill) => skill.path === value.workspaceRoot);
+  const skillLabel = selectedSkill?.id ?? (value.workspaceRoot ? value.workspaceRoot : 'choose a skill…');
 
   const update = (patch: Partial<RunComposerState>) => {
     onChange({ ...value, ...patch });
@@ -302,15 +320,108 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
       <div style={{ flex: 1, overflow: 'auto', padding: '6px 0' }}>
         <FlagRow
           label="skill"
-          value={value.workspaceRoot || 'choose workspace…'}
+          value={skillLabel}
           valueColor={value.workspaceRoot ? 'var(--tt-fg)' : 'var(--tt-comment)'}
           open={openField === 'skill'}
           onToggle={() => toggleField('skill')}
         >
-          <WorkspacePicker
-            value={value.workspaceRoot}
-            onChange={(workspaceRoot) => update({ workspaceRoot })}
-          />
+          {skills.length > 0 ? (
+            <div style={{ display: 'grid', marginBottom: 4 }}>
+              <div
+                style={{
+                  color: 'var(--tt-comment)',
+                  fontSize: 10.5,
+                  letterSpacing: '.06em',
+                  padding: '3px 10px',
+                  textTransform: 'uppercase',
+                }}
+              >
+                skills in {workspace}
+              </div>
+              <div style={{ display: 'grid', maxHeight: 260, overflowY: 'auto' }}>
+              {skills.map((skill) => {
+                const selected = skill.path === value.workspaceRoot;
+
+                return (
+                  <button
+                    key={skill.path}
+                    onClick={() => {
+                      update({ workspaceRoot: skill.path ?? '' });
+                      setOpenField(null);
+                    }}
+                    title={skill.path}
+                    type="button"
+                    style={{
+                      alignItems: 'center',
+                      background: selected ? 'var(--tt-selection)' : 'transparent',
+                      border: 0,
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      fontSize: 13,
+                      gap: 8,
+                      padding: '6px 10px',
+                      textAlign: 'left',
+                      width: '100%',
+                    }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      style={{ color: 'var(--tt-green)', flex: 'none', width: 11 }}
+                    >
+                      {selected ? '✓' : ''}
+                    </span>
+                    <span
+                      style={{
+                        color: selected ? 'var(--tt-fg)' : 'var(--tt-fg-dark)',
+                        flex: 1,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {skill.id}
+                    </span>
+                    {skill.hasEvals ? (
+                      <span style={{ color: 'var(--tt-green)', flex: 'none', fontSize: 11 }}>
+                        evals
+                      </span>
+                    ) : (
+                      <span style={{ color: 'var(--tt-dim)', flex: 'none', fontSize: 11 }}>
+                        no evals
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+              </div>
+            </div>
+          ) : (
+            <div
+              style={{
+                color: 'var(--tt-comment)',
+                fontSize: 12,
+                lineHeight: 1.5,
+                padding: '6px 10px',
+              }}
+            >
+              no skills found in this workspace — set the{' '}
+              <span style={{ color: 'var(--tt-teal)' }}>dir</span> menu (top right) to a folder
+              with skills.
+            </div>
+          )}
+          <div
+            style={{
+              borderTop: '1px solid var(--tt-border)',
+              color: 'var(--tt-fg-dark)',
+              fontSize: 12,
+              marginTop: 4,
+              overflowWrap: 'anywhere',
+              padding: '6px 10px 2px',
+            }}
+          >
+            last run: {lastRunId ?? 'none'}
+          </div>
         </FlagRow>
         <FlagRow
           label="--case"
