@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
 import { useReviewData, type ReviewCase, type ReviewRun } from '@/sections/review/useReviewData';
+import { useEnv } from '@/state/env';
+import { useLocalhostRuns } from './useLocalhostRuns';
 
 export type BrowseTab = 'overview' | 'response' | 'diff' | 'trace' | 'raw';
 export type BrowseVariant = 'with_skill' | 'without_skill';
@@ -149,13 +151,31 @@ const toBrowseRun = (run: ReviewRun): BrowseRun => {
   };
 };
 
-export const useBrowseData = () => {
-  const { runs } = useReviewData();
+export const useBrowseData = (selectedSkillId?: string) => {
+  const { env } = useEnv();
+  const { runs: reviewRuns } = useReviewData();
+  const {
+    availableSkillIds: localhostSkillIds,
+    runs: localhostRuns,
+  } = useLocalhostRuns(selectedSkillId);
+  const sourceRuns = env === 'localhost' ? localhostRuns : reviewRuns;
+  const runs = selectedSkillId
+    ? sourceRuns.filter((run) => run.skill === selectedSkillId)
+    : sourceRuns;
+  const hostedSkillIds = useMemo(
+    () => [...new Set(reviewRuns.map((run) => run.skill))],
+    [reviewRuns],
+  );
+  const availableSkillIds =
+    env === 'localhost'
+      ? localhostSkillIds
+      : hostedSkillIds;
 
   return useMemo(() => {
     const browseRuns = runs.map(toBrowseRun);
 
     return {
+      availableSkillIds,
       runs: browseRuns,
       summaryByRun: new Map(
         browseRuns.map((run) => [
@@ -168,5 +188,5 @@ export const useBrowseData = () => {
         ]),
       ),
     };
-  }, [runs]);
+  }, [availableSkillIds, runs]);
 };

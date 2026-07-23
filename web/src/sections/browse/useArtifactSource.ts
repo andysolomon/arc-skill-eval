@@ -229,9 +229,12 @@ export const useArtifactSource = ({
     }
 
     const controller = new AbortController();
+    const rootQuery = workspaceRoot
+      ? `?root=${encodeURIComponent(workspaceRoot)}`
+      : '';
     const artifactUrl = `http://localhost:7357/runs/${encodeURIComponent(
       runId,
-    )}/artifacts/${encodeURIComponent(caseId)}/${encodeURIComponent(kind)}`;
+    )}/artifacts/${encodeURIComponent(caseId)}/${encodeURIComponent(kind)}${rootQuery}`;
 
     setLocalhostArtifact({
       ...emptyArtifact('localhost'),

@@ -5,7 +5,10 @@ import path from "node:path";
 import { handleApplyPlan } from "./routes/apply-plan.mjs";
 import { handleGenerateEvals } from "./routes/generate-evals.mjs";
 import { handleHealth } from "./routes/health.mjs";
+import { handleFs } from "./routes/fs.mjs";
 import { handleRuns } from "./routes/runs.mjs";
+import { handleSkillEvals } from "./routes/skill-evals.mjs";
+import { handleWorkspace } from "./routes/workspace.mjs";
 import { createRunWebSocketServer } from "./ws.mjs";
 
 const packageJson = JSON.parse(
@@ -20,6 +23,10 @@ function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, {
     "content-type": "application/json; charset=utf-8",
     "content-length": Buffer.byteLength(body),
+    // the web app calls the daemon cross-origin from the vite dev server
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET, POST, OPTIONS",
+    "access-control-allow-headers": "content-type",
   });
   response.end(body);
 }
@@ -48,10 +55,18 @@ async function routeRequest(request, response) {
     readJson,
   };
 
+  if (request.method === "OPTIONS") {
+    sendJson(response, 204, {});
+    return;
+  }
+
   const handled = await handleHealth(request, response, context)
     || await handleRuns(request, response, context)
     || await handleGenerateEvals(request, response, context)
-    || await handleApplyPlan(request, response, context);
+    || await handleApplyPlan(request, response, context)
+    || await handleSkillEvals(request, response, context)
+    || await handleWorkspace(request, response, context)
+    || await handleFs(request, response, context);
 
   if (!handled) {
     sendJson(response, 404, { error: "Not found" });

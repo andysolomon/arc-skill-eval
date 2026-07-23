@@ -10,13 +10,13 @@ export const BrowseEmptyState = ({ env }: BrowseEmptyStateProps) => {
   const reviewSection = sections.find((section) => section.name === 'review');
 
   return (
-    <main
-      className="app-main"
+    <section
       data-screen-label={`browse (${env})`}
       data-testid="browse-empty-state"
       style={{
         alignItems: 'center',
         display: 'flex',
+        flex: 1,
         justifyContent: 'center',
         minHeight: 0,
         padding: 40,
@@ -107,6 +107,6 @@ export const BrowseEmptyState = ({ env }: BrowseEmptyStateProps) => {
           instead.
         </div>
       </div>
-    </main>
+    </section>
   );
 };

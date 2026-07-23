@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { SkillPicker } from '@/components/SkillPicker';
 import { useEnv } from '@/state/env';
+import { useWorkspace } from '@/state/workspace';
 import { BrowseCaseList } from './BrowseCaseList';
 import { BrowseDetail } from './BrowseDetail';
 import { BrowseEmptyState } from './BrowseEmptyState';
@@ -8,7 +10,19 @@ import { useBrowseData } from './useBrowseData';
 
 export const BrowseApp = () => {
   const { env } = useEnv();
-  const { runs } = useBrowseData();
+  const { skills: workspaceSkills } = useWorkspace();
+  const [selectedSkillId, setSelectedSkillId] = useState<string | undefined>();
+  const { availableSkillIds, runs } = useBrowseData(selectedSkillId);
+  const skillIds = useMemo(() => {
+    const available = new Set(availableSkillIds);
+    // workspaceSkills can hold the same id in two locations (e.g. a skill under
+    // both .agents/skills and pilots), so dedupe or the picker shows twins.
+    const ordered = [
+      ...new Set(workspaceSkills.map((skill) => skill.id).filter((skillId) => available.has(skillId))),
+    ];
+
+    return [...ordered, ...availableSkillIds.filter((skillId) => !ordered.includes(skillId))];
+  }, [availableSkillIds, workspaceSkills]);
   const [selectedRunId, setSelectedRunId] = useState<string | undefined>();
   const selectedRun = useMemo(
     () => runs.find((run) => run.id === selectedRunId),
@@ -19,6 +33,17 @@ export const BrowseApp = () => {
     () => selectedRun?.cases.find((testCase) => testCase.id === selectedCaseId),
     [selectedCaseId, selectedRun],
   );
+
+  useEffect(() => {
+    if (skillIds.length === 0) {
+      setSelectedSkillId(undefined);
+      return;
+    }
+
+    if (!selectedSkillId || !skillIds.includes(selectedSkillId)) {
+      setSelectedSkillId(skillIds[0]);
+    }
+  }, [selectedSkillId, skillIds]);
 
   useEffect(() => {
     if (runs.length === 0) {
@@ -74,19 +99,17 @@ export const BrowseApp = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedCaseId, selectedRun]);
 
-  if (runs.length === 0) {
-    return <BrowseEmptyState env={env} />;
-  }
-
-  if (!selectedRun || !selectedCase) {
-    return null;
-  }
+  const activeRun = selectedRun ?? runs[0];
+  const activeCase =
+    selectedCase ??
+    activeRun?.cases.find((testCase) => testCase.status === 'fail') ??
+    activeRun?.cases[0];
 
   return (
     <main
       className="app-main"
       data-screen-label={`browse (${env})`}
-      data-testid="browse-app"
+      data-testid={activeRun && activeCase ? 'browse-app' : undefined}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -95,68 +118,89 @@ export const BrowseApp = () => {
         padding: 0,
       }}
     >
-      <div
-        style={{
-          alignItems: 'center',
-          borderBottom: '1px solid var(--tt-border)',
-          display: 'flex',
-          flex: 'none',
-          fontSize: 12,
-          gap: 8,
-          padding: '9px 16px',
-        }}
-      >
-        {env === 'hosted' ? (
-          <>
-            <span style={{ color: 'var(--tt-cyan)', fontWeight: 700 }}>hosted</span>
-            <span style={{ color: 'var(--tt-comment)' }}>
-              exploring imported runs — import a suite in{' '}
-              <span style={{ color: 'var(--tt-fg-dark)' }}>review</span> to browse its results.
-            </span>
-          </>
-        ) : (
-          <>
-            <span style={{ color: 'var(--tt-green)', fontWeight: 700 }}>localhost</span>
-            <span style={{ color: 'var(--tt-comment)' }}>
-              reading <span style={{ color: 'var(--tt-teal)' }}>./evals-runs</span> from disk.
-            </span>
-          </>
-        )}
-      </div>
-      <section
-        aria-label="Browse workspace"
-        style={{
-          display: 'flex',
-          flex: 1,
-          gap: 10,
-          minHeight: 0,
-          minWidth: 960,
-          padding: 14,
-        }}
-      >
+      {skillIds.length > 0 ? (
         <div
           style={{
+            alignItems: 'center',
+            borderBottom: '1px solid var(--tt-border)',
             display: 'flex',
             flex: 'none',
-            flexDirection: 'column',
-            gap: 10,
-            minHeight: 0,
-            width: 326,
+            flexWrap: 'wrap',
+            fontSize: 12,
+            gap: 8,
+            padding: '9px 16px',
           }}
         >
-          <BrowseRuns runs={runs} selectedRunId={selectedRun.id} onSelectRun={setSelectedRunId} />
-          <BrowseCaseList
-            cases={selectedRun.cases}
-            selectedCaseId={selectedCase.id}
-            onSelectCase={setSelectedCaseId}
+          <span
+            style={{
+              color: env === 'hosted' ? 'var(--tt-cyan)' : 'var(--tt-green)',
+              fontWeight: 700,
+            }}
+          >
+            {env}
+          </span>
+          <SkillPicker
+            label="browsing"
+            onSelectSkill={setSelectedSkillId}
+            selectedSkillId={selectedSkillId}
+            skillIds={skillIds}
           />
+          <span style={{ color: 'var(--tt-comment)' }}>
+            {env === 'hosted' ? (
+              <>
+                exploring imported runs — import a suite in{' '}
+                <span style={{ color: 'var(--tt-fg-dark)' }}>review</span> to browse its results.
+              </>
+            ) : (
+              <>
+                reading <span style={{ color: 'var(--tt-teal)' }}>./evals-runs</span> from disk.
+              </>
+            )}
+          </span>
         </div>
-        <BrowseDetail
-          run={selectedRun}
-          testCase={selectedCase}
-          workspaceRoot={selectedRun.workspaceRoot}
-        />
-      </section>
+      ) : null}
+      {activeRun && activeCase ? (
+        <section
+          aria-label="Browse workspace"
+          style={{
+            display: 'flex',
+            flex: 1,
+            gap: 10,
+            minHeight: 0,
+            minWidth: 0,
+            padding: 14,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              flex: 'none',
+              flexDirection: 'column',
+              gap: 10,
+              minHeight: 0,
+              width: 326,
+            }}
+          >
+            <BrowseRuns
+              runs={runs}
+              selectedRunId={activeRun.id}
+              onSelectRun={setSelectedRunId}
+            />
+            <BrowseCaseList
+              cases={activeRun.cases}
+              selectedCaseId={activeCase.id}
+              onSelectCase={setSelectedCaseId}
+            />
+          </div>
+          <BrowseDetail
+            run={activeRun}
+            testCase={activeCase}
+            workspaceRoot={activeRun.workspaceRoot}
+          />
+        </section>
+      ) : (
+        <BrowseEmptyState env={env} />
+      )}
     </main>
   );
 };
