@@ -1,193 +1,131 @@
-import { Column, Kicker } from '@/components/primitives';
-import { useSuggest } from './useSuggest';
-import type { AssertionKind, CreateDraft } from './useDraft';
+import {
+  assertionKindColor,
+  assertionKinds,
+  assertionPlaceholder,
+  dimensionColors,
+  type AssertionKind,
+  type CreateDraft,
+} from './useDraft';
+import { cardStyle, inputStyle, kickerStyle, legendBoxStyle, introStyle, removeGlyphStyle, titleStyle } from './stepStyles';
 
 type StepAssertionsProps = {
   draft: CreateDraft;
-  env: 'hosted' | 'localhost';
-  onAdd: () => void;
-  onRemove: (id: string) => void;
-  onUpdate: (id: string, patch: { kind?: AssertionKind; body?: string }) => void;
+  onAddAssertion: (behaviorId: string, kind: AssertionKind) => void;
+  onRemoveAssertion: (behaviorId: string, index: number) => void;
+  onSetAssertionValue: (behaviorId: string, index: number, val: string) => void;
 };
 
-const assertionHints: Record<AssertionKind, string> = {
-  judge: 'The assistant asks for confirmation before mutating git history.',
-  script: '{ "type": "file-exists", "path": "evals/evals.json" }',
-  diff: 'outputs/expected.json',
-};
+export const StepAssertions = ({
+  draft,
+  onAddAssertion,
+  onRemoveAssertion,
+  onSetAssertionValue,
+}: StepAssertionsProps) => (
+  <div>
+    <div style={kickerStyle}>step 03</div>
+    <h1 style={titleStyle}>Attach assertions</h1>
+    <p style={introStyle}>
+      add the checks that decide pass or fail. reach for{' '}
+      <span style={{ color: 'var(--tt-cyan)' }}>deterministic</span> ones first (a script
+      decides); add a <span style={{ color: 'var(--tt-magenta)' }}>judge</span> only for prose a
+      script can't see.
+    </p>
 
-const controlStyle = {
-  background: 'var(--tt-bg-dark)',
-  border: '1px solid var(--tt-border)',
-  color: 'var(--tt-fg)',
-  font: 'inherit',
-  outlineColor: 'var(--tt-border-active)',
-  padding: '8px 10px',
-};
-
-const buttonStyle = {
-  background: 'var(--tt-bg-dark)',
-  border: '1px solid var(--tt-border)',
-  color: 'var(--tt-fg)',
-  cursor: 'pointer',
-  padding: '8px 10px',
-};
-
-const parseBehaviorBullets = (value: string): string[] =>
-  value
-    .split(/\r?\n/)
-    .map((line) => line.replace(/^[-*]\s*/, '').trim())
-    .filter(Boolean);
-
-export const StepAssertions = ({ draft, env, onAdd, onRemove, onUpdate }: StepAssertionsProps) => {
-  const { error, pendingKey, suggestAssertion } = useSuggest();
-  const behaviors = parseBehaviorBullets(draft.behaviorBullets);
-
-  const handleSuggest = (assertionId: string, kind: AssertionKind, index: number) => {
-    const behavior = behaviors[index] ?? behaviors[0] ?? '';
-    const prompt = draft.prompts[index]?.text ?? draft.prompts[0]?.text ?? '';
-
-    void suggestAssertion({
-      behavior,
-      kind,
-      prompt,
-      rowId: assertionId,
-      workspaceRoot: draft.skillPath,
-    })
-      .then((suggestion) => onUpdate(assertionId, { body: suggestion }))
-      .catch(() => undefined);
-  };
-
-  return (
-    <Column gap={4}>
-      <Kicker>step 03</Kicker>
-      <div style={{ display: 'grid', gap: 8 }}>
-        <h1 style={{ fontSize: 20, lineHeight: 1.2, margin: 0 }}>
-          attach assertions
-        </h1>
-        <p style={{ color: 'var(--tt-fg-dark)', lineHeight: 1.5, margin: 0 }}>
-          Keep assertions concrete. Judge rows become prose assertions; script rows can accept a JSON object.
-        </p>
-      </div>
-
-      <section
-        aria-label="assertion hint"
-        style={{
-          background: 'var(--tt-bg-dark)',
-          border: '1px solid var(--tt-border)',
-          borderLeft: '4px solid var(--tt-cyan)',
-          color: 'var(--tt-fg-dark)',
-          lineHeight: 1.5,
-          padding: 12,
-        }}
-      >
-        Good assertions are deterministic or judge-prompted; weak ones script regexes hoping for
-        the right shape.
-      </section>
-
-      <div style={{ display: 'grid', gap: 10 }}>
-        {draft.assertions.map((assertion, index) => (
-          <section
-            aria-label={`assertion ${index + 1}`}
-            key={assertion.id}
-            style={{
-              border: '1px solid var(--tt-border)',
-              display: 'grid',
-              gap: 8,
-              gridTemplateColumns: '140px minmax(0, 1fr) auto',
-              padding: 10,
-            }}
-          >
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span style={{ color: 'var(--tt-comment)', fontSize: 12 }}>type</span>
-              <select
-                aria-label={`assertion type ${index + 1}`}
-                onChange={(event) =>
-                  onUpdate(assertion.id, { kind: event.target.value as AssertionKind })
-                }
-                style={controlStyle}
-                value={assertion.kind}
-              >
-                <option value="judge">judge</option>
-                <option value="script">script</option>
-                <option value="diff">diff</option>
-              </select>
-            </label>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span
-                style={{
-                  alignItems: 'center',
-                  color: 'var(--tt-comment)',
-                  display: 'flex',
-                  fontSize: 12,
-                  gap: 8,
-                  justifyContent: 'space-between',
-                }}
-              >
-                editor
-                {env !== 'hosted' ? (
-                  <button
-                    disabled={pendingKey === `assertion:${assertion.id}`}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      handleSuggest(assertion.id, assertion.kind, index);
-                    }}
-                    style={{
-                      ...buttonStyle,
-                      borderColor: 'var(--tt-green)',
-                      color: 'var(--tt-green)',
-                      cursor: pendingKey === `assertion:${assertion.id}` ? 'wait' : 'pointer',
-                      padding: '5px 7px',
-                    }}
-                    type="button"
-                  >
-                    suggest
-                  </button>
-                ) : null}
-              </span>
-              <textarea
-                aria-label={`assertion editor ${index + 1}`}
-                onChange={(event) => onUpdate(assertion.id, { body: event.target.value })}
-                placeholder={assertionHints[assertion.kind]}
-                rows={3}
-                style={{
-                  ...controlStyle,
-                  lineHeight: 1.5,
-                  minWidth: 0,
-                  resize: 'vertical',
-                  width: '100%',
-                }}
-                value={assertion.body}
-              />
-            </label>
-            <button
-              onClick={() => onRemove(assertion.id)}
-              type="button"
-              style={{ ...buttonStyle, alignSelf: 'end' }}
-            >
-              remove
-            </button>
-          </section>
-        ))}
-      </div>
-
-      {error ? (
-        <span role="alert" style={{ color: 'var(--tt-red)', fontSize: 13 }}>
-          {error}
+    <div aria-label="assertion examples" style={legendBoxStyle}>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <span style={{ color: 'var(--tt-green)', flex: 'none', fontWeight: 700, width: 20 }}>✓</span>
+        <span style={{ color: 'var(--tt-comment)' }}>
+          "the workflow triggers on pull_request" — one observable claim, checkable the same way
+          twice
         </span>
-      ) : null}
+      </div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <span style={{ color: 'var(--tt-red)', flex: 'none', fontWeight: 700, width: 20 }}>✗</span>
+        <span style={{ color: 'var(--tt-comment)' }}>
+          "the output is good" — too vague to grade; "says exactly: setup complete" — too
+          brittle, fails a correct paraphrase
+        </span>
+      </div>
+    </div>
 
-      <button
-        onClick={onAdd}
-        type="button"
-        style={{
-          ...buttonStyle,
-          borderStyle: 'dashed',
-          justifySelf: 'start',
-        }}
-      >
-        add assertion
-      </button>
-    </Column>
-  );
-};
+    {draft.behaviors.map((behavior) => (
+      <div key={behavior.id} style={cardStyle}>
+        <div style={{ alignItems: 'center', display: 'flex', gap: 8, marginBottom: 10 }}>
+          <span
+            aria-hidden="true"
+            style={{
+              background: dimensionColors[behavior.dim],
+              borderRadius: '50%',
+              flex: 'none',
+              height: 7,
+              width: 7,
+            }}
+          />
+          <span style={{ color: 'var(--tt-fg-dark)', fontSize: 12.5 }}>
+            {behavior.text || '(unnamed behavior)'}
+          </span>
+        </div>
+
+        {behavior.asserts.length === 0 ? (
+          <div style={{ color: 'var(--tt-comment)', fontSize: 12, padding: '4px 0 10px' }}>
+            no checks yet — add one below.
+          </div>
+        ) : null}
+
+        {behavior.asserts.map((assertion, index) => (
+          <div
+            key={`${assertion.kind}-${index}`}
+            style={{ alignItems: 'center', display: 'flex', gap: 9, marginBottom: 7 }}
+          >
+            <span
+              style={{
+                color: assertionKindColor(assertion.kind),
+                flex: 'none',
+                fontSize: 11.5,
+                width: 88,
+              }}
+            >
+              {assertion.kind}
+            </span>
+            <input
+              aria-label={`${assertion.kind} assertion`}
+              onChange={(event) => onSetAssertionValue(behavior.id, index, event.target.value)}
+              placeholder={assertionPlaceholder(assertion.kind)}
+              value={assertion.val}
+              style={{ ...inputStyle, flex: 1, fontSize: 12.5, minWidth: 0, padding: '7px 10px' }}
+            />
+            <button
+              aria-label="remove assertion"
+              onClick={() => onRemoveAssertion(behavior.id, index)}
+              style={{ ...removeGlyphStyle, fontSize: 15 }}
+              type="button"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+          {assertionKinds.map((kind) => (
+            <button
+              key={kind}
+              onClick={() => onAddAssertion(behavior.id, kind)}
+              type="button"
+              style={{
+                background: 'transparent',
+                border: '1px dashed var(--tt-border)',
+                borderRadius: 5,
+                color: assertionKindColor(kind),
+                cursor: 'pointer',
+                fontSize: 11,
+                padding: '3px 9px',
+              }}
+            >
+              ＋ {kind}
+            </button>
+          ))}
+        </div>
+      </div>
+    ))}
+  </div>
+);

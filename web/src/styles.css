@@ -1,25 +1,14 @@
 @import "@arc-skill-eval/tokens/web-theme.css";
 
-@theme {
-  --color-bg: var(--tt-bg);
-  --color-bg-dark: var(--tt-bg-dark);
-  --color-bg-hi: var(--tt-bg-hi);
-  --color-fg: var(--tt-fg);
-  --color-fg-dark: var(--tt-fg-dark);
-  --color-comment: var(--tt-comment);
-  --color-blue: var(--tt-blue);
-  --color-cyan: var(--tt-cyan);
-  --color-green: var(--tt-green);
-  --color-magenta: var(--tt-magenta);
-  --color-red: var(--tt-red);
-  --color-orange: var(--tt-orange);
-  --color-yellow: var(--tt-yellow);
-  --color-teal: var(--tt-teal);
-  --color-selection: var(--tt-selection);
-  --color-border: var(--tt-border);
-  --color-border-active: var(--tt-border-active);
-  --color-dim: var(--tt-dim);
-}
+/*
+ * The web app hand-rolls all CSS classes (no Tailwind utility classes are
+ * used in src/), so we do NOT register the tokens here via @theme. Tailwind
+ * v4's @theme directive only generates utility classes; the runtime CSS
+ * variables come from the @arc-skill-eval/tokens package above.
+ *
+ * Visuals follow the design prototype:
+ * docs/Arc skill eval web design/arc-skill-eval-app.dc.html
+ */
 
 * {
   box-sizing: border-box;
@@ -28,7 +17,7 @@
 html,
 body,
 #root {
-  min-height: 100%;
+  height: 100%;
 }
 
 body {
@@ -36,136 +25,221 @@ body {
   background: var(--tt-bg);
   color: var(--tt-fg);
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+    "JetBrains Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+    monospace;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  overflow-x: auto;
 }
 
-button {
+a {
+  color: var(--tt-blue);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--tt-cyan);
+}
+
+button,
+input,
+textarea,
+select {
   font: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--tt-border);
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .app-shell {
   background: var(--tt-bg);
   color: var(--tt-fg);
   display: grid;
-  grid-template-rows: 50px 25px minmax(0, 1fr) 25px;
-  min-height: 100vh;
+  grid-template-rows: 50px minmax(0, 1fr) 25px;
+  height: 100vh;
+  min-width: 1140px;
+  overflow: hidden;
 }
+
+/* ============ header ============ */
 
 .global-header {
   align-items: center;
   background: var(--tt-bg-dark);
   border-bottom: 1px solid var(--tt-border);
   display: flex;
-  gap: 16px;
+  gap: 14px;
   height: 50px;
-  justify-content: space-between;
   padding: 0 16px;
 }
 
 .brand-lockup {
+  align-items: center;
   color: var(--tt-fg);
-  font-size: 14px;
+  display: flex;
+  flex: none;
+  font-size: 15px;
   font-weight: 700;
+  gap: 10px;
   line-height: 1;
   white-space: nowrap;
 }
 
-.theme-control {
+.brand-lockup__glyph {
   align-items: center;
-  border: 1px solid var(--tt-border);
-  display: grid;
-  grid-template-columns: repeat(3, minmax(72px, 1fr));
-  height: 30px;
-  overflow: hidden;
+  background: var(--tt-teal);
+  border-radius: 5px;
+  color: var(--tt-bg-dark);
+  display: inline-flex;
+  flex: none;
+  font-size: 12px;
+  font-weight: 800;
+  height: 20px;
+  justify-content: center;
+  width: 20px;
 }
 
-.theme-control__option {
-  background: var(--tt-bg);
-  border: 0;
-  border-left: 1px solid var(--tt-border);
-  color: var(--tt-fg-dark);
-  cursor: pointer;
-  height: 100%;
-  line-height: 1;
-  padding: 0 10px;
+.global-header__divider {
+  background: var(--tt-border);
+  flex: none;
+  height: 22px;
+  width: 1px;
 }
 
-.theme-control__option:first-child {
-  border-left: 0;
-}
-
-.theme-control__option:hover,
-.theme-control__option:focus-visible {
-  background: var(--tt-bg-hi);
-  color: var(--tt-fg);
-  outline: 2px solid var(--tt-border-active);
-  outline-offset: -2px;
-}
-
-.theme-control__option[data-active="true"] {
-  background: var(--tt-selection);
-  color: var(--tt-fg);
+.global-header__spacer {
+  flex: 1;
 }
 
 .section-nav {
-  align-items: stretch;
-  background: var(--tt-bg);
-  border-bottom: 1px solid var(--tt-border);
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  height: 25px;
+  display: flex;
+  gap: 18px;
+  height: 50px;
 }
 
 .section-nav__tab {
   align-items: center;
   background: transparent;
   border: 0;
-  border-right: 1px solid var(--tt-border);
-  color: var(--tt-fg-dark);
+  border-bottom: 2px solid transparent;
+  color: var(--tt-comment);
   cursor: pointer;
   display: inline-flex;
-  font-size: 12px;
-  gap: 6px;
-  justify-content: center;
+  font-size: 13px;
   line-height: 1;
-  min-width: 0;
-  padding: 0 8px;
+  padding: 0;
   text-transform: lowercase;
-}
-
-.section-nav__tab:last-child {
-  border-right: 0;
-}
-
-.section-nav__tab span {
-  color: var(--tt-yellow);
-  font-variant-numeric: tabular-nums;
 }
 
 .section-nav__tab:hover,
 .section-nav__tab:focus-visible {
-  background: var(--tt-bg-hi);
   color: var(--tt-fg);
-  outline: 1px solid var(--tt-border-active);
-  outline-offset: -1px;
+  outline: none;
 }
 
 .section-nav__tab[data-active="true"] {
+  border-bottom-color: var(--tt-blue);
+  color: var(--tt-blue);
+  font-weight: 700;
+}
+
+.pill-toggle {
+  align-items: center;
+  border: 1px solid var(--tt-border);
+  border-radius: 7px;
+  display: flex;
+  flex: none;
+  gap: 4px;
+  padding: 3px;
+}
+
+.pill-toggle__option {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  color: var(--tt-comment);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 12px;
+  gap: 6px;
+  height: 22px;
+  line-height: 1;
+  padding: 0 9px;
+}
+
+.pill-toggle__option:hover,
+.pill-toggle__option:focus-visible {
+  color: var(--tt-fg);
+  outline: none;
+}
+
+.pill-toggle__option[data-active="true"] {
   background: var(--tt-selection);
   color: var(--tt-fg);
 }
 
+.pill-toggle__dot {
+  border-radius: 50%;
+  flex: none;
+  height: 9px;
+  width: 9px;
+}
+
+.install-chip {
+  align-items: center;
+  background: var(--tt-bg);
+  border: 1px solid var(--tt-border);
+  border-radius: 7px;
+  color: var(--tt-fg-dark);
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  font-size: 13px;
+  gap: 8px;
+  height: 30px;
+  line-height: 1;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.install-chip__prompt {
+  color: var(--tt-green);
+}
+
+.install-chip__status {
+  color: var(--tt-comment);
+  font-size: 12px;
+}
+
+.install-chip__status[data-copied="true"] {
+  color: var(--tt-green);
+}
+
+/* ============ main ============ */
+
 .app-main {
   min-height: 0;
-  padding: 20px;
+  overflow: auto;
+  padding: 16px;
 }
 
 .workspace-shell {
   align-content: start;
   background: var(--tt-bg-dark);
   border: 1px solid var(--tt-border);
+  border-radius: 8px;
   display: grid;
   gap: 14px;
   min-height: 260px;
@@ -192,6 +266,8 @@ button {
   max-width: 64ch;
 }
 
+/* ============ status bar ============ */
+
 .status-bar {
   align-items: center;
   background: var(--tt-bg-dark);
@@ -199,53 +275,51 @@ button {
   color: var(--tt-fg-dark);
   display: flex;
   font-size: 12px;
-  gap: 8px;
+  gap: 14px;
   height: 25px;
-  padding: 0 12px;
+  padding: 0 14px;
+  white-space: nowrap;
 }
 
-.status-bar__indicator {
-  background: var(--tt-green);
-  display: inline-block;
-  height: 8px;
-  width: 8px;
+.status-bar__section {
+  color: var(--tt-blue);
+  font-weight: 700;
+}
+
+.status-bar__hint-key {
+  color: var(--tt-yellow);
+}
+
+.status-bar__hint-label {
+  color: var(--tt-comment);
 }
 
 .status-bar__spacer {
   flex: 1;
 }
 
+.status-bar__model {
+  color: var(--tt-comment);
+}
+
+.status-bar__judge {
+  color: var(--tt-magenta);
+}
+
 .status-bar__reset {
   background: transparent;
   border: 0;
-  color: var(--tt-yellow);
+  color: var(--tt-comment);
   cursor: pointer;
   font-size: 12px;
   line-height: 1;
   padding: 0;
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 
 .status-bar__reset:hover,
 .status-bar__reset:focus-visible {
-  color: var(--tt-fg);
-  outline: 1px solid var(--tt-border-active);
-  outline-offset: 2px;
-}
-
-@media (max-width: 600px) {
-  .global-header {
-    gap: 8px;
-    padding: 0 8px;
-  }
-
-  .theme-control {
-    grid-template-columns: repeat(3, minmax(52px, 1fr));
-  }
-
-  .theme-control__option,
-  .section-nav__tab {
-    padding: 0 6px;
-  }
+  color: var(--tt-yellow);
+  outline: none;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }

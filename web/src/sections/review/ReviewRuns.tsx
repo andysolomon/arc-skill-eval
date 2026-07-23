@@ -1,4 +1,3 @@
-import { RunCard, type RunSummary } from '@/components/primitives';
 import type { ReviewRun } from './useReviewData';
 
 type ReviewRunsProps = {
@@ -17,81 +16,128 @@ const formatFinishedAt = (value: string) => {
 
   const minutes = Math.max(1, Math.round(deltaMs / 60000));
   if (minutes < 60) {
-    return `${minutes}m`;
+    return `${minutes}m ago`;
   }
 
   const hours = Math.round(minutes / 60);
   if (hours < 48) {
-    return `${hours}h`;
+    return `${hours}h ago`;
   }
 
-  return `${Math.round(hours / 24)}d`;
+  return `${Math.round(hours / 24)}d ago`;
 };
 
-const countCases = (run: ReviewRun): RunSummary['counts'] => ({
-  pass: run.cases.filter((testCase) => testCase.status === 'pass').length,
-  fail: run.cases.filter((testCase) => testCase.status === 'fail').length,
-  timeout: run.cases.filter((testCase) => testCase.status === 'timeout').length,
-});
-
-const toRunCard = (run: ReviewRun): RunSummary => {
-  const counts = countCases(run);
-  const status =
-    run.status === 'fail' || counts.fail > 0
-      ? 'fail'
-      : run.status === 'timeout' || counts.timeout > 0
-        ? 'timeout'
-        : run.status === 'partial'
-          ? 'partial'
-          : 'pass';
-
-  return {
-    runId: run.id.slice(0, 6),
-    skillName: run.skill,
-    finishedAt: formatFinishedAt(run.finishedAt),
-    status,
-    counts,
-  };
-};
+const rateColor = (passed: number, total: number) =>
+  total > 0 && passed >= total
+    ? 'var(--tt-green)'
+    : passed <= 0
+      ? 'var(--tt-red)'
+      : 'var(--tt-orange)';
 
 export const ReviewRuns = ({ runs, selectedRunId, onSelectRun }: ReviewRunsProps) => (
   <aside
     aria-label="Review runs"
-    style={{ display: 'grid', gap: 12, width: 250 }}
+    style={{
+      border: '1px solid var(--tt-border)',
+      borderRadius: 8,
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      width: 250,
+    }}
   >
-    {runs.map((run) => {
-      const selected = run.id === selectedRunId;
+    <div
+      style={{
+        background: 'var(--tt-bg-dark)',
+        borderBottom: '1px solid var(--tt-border)',
+        color: 'var(--tt-fg-dark)',
+        fontSize: 12,
+        fontWeight: 700,
+        padding: '6px 12px',
+      }}
+    >
+      runs
+    </div>
+    <div style={{ overflow: 'auto', padding: '6px 0' }}>
+      {runs.map((run) => {
+        const selected = run.id === selectedRunId;
+        const passed = run.cases.filter((testCase) => testCase.status === 'pass').length;
+        const total = run.cases.length;
+        const ok = (run.exitCode ?? (run.status === 'fail' ? 1 : 0)) === 0;
 
-      return (
-        <div
-          aria-label={`select run ${run.id}`}
-          aria-pressed={selected}
-          key={run.id}
-          onClick={() => onSelectRun(run.id)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              onSelectRun(run.id);
-            }
-          }}
-          role="button"
-          tabIndex={0}
-          title={run.finishedAt}
-          style={{
-            border: selected ? '1px solid var(--tt-border-active)' : '1px solid transparent',
-            cursor: 'pointer',
-            display: 'grid',
-            gridTemplateColumns: selected ? '4px minmax(0, 1fr)' : '0 minmax(0, 1fr)',
-            minWidth: 0,
-          }}
-        >
-          <span
-            aria-hidden="true"
-            style={{ background: selected ? 'var(--tt-yellow)' : 'transparent' }}
-          />
-          <RunCard {...toRunCard(run)} />
-        </div>
-      );
-    })}
+        return (
+          <div
+            aria-label={`select run ${run.id}`}
+            aria-pressed={selected}
+            key={run.id}
+            onClick={() => onSelectRun(run.id)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onSelectRun(run.id);
+              }
+            }}
+            role="button"
+            tabIndex={0}
+            title={run.finishedAt}
+            style={{
+              background: selected ? 'var(--tt-selection)' : 'transparent',
+              borderLeft: `2px solid ${selected ? 'var(--tt-blue)' : 'transparent'}`,
+              cursor: 'pointer',
+              padding: '8px 12px',
+            }}
+          >
+            <div style={{ alignItems: 'center', display: 'flex', gap: 7 }}>
+              <span
+                aria-hidden="true"
+                style={{
+                  background: ok ? 'var(--tt-green)' : 'var(--tt-red)',
+                  borderRadius: '50%',
+                  height: 7,
+                  width: 7,
+                }}
+              />
+              <span
+                style={{
+                  color: 'var(--tt-yellow)',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {run.id.slice(0, 12)}
+              </span>
+            </div>
+            <div
+              style={{
+                color: 'var(--tt-comment)',
+                fontSize: 11,
+                marginTop: 3,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {run.skill} · {formatFinishedAt(run.finishedAt)}
+            </div>
+            <div style={{ display: 'flex', fontSize: 12, gap: 10, marginTop: 4 }}>
+              <span style={{ color: rateColor(passed, total) }}>
+                {passed}/{total}
+              </span>
+              {typeof run.cost === 'number' ? (
+                <span style={{ color: 'var(--tt-green)' }}>${run.cost.toFixed(2)}</span>
+              ) : null}
+              {typeof run.exitCode === 'number' ? (
+                <span style={{ color: ok ? 'var(--tt-green)' : 'var(--tt-red)' }}>
+                  exit {run.exitCode}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   </aside>
 );

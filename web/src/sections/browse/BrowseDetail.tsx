@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { Column, Kicker } from '@/components/primitives';
 import { Diff } from './tabs/Diff';
 import { Overview } from './tabs/Overview';
 import { Raw } from './tabs/Raw';
@@ -50,101 +49,106 @@ export const BrowseDetail = ({ run, testCase, workspaceRoot }: BrowseDetailProps
     <section
       aria-label="Detail Pane"
       style={{
-        background: 'var(--tt-bg-dark)',
-        border: '1px solid var(--tt-border)',
-        color: 'var(--tt-fg)',
+        border: '1px solid var(--tt-border-active)',
+        borderRadius: 8,
+        display: 'flex',
+        flex: 1,
+        flexDirection: 'column',
         minHeight: 0,
         minWidth: 0,
         overflow: 'hidden',
       }}
     >
-      <Column gap={4}>
-        <header
+      <header
+        style={{
+          alignItems: 'center',
+          background: 'var(--tt-bg-dark)',
+          borderBottom: '1px solid var(--tt-border)',
+          display: 'flex',
+          gap: 12,
+          padding: '7px 16px',
+        }}
+      >
+        <h1
           style={{
-            borderBottom: '1px solid var(--tt-border)',
-            display: 'grid',
-            gap: 12,
-            padding: 14,
+            color: 'var(--tt-fg)',
+            fontSize: 14,
+            fontWeight: 700,
+            margin: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
           }}
         >
-          <div style={{ alignItems: 'start', display: 'flex', gap: 12, justifyContent: 'space-between' }}>
-            <div style={{ display: 'grid', gap: 6, minWidth: 0 }}>
-              <Kicker>detail pane</Kicker>
-              <h1
-                style={{
-                  fontSize: 22,
-                  lineHeight: 1.15,
-                  margin: 0,
-                  overflowWrap: 'anywhere',
-                }}
-              >
-                {testCase.id}
-              </h1>
-            </div>
-            <span
-              style={{
-                border: '1px solid var(--tt-border)',
-                color: 'var(--tt-comment)',
-                flex: '0 0 auto',
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-                fontSize: 11,
-                padding: '4px 7px',
-              }}
-            >
-              {run.id}
-            </span>
-          </div>
-
-          {run.compare ? (
-            <div aria-label="variant switch" style={{ display: 'inline-flex', justifySelf: 'start' }}>
-              {variants.map((nextVariant) => (
-                <button
-                  data-active={variant === nextVariant}
-                  key={nextVariant}
-                  onClick={() => setVariant(nextVariant)}
-                  type="button"
-                  style={{
-                    background: variant === nextVariant ? 'var(--tt-selection)' : 'var(--tt-bg)',
-                    border: '1px solid var(--tt-border)',
-                    color: variant === nextVariant ? 'var(--tt-fg)' : 'var(--tt-fg-dark)',
-                    cursor: 'pointer',
-                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-                    fontSize: 12,
-                    padding: '7px 10px',
-                  }}
-                >
-                  {nextVariant}
-                </button>
-              ))}
-            </div>
-          ) : null}
-
-          <nav aria-label="Mode Tabs" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {tabs.map((tab) => (
+          {testCase.id}
+        </h1>
+        {run.compare ? (
+          <div
+            aria-label="variant switch"
+            style={{ display: 'inline-flex', gap: 4 }}
+          >
+            {variants.map((nextVariant) => (
               <button
-                aria-current={activeTab === tab.id ? 'page' : undefined}
-                data-active={activeTab === tab.id}
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                data-active={variant === nextVariant}
+                key={nextVariant}
+                onClick={() => setVariant(nextVariant)}
                 type="button"
                 style={{
-                  background: activeTab === tab.id ? 'var(--tt-selection)' : 'var(--tt-bg)',
-                  border: '1px solid var(--tt-border)',
-                  color: activeTab === tab.id ? 'var(--tt-cyan)' : 'var(--tt-fg-dark)',
+                  background: variant === nextVariant ? 'var(--tt-selection)' : 'transparent',
+                  border: 0,
+                  borderRadius: 5,
+                  color:
+                    variant === nextVariant
+                      ? nextVariant === 'with_skill'
+                        ? 'var(--tt-green)'
+                        : 'var(--tt-orange)'
+                      : 'var(--tt-comment)',
                   cursor: 'pointer',
-                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-                  fontSize: 12,
-                  fontWeight: activeTab === tab.id ? 700 : 400,
-                  padding: '7px 9px',
+                  fontSize: 11,
+                  padding: '3px 8px',
                 }}
               >
-                {tab.label}
+                {nextVariant}
               </button>
             ))}
-          </nav>
-        </header>
-        <div style={{ minHeight: 0, minWidth: 0, overflow: 'auto', padding: 14 }}>{activeSurface}</div>
-      </Column>
+          </div>
+        ) : null}
+        <span style={{ flex: 1 }} />
+        <nav aria-label="Mode Tabs" style={{ display: 'flex', gap: 14 }}>
+          {tabs.map((tab) => (
+            <button
+              aria-current={activeTab === tab.id ? 'page' : undefined}
+              data-active={activeTab === tab.id}
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              type="button"
+              style={{
+                background: 'transparent',
+                border: 0,
+                color: activeTab === tab.id ? 'var(--tt-blue)' : 'var(--tt-comment)',
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: activeTab === tab.id ? 700 : 400,
+                padding: 0,
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </header>
+      <div
+        style={{
+          flex: 1,
+          lineHeight: 1.55,
+          minHeight: 0,
+          minWidth: 0,
+          overflow: 'auto',
+          padding: '16px 20px',
+        }}
+      >
+        {activeSurface}
+      </div>
     </section>
   );
 };

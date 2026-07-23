@@ -1,216 +1,173 @@
-import { Column, Kicker } from '@/components/primitives';
-import { useGenerateEvals } from './useGenerateEvals';
-import type { CreateDraft } from './useDraft';
+import type { EnvName } from '@/persistence/preferences';
+import {
+  dimensionColors,
+  dimensions,
+  type BehaviorRow,
+  type CreateDraft,
+} from './useDraft';
+import { cardStyle, inputStyle, kickerStyle, legendBoxStyle, introStyle, removeGlyphStyle, titleStyle } from './stepStyles';
 
 type StepListBehaviorsProps = {
   draft: CreateDraft;
-  env: 'hosted' | 'localhost';
-  onChange: (patch: Partial<CreateDraft>) => void;
+  env: EnvName;
+  onAddBehavior: () => void;
+  onRemoveBehavior: (id: string) => void;
+  onSkill: (skill: string) => void;
+  onUpdateBehavior: (id: string, patch: Partial<Omit<BehaviorRow, 'id'>>) => void;
 };
 
-const fieldStyle = {
-  background: 'var(--tt-bg-dark)',
-  border: '1px solid var(--tt-border)',
-  color: 'var(--tt-fg)',
-  font: 'inherit',
-  minWidth: 0,
-  outlineColor: 'var(--tt-border-active)',
-  padding: '8px 10px',
-  width: '100%',
-};
+const dimensionLegend: Array<{ dim: string; copy: string }> = [
+  { dim: 'outcome', copy: "the task completes and the right artifact exists — the one you can't skip" },
+  { dim: 'process', copy: 'it triggered the skill and took the intended steps, not a lucky shortcut' },
+  { dim: 'style', copy: 'the output follows the conventions the skill promises' },
+  { dim: 'efficiency', copy: 'it got there without thrashing — tool calls and tokens in bounds' },
+];
 
-const parseBehaviorBullets = (value: string): string[] =>
-  value
-    .split(/\r?\n/)
-    .map((line) => line.replace(/^[-*]\s*/, '').trim())
-    .filter(Boolean);
+export const StepListBehaviors = ({
+  draft,
+  env,
+  onAddBehavior,
+  onRemoveBehavior,
+  onSkill,
+  onUpdateBehavior,
+}: StepListBehaviorsProps) => (
+  <div>
+    <div style={kickerStyle}>step 01</div>
+    <h1 style={titleStyle}>List the behaviors that matter</h1>
+    <p style={introStyle}>
+      start from what the skill promises. write each must-pass behavior in plain language, and
+      tag the dimension it lives in. you'll turn these into test cases next — no eval syntax
+      yet.
+    </p>
 
-const formatBehaviorBullets = (behaviors: string[]) =>
-  behaviors.map((behavior) => `- ${behavior}`).join('\n');
+    <div aria-label="behavior dimensions" style={legendBoxStyle}>
+      {dimensionLegend.map((entry) => (
+        <div key={entry.dim} style={{ display: 'flex', gap: 10 }}>
+          <span
+            style={{
+              color: dimensionColors[entry.dim as keyof typeof dimensionColors],
+              flex: 'none',
+              fontWeight: 700,
+              width: 76,
+            }}
+          >
+            {entry.dim}
+          </span>
+          <span style={{ color: 'var(--tt-comment)' }}>{entry.copy}</span>
+        </div>
+      ))}
+    </div>
 
-const appendBehaviors = (currentValue: string, generated: string[]) => {
-  const current = parseBehaviorBullets(currentValue);
-  const next = [...current];
+    <div style={{ alignItems: 'center', display: 'flex', gap: 10, marginBottom: 22 }}>
+      <span style={{ color: 'var(--tt-comment)', fontSize: 12 }}>skill</span>
+      <span style={{ color: 'var(--tt-teal)', fontSize: 13 }}>./skills/</span>
+      <input
+        aria-label="skill name"
+        onChange={(event) => onSkill(event.target.value)}
+        style={{ ...inputStyle, flex: 1 }}
+        value={draft.skill}
+      />
+    </div>
 
-  generated.forEach((behavior) => {
-    if (!next.includes(behavior)) {
-      next.push(behavior);
-    }
-  });
+    <div
+      style={{
+        color: 'var(--tt-cyan)',
+        fontSize: 11,
+        fontWeight: 700,
+        letterSpacing: '.05em',
+        marginBottom: 10,
+        textTransform: 'uppercase',
+      }}
+    >
+      behaviors
+    </div>
 
-  return formatBehaviorBullets(next);
-};
+    {draft.behaviors.map((behavior) => (
+      <div key={behavior.id} style={{ ...cardStyle, marginBottom: 10 }}>
+        <div style={{ alignItems: 'center', display: 'flex', gap: 10, marginBottom: 10 }}>
+          <input
+            aria-label="behavior description"
+            onChange={(event) => onUpdateBehavior(behavior.id, { text: event.target.value })}
+            placeholder="e.g. configures semantic-release with the conventional preset"
+            style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+            value={behavior.text}
+          />
+          {draft.behaviors.length > 1 ? (
+            <button
+              aria-label="remove behavior"
+              onClick={() => onRemoveBehavior(behavior.id)}
+              style={removeGlyphStyle}
+              type="button"
+            >
+              ×
+            </button>
+          ) : null}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {dimensions.map((dim) => {
+            const active = behavior.dim === dim;
+            const color = dimensionColors[dim];
 
-export const StepListBehaviors = ({ draft, env, onChange }: StepListBehaviorsProps) => {
-  const { error, generateEvals, isGenerating } = useGenerateEvals();
-
-  const handleGenerate = () => {
-    const behaviors = parseBehaviorBullets(draft.behaviorBullets);
-
-    void generateEvals({ workspaceRoot: draft.skillPath, behaviors })
-      .then((result) => {
-        if (result.behaviors.length > 0) {
-          onChange({ behaviorBullets: appendBehaviors(draft.behaviorBullets, result.behaviors) });
-        }
-      })
-      .catch(() => undefined);
-  };
-
-  return (
-    <Column gap={4}>
-      <Kicker>step 01</Kicker>
-      <div style={{ display: 'grid', gap: 8 }}>
-        <h1 style={{ fontSize: 20, lineHeight: 1.2, margin: 0 }}>
-          list the behaviors that matter
-        </h1>
-        <p style={{ color: 'var(--tt-fg-dark)', lineHeight: 1.5, margin: 0 }}>
-          Capture one behavior per line. These become the descriptions and ids in the draft suite.
-        </p>
+            return (
+              <button
+                aria-pressed={active}
+                key={dim}
+                onClick={() => onUpdateBehavior(behavior.id, { dim })}
+                type="button"
+                style={{
+                  background: active ? color : 'transparent',
+                  border: `1px solid ${color}`,
+                  borderRadius: 5,
+                  color: active ? 'var(--tt-bg-dark)' : color,
+                  cursor: 'pointer',
+                  fontSize: 11.5,
+                  padding: '3px 10px',
+                }}
+              >
+                {dim}
+              </button>
+            );
+          })}
+        </div>
       </div>
+    ))}
 
-      <label style={{ display: 'grid', gap: 6 }}>
-        <span style={{ color: 'var(--tt-comment)', fontSize: 12 }}>skill path</span>
-        <input
-          aria-label="skill path"
-          onChange={(event) => onChange({ skillPath: event.target.value })}
-          style={fieldStyle}
-          value={draft.skillPath}
-        />
-      </label>
-
-      <label style={{ display: 'grid', gap: 6 }}>
-        <span style={{ color: 'var(--tt-comment)', fontSize: 12 }}>skill name</span>
-        <input
-          aria-label="skill name"
-          onChange={(event) => onChange({ skillName: event.target.value })}
-          style={fieldStyle}
-          value={draft.skillName}
-        />
-      </label>
-
+    {draft.behaviors.length === 0 ? (
       <div
-        aria-label="behavior dimensions"
         style={{
-          border: '1px solid var(--tt-border)',
-          color: 'var(--tt-fg-dark)',
-          display: 'grid',
-          fontSize: 13,
-          gap: 6,
-          padding: 10,
+          border: '1px dashed var(--tt-border)',
+          borderRadius: 8,
+          color: 'var(--tt-comment)',
+          fontSize: 12.5,
+          lineHeight: 1.55,
+          marginBottom: 10,
+          padding: 16,
+          textAlign: 'center',
         }}
       >
-        <span>
-          <strong style={{ color: 'var(--tt-cyan)' }}>outcome</strong> pass/fail observations
-        </span>
-        <span>
-          <strong style={{ color: 'var(--tt-green)' }}>process</strong> tools, skills, and steps taken
-        </span>
-        <span>
-          <strong style={{ color: 'var(--tt-magenta)' }}>style</strong> formatting, tone, and structure
-        </span>
-        <span>
-          <strong style={{ color: 'var(--tt-yellow)' }}>efficiency</strong> time and tool budget
-        </span>
+        no behaviors yet —{' '}
+        {env === 'localhost' ? 'generate from a skill above, or ' : ''}
+        add your first below.
       </div>
+    ) : null}
 
-      <label style={{ display: 'grid', gap: 6 }}>
-        <span style={{ color: 'var(--tt-comment)', fontSize: 12 }}>behavior bullets</span>
-        <textarea
-          aria-label="behavior bullets"
-          onChange={(event) => onChange({ behaviorBullets: event.target.value })}
-          placeholder="- asks before destructive git operations"
-          rows={8}
-          style={{ ...fieldStyle, lineHeight: 1.5, resize: 'vertical' }}
-          value={draft.behaviorBullets}
-        />
-      </label>
-
-      {env === 'hosted' ? (
-        <section
-          aria-label="hosted generate evals note"
-          data-env={env}
-          style={{
-            background: 'var(--tt-bg-dark)',
-            border: '1px solid var(--tt-cyan)',
-            borderLeft: '4px solid var(--tt-cyan)',
-            display: 'grid',
-            gap: 10,
-            padding: 12,
-          }}
-        >
-          <p style={{ color: 'var(--tt-fg)', margin: 0 }}>
-            You're on hosted - generate-evals lives in the localhost daemon.
-          </p>
-          <button
-            aria-disabled="true"
-            disabled
-            type="button"
-            style={{
-              background: 'var(--tt-selection)',
-              border: '1px solid var(--tt-border)',
-              color: 'var(--tt-comment)',
-              cursor: 'not-allowed',
-              justifySelf: 'start',
-              padding: '8px 10px',
-            }}
-          >
-            generate evals unavailable
-          </button>
-        </section>
-      ) : (
-        <section
-          aria-label="localhost generate starter evals"
-          data-env={env}
-          style={{
-            background: 'var(--tt-bg-dark)',
-            border: '1px solid var(--tt-green)',
-            borderLeft: '4px solid var(--tt-green)',
-            display: 'grid',
-            gap: 10,
-            padding: 12,
-          }}
-        >
-          <p style={{ color: 'var(--tt-fg)', margin: 0 }}>
-            Generate starter evals from the selected local workspace.
-          </p>
-          <div
-            aria-label="selected skill workspace"
-            style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}
-          >
-            <span
-              style={{
-                border: '1px solid var(--tt-border)',
-                color: 'var(--tt-green)',
-                fontSize: 12,
-                padding: '3px 6px',
-              }}
-            >
-              {draft.skillPath || '<workspace picker>'}
-            </span>
-          </div>
-          <button
-            disabled={isGenerating}
-            onClick={handleGenerate}
-            type="button"
-            style={{
-              background: isGenerating ? 'var(--tt-selection)' : 'var(--tt-green)',
-              border: '1px solid var(--tt-border-active)',
-              color: isGenerating ? 'var(--tt-comment)' : 'var(--tt-bg)',
-              cursor: isGenerating ? 'wait' : 'pointer',
-              fontWeight: 700,
-              justifySelf: 'start',
-              padding: '8px 10px',
-            }}
-          >
-            {isGenerating ? 'generating' : 'generate evals'}
-          </button>
-          {error ? (
-            <span role="alert" style={{ color: 'var(--tt-red)', fontSize: 13 }}>
-              {error}
-            </span>
-          ) : null}
-        </section>
-      )}
-    </Column>
-  );
-};
+    <button
+      onClick={onAddBehavior}
+      type="button"
+      style={{
+        alignItems: 'center',
+        background: 'transparent',
+        border: '1px dashed var(--tt-border)',
+        borderRadius: 7,
+        color: 'var(--tt-fg-dark)',
+        cursor: 'pointer',
+        display: 'inline-flex',
+        fontSize: 12.5,
+        gap: 7,
+        padding: '8px 13px',
+      }}
+    >
+      ＋ add behavior
+    </button>
+  </div>
+);

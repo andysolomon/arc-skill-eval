@@ -1,188 +1,173 @@
-import { Column, EmptyState, Kicker } from '@/components/primitives';
+import type { EnvName } from '@/persistence/preferences';
 import { useSuggest } from './useSuggest';
-import type { CreateDraft } from './useDraft';
+import {
+  dimensionColors,
+  flavorColors,
+  flavors,
+  suggestPromptTemplate,
+  type BehaviorRow,
+  type CreateDraft,
+} from './useDraft';
+import { cardStyle, inputStyle, kickerStyle, legendBoxStyle, introStyle, titleStyle } from './stepStyles';
 
 type StepPromptsProps = {
-  behaviorCount: number;
   draft: CreateDraft;
-  env: 'hosted' | 'localhost';
-  onAdd: () => void;
-  onGoToBehaviors: () => void;
-  onRemove: (id: string) => void;
-  onUpdate: (id: string, text: string) => void;
+  env: EnvName;
+  onUpdateBehavior: (id: string, patch: Partial<Omit<BehaviorRow, 'id'>>) => void;
+  workspaceRoot: string;
 };
 
-const buttonStyle = {
-  background: 'var(--tt-bg-dark)',
-  border: '1px solid var(--tt-border)',
-  color: 'var(--tt-fg)',
-  cursor: 'pointer',
-  padding: '7px 9px',
-};
+const flavorLegend: Array<{ flavor: string; copy: string }> = [
+  { flavor: 'explicit', copy: 'names the skill directly — your smoke test' },
+  {
+    flavor: 'implicit',
+    copy: 'describes the scenario without naming it — tests whether the description earns the trigger',
+  },
+  { flavor: 'contextual', copy: 'a noisy real-world ask with distractions — closest to production' },
+  {
+    flavor: 'adjacent-negative',
+    copy: 'a nearby request the skill must NOT fire for — catches false positives',
+  },
+];
 
-const parseBehaviorBullets = (value: string): string[] =>
-  value
-    .split(/\r?\n/)
-    .map((line) => line.replace(/^[-*]\s*/, '').trim())
-    .filter(Boolean);
-
-export const StepPrompts = ({
-  behaviorCount,
-  draft,
-  env,
-  onAdd,
-  onGoToBehaviors,
-  onRemove,
-  onUpdate,
-}: StepPromptsProps) => {
+export const StepPrompts = ({ draft, env, onUpdateBehavior, workspaceRoot }: StepPromptsProps) => {
   const { error, pendingKey, suggestPrompt } = useSuggest();
-  const behaviors = parseBehaviorBullets(draft.behaviorBullets);
 
-  const handleSuggest = (promptId: string, promptText: string, index: number) => {
-    const behavior = behaviors[index] ?? behaviors[0] ?? '';
+  const handleSuggest = (behavior: BehaviorRow) => {
+    const fallback = suggestPromptTemplate(draft.skill, behavior);
+
+    if (env !== 'localhost') {
+      onUpdateBehavior(behavior.id, { prompt: fallback });
+      return;
+    }
 
     void suggestPrompt({
-      behavior,
-      currentPrompt: promptText,
-      rowId: promptId,
-      workspaceRoot: draft.skillPath,
+      behavior: behavior.text,
+      currentPrompt: behavior.prompt,
+      rowId: behavior.id,
+      workspaceRoot,
     })
-      .then((suggestion) => onUpdate(promptId, suggestion))
-      .catch(() => undefined);
+      .then((suggestion) => onUpdateBehavior(behavior.id, { prompt: suggestion }))
+      .catch(() => onUpdateBehavior(behavior.id, { prompt: fallback }));
   };
 
   return (
-    <Column gap={4}>
-      <Kicker>step 02</Kicker>
-      <div style={{ display: 'grid', gap: 8 }}>
-        <h1 style={{ fontSize: 20, lineHeight: 1.2, margin: 0 }}>
-          turn behaviors into prompts
-        </h1>
-        <p style={{ color: 'var(--tt-fg-dark)', lineHeight: 1.5, margin: 0 }}>
-          Add the user prompts that should exercise the behaviors. Each filled row becomes one case.
-        </p>
-      </div>
+    <div>
+      <div style={kickerStyle}>step 02</div>
+      <h1 style={titleStyle}>Turn behaviors into prompts</h1>
+      <p style={introStyle}>
+        write the request a real user would send for each behavior. pick a flavor — it decides
+        how hard the trigger boundary is tested. stuck? hit{' '}
+        <span style={{ color: 'var(--tt-fg)' }}>suggest</span>.
+      </p>
 
-      {behaviorCount === 0 ? (
-        <EmptyState
-          title="No behaviors yet"
-          body="List at least one behavior before writing prompts."
-          action={{ label: 'edit behaviors', onClick: onGoToBehaviors }}
-        />
-      ) : null}
-
-      <div
-        aria-label="prompt flavor legend"
-        style={{
-          border: '1px solid var(--tt-border)',
-          color: 'var(--tt-fg-dark)',
-          display: 'grid',
-          fontSize: 13,
-          gap: 6,
-          padding: 10,
-        }}
-      >
-        <span>
-          <strong style={{ color: 'var(--tt-cyan)' }}>explicit</strong> includes the behavior directly
-        </span>
-        <span>
-          <strong style={{ color: 'var(--tt-green)' }}>implicit</strong> paraphrases the requirement
-        </span>
-        <span>
-          <strong style={{ color: 'var(--tt-magenta)' }}>contextual</strong> relies on setup context
-        </span>
-        <span>
-          <strong style={{ color: 'var(--tt-yellow)' }}>adjacent-negative</strong> guards against nearby mistakes
-        </span>
-      </div>
-
-      <div style={{ display: 'grid', gap: 10 }}>
-        {draft.prompts.map((prompt, index) => (
-          <section
-            aria-label={`prompt ${index + 1}`}
-            key={prompt.id}
-            style={{
-              border: '1px solid var(--tt-border)',
-              display: 'grid',
-              gap: 8,
-              padding: 10,
-            }}
-          >
-            <div
+      <div aria-label="prompt flavor legend" style={legendBoxStyle}>
+        {flavorLegend.map((entry) => (
+          <div key={entry.flavor} style={{ display: 'flex', gap: 10 }}>
+            <span
               style={{
-                alignItems: 'center',
-                display: 'flex',
-                gap: 8,
-                justifyContent: 'space-between',
+                color: flavorColors[entry.flavor as keyof typeof flavorColors],
+                flex: 'none',
+                fontWeight: 700,
+                width: 124,
               }}
             >
-              <span style={{ color: 'var(--tt-comment)', fontSize: 12 }}>
-                prompt {String(index + 1).padStart(2, '0')}
-              </span>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {env !== 'hosted' ? (
-                  <button
-                    disabled={pendingKey === `prompt:${prompt.id}`}
-                    onClick={() => handleSuggest(prompt.id, prompt.text, index)}
-                    style={{
-                      ...buttonStyle,
-                      borderColor: 'var(--tt-green)',
-                      color: 'var(--tt-green)',
-                      cursor: pendingKey === `prompt:${prompt.id}` ? 'wait' : 'pointer',
-                    }}
-                    type="button"
-                  >
-                    suggest
-                  </button>
-                ) : null}
-                <button onClick={() => onRemove(prompt.id)} style={buttonStyle} type="button">
-                  remove
-                </button>
-              </div>
-            </div>
-            <textarea
-              aria-label={`prompt body ${index + 1}`}
-              onChange={(event) => onUpdate(prompt.id, event.target.value)}
-              placeholder="Ask the agent to perform the task in a way that reveals the behavior."
-              rows={4}
-              style={{
-                background: 'var(--tt-bg-dark)',
-                border: '1px solid var(--tt-border)',
-                color: 'var(--tt-fg)',
-                font: 'inherit',
-                lineHeight: 1.5,
-                minWidth: 0,
-                outlineColor: 'var(--tt-border-active)',
-                padding: '8px 10px',
-                resize: 'vertical',
-                width: '100%',
-              }}
-              value={prompt.text}
-            />
-            <span style={{ color: 'var(--tt-comment)', fontSize: 12 }}>
-              {prompt.text.length} chars
+              {entry.flavor}
             </span>
-          </section>
+            <span style={{ color: 'var(--tt-comment)' }}>{entry.copy}</span>
+          </div>
         ))}
       </div>
+
+      {draft.behaviors.map((behavior) => (
+        <div key={behavior.id} style={cardStyle}>
+          <div style={{ alignItems: 'center', display: 'flex', gap: 8, marginBottom: 10 }}>
+            <span
+              aria-hidden="true"
+              style={{
+                background: dimensionColors[behavior.dim],
+                borderRadius: '50%',
+                flex: 'none',
+                height: 7,
+                width: 7,
+              }}
+            />
+            <span style={{ color: 'var(--tt-fg-dark)', fontSize: 12.5 }}>
+              {behavior.text || '(unnamed behavior)'}
+            </span>
+          </div>
+          <textarea
+            aria-label={`prompt for ${behavior.text || 'unnamed behavior'}`}
+            onChange={(event) => onUpdateBehavior(behavior.id, { prompt: event.target.value })}
+            placeholder="the user's request, in their words…"
+            value={behavior.prompt}
+            style={{
+              ...inputStyle,
+              height: 58,
+              lineHeight: 1.5,
+              padding: '9px 10px',
+              resize: 'none',
+              width: '100%',
+            }}
+          />
+          <div
+            style={{
+              alignItems: 'center',
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 6,
+              marginTop: 9,
+            }}
+          >
+            {flavors.map((flavor) => {
+              const active = behavior.flavor === flavor;
+              const color = flavorColors[flavor];
+
+              return (
+                <button
+                  aria-pressed={active}
+                  key={flavor}
+                  onClick={() => onUpdateBehavior(behavior.id, { flavor })}
+                  type="button"
+                  style={{
+                    background: 'transparent',
+                    border: `1px solid ${active ? color : 'var(--tt-border)'}`,
+                    borderRadius: 5,
+                    color: active ? color : 'var(--tt-comment)',
+                    cursor: 'pointer',
+                    fontSize: 11.5,
+                    padding: '3px 10px',
+                  }}
+                >
+                  {flavor}
+                </button>
+              );
+            })}
+            <span style={{ flex: 1 }} />
+            <button
+              disabled={pendingKey === `prompt:${behavior.id}`}
+              onClick={() => handleSuggest(behavior)}
+              type="button"
+              style={{
+                background: 'transparent',
+                border: 0,
+                color: 'var(--tt-yellow)',
+                cursor: pendingKey === `prompt:${behavior.id}` ? 'wait' : 'pointer',
+                fontSize: 12,
+                padding: 0,
+              }}
+            >
+              ✦ suggest
+            </button>
+          </div>
+        </div>
+      ))}
 
       {error ? (
         <span role="alert" style={{ color: 'var(--tt-red)', fontSize: 13 }}>
           {error}
         </span>
       ) : null}
-
-      <button
-        onClick={onAdd}
-        type="button"
-        style={{
-          ...buttonStyle,
-          borderStyle: 'dashed',
-          justifySelf: 'start',
-        }}
-      >
-        add prompt
-      </button>
-    </Column>
+    </div>
   );
 };

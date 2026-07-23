@@ -72,13 +72,19 @@ export const ReviewApp = () => {
           <div
             style={{
               border: '1px solid var(--tt-border)',
-              color: 'var(--tt-comment)',
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+              borderRadius: 8,
               fontSize: 12,
-              padding: '7px 10px',
+              padding: '9px 16px',
             }}
           >
-            localhost reading ~/.../evals-runs from disk.
+            <span style={{ color: 'var(--tt-green)', fontWeight: 700 }}>localhost</span>
+            <span style={{ color: 'var(--tt-comment)' }}>
+              {' '}
+              reviewing runs under <span style={{ color: 'var(--tt-teal)' }}>
+                ./evals-runs
+              </span>{' '}
+              — pick one on the left. hosted users import a JSON file to review it.
+            </span>
           </div>
         ) : null}
         <div

@@ -87,24 +87,70 @@ export const BrowseApp = () => {
       className="app-main"
       data-screen-label={`browse (${env})`}
       data-testid="browse-app"
-      style={{ minWidth: 0, overflow: 'auto', padding: 16 }}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
+        minWidth: 0,
+        padding: 0,
+      }}
     >
+      <div
+        style={{
+          alignItems: 'center',
+          borderBottom: '1px solid var(--tt-border)',
+          display: 'flex',
+          flex: 'none',
+          fontSize: 12,
+          gap: 8,
+          padding: '9px 16px',
+        }}
+      >
+        {env === 'hosted' ? (
+          <>
+            <span style={{ color: 'var(--tt-cyan)', fontWeight: 700 }}>hosted</span>
+            <span style={{ color: 'var(--tt-comment)' }}>
+              exploring imported runs — import a suite in{' '}
+              <span style={{ color: 'var(--tt-fg-dark)' }}>review</span> to browse its results.
+            </span>
+          </>
+        ) : (
+          <>
+            <span style={{ color: 'var(--tt-green)', fontWeight: 700 }}>localhost</span>
+            <span style={{ color: 'var(--tt-comment)' }}>
+              reading <span style={{ color: 'var(--tt-teal)' }}>./evals-runs</span> from disk.
+            </span>
+          </>
+        )}
+      </div>
       <section
         aria-label="Browse workspace"
         style={{
-          display: 'grid',
-          gap: 14,
-          gridTemplateColumns: '200px 280px minmax(0, 1fr)',
-          minHeight: 'calc(100vh - 116px)',
+          display: 'flex',
+          flex: 1,
+          gap: 10,
+          minHeight: 0,
           minWidth: 960,
+          padding: 14,
         }}
       >
-        <BrowseRuns runs={runs} selectedRunId={selectedRun.id} onSelectRun={setSelectedRunId} />
-        <BrowseCaseList
-          cases={selectedRun.cases}
-          selectedCaseId={selectedCase.id}
-          onSelectCase={setSelectedCaseId}
-        />
+        <div
+          style={{
+            display: 'flex',
+            flex: 'none',
+            flexDirection: 'column',
+            gap: 10,
+            minHeight: 0,
+            width: 326,
+          }}
+        >
+          <BrowseRuns runs={runs} selectedRunId={selectedRun.id} onSelectRun={setSelectedRunId} />
+          <BrowseCaseList
+            cases={selectedRun.cases}
+            selectedCaseId={selectedCase.id}
+            onSelectCase={setSelectedCaseId}
+          />
+        </div>
         <BrowseDetail
           run={selectedRun}
           testCase={selectedCase}

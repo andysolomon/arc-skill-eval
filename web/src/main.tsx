@@ -5,6 +5,7 @@ import { subscribeHostedDataReset } from './persistence/db';
 import { EnvProvider } from './state/env';
 import { SectionProvider } from './state/section';
 import { ThemeProvider } from './state/theme';
+import { WorkspaceProvider } from './state/workspace';
 import './styles.css';
 
 const Providers = ({ children }: PropsWithChildren) => {
@@ -18,7 +19,9 @@ const Providers = ({ children }: PropsWithChildren) => {
   return (
     <ThemeProvider key={`theme-${resetKey}`}>
       <SectionProvider key={`section-${resetKey}`}>
-        <EnvProvider key={`env-${resetKey}`}>{children}</EnvProvider>
+        <EnvProvider key={`env-${resetKey}`}>
+          <WorkspaceProvider key={`workspace-${resetKey}`}>{children}</WorkspaceProvider>
+        </EnvProvider>
       </SectionProvider>
     </ThemeProvider>
   );

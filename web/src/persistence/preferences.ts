@@ -13,10 +13,14 @@ export type PreferencesRecord = {
   schemaVersion: number;
   updatedAt: string;
   lastRunId?: string;
+  workspaceRoot?: string;
 };
 
 export type PreferencesPatch = Partial<
-  Pick<PreferencesRecord, 'theme' | 'section' | 'env' | 'lastRunId' | 'workspaceFavorites'>
+  Pick<
+    PreferencesRecord,
+    'theme' | 'section' | 'env' | 'lastRunId' | 'workspaceFavorites' | 'workspaceRoot'
+  >
 >;
 
 const preferenceEvents = new EventTarget();
