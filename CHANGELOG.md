@@ -1,3 +1,9 @@
+## [0.18.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.17.1...v0.18.0) (2026-07-23)
+
+### Features
+
+* **web:** design system, learn rebuild, and localhost daemon integration ([#220](https://github.com/andysolomon/arc-skill-eval/issues/220)) ([b56e5df](https://github.com/andysolomon/arc-skill-eval/commit/b56e5df86393c0fe453a1ab861f18f9742780387))
+
 ## [0.17.1](https://github.com/andysolomon/arc-skill-eval/compare/v0.17.0...v0.17.1) (2026-07-22)
 
 ### Bug Fixes
