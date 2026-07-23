@@ -12,6 +12,11 @@ export type ReviewCase = {
   status: ReviewCaseStatus;
   output?: string;
   failureEvidence?: string;
+  withPassed?: number;
+  withTotal?: number;
+  withoutPassed?: number;
+  withoutTotal?: number;
+  delta?: string;
 };
 
 export type ReviewRun = {
@@ -87,12 +92,26 @@ const normalizeRunStatus = (
   return 'pass';
 };
 
+const asCompareCounts = (value: unknown): { passed?: number; total?: number } => {
+  const record = toRecord(value);
+
+  return {
+    passed: asNumber(record?.passed),
+    total: asNumber(record?.total),
+  };
+};
+
 const normalizeCase = (value: unknown, index: number): ReviewCase => {
   const record = toRecord(value);
 
   if (!record) {
     throw new Error('Each run case must be an object.');
   }
+
+  const withCounts = asCompareCounts(record.withSkill ?? record.with_skill ?? record.with);
+  const withoutCounts = asCompareCounts(
+    record.withoutSkill ?? record.without_skill ?? record.without,
+  );
 
   return {
     id: asString(record.id ?? record.caseId, `case-${index + 1}`),
@@ -105,6 +124,11 @@ const normalizeCase = (value: unknown, index: number): ReviewCase => {
         : typeof record.failureEvidenceBlock === 'string'
           ? record.failureEvidenceBlock
           : undefined,
+    withPassed: asNumber(record.withPassed) ?? withCounts.passed,
+    withTotal: asNumber(record.withTotal) ?? withCounts.total,
+    withoutPassed: asNumber(record.withoutPassed) ?? withoutCounts.passed,
+    withoutTotal: asNumber(record.withoutTotal) ?? withoutCounts.total,
+    delta: typeof record.delta === 'string' ? record.delta : undefined,
   };
 };
 
@@ -203,6 +227,7 @@ export const createSampleReviewRun = (): ReviewRun => ({
   },
   finishedAt: new Date().toISOString(),
   status: 'fail',
+  cost: 0.41,
   exitCode: 1,
   cases: [
     {
@@ -210,6 +235,10 @@ export const createSampleReviewRun = (): ReviewRun => ({
       prompt: 'Summarize the notes into a concise project update.',
       status: 'pass',
       output: 'The skill produced a focused summary with the expected sections.',
+      withPassed: 3,
+      withTotal: 3,
+      withoutPassed: 1,
+      withoutTotal: 3,
     },
     {
       id: 'case-fail',
@@ -218,6 +247,10 @@ export const createSampleReviewRun = (): ReviewRun => ({
       output: 'The response skipped the checklist and moved directly to code.',
       failureEvidence:
         'assistant.md: missing acceptance criteria; assertion expected a checklist before implementation.',
+      withPassed: 0,
+      withTotal: 1,
+      withoutPassed: 0,
+      withoutTotal: 1,
     },
   ],
 });

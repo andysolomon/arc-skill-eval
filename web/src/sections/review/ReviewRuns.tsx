@@ -41,7 +41,9 @@ export const ReviewRuns = ({ runs, selectedRunId, onSelectRun }: ReviewRunsProps
       border: '1px solid var(--tt-border)',
       borderRadius: 8,
       display: 'flex',
+      flex: 'none',
       flexDirection: 'column',
+      minHeight: 0,
       overflow: 'hidden',
       width: 250,
     }}
@@ -107,7 +109,7 @@ export const ReviewRuns = ({ runs, selectedRunId, onSelectRun }: ReviewRunsProps
                   whiteSpace: 'nowrap',
                 }}
               >
-                {run.id.slice(0, 12)}
+                {run.id}
               </span>
             </div>
             <div

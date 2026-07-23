@@ -66,52 +66,63 @@ export const ReviewApp = () => {
   }
 
   return (
-    <main className="app-main" data-testid="review-app" style={{ minWidth: 0, overflow: 'auto', padding: 16 }}>
-      <section aria-label="Review workspace" style={{ display: 'grid', gap: 14, minWidth: 920 }}>
-        {env === 'localhost' ? (
-          <div
-            style={{
-              border: '1px solid var(--tt-border)',
-              borderRadius: 8,
-              fontSize: 12,
-              padding: '9px 16px',
-            }}
-          >
-            <span style={{ color: 'var(--tt-green)', fontWeight: 700 }}>localhost</span>
-            <span style={{ color: 'var(--tt-comment)' }}>
-              {' '}
-              reviewing runs under <span style={{ color: 'var(--tt-teal)' }}>
-                ./evals-runs
-              </span>{' '}
-              — pick one on the left. hosted users import a JSON file to review it.
-            </span>
-          </div>
-        ) : null}
+    <main
+      className="app-main"
+      data-testid="review-app"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
+        minWidth: 1100,
+        overflow: 'hidden',
+        padding: 0,
+      }}
+    >
+      {env === 'localhost' ? (
         <div
           style={{
-            alignItems: 'start',
-            display: 'grid',
-            gap: 14,
-            gridTemplateColumns: '250px minmax(0, 1fr) 360px',
+            borderBottom: '1px solid var(--tt-border)',
+            flex: 'none',
+            fontSize: 12,
+            padding: '9px 16px',
           }}
         >
-          <ReviewRuns runs={runs} selectedRunId={selectedRun.id} onSelectRun={setSelectedRunId} />
-          <ReviewSummary
-            run={selectedRun}
-            selectedCaseId={selectedCaseId}
-            onSelectCase={setSelectedCaseId}
-          />
-          <ReviewFeedbackImprove
-            activeRunId={selectedRun.id}
-            env={env}
-            feedback={feedbackByRun.get(selectedRun.id) ?? []}
-            improvePlans={improvePlansByRun.get(selectedRun.id) ?? []}
-            onRecordFeedback={recordFeedback}
-            onRemoveFeedback={removeFeedback}
-            run={selectedRun}
-            selectedCaseId={selectedCaseId}
-          />
+          <span style={{ color: 'var(--tt-green)', fontWeight: 700 }}>localhost</span>
+          <span style={{ color: 'var(--tt-comment)' }}>
+            {' '}
+            reviewing runs under <span style={{ color: 'var(--tt-teal)' }}>
+              ./evals-runs
+            </span>{' '}
+            — pick one on the left. hosted users import a JSON file to review it.
+          </span>
         </div>
+      ) : null}
+      <section
+        aria-label="Review workspace"
+        style={{
+          display: 'flex',
+          flex: 1,
+          gap: 12,
+          minHeight: 0,
+          padding: 16,
+        }}
+      >
+        <ReviewRuns runs={runs} selectedRunId={selectedRun.id} onSelectRun={setSelectedRunId} />
+        <ReviewSummary
+          run={selectedRun}
+          selectedCaseId={selectedCaseId}
+          onSelectCase={setSelectedCaseId}
+        />
+        <ReviewFeedbackImprove
+          activeRunId={selectedRun.id}
+          env={env}
+          feedback={feedbackByRun.get(selectedRun.id) ?? []}
+          improvePlans={improvePlansByRun.get(selectedRun.id) ?? []}
+          onRecordFeedback={recordFeedback}
+          onRemoveFeedback={removeFeedback}
+          run={selectedRun}
+          selectedCaseId={selectedCaseId}
+        />
       </section>
     </main>
   );

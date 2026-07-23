@@ -3,52 +3,32 @@ import { useApplyPlan } from './useApplyPlan';
 import { useProposePlan, type ProposedImprovePlan, type StagedImprovePlan } from './useProposePlan';
 import type { ReviewImproveVariantProps } from './ReviewFeedbackImprove';
 
-const panelStyle = {
-  background: 'var(--tt-bg-dark)',
-  border: '1px solid var(--tt-border)',
-  color: 'var(--tt-fg)',
-  display: 'grid',
-  gap: 12,
-  padding: 14,
-};
-
-const buttonStyle = {
-  background: 'var(--tt-selection)',
-  border: '1px solid var(--tt-border-active)',
-  color: 'var(--tt-fg)',
-  cursor: 'pointer',
-  padding: '8px 10px',
-};
-
-const monoStyle = {
-  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-  fontSize: 12,
-};
-
 const inFlightStatuses = new Set(['proposing', 'staging', 'committing', 'cancelling']);
 
 const renderPlanItems = (plan: ProposedImprovePlan) => (
-  <div aria-label="proposed improve plan" style={{ display: 'grid', gap: 8 }}>
+  <div aria-label="proposed improve plan">
     {plan.items.map((item, index) => (
-      <article
-        key={`${item.path}-${index}`}
-        style={{
-          border: '1px solid var(--tt-border)',
-          display: 'grid',
-          gap: 6,
-          padding: 8,
-        }}
-      >
-        <strong style={{ ...monoStyle, color: 'var(--tt-yellow)', overflowWrap: 'anywhere' }}>
+      <div key={`${item.path}-${index}`} style={{ marginBottom: 12 }}>
+        <div
+          style={{
+            color: 'var(--tt-magenta)',
+            fontSize: 11,
+            fontWeight: 700,
+            marginBottom: 3,
+            overflowWrap: 'anywhere',
+          }}
+        >
           {item.path}
-        </strong>
-        <p style={{ color: 'var(--tt-fg-dark)', lineHeight: 1.45, margin: 0 }}>
-          {item.before} -&gt; {item.after}
-        </p>
-        <span style={{ ...monoStyle, color: 'var(--tt-comment)', overflowWrap: 'anywhere' }}>
+        </div>
+        <div style={{ fontSize: 12.5, whiteSpace: 'pre-wrap' }}>
+          <span style={{ color: 'var(--tt-red)' }}>- {item.before}</span>
+          <br />
+          <span style={{ color: 'var(--tt-green)' }}>+ {item.after}</span>
+        </div>
+        <div style={{ color: 'var(--tt-comment)', fontSize: 12, marginTop: 3 }}>
           {item.rationale}
-        </span>
-      </article>
+        </div>
+      </div>
     ))}
   </div>
 );
@@ -111,128 +91,179 @@ export const ReviewFeedbackImproveLocalhost = ({
   };
 
   return (
-    <section aria-label="improve from feedback localhost" style={panelStyle}>
-      <header style={{ display: 'grid', gap: 4 }}>
-        <h2 style={{ fontSize: 15, lineHeight: 1.2, margin: 0 }}>improve --from-feedback</h2>
-        {!propose.plan ? (
-          <p style={{ color: 'var(--tt-fg-dark)', lineHeight: 1.45, margin: 0 }}>
-            We'll derive a proposed plan from your feedback notes against the eval suite +
-            grading.json. Nothing is written without --apply.
-          </p>
-        ) : null}
-      </header>
-
-      {improvePlans.length > 0 ? (
-        <div style={{ display: 'grid', gap: 8 }}>
-          {improvePlans.map((plan) => (
-            <div
-              key={plan.planId}
-              style={{
-                border: '1px solid var(--tt-border)',
-                color: 'var(--tt-comment)',
-                ...monoStyle,
-                overflowWrap: 'anywhere',
-                padding: 8,
-              }}
-            >
-              {plan.status} · {plan.planId}
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {propose.plan ? renderPlanItems(propose.plan) : null}
-
-      <button
-        disabled={!canPropose}
-        onClick={handlePropose}
-        type="button"
+    <section
+      aria-label="improve from feedback localhost"
+      style={{
+        border: '1px solid var(--tt-border)',
+        borderRadius: 8,
+        display: 'flex',
+        flex: 1,
+        flexDirection: 'column',
+        minHeight: 0,
+        overflow: 'hidden',
+      }}
+    >
+      <header
         style={{
-          ...buttonStyle,
-          borderColor: 'var(--tt-magenta)',
-          color: canPropose ? 'var(--tt-magenta)' : 'var(--tt-comment)',
-          cursor: canPropose ? 'pointer' : 'not-allowed',
-          opacity: canPropose ? 1 : 0.6,
+          background: 'var(--tt-bg-dark)',
+          borderBottom: '1px solid var(--tt-border)',
+          color: 'var(--tt-fg-dark)',
+          fontSize: 12,
+          fontWeight: 700,
+          padding: '6px 12px',
         }}
       >
-        {propose.status === 'proposing' || propose.status === 'staging'
-          ? 'staging changes'
-          : 'propose changes'}
-      </button>
+        improve --from-feedback
+      </header>
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 12 }}>
+        {!propose.plan ? (
+          <div style={{ color: 'var(--tt-comment)', fontSize: 12.5, lineHeight: 1.6 }}>
+            turn review notes + failing assertions into a focused plan — prompt, assertion,
+            fixture, or adjacent-negative changes with rationale. nothing is written without{' '}
+            <span style={{ color: 'var(--tt-yellow)' }}>--apply</span>.
+          </div>
+        ) : null}
 
-      {stagedPlan ? (
-        <section
-          aria-label="staged improve diff"
-          style={{
-            border: '1px solid var(--tt-green)',
-            display: 'grid',
-            gap: 10,
-            padding: 10,
-          }}
-        >
-          <span style={{ ...monoStyle, color: 'var(--tt-comment)', overflowWrap: 'anywhere' }}>
-            staged {stagedPlan.planId} at {stagedPlan.stagingPath}
-          </span>
-          <pre
-            aria-readonly="true"
+        {improvePlans.length > 0 ? (
+          <div style={{ marginTop: propose.plan ? 0 : 10 }}>
+            {improvePlans.map((plan) => (
+              <div
+                key={plan.planId}
+                style={{
+                  color: 'var(--tt-comment)',
+                  fontSize: 11,
+                  overflowWrap: 'anywhere',
+                  padding: '2px 0',
+                }}
+              >
+                {plan.status} · {plan.planId}
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {propose.plan ? renderPlanItems(propose.plan) : null}
+
+        {stagedPlan ? (
+          <section
+            aria-label="staged improve diff"
             style={{
-              background: 'var(--tt-bg)',
-              border: '1px solid var(--tt-border)',
-              color: 'var(--tt-fg-dark)',
-              ...monoStyle,
-              margin: 0,
-              maxHeight: 220,
-              overflow: 'auto',
+              border: '1px solid var(--tt-green)',
+              borderRadius: 7,
+              display: 'grid',
+              gap: 10,
+              marginTop: 12,
               padding: 10,
-              whiteSpace: 'pre-wrap',
             }}
           >
-            {JSON.stringify(stagedPlan.diff, null, 2)}
-          </pre>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button
-              disabled={isInFlight}
-              onClick={handleCommit}
-              type="button"
+            <span
+              style={{ color: 'var(--tt-comment)', fontSize: 12, overflowWrap: 'anywhere' }}
+            >
+              staged {stagedPlan.planId} at {stagedPlan.stagingPath}
+            </span>
+            <pre
+              aria-readonly="true"
               style={{
-                ...buttonStyle,
-                background: isInFlight ? 'var(--tt-selection)' : 'var(--tt-green)',
-                color: isInFlight ? 'var(--tt-comment)' : 'var(--tt-bg)',
-                fontWeight: 700,
+                background: 'var(--tt-bg-dark)',
+                border: '1px solid var(--tt-border)',
+                borderRadius: 6,
+                color: 'var(--tt-fg-dark)',
+                fontSize: 12,
+                margin: 0,
+                maxHeight: 220,
+                overflow: 'auto',
+                padding: 10,
+                whiteSpace: 'pre-wrap',
               }}
             >
-              commit
-            </button>
-            <button
-              disabled={isInFlight}
-              onClick={handleCancel}
-              type="button"
-              style={{
-                ...buttonStyle,
-                color: isInFlight ? 'var(--tt-comment)' : 'var(--tt-fg)',
-              }}
-            >
-              cancel
-            </button>
-          </div>
-        </section>
-      ) : null}
+              {JSON.stringify(stagedPlan.diff, null, 2)}
+            </pre>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                disabled={isInFlight}
+                onClick={handleCommit}
+                type="button"
+                style={{
+                  background: 'color-mix(in srgb, var(--tt-green) 14%, var(--tt-bg))',
+                  border: '1px solid var(--tt-green)',
+                  borderRadius: 6,
+                  color: 'var(--tt-green)',
+                  cursor: isInFlight ? 'wait' : 'pointer',
+                  fontWeight: 700,
+                  padding: '6px 13px',
+                }}
+              >
+                commit
+              </button>
+              <button
+                disabled={isInFlight}
+                onClick={handleCancel}
+                type="button"
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--tt-border)',
+                  borderRadius: 6,
+                  color: 'var(--tt-fg-dark)',
+                  cursor: isInFlight ? 'wait' : 'pointer',
+                  padding: '6px 13px',
+                }}
+              >
+                cancel
+              </button>
+            </div>
+          </section>
+        ) : null}
 
-      {apply.status === 'committed' ? (
-        <span role="status" style={{ color: 'var(--tt-green)', fontSize: 13 }}>
-          committed staged plan{apply.result?.path ? ` to ${apply.result.path}` : ''}
-        </span>
-      ) : null}
-      {apply.status === 'cancelled' ? (
-        <span role="status" style={{ color: 'var(--tt-comment)', fontSize: 13 }}>
-          cancelled staged plan
-        </span>
-      ) : null}
-      {propose.error || apply.error ? (
-        <span role="alert" style={{ color: 'var(--tt-red)', fontSize: 13 }}>
-          {propose.error ?? apply.error}
-        </span>
-      ) : null}
+        {apply.status === 'committed' ? (
+          <div role="status" style={{ color: 'var(--tt-green)', fontSize: 12.5, marginTop: 10 }}>
+            ✓ committed staged plan{apply.result?.path ? ` to ${apply.result.path}` : ''}
+          </div>
+        ) : null}
+        {apply.status === 'cancelled' ? (
+          <div
+            role="status"
+            style={{ color: 'var(--tt-comment)', fontSize: 12.5, marginTop: 10 }}
+          >
+            cancelled staged plan
+          </div>
+        ) : null}
+        {propose.error || apply.error ? (
+          <div role="alert" style={{ color: 'var(--tt-red)', fontSize: 12.5, marginTop: 10 }}>
+            ✗ {propose.error ?? apply.error}
+          </div>
+        ) : null}
+      </div>
+      <footer
+        style={{
+          borderTop: '1px solid var(--tt-border)',
+          display: 'flex',
+          gap: 8,
+          padding: '10px 12px',
+        }}
+      >
+        <button
+          disabled={!canPropose}
+          onClick={handlePropose}
+          title={canPropose ? 'propose an improve plan' : 'locked until feedback exists'}
+          type="button"
+          style={{
+            alignItems: 'center',
+            background: 'transparent',
+            border: '1px solid var(--tt-magenta)',
+            borderRadius: 6,
+            color: 'var(--tt-magenta)',
+            cursor: canPropose ? 'pointer' : 'not-allowed',
+            display: 'flex',
+            flex: 1,
+            fontSize: 13,
+            height: 34,
+            justifyContent: 'center',
+            opacity: canPropose ? 1 : 0.6,
+          }}
+        >
+          {isInFlight ? 'improving…' : 'improve'}
+        </button>
+      </footer>
     </section>
   );
 };

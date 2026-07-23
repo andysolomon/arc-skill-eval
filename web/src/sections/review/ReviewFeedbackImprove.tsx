@@ -24,26 +24,6 @@ export type ReviewImproveVariantProps = {
   run: ReviewRun;
 };
 
-export const reviewPanelStyle = {
-  border: '1px solid var(--tt-border)',
-  borderRadius: 8,
-  color: 'var(--tt-fg)',
-  display: 'grid',
-  gap: 10,
-  padding: 12,
-};
-
-export const reviewButtonStyle = {
-  background: 'transparent',
-  border: '1px solid var(--tt-magenta)',
-  borderRadius: 6,
-  color: 'var(--tt-magenta)',
-  cursor: 'pointer',
-  fontSize: 13,
-  minHeight: 34,
-  padding: '8px 10px',
-};
-
 export const ReviewFeedbackImprove = ({
   activeRunId,
   env,
@@ -69,13 +49,21 @@ export const ReviewFeedbackImprove = ({
   return (
     <aside
       aria-label="Feedback and improve"
-      style={{ display: 'flex', flexDirection: 'column', gap: 12, width: 360 }}
+      style={{
+        display: 'flex',
+        flex: 'none',
+        flexDirection: 'column',
+        gap: 12,
+        minHeight: 0,
+        width: 360,
+      }}
     >
       <section
         style={{
           border: '1px solid var(--tt-border)',
           borderRadius: 8,
           display: 'flex',
+          flex: 'none',
           flexDirection: 'column',
           overflow: 'hidden',
         }}
@@ -99,10 +87,7 @@ export const ReviewFeedbackImprove = ({
           >
             feedback.json
           </h2>
-          <span style={{ color: 'var(--tt-comment)' }}>
-            {' '}
-            — {selectedCaseId ?? 'run'} · {feedback.length} notes
-          </span>
+          <span style={{ color: 'var(--tt-comment)' }}> — {selectedCaseId ?? 'run'}</span>
         </header>
         <div style={{ padding: 12 }}>
           <textarea
@@ -169,7 +154,7 @@ export const ReviewFeedbackImprove = ({
                     overflowWrap: 'anywhere',
                   }}
                 >
-                  {record.caseId ?? 'run'} · {record.createdAt}
+                  {record.caseId ?? 'run'}
                 </span>
                 <button
                   aria-label={`remove feedback ${record.noteId}`}
