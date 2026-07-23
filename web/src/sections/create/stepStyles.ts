@@ -1,33 +1,34 @@
 import type { CSSProperties } from 'react';
+import { color, radius, text, tracking } from '@/design/tokens';
 
 export const kickerStyle: CSSProperties = {
-  color: 'var(--tt-comment)',
-  fontSize: 11,
-  letterSpacing: '.08em',
+  color: color.comment,
+  fontSize: text['2xs'],
+  letterSpacing: tracking.kickerWide,
   marginBottom: 6,
   textTransform: 'uppercase',
 };
 
 export const titleStyle: CSSProperties = {
-  color: 'var(--tt-fg)',
-  fontSize: 20,
+  color: color.fg,
+  fontSize: text.lg,
   fontWeight: 700,
   margin: '0 0 8px',
 };
 
 export const introStyle: CSSProperties = {
-  color: 'var(--tt-fg-dark)',
-  fontSize: 13,
+  color: color.fgDark,
+  fontSize: text.body,
   lineHeight: 1.65,
   margin: '0 0 14px',
 };
 
 export const legendBoxStyle: CSSProperties = {
-  border: '1px solid var(--tt-border)',
-  borderRadius: 8,
+  border: `1px solid ${color.border}`,
+  borderRadius: radius.xl,
   display: 'flex',
   flexDirection: 'column',
-  fontSize: 12,
+  fontSize: text.sm,
   gap: 4,
   lineHeight: 1.55,
   marginBottom: 22,
@@ -35,19 +36,19 @@ export const legendBoxStyle: CSSProperties = {
 };
 
 export const cardStyle: CSSProperties = {
-  border: '1px solid var(--tt-border)',
-  borderRadius: 8,
+  border: `1px solid ${color.border}`,
+  borderRadius: radius.xl,
   marginBottom: 12,
   padding: '12px 14px',
 };
 
 export const inputStyle: CSSProperties = {
-  background: 'var(--tt-bg-dark)',
-  border: '1px solid var(--tt-border)',
-  borderRadius: 6,
-  color: 'var(--tt-fg)',
+  background: color.bgDark,
+  border: `1px solid ${color.border}`,
+  borderRadius: radius.md,
+  color: color.fg,
   fontFamily: 'inherit',
-  fontSize: 13,
+  fontSize: text.body,
   outline: 'none',
   padding: '8px 10px',
 };
@@ -55,7 +56,7 @@ export const inputStyle: CSSProperties = {
 export const removeGlyphStyle: CSSProperties = {
   background: 'transparent',
   border: 0,
-  color: 'var(--tt-comment)',
+  color: color.comment,
   cursor: 'pointer',
   flex: 'none',
   fontSize: 16,

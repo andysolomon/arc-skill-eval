@@ -1,3 +1,4 @@
+import { color, text } from '@/design/tokens';
 import { useTheme } from '@/state/theme';
 
 type RunStatus = 'pass' | 'fail' | 'timeout' | 'running' | 'partial';
@@ -17,11 +18,11 @@ export type RunSummary = {
 export type RunCardProps = RunSummary;
 
 const statusColors: Record<RunStatus, string> = {
-  pass: 'var(--tt-green)',
-  fail: 'var(--tt-red)',
-  timeout: 'var(--tt-orange)',
-  running: 'var(--tt-cyan)',
-  partial: 'var(--tt-yellow)',
+  pass: color.green,
+  fail: color.red,
+  timeout: color.orange,
+  running: color.cyan,
+  partial: color.yellow,
 };
 
 export const RunCard = ({ runId, skillName, finishedAt, status, counts }: RunCardProps) => {
@@ -32,9 +33,9 @@ export const RunCard = ({ runId, skillName, finishedAt, status, counts }: RunCar
       data-run-status={status}
       data-theme-variant={theme}
       style={{
-        background: 'var(--tt-bg-dark)',
-        border: '1px solid var(--tt-border)',
-        color: 'var(--tt-fg)',
+        background: color.bgDark,
+        border: `1px solid ${color.border}`,
+        color: color.fg,
         display: 'grid',
         gap: 'var(--tt-gap-3, 12px)',
         padding: 14,
@@ -55,33 +56,33 @@ export const RunCard = ({ runId, skillName, finishedAt, status, counts }: RunCar
         <div style={{ minWidth: 0 }}>
           <div
             style={{
-              color: 'var(--tt-comment)',
+              color: color.comment,
               fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-              fontSize: 12,
+              fontSize: text.sm,
               overflowWrap: 'anywhere',
             }}
           >
             {runId}
           </div>
           <h3 style={{ fontSize: 16, lineHeight: 1.25, margin: '4px 0 0' }}>{skillName}</h3>
-          <p style={{ color: 'var(--tt-fg-dark)', fontSize: 12, margin: '6px 0 0' }}>{finishedAt}</p>
+          <p style={{ color: color.fgDark, fontSize: text.sm, margin: '6px 0 0' }}>{finishedAt}</p>
         </div>
       </div>
       <footer
         style={{
-          borderTop: '1px solid var(--tt-border)',
-          color: 'var(--tt-fg-dark)',
+          borderTop: `1px solid ${color.border}`,
+          color: color.fgDark,
           display: 'flex',
           flexWrap: 'wrap',
           fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-          fontSize: 12,
+          fontSize: text.sm,
           gap: 'var(--tt-gap-3, 12px)',
           paddingTop: 10,
         }}
       >
-        <span style={{ color: 'var(--tt-green)' }}>pass {counts.pass}</span>
-        <span style={{ color: 'var(--tt-red)' }}>fail {counts.fail}</span>
-        <span style={{ color: 'var(--tt-orange)' }}>timeout {counts.timeout}</span>
+        <span style={{ color: color.green }}>pass {counts.pass}</span>
+        <span style={{ color: color.red }}>fail {counts.fail}</span>
+        <span style={{ color: color.orange }}>timeout {counts.timeout}</span>
       </footer>
     </article>
   );

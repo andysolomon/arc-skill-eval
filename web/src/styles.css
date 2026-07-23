@@ -8,6 +8,7 @@
  *
  * Visuals follow the design prototype:
  * docs/Arc skill eval web design/arc-skill-eval-app.dc.html
+ * Token reference and usage rules: docs/web-app/design-system.md
  */
 
 * {
@@ -24,10 +25,8 @@ body {
   margin: 0;
   background: var(--tt-bg);
   color: var(--tt-fg);
-  font-family:
-    "JetBrains Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
-    monospace;
-  font-size: 14px;
+  font-family: var(--tt-font-mono);
+  font-size: var(--tt-text-body-lg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow-x: auto;
@@ -56,7 +55,7 @@ select {
 
 ::-webkit-scrollbar-thumb {
   background: var(--tt-border);
-  border-radius: 6px;
+  border-radius: var(--tt-radius-md);
 }
 
 ::-webkit-scrollbar-track {
@@ -67,9 +66,9 @@ select {
   background: var(--tt-bg);
   color: var(--tt-fg);
   display: grid;
-  grid-template-rows: 50px minmax(0, 1fr) 25px;
+  grid-template-rows: var(--tt-header-h) minmax(0, 1fr) var(--tt-statusbar-h);
   height: 100vh;
-  min-width: 1140px;
+  min-width: var(--tt-app-min-w);
   overflow: hidden;
 }
 
@@ -80,9 +79,9 @@ select {
   background: var(--tt-bg-dark);
   border-bottom: 1px solid var(--tt-border);
   display: flex;
-  gap: 14px;
-  height: 50px;
-  padding: 0 16px;
+  gap: var(--tt-space-14);
+  height: var(--tt-header-h);
+  padding: 0 var(--tt-space-16);
 }
 
 .brand-lockup {
@@ -90,9 +89,9 @@ select {
   color: var(--tt-fg);
   display: flex;
   flex: none;
-  font-size: 15px;
+  font-size: var(--tt-text-base);
   font-weight: 700;
-  gap: 10px;
+  gap: var(--tt-space-10);
   line-height: 1;
   white-space: nowrap;
 }
@@ -100,11 +99,11 @@ select {
 .brand-lockup__glyph {
   align-items: center;
   background: var(--tt-teal);
-  border-radius: 5px;
+  border-radius: var(--tt-radius-sm);
   color: var(--tt-bg-dark);
   display: inline-flex;
   flex: none;
-  font-size: 12px;
+  font-size: var(--tt-text-sm);
   font-weight: 800;
   height: 20px;
   justify-content: center;
@@ -125,7 +124,7 @@ select {
 .section-nav {
   display: flex;
   gap: 18px;
-  height: 50px;
+  height: var(--tt-header-h);
 }
 
 .section-nav__tab {
@@ -136,7 +135,7 @@ select {
   color: var(--tt-comment);
   cursor: pointer;
   display: inline-flex;
-  font-size: 13px;
+  font-size: var(--tt-text-body);
   line-height: 1;
   padding: 0;
   text-transform: lowercase;
@@ -157,10 +156,10 @@ select {
 .pill-toggle {
   align-items: center;
   border: 1px solid var(--tt-border);
-  border-radius: 7px;
+  border-radius: var(--tt-radius-lg);
   display: flex;
   flex: none;
-  gap: 4px;
+  gap: var(--tt-space-4);
   padding: 3px;
 }
 
@@ -168,12 +167,12 @@ select {
   align-items: center;
   background: transparent;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--tt-radius-sm);
   color: var(--tt-comment);
   cursor: pointer;
   display: inline-flex;
-  font-size: 12px;
-  gap: 6px;
+  font-size: var(--tt-text-sm);
+  gap: var(--tt-space-6);
   height: 22px;
   line-height: 1;
   padding: 0 9px;
@@ -201,16 +200,16 @@ select {
   align-items: center;
   background: var(--tt-bg);
   border: 1px solid var(--tt-border);
-  border-radius: 7px;
+  border-radius: var(--tt-radius-lg);
   color: var(--tt-fg-dark);
   cursor: pointer;
   display: inline-flex;
   flex: none;
-  font-size: 13px;
-  gap: 8px;
+  font-size: var(--tt-text-body);
+  gap: var(--tt-space-8);
   height: 30px;
   line-height: 1;
-  padding: 0 12px;
+  padding: 0 var(--tt-space-12);
   white-space: nowrap;
 }
 
@@ -220,7 +219,7 @@ select {
 
 .install-chip__status {
   color: var(--tt-comment);
-  font-size: 12px;
+  font-size: var(--tt-text-sm);
 }
 
 .install-chip__status[data-copied="true"] {
@@ -232,30 +231,30 @@ select {
 .app-main {
   min-height: 0;
   overflow: auto;
-  padding: 16px;
+  padding: var(--tt-space-16);
 }
 
 .workspace-shell {
   align-content: start;
   background: var(--tt-bg-dark);
   border: 1px solid var(--tt-border);
-  border-radius: 8px;
+  border-radius: var(--tt-radius-xl);
   display: grid;
-  gap: 14px;
+  gap: var(--tt-space-14);
   min-height: 260px;
   padding: 18px;
 }
 
 .workspace-kicker {
   color: var(--tt-cyan);
-  font-size: 12px;
-  margin: 0 0 8px;
+  font-size: var(--tt-text-sm);
+  margin: 0 0 var(--tt-space-8);
   text-transform: uppercase;
 }
 
 .workspace-shell h1 {
   color: var(--tt-fg);
-  font-size: 22px;
+  font-size: var(--tt-text-xl);
   line-height: 1.15;
   margin: 0;
 }
@@ -274,10 +273,10 @@ select {
   border-top: 1px solid var(--tt-border);
   color: var(--tt-fg-dark);
   display: flex;
-  font-size: 12px;
-  gap: 14px;
-  height: 25px;
-  padding: 0 14px;
+  font-size: var(--tt-text-sm);
+  gap: var(--tt-space-14);
+  height: var(--tt-statusbar-h);
+  padding: 0 var(--tt-space-14);
   white-space: nowrap;
 }
 
@@ -311,7 +310,7 @@ select {
   border: 0;
   color: var(--tt-comment);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--tt-text-sm);
   line-height: 1;
   padding: 0;
 }

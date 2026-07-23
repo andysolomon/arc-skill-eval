@@ -1,3 +1,4 @@
+import { color, text } from '@/design/tokens';
 import { useTheme } from '@/state/theme';
 
 export type CaseDeltaTag = 'PASS' | 'FAIL' | 'TIMEOUT';
@@ -13,9 +14,9 @@ export type CaseResult = {
 export type CaseCardProps = CaseResult;
 
 const tagColors: Record<CaseDeltaTag, string> = {
-  PASS: 'var(--tt-green)',
-  FAIL: 'var(--tt-red)',
-  TIMEOUT: 'var(--tt-orange)',
+  PASS: color.green,
+  FAIL: color.red,
+  TIMEOUT: color.orange,
 };
 
 const defaultGlyphs: Record<CaseDeltaTag, string> = {
@@ -41,9 +42,9 @@ export const CaseCard = ({
       data-case-status={deltaTag}
       data-theme-variant={theme}
       style={{
-        background: 'var(--tt-bg-dark)',
-        border: '1px solid var(--tt-border)',
-        color: 'var(--tt-fg)',
+        background: color.bgDark,
+        border: `1px solid ${color.border}`,
+        color: color.fg,
         display: 'grid',
         gap: 'var(--tt-gap-3, 12px)',
         padding: 14,
@@ -64,7 +65,7 @@ export const CaseCard = ({
           style={{
             flex: '1 1 auto',
             fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-            fontSize: 13,
+            fontSize: text.body,
             minWidth: 0,
             overflowWrap: 'anywhere',
           }}
@@ -73,24 +74,24 @@ export const CaseCard = ({
         </strong>
         <span
           style={{
-            border: '1px solid var(--tt-border)',
+            border: `1px solid ${color.border}`,
             color: tagColors[deltaTag],
             flex: '0 0 auto',
             fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-            fontSize: 11,
+            fontSize: text['2xs'],
             padding: '3px 6px',
           }}
         >
           {deltaTag}
         </span>
       </header>
-      <p style={{ color: 'var(--tt-fg-dark)', lineHeight: 1.45, margin: 0 }}>{excerpt(promptExcerpt)}</p>
+      <p style={{ color: color.fgDark, lineHeight: 1.45, margin: 0 }}>{excerpt(promptExcerpt)}</p>
       <pre
         style={{
-          background: 'var(--tt-bg)',
-          border: '1px solid var(--tt-border)',
-          color: deltaTag === 'PASS' ? 'var(--tt-comment)' : tagColors[deltaTag],
-          fontSize: 12,
+          background: color.bg,
+          border: `1px solid ${color.border}`,
+          color: deltaTag === 'PASS' ? color.comment : tagColors[deltaTag],
+          fontSize: text.sm,
           lineHeight: 1.45,
           margin: 0,
           maxHeight: 96,
