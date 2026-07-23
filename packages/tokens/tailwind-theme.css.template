@@ -1,8 +1,14 @@
-/* Generated from @arc-skill-eval/tokens. Do not edit directly. */
+/* Generated from @arc-skill-eval/tokens. Do not edit directly.
+ *
+ * IMPORTANT: The palette colors are emitted as plain :root CSS custom
+ * properties (NOT inside a Tailwind v4 @theme block). Tailwind v4's
+ * @theme directive only registers tokens for utility-class generation
+ * and does NOT emit runtime CSS variables, so :root { --tt-bg:
+ * var(--tt-tokyonight-bg) } would resolve to `unset` if the palettes
+ * were declared via @theme.
+ */
 
-@theme {
 {{themeVariables}}
-}
 
 :root,
 [data-theme="{{defaultTheme}}"] {
