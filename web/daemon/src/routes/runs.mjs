@@ -340,6 +340,18 @@ async function sendArtifact(request, response, context, match) {
 export async function handleRuns(request, response, context) {
   if (request.method === "POST" && context.url.pathname === "/runs") {
     const body = await context.readJson(request);
+
+    // A run needs an eval suite to grade; refuse skills without one.
+    const workspaceRoot =
+      typeof body.workspaceRoot === "string" ? expandPath(body.workspaceRoot) : "";
+    if (!workspaceRoot || !existsSync(path.join(workspaceRoot, "evals", "evals.json"))) {
+      context.sendJson(response, 400, {
+        error:
+          "This skill has no evals/evals.json to run. Author an eval suite first.",
+      });
+      return true;
+    }
+
     const run = createRun(body);
 
     context.sendJson(response, 201, {

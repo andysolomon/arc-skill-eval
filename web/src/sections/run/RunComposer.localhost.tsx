@@ -205,6 +205,10 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
 
   const selectedSkill = skills.find((skill) => skill.path === value.workspaceRoot);
   const skillLabel = selectedSkill?.id ?? (value.workspaceRoot ? value.workspaceRoot : 'choose a skill…');
+  // A skill picked from the list with no evals/evals.json can't be run. Manual
+  // paths (no selectedSkill) fall through to the daemon, which rejects them too.
+  const noEvals = Boolean(selectedSkill) && selectedSkill?.hasEvals === false;
+  const isIdle = state.status !== 'running' && state.status !== 'done';
 
   const update = (patch: Partial<RunComposerState>) => {
     onChange({ ...value, ...patch });
@@ -251,6 +255,14 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
       return;
     }
 
+    if (noEvals) {
+      setOpenField('skill');
+      window.alert(
+        `${selectedSkill?.id ?? 'This skill'} has no evals/evals.json — nothing to run. Author a suite in the create tab first.`,
+      );
+      return;
+    }
+
     void startRun(value).catch((error: unknown) => {
       window.alert(error instanceof Error ? error.message : 'Run failed.');
     });
@@ -277,6 +289,18 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
           background: 'var(--tt-bg-dark)',
           border: '1px solid var(--tt-border)',
           color: 'var(--tt-fg-dark)',
+        },
+      };
+    }
+
+    if (noEvals) {
+      return {
+        label: '▶ no evals to run',
+        title: 'this skill has no evals/evals.json — nothing to run',
+        style: {
+          background: 'transparent',
+          border: '1px solid var(--tt-border)',
+          color: 'var(--tt-dim)',
         },
       };
     }
@@ -591,13 +615,14 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
       </div>
       <div style={{ borderTop: '1px solid var(--tt-border)', padding: '12px 14px' }}>
         <button
+          disabled={isIdle && noEvals}
           onClick={handleRun}
           title={runButton.title}
           type="button"
           style={{
             alignItems: 'center',
             borderRadius: 7,
-            cursor: 'pointer',
+            cursor: isIdle && noEvals ? 'not-allowed' : 'pointer',
             display: 'flex',
             fontWeight: 700,
             gap: 8,
