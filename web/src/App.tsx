@@ -1,13 +1,14 @@
+import { useEffect } from 'react';
+
 import { GlobalHeader } from './components/GlobalHeader';
 import { PrimitivesStory } from './components/primitives/__stories__/primitives';
-import { SectionNav } from './components/SectionNav';
 import { StatusBar } from './components/StatusBar';
 import { BrowseApp } from './sections/browse';
 import { CreateApp } from './sections/create';
 import { LearnApp } from './sections/learn';
 import { ReviewApp } from './sections/review';
 import { RunApp } from './sections/run';
-import { useSection } from './state/section';
+import { sections, useSection } from './state/section';
 
 const Main = () => {
   const { activeSection } = useSection();
@@ -47,6 +48,31 @@ const Main = () => {
   );
 };
 
+const SectionHotkeys = () => {
+  const { setActiveSection } = useSection();
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName ?? '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) {
+        return;
+      }
+
+      const index = Number.parseInt(event.key, 10);
+      const section = sections.find((candidate) => candidate.index === index);
+      if (section) {
+        setActiveSection(section);
+      }
+    };
+
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [setActiveSection]);
+
+  return null;
+};
+
 const shouldRenderPrimitivesStory = () =>
   import.meta.env.DEV &&
   typeof window !== 'undefined' &&
@@ -59,8 +85,8 @@ export const App = () => {
 
   return (
     <div className="app-shell">
+      <SectionHotkeys />
       <GlobalHeader />
-      <SectionNav />
       <Main />
       <StatusBar />
     </div>

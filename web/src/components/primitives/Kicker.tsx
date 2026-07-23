@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { color, text } from '@/design/tokens';
 import { useSection } from '@/state/section';
 
 type KickerTone = 'neutral' | 'accent' | 'warning';
@@ -9,9 +10,9 @@ export type KickerProps = {
 };
 
 const toneColors: Record<KickerTone, string> = {
-  neutral: 'var(--tt-comment)',
-  accent: 'var(--tt-cyan)',
-  warning: 'var(--tt-yellow)',
+  neutral: color.comment,
+  accent: color.cyan,
+  warning: color.yellow,
 };
 
 export const Kicker = ({ children, tone = 'accent' }: KickerProps) => {
@@ -23,7 +24,7 @@ export const Kicker = ({ children, tone = 'accent' }: KickerProps) => {
       style={{
         color: toneColors[tone],
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-        fontSize: 12,
+        fontSize: text.sm,
         fontWeight: 700,
         letterSpacing: '0.06em',
         lineHeight: 1,

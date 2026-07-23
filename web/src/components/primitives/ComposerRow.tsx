@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { color, text } from '@/design/tokens';
 import { useSection } from '@/state/section';
 
 export type ComposerRowProps = {
@@ -17,9 +18,9 @@ export const ComposerRow = ({ label, value, isOpen, onToggle, children }: Compos
       data-open={isOpen}
       data-section={activeSection.name}
       style={{
-        background: 'var(--tt-bg-dark)',
-        border: '1px solid var(--tt-border)',
-        color: 'var(--tt-fg)',
+        background: color.bgDark,
+        border: `1px solid ${color.border}`,
+        color: color.fg,
       }}
     >
       <button
@@ -28,9 +29,9 @@ export const ComposerRow = ({ label, value, isOpen, onToggle, children }: Compos
         type="button"
         style={{
           alignItems: 'center',
-          background: 'var(--tt-bg-dark)',
+          background: color.bgDark,
           border: 0,
-          color: 'var(--tt-fg)',
+          color: color.fg,
           cursor: 'pointer',
           display: 'grid',
           gap: 'var(--tt-gap-3, 12px)',
@@ -41,16 +42,16 @@ export const ComposerRow = ({ label, value, isOpen, onToggle, children }: Compos
           width: '100%',
         }}
       >
-        <span style={{ color: 'var(--tt-comment)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 12 }}>
+        <span style={{ color: color.comment, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: text.sm }}>
           {label}
         </span>
-        <span style={{ color: 'var(--tt-cyan)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 13 }}>
+        <span style={{ color: color.cyan, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: text.body }}>
           {value}
         </span>
         <span
           aria-hidden="true"
           style={{
-            color: 'var(--tt-comment)',
+            color: color.comment,
             display: 'inline-block',
             transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
             transition: 'transform 120ms ease',
@@ -62,8 +63,8 @@ export const ComposerRow = ({ label, value, isOpen, onToggle, children }: Compos
       {isOpen ? (
         <div
           style={{
-            borderTop: '1px solid var(--tt-border)',
-            color: 'var(--tt-fg-dark)',
+            borderTop: `1px solid ${color.border}`,
+            color: color.fgDark,
             padding: 12,
           }}
         >

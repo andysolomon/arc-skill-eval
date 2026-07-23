@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { color, text } from '@/design/tokens';
 import { useEnv } from '@/state/env';
 import { useSection } from '@/state/section';
 
@@ -28,12 +29,12 @@ const readDocumentEnv = (): EmptyStateEnv | null => {
 
 const illustrationByEnv: Record<EmptyStateEnv, ReactNode> = {
   hosted: (
-    <span aria-hidden="true" style={{ color: 'var(--tt-cyan)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>
+    <span aria-hidden="true" style={{ color: color.cyan, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>
       {'{ }'}
     </span>
   ),
   localhost: (
-    <span aria-hidden="true" style={{ color: 'var(--tt-green)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>
+    <span aria-hidden="true" style={{ color: color.green, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>
       {'$'}
     </span>
   ),
@@ -54,9 +55,9 @@ export const EmptyState = ({ title, body, action, env }: EmptyStateProps) => {
       data-env={activeEnv}
       data-section={activeSection.name}
       style={{
-        background: 'var(--tt-bg-dark)',
-        border: '1px solid var(--tt-border)',
-        color: 'var(--tt-fg)',
+        background: color.bgDark,
+        border: `1px solid ${color.border}`,
+        color: color.fg,
         display: 'grid',
         gap: 'var(--tt-gap-4, 16px)',
         maxWidth: 560,
@@ -67,7 +68,7 @@ export const EmptyState = ({ title, body, action, env }: EmptyStateProps) => {
       <div
         style={{
           alignItems: 'center',
-          border: '1px solid var(--tt-border)',
+          border: `1px solid ${color.border}`,
           display: 'inline-flex',
           height: 42,
           justifyContent: 'center',
@@ -78,18 +79,18 @@ export const EmptyState = ({ title, body, action, env }: EmptyStateProps) => {
         {illustrationByEnv[activeEnv]}
       </div>
       <div style={{ display: 'grid', gap: 'var(--tt-gap-2, 8px)' }}>
-        <h2 style={{ fontSize: 20, lineHeight: 1.2, margin: 0 }}>{title}</h2>
-        <p style={{ color: 'var(--tt-fg-dark)', lineHeight: 1.5, margin: 0 }}>{body}</p>
-        <p style={{ color: 'var(--tt-comment)', lineHeight: 1.5, margin: 0 }}>{copyByEnv[activeEnv]}</p>
+        <h2 style={{ fontSize: text.lg, lineHeight: 1.2, margin: 0 }}>{title}</h2>
+        <p style={{ color: color.fgDark, lineHeight: 1.5, margin: 0 }}>{body}</p>
+        <p style={{ color: color.comment, lineHeight: 1.5, margin: 0 }}>{copyByEnv[activeEnv]}</p>
       </div>
       {action ? (
         <button
           onClick={action.onClick}
           type="button"
           style={{
-            background: 'var(--tt-selection)',
-            border: '1px solid var(--tt-border-active)',
-            color: 'var(--tt-fg)',
+            background: color.selection,
+            border: `1px solid ${color.borderActive}`,
+            color: color.fg,
             cursor: 'pointer',
             justifySelf: 'start',
             padding: '8px 10px',

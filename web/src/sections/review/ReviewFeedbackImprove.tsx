@@ -24,23 +24,6 @@ export type ReviewImproveVariantProps = {
   run: ReviewRun;
 };
 
-export const reviewPanelStyle = {
-  background: 'var(--tt-bg-dark)',
-  border: '1px solid var(--tt-border)',
-  color: 'var(--tt-fg)',
-  display: 'grid',
-  gap: 12,
-  padding: 14,
-};
-
-export const reviewButtonStyle = {
-  background: 'var(--tt-selection)',
-  border: '1px solid var(--tt-border-active)',
-  color: 'var(--tt-fg)',
-  cursor: 'pointer',
-  padding: '8px 10px',
-};
-
 export const ReviewFeedbackImprove = ({
   activeRunId,
   env,
@@ -64,62 +47,101 @@ export const ReviewFeedbackImprove = ({
   };
 
   return (
-    <aside aria-label="Feedback and improve" style={{ display: 'grid', gap: 12, width: 360 }}>
-      <section style={reviewPanelStyle}>
-        <header style={{ display: 'grid', gap: 4 }}>
-          <h2 style={{ fontSize: 15, lineHeight: 1.2, margin: 0 }}>feedback.json</h2>
-          <p
+    <aside
+      aria-label="Feedback and improve"
+      style={{
+        display: 'flex',
+        flex: 'none',
+        flexDirection: 'column',
+        gap: 12,
+        minHeight: 0,
+        width: 360,
+      }}
+    >
+      <section
+        style={{
+          border: '1px solid var(--tt-border)',
+          borderRadius: 8,
+          display: 'flex',
+          flex: 'none',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        <header
+          style={{
+            background: 'var(--tt-bg-dark)',
+            borderBottom: '1px solid var(--tt-border)',
+            fontSize: 12,
+            padding: '6px 12px',
+          }}
+        >
+          <h2
             style={{
-              color: 'var(--tt-comment)',
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+              color: 'var(--tt-fg-dark)',
+              display: 'inline',
               fontSize: 12,
+              fontWeight: 700,
               margin: 0,
             }}
           >
-            {selectedCaseId ?? 'run'} · {feedback.length} notes
-          </p>
+            feedback.json
+          </h2>
+          <span style={{ color: 'var(--tt-comment)' }}> — {selectedCaseId ?? 'run'}</span>
         </header>
-        <textarea
-          aria-label="feedback note"
-          onChange={(event) => setNote(event.target.value)}
-          placeholder="note"
-          value={note}
-          style={{
-            background: 'var(--tt-bg)',
-            border: '1px solid var(--tt-border)',
-            color: 'var(--tt-fg)',
-            lineHeight: 1.45,
-            minHeight: 72,
-            padding: 10,
-            resize: 'vertical',
-            width: '100%',
-          }}
-        />
-        <button
-          disabled={!trimmedNote}
-          onClick={() => {
-            void handleRecord();
-          }}
-          type="button"
-          style={{
-            ...reviewButtonStyle,
-            cursor: trimmedNote ? 'pointer' : 'not-allowed',
-            opacity: trimmedNote ? 1 : 0.6,
-          }}
-        >
-          record feedback
-        </button>
-        <div style={{ display: 'grid', gap: 10 }}>
+        <div style={{ padding: 12 }}>
+          <textarea
+            aria-label="feedback note"
+            onChange={(event) => setNote(event.target.value)}
+            placeholder="note what to change: prompt, assertion, fixture, adjacent-negative…"
+            value={note}
+            style={{
+              background: 'var(--tt-bg-dark)',
+              border: '1px solid var(--tt-border)',
+              borderRadius: 6,
+              color: 'var(--tt-fg)',
+              fontSize: 13,
+              height: 88,
+              lineHeight: 1.45,
+              outline: 'none',
+              padding: 9,
+              resize: 'none',
+              width: '100%',
+            }}
+          />
+          <button
+            disabled={!trimmedNote}
+            onClick={() => {
+              void handleRecord();
+            }}
+            type="button"
+            style={{
+              alignItems: 'center',
+              background: 'transparent',
+              border: '1px solid var(--tt-border)',
+              borderRadius: 6,
+              color: 'var(--tt-yellow)',
+              cursor: trimmedNote ? 'pointer' : 'not-allowed',
+              display: 'flex',
+              fontSize: 13,
+              height: 34,
+              justifyContent: 'center',
+              marginTop: 8,
+              opacity: trimmedNote ? 1 : 0.6,
+              width: '100%',
+            }}
+          >
+            record feedback
+          </button>
           {feedback.map((record) => (
             <article
               key={record.noteId}
               style={{
-                background: 'var(--tt-bg)',
-                border: '1px solid var(--tt-border)',
-                borderLeft: '4px solid var(--tt-yellow)',
-                display: 'grid',
-                gap: 8,
-                padding: 10,
+                background: 'var(--tt-bg-dark)',
+                borderLeft: '2px solid var(--tt-yellow)',
+                borderRadius: 6,
+                marginTop: 8,
+                padding: '8px 10px',
               }}
             >
               <header style={{ alignItems: 'center', display: 'flex', gap: 8 }}>
@@ -127,13 +149,12 @@ export const ReviewFeedbackImprove = ({
                   style={{
                     color: 'var(--tt-comment)',
                     flex: '1 1 auto',
-                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-                    fontSize: 12,
+                    fontSize: 11,
                     minWidth: 0,
                     overflowWrap: 'anywhere',
                   }}
                 >
-                  {record.createdAt} · {record.caseId ?? 'run'}
+                  {record.caseId ?? 'run'}
                 </span>
                 <button
                   aria-label={`remove feedback ${record.noteId}`}
@@ -145,17 +166,25 @@ export const ReviewFeedbackImprove = ({
                   type="button"
                   style={{
                     background: 'transparent',
-                    border: '1px solid var(--tt-border)',
-                    color: 'var(--tt-red)',
+                    border: 0,
+                    color: 'var(--tt-comment)',
                     cursor: 'pointer',
+                    fontSize: 15,
                     lineHeight: 1,
-                    padding: '2px 6px',
+                    padding: 0,
                   }}
                 >
                   ×
                 </button>
               </header>
-              <p style={{ color: 'var(--tt-fg-dark)', lineHeight: 1.45, margin: 0 }}>
+              <p
+                style={{
+                  color: 'var(--tt-fg-dark)',
+                  fontSize: 12.5,
+                  lineHeight: 1.45,
+                  margin: '4px 0 0',
+                }}
+              >
                 {record.note}
               </p>
             </article>

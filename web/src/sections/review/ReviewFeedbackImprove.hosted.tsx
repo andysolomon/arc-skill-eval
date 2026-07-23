@@ -2,28 +2,6 @@ import { useState } from 'react';
 import { useProposePlan, type ProposedImprovePlan } from './useProposePlan';
 import type { ReviewImproveVariantProps } from './ReviewFeedbackImprove';
 
-const panelStyle = {
-  background: 'var(--tt-bg-dark)',
-  border: '1px solid var(--tt-border)',
-  color: 'var(--tt-fg)',
-  display: 'grid',
-  gap: 12,
-  padding: 14,
-};
-
-const buttonStyle = {
-  background: 'var(--tt-selection)',
-  border: '1px solid var(--tt-border-active)',
-  color: 'var(--tt-fg)',
-  cursor: 'pointer',
-  padding: '8px 10px',
-};
-
-const monoStyle = {
-  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-  fontSize: 12,
-};
-
 const safeFilePart = (value: string): string =>
   value.trim().replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'review';
 
@@ -44,27 +22,29 @@ const downloadImprovePlan = (plan: ProposedImprovePlan, skill: string) => {
 };
 
 const renderPlanItems = (plan: ProposedImprovePlan) => (
-  <div aria-label="downloaded improve plan" style={{ display: 'grid', gap: 8 }}>
+  <div aria-label="downloaded improve plan">
     {plan.items.map((item, index) => (
-      <article
-        key={`${item.path}-${index}`}
-        style={{
-          border: '1px solid var(--tt-border)',
-          display: 'grid',
-          gap: 6,
-          padding: 8,
-        }}
-      >
-        <strong style={{ ...monoStyle, color: 'var(--tt-yellow)', overflowWrap: 'anywhere' }}>
+      <div key={`${item.path}-${index}`} style={{ marginBottom: 12 }}>
+        <div
+          style={{
+            color: 'var(--tt-magenta)',
+            fontSize: 11,
+            fontWeight: 700,
+            marginBottom: 3,
+            overflowWrap: 'anywhere',
+          }}
+        >
           {item.path}
-        </strong>
-        <p style={{ color: 'var(--tt-fg-dark)', lineHeight: 1.45, margin: 0 }}>
-          {item.before} -&gt; {item.after}
-        </p>
-        <span style={{ ...monoStyle, color: 'var(--tt-comment)', overflowWrap: 'anywhere' }}>
+        </div>
+        <div style={{ fontSize: 12.5, whiteSpace: 'pre-wrap' }}>
+          <span style={{ color: 'var(--tt-red)' }}>- {item.before}</span>
+          <br />
+          <span style={{ color: 'var(--tt-green)' }}>+ {item.after}</span>
+        </div>
+        <div style={{ color: 'var(--tt-comment)', fontSize: 12, marginTop: 3 }}>
           {item.rationale}
-        </span>
-      </article>
+        </div>
+      </div>
     ))}
   </div>
 );
@@ -95,64 +75,103 @@ export const ReviewFeedbackImproveHosted = ({
   };
 
   return (
-    <section aria-label="improve from feedback hosted" data-env="hosted" style={panelStyle}>
-      <header style={{ display: 'grid', gap: 4 }}>
-        <h2 style={{ fontSize: 15, lineHeight: 1.2, margin: 0 }}>improve --from-feedback</h2>
-        {!propose.plan ? (
-          <p style={{ color: 'var(--tt-fg-dark)', lineHeight: 1.45, margin: 0 }}>
-            We'll derive a proposed plan from your feedback notes against the eval suite +
-            grading.json. Nothing is written without --apply.
-          </p>
-        ) : null}
-      </header>
-
-      {improvePlans.length > 0 ? (
-        <div style={{ display: 'grid', gap: 8 }}>
-          {improvePlans.map((plan) => (
-            <div
-              key={plan.planId}
-              style={{
-                border: '1px solid var(--tt-border)',
-                color: 'var(--tt-comment)',
-                ...monoStyle,
-                overflowWrap: 'anywhere',
-                padding: 8,
-              }}
-            >
-              {plan.status} · {plan.planId}
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {propose.plan ? renderPlanItems(propose.plan) : null}
-
-      <button
-        disabled={!canPropose}
-        onClick={handlePropose}
-        title={canPropose ? 'download proposed improve plan' : 'locked until feedback exists'}
-        type="button"
+    <section
+      aria-label="improve from feedback hosted"
+      data-env="hosted"
+      style={{
+        border: '1px solid var(--tt-border)',
+        borderRadius: 8,
+        display: 'flex',
+        flex: 1,
+        flexDirection: 'column',
+        minHeight: 0,
+        overflow: 'hidden',
+      }}
+    >
+      <header
         style={{
-          ...buttonStyle,
-          borderColor: 'var(--tt-magenta)',
-          color: canPropose ? 'var(--tt-magenta)' : 'var(--tt-comment)',
-          cursor: canPropose ? 'pointer' : 'not-allowed',
-          opacity: canPropose ? 1 : 0.6,
+          background: 'var(--tt-bg-dark)',
+          borderBottom: '1px solid var(--tt-border)',
+          color: 'var(--tt-fg-dark)',
+          fontSize: 12,
+          fontWeight: 700,
+          padding: '6px 12px',
         }}
       >
-        {propose.status === 'proposing' ? 'proposing changes' : 'propose changes'}
-      </button>
+        improve --from-feedback
+      </header>
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 12 }}>
+        {!propose.plan ? (
+          <div style={{ color: 'var(--tt-comment)', fontSize: 12.5, lineHeight: 1.6 }}>
+            turn review notes + failing assertions into a focused plan — prompt, assertion,
+            fixture, or adjacent-negative changes with rationale. nothing is written without{' '}
+            <span style={{ color: 'var(--tt-yellow)' }}>--apply</span>. on hosted, the plan
+            downloads as JSON.
+          </div>
+        ) : null}
 
-      {downloaded ? (
-        <span role="status" style={{ color: 'var(--tt-green)', fontSize: 13 }}>
-          improve plan download started
-        </span>
-      ) : null}
-      {propose.error ? (
-        <span role="alert" style={{ color: 'var(--tt-red)', fontSize: 13 }}>
-          {propose.error}
-        </span>
-      ) : null}
+        {improvePlans.length > 0 ? (
+          <div style={{ marginTop: propose.plan ? 0 : 10 }}>
+            {improvePlans.map((plan) => (
+              <div
+                key={plan.planId}
+                style={{
+                  color: 'var(--tt-comment)',
+                  fontSize: 11,
+                  overflowWrap: 'anywhere',
+                  padding: '2px 0',
+                }}
+              >
+                {plan.status} · {plan.planId}
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {propose.plan ? renderPlanItems(propose.plan) : null}
+
+        {downloaded ? (
+          <div role="status" style={{ color: 'var(--tt-green)', fontSize: 12.5, marginTop: 10 }}>
+            ✓ improve plan download started
+          </div>
+        ) : null}
+        {propose.error ? (
+          <div role="alert" style={{ color: 'var(--tt-red)', fontSize: 12.5, marginTop: 10 }}>
+            ✗ {propose.error}
+          </div>
+        ) : null}
+      </div>
+      <footer
+        style={{
+          borderTop: '1px solid var(--tt-border)',
+          display: 'flex',
+          gap: 8,
+          padding: '10px 12px',
+        }}
+      >
+        <button
+          disabled={!canPropose}
+          onClick={handlePropose}
+          title={canPropose ? 'download proposed improve plan' : 'locked until feedback exists'}
+          type="button"
+          style={{
+            alignItems: 'center',
+            background: 'transparent',
+            border: '1px solid var(--tt-magenta)',
+            borderRadius: 6,
+            color: 'var(--tt-magenta)',
+            cursor: canPropose ? 'pointer' : 'not-allowed',
+            display: 'flex',
+            flex: 1,
+            fontSize: 13,
+            height: 34,
+            justifyContent: 'center',
+            opacity: canPropose ? 1 : 0.6,
+          }}
+        >
+          {propose.status === 'proposing' ? 'improving…' : 'improve'}
+        </button>
+      </footer>
     </section>
   );
 };

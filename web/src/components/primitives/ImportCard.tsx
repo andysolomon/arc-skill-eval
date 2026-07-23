@@ -1,4 +1,5 @@
 import { useState, type DragEvent } from 'react';
+import { color } from '@/design/tokens';
 import { useEnv } from '@/state/env';
 
 export type ImportCardProps = {
@@ -32,9 +33,9 @@ export const ImportCard = ({ onValidate, onSample }: ImportCardProps) => {
     <section
       data-env={env}
       style={{
-        background: 'var(--tt-bg-dark)',
-        border: '1px solid var(--tt-border)',
-        color: 'var(--tt-fg)',
+        background: color.bgDark,
+        border: `1px solid ${color.border}`,
+        color: color.fg,
         display: 'grid',
         gap: 'var(--tt-gap-3, 12px)',
         maxWidth: 560,
@@ -47,8 +48,8 @@ export const ImportCard = ({ onValidate, onSample }: ImportCardProps) => {
         onDrop={handleDrop}
         style={{
           alignItems: 'center',
-          border: '1px dashed var(--tt-border-active)',
-          color: 'var(--tt-comment)',
+          border: `1px dashed ${color.borderActive}`,
+          color: color.comment,
           display: 'flex',
           justifyContent: 'center',
           minHeight: 104,
@@ -65,9 +66,9 @@ export const ImportCard = ({ onValidate, onSample }: ImportCardProps) => {
         spellCheck={false}
         value={text}
         style={{
-          background: 'var(--tt-bg)',
-          border: '1px solid var(--tt-border)',
-          color: 'var(--tt-fg)',
+          background: color.bg,
+          border: `1px solid ${color.border}`,
+          color: color.fg,
           fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
           minHeight: 126,
           padding: 10,
@@ -80,9 +81,9 @@ export const ImportCard = ({ onValidate, onSample }: ImportCardProps) => {
           onClick={() => onSample()}
           type="button"
           style={{
-            background: 'var(--tt-bg)',
-            border: '1px solid var(--tt-border)',
-            color: 'var(--tt-cyan)',
+            background: color.bg,
+            border: `1px solid ${color.border}`,
+            color: color.cyan,
             cursor: 'pointer',
             padding: '7px 10px',
           }}
@@ -93,9 +94,9 @@ export const ImportCard = ({ onValidate, onSample }: ImportCardProps) => {
           onClick={() => onValidate(text)}
           type="button"
           style={{
-            background: 'var(--tt-selection)',
-            border: '1px solid var(--tt-border-active)',
-            color: 'var(--tt-fg)',
+            background: color.selection,
+            border: `1px solid ${color.borderActive}`,
+            color: color.fg,
             cursor: 'pointer',
             padding: '7px 10px',
           }}

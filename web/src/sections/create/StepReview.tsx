@@ -1,13 +1,19 @@
-import { useMemo, useState } from 'react';
-import { Column, Kicker } from '@/components/primitives';
+import { sections, useSection } from '@/state/section';
+import type { EnvName } from '@/persistence/preferences';
 import { useWriteEvalsJson } from './useWriteEvalsJson';
 import type { CreateDraft, EvalsJsonDraft } from './useDraft';
+import { kickerStyle, introStyle, titleStyle } from './stepStyles';
 
 type StepReviewProps = {
   assertionCount: number;
+  deterministicCount: number;
   draft: CreateDraft;
-  env: 'hosted' | 'localhost';
+  env: EnvName;
   evalsJson: EvalsJsonDraft;
+  judgeCount: number;
+  onWritten: () => void;
+  workspaceRoot: string;
+  wrote: boolean;
 };
 
 const downloadEvalsJson = (evalsJson: EvalsJsonDraft) => {
@@ -24,154 +30,152 @@ const downloadEvalsJson = (evalsJson: EvalsJsonDraft) => {
   URL.revokeObjectURL(url);
 };
 
-const secondaryButtonStyle = {
-  background: 'var(--tt-bg-dark)',
+const statCardStyle = {
   border: '1px solid var(--tt-border)',
-  color: 'var(--tt-fg)',
-  cursor: 'pointer',
-  padding: '8px 10px',
-};
+  borderRadius: 8,
+  flex: '1 1 40%',
+  minWidth: 118,
+  padding: '12px 16px',
+} as const;
 
-export const StepReview = ({ assertionCount, draft, env, evalsJson }: StepReviewProps) => {
-  const [downloaded, setDownloaded] = useState(false);
-  const { cancelPlan, commitPlan, error, plan, stagePlan, status, wrotePath } = useWriteEvalsJson();
-  const deterministicCount = draft.assertions.filter(
-    (assertion) => assertion.body.trim() && assertion.kind === 'script',
-  ).length;
-  const judgeCount = draft.assertions.filter(
-    (assertion) => assertion.body.trim() && assertion.kind === 'judge',
-  ).length;
-  const canWrite = evalsJson.evals.length > 0 && assertionCount > 0;
-  const command = useMemo(
-    () => `$ arc-skill-eval run --compare --skill ${draft.skillPath || '<dir>'}`,
-    [draft.skillPath],
-  );
-  const isLocalhost = env !== 'hosted';
+export const StepReview = ({
+  assertionCount,
+  deterministicCount,
+  draft,
+  env,
+  evalsJson,
+  judgeCount,
+  onWritten,
+  workspaceRoot,
+  wrote,
+}: StepReviewProps) => {
+  const { setActiveSection } = useSection();
+  const { cancelPlan, commitPlan, error, plan, stagePlan, status, wrotePath } =
+    useWriteEvalsJson();
+  const isLocalhost = env === 'localhost';
   const writeInFlight = status === 'staging' || status === 'committing' || status === 'cancelling';
+  const command = `arc-skill-eval run ./skills/${draft.skill || 'my-skill'} --compare`;
+
+  const gotoRun = (event: { preventDefault: () => void }) => {
+    event.preventDefault();
+    const runSection = sections.find((section) => section.name === 'run');
+    if (runSection) {
+      setActiveSection(runSection);
+    }
+  };
+
   const handleWrite = () => {
-    if (!canWrite) {
+    if (wrote || writeInFlight) {
       return;
     }
 
     if (!isLocalhost) {
       downloadEvalsJson(evalsJson);
-      setDownloaded(true);
+      onWritten();
       return;
     }
 
-    void stagePlan({ workspaceRoot: draft.skillPath, plan: evalsJson }).catch(() => undefined);
+    void stagePlan({ workspaceRoot, plan: evalsJson }).catch(() => undefined);
   };
+
   const handleCommit = () => {
-    void commitPlan().catch(() => undefined);
+    void commitPlan()
+      .then(() => onWritten())
+      .catch(() => undefined);
   };
-  const handleCancel = () => {
-    void cancelPlan().catch(() => undefined);
-  };
+
+  const stats: Array<{ label: string; value: number; color: string }> = [
+    { label: 'cases', value: draft.behaviors.length, color: 'var(--tt-fg)' },
+    { label: 'assertions', value: assertionCount, color: 'var(--tt-fg)' },
+    { label: 'deterministic', value: deterministicCount, color: 'var(--tt-cyan)' },
+    { label: 'judge', value: judgeCount, color: 'var(--tt-magenta)' },
+  ];
 
   return (
-    <Column gap={4}>
-      <Kicker>step 04</Kicker>
-      <div style={{ display: 'grid', gap: 8 }}>
-        <h1 style={{ fontSize: 20, lineHeight: 1.2, margin: 0 }}>review</h1>
-        <p style={{ color: 'var(--tt-fg-dark)', lineHeight: 1.5, margin: 0 }}>
-          Check the suite summary before writing the evals.json artifact.
-        </p>
-      </div>
+    <div>
+      <div style={kickerStyle}>step 04</div>
+      <h1 style={titleStyle}>Review &amp; run</h1>
+      <p style={{ ...introStyle, marginBottom: 22 }}>
+        this is your starter suite. write it, then run with{' '}
+        <span style={{ color: 'var(--tt-fg)' }}>--compare</span> to see the difference the skill
+        makes.
+      </p>
 
-      <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
-        {[
-          ['cases', evalsJson.evals.length],
-          ['assertions', assertionCount],
-          ['deterministic', deterministicCount],
-          ['judge', judgeCount],
-        ].map(([label, value]) => (
-          <section
-            aria-label={`${label} count`}
-            key={label}
-            style={{
-              border: '1px solid var(--tt-border)',
-              display: 'grid',
-              gap: 6,
-              minHeight: 74,
-              padding: 10,
-            }}
-          >
-            <span
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+        {stats.map((stat) => (
+          <section aria-label={`${stat.label} count`} key={stat.label} style={statCardStyle}>
+            <div
               style={{
                 color: 'var(--tt-comment)',
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-                fontSize: 12,
+                fontSize: 11,
                 textTransform: 'uppercase',
               }}
             >
-              {label}
-            </span>
-            <strong style={{ color: 'var(--tt-fg)', fontSize: 22, lineHeight: 1 }}>
-              {value}
-            </strong>
+              {stat.label}
+            </div>
+            <div style={{ color: stat.color, fontSize: 22, fontWeight: 700 }}>{stat.value}</div>
           </section>
         ))}
       </div>
 
-      {env === 'hosted' ? (
-        <section
-          aria-label="hosted write note"
-          data-env={env}
-          style={{
-            background: 'var(--tt-bg-dark)',
-            border: '1px solid var(--tt-cyan)',
-            borderLeft: '4px solid var(--tt-cyan)',
-            display: 'grid',
-            gap: 10,
-            padding: 12,
-          }}
-        >
-          <p style={{ color: 'var(--tt-fg)', margin: 0 }}>
-            Hosted writes download evals.json locally. Disk writes need the localhost daemon.
-          </p>
-        </section>
-      ) : null}
-
-      <pre
+      <div
         aria-label="run command"
         style={{
           background: 'var(--tt-bg-dark)',
           border: '1px solid var(--tt-border)',
-          color: 'var(--tt-green)',
-          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-          margin: 0,
-          overflow: 'auto',
-          padding: 12,
-          whiteSpace: 'pre-wrap',
+          borderRadius: 8,
+          fontSize: 13,
+          marginBottom: 16,
+          padding: '12px 15px',
         }}
       >
-        {command}
-      </pre>
+        <span style={{ color: 'var(--tt-green)' }}>$ </span>
+        <span style={{ color: 'var(--tt-fg)' }}>{command}</span>
+      </div>
 
-      <button
-        data-testid="write-evals-json"
-        disabled={!canWrite || writeInFlight}
-        onClick={handleWrite}
-        type="button"
-        style={{
-          background: canWrite ? (isLocalhost ? 'var(--tt-green)' : 'var(--tt-cyan)') : 'var(--tt-selection)',
-          border: '1px solid var(--tt-border-active)',
-          color: canWrite ? 'var(--tt-bg)' : 'var(--tt-comment)',
-          cursor: canWrite && !writeInFlight ? 'pointer' : 'not-allowed',
-          fontWeight: 700,
-          padding: '10px 12px',
-          width: '100%',
-        }}
-      >
-        {status === 'staging' ? 'staging evals.json' : 'write evals.json'}
-      </button>
+      <div style={{ alignItems: 'center', display: 'flex', gap: 12 }}>
+        <button
+          data-testid="write-evals-json"
+          disabled={writeInFlight}
+          onClick={handleWrite}
+          type="button"
+          style={{
+            alignItems: 'center',
+            background: 'color-mix(in srgb, var(--tt-green) 14%, var(--tt-bg))',
+            border: '1px solid var(--tt-green)',
+            borderRadius: 7,
+            color: 'var(--tt-green)',
+            cursor: writeInFlight ? 'wait' : 'pointer',
+            display: 'inline-flex',
+            fontWeight: 700,
+            gap: 8,
+            height: 40,
+            justifyContent: 'center',
+            padding: '0 18px',
+          }}
+        >
+          {status === 'staging'
+            ? 'staging evals/evals.json…'
+            : wrote
+              ? '✓ wrote evals/evals.json'
+              : 'write evals/evals.json'}
+        </button>
+        {wrote ? (
+          <a href="#" onClick={gotoRun} style={{ fontSize: 13 }}>
+            run it in the console →
+          </a>
+        ) : null}
+      </div>
+
       {plan ? (
         <section
           aria-label="staging diff"
           style={{
             border: '1px solid var(--tt-green)',
+            borderRadius: 8,
             display: 'grid',
             gap: 10,
+            marginTop: 16,
             padding: 12,
           }}
         >
@@ -182,8 +186,8 @@ export const StepReview = ({ assertionCount, draft, env, evalsJson }: StepReview
             style={{
               background: 'var(--tt-bg-dark)',
               border: '1px solid var(--tt-border)',
+              borderRadius: 6,
               color: 'var(--tt-fg-dark)',
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
               fontSize: 12,
               margin: 0,
               overflow: 'auto',
@@ -199,21 +203,28 @@ export const StepReview = ({ assertionCount, draft, env, evalsJson }: StepReview
               onClick={handleCommit}
               type="button"
               style={{
-                ...secondaryButtonStyle,
-                background: writeInFlight ? 'var(--tt-selection)' : 'var(--tt-green)',
-                color: writeInFlight ? 'var(--tt-comment)' : 'var(--tt-bg)',
+                background: 'color-mix(in srgb, var(--tt-green) 14%, var(--tt-bg))',
+                border: '1px solid var(--tt-green)',
+                borderRadius: 7,
+                color: 'var(--tt-green)',
+                cursor: writeInFlight ? 'wait' : 'pointer',
                 fontWeight: 700,
+                padding: '7px 14px',
               }}
             >
               commit
             </button>
             <button
               disabled={writeInFlight}
-              onClick={handleCancel}
+              onClick={() => void cancelPlan().catch(() => undefined)}
               type="button"
               style={{
-                ...secondaryButtonStyle,
-                color: writeInFlight ? 'var(--tt-comment)' : 'var(--tt-fg)',
+                background: 'transparent',
+                border: '1px solid var(--tt-border)',
+                borderRadius: 7,
+                color: 'var(--tt-fg-dark)',
+                cursor: writeInFlight ? 'wait' : 'pointer',
+                padding: '7px 14px',
               }}
             >
               cancel
@@ -221,26 +232,32 @@ export const StepReview = ({ assertionCount, draft, env, evalsJson }: StepReview
           </div>
         </section>
       ) : null}
-      {downloaded && env === 'hosted' ? (
-        <span role="status" style={{ color: 'var(--tt-green)', fontSize: 13 }}>
-          download started
-        </span>
-      ) : null}
+
       {status === 'committed' ? (
-        <span role="status" style={{ color: 'var(--tt-green)', fontSize: 13 }}>
-          wrote evals.json{wrotePath ? ` to ${wrotePath}` : ''}
-        </span>
-      ) : null}
-      {status === 'cancelled' ? (
-        <span role="status" style={{ color: 'var(--tt-comment)', fontSize: 13 }}>
-          cancelled staged write
-        </span>
+        <div role="status" style={{ color: 'var(--tt-green)', fontSize: 12.5, marginTop: 12 }}>
+          ✓ wrote evals.json{wrotePath ? ` to ${wrotePath}` : ''}
+        </div>
       ) : null}
       {error ? (
-        <span role="alert" style={{ color: 'var(--tt-red)', fontSize: 13 }}>
-          {error}
-        </span>
+        <div role="alert" style={{ color: 'var(--tt-red)', fontSize: 12.5, marginTop: 12 }}>
+          ✗ {error}
+        </div>
       ) : null}
-    </Column>
+
+      <div
+        style={{
+          borderTop: '1px solid var(--tt-border)',
+          color: 'var(--tt-comment)',
+          fontSize: 12,
+          lineHeight: 1.6,
+          marginTop: 20,
+          paddingTop: 14,
+        }}
+      >
+        then keep the loop going: <span style={{ color: 'var(--tt-fg-dark)' }}>review</span> the
+        run, note what's off, and <span style={{ color: 'var(--tt-fg-dark)' }}>improve</span> —
+        every fix becomes the next case.
+      </div>
+    </div>
   );
 };

@@ -15,7 +15,6 @@ export const SectionNav = () => {
           onClick={() => setActiveSection(section)}
           type="button"
         >
-          <span>{section.index}</span>
           {section.label}
         </button>
       ))}

@@ -1,124 +1,43 @@
-import { useEffect, useMemo, useRef } from 'react';
-import type { ComponentType } from 'react';
-import { Column, Kicker } from '@/components/primitives';
+import { useEffect, useRef } from 'react';
 import { useEnv } from '@/state/env';
-import StartHere from '../../../../docs/web-app/learn/00-start-here.mdx';
-import WhatIs from '../../../../docs/web-app/learn/01-what-is.mdx';
-import ProgressiveDisclosure from '../../../../docs/web-app/learn/02-progressive-disclosure.mdx';
-import AuthoringGoodEvalSuites from '../../../../docs/web-app/learn/03-authoring-good-eval-suites.mdx';
-import RunningAndIterating from '../../../../docs/web-app/learn/04-running-and-iterating.mdx';
-import CostOfTheWin from '../../../../docs/web-app/learn/05-cost-of-the-win.mdx';
-import AdvancedTraceAndJudges from '../../../../docs/web-app/learn/06-advanced-trace-and-judges.mdx';
-import { LearnMDXProvider } from './MDXProvider';
+import { chapterNumber, learnChapters, type LearnChapterId } from './chapterList';
+import { ChapterAssert } from './chapters/ChapterAssert';
+import { ChapterCreate } from './chapters/ChapterCreate';
+import { ChapterOverview } from './chapters/ChapterOverview';
+import { ChapterPi } from './chapters/ChapterPi';
+import { ChapterRun } from './chapters/ChapterRun';
+import { ChapterSignal } from './chapters/ChapterSignal';
+import { ChapterSkill } from './chapters/ChapterSkill';
 import { useLearnProgress } from './useLearnProgress';
 
-type Chapter = {
-  id: string;
-  order: number;
-  title: string;
-  description: string;
-  Content: ComponentType;
-};
+const chromeStyles = `
+.learn-chapter-row:not([aria-current]):hover { background: var(--tt-bg-hi); }
+.learn-deep-dive:hover { border-color: var(--tt-border-active) !important; }
+`;
 
-const chapters: readonly Chapter[] = [
-  {
-    id: '00-start-here',
-    order: 0,
-    title: 'Start here',
-    description: 'Orient to the eval loop before writing a suite.',
-    Content: StartHere,
-  },
-  {
-    id: '01-what-is',
-    order: 1,
-    title: 'What is a skill eval',
-    description: 'Define the target behavior and the evidence an eval can produce.',
-    Content: WhatIs,
-  },
-  {
-    id: '02-progressive-disclosure',
-    order: 2,
-    title: 'Progressive disclosure',
-    description: 'Load only the skill context needed for the case.',
-    Content: ProgressiveDisclosure,
-  },
-  {
-    id: '03-authoring-good-eval-suites',
-    order: 3,
-    title: 'Authoring good eval suites',
-    description: 'Turn manual examples into focused evals.json cases.',
-    Content: AuthoringGoodEvalSuites,
-  },
-  {
-    id: '04-running-and-iterating',
-    order: 4,
-    title: 'Running and iterating',
-    description: 'Use run artifacts to tighten prompts and assertions.',
-    Content: RunningAndIterating,
-  },
-  {
-    id: '05-cost-of-the-win',
-    order: 5,
-    title: 'Cost of the win',
-    description: 'Read lift alongside cost, latency, and maintenance burden.',
-    Content: CostOfTheWin,
-  },
-  {
-    id: '06-advanced-trace-and-judges',
-    order: 6,
-    title: 'Advanced trace and judges',
-    description: 'Inspect traces and judge prompts when failures need deeper evidence.',
-    Content: AdvancedTraceAndJudges,
-  },
-] as const;
+const isChapterId = (value: string): value is LearnChapterId =>
+  learnChapters.some((chapter) => chapter.id === value);
 
-const getChapterNumber = (chapter: Chapter) => chapter.order.toString().padStart(2, '0');
+const deepDives = learnChapters
+  .filter((chapter) => chapter.id !== 'overview')
+  .map((chapter) => ({
+    id: chapter.id,
+    num: chapterNumber(chapter.id),
+    label: chapter.label,
+    desc: chapter.desc ?? '',
+  }));
 
 export const LearnApp = () => {
   const { env } = useEnv();
   const contentRef = useRef<HTMLDivElement | null>(null);
-  const {
-    completedSteps,
-    currentChapterId,
-    hydrated,
-    markCompleted,
-    scrollPos,
-    setCurrentChapterId,
-    setScrollPos,
-  } = useLearnProgress(chapters[0].id);
-  const activeChapter = useMemo(
-    () => chapters.find((chapter) => chapter.id === currentChapterId) ?? chapters[0],
-    [currentChapterId],
-  );
-  const activeIndex = chapters.findIndex((chapter) => chapter.id === activeChapter.id);
-  const ActiveContent = activeChapter.Content;
-  const previousChapter = activeIndex > 0 ? chapters[activeIndex - 1] : null;
-  const nextChapter = activeIndex < chapters.length - 1 ? chapters[activeIndex + 1] : null;
+  const { currentChapterId, setCurrentChapterId } = useLearnProgress('overview');
+  const activeId: LearnChapterId = isChapterId(currentChapterId) ? currentChapterId : 'overview';
 
   useEffect(() => {
-    if (!hydrated) {
-      return;
-    }
+    contentRef.current?.scrollTo({ top: 0 });
+  }, [activeId]);
 
-    contentRef.current?.scrollTo({ top: scrollPos });
-  }, [activeChapter.id, hydrated, scrollPos]);
-
-  const handleContentScroll = () => {
-    const pane = contentRef.current;
-
-    if (!pane) {
-      return;
-    }
-
-    const nextScrollPos = Math.round(pane.scrollTop);
-    setScrollPos(nextScrollPos);
-
-    if (pane.scrollHeight - pane.scrollTop - pane.clientHeight <= 24) {
-      markCompleted(activeChapter.id);
-    }
-  };
-
-  const selectChapter = (chapterId: string) => {
+  const selectChapter = (chapterId: LearnChapterId) => {
     setCurrentChapterId(chapterId);
     contentRef.current?.scrollTo({ top: 0 });
   };
@@ -128,165 +47,115 @@ export const LearnApp = () => {
       className="app-main"
       data-screen-label={`learn (${env})`}
       data-testid="learn-app"
-      style={{ minWidth: 0, overflow: 'hidden', padding: 16 }}
+      style={{ display: 'flex', minHeight: 0, minWidth: 0, overflow: 'hidden', padding: 0 }}
     >
-      <div
+      <style>{chromeStyles}</style>
+
+      <aside
+        aria-label="Learn chapters"
         style={{
-          display: 'grid',
-          gap: 16,
-          gridTemplateColumns: '238px minmax(0, 1fr)',
-          height: '100%',
+          background: 'var(--tt-bg-dark)',
+          borderRight: '1px solid var(--tt-border)',
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 'none',
           minHeight: 0,
+          width: 238,
         }}
       >
-        <aside
-          aria-label="Learn chapters"
+        <div
           style={{
-            background: 'var(--tt-bg-dark)',
-            border: '1px solid var(--tt-border)',
-            minHeight: 0,
-            overflowY: 'auto',
-            padding: 14,
+            color: 'var(--tt-comment)',
+            fontSize: 11,
+            letterSpacing: '0.08em',
+            padding: '13px 16px 7px',
+            textTransform: 'uppercase',
           }}
         >
-          <Column gap={3}>
-            <Kicker tone="neutral">chapters</Kicker>
-            <div style={{ display: 'grid', gap: 4 }}>
-              {chapters.map((chapter) => {
-                const selected = chapter.id === activeChapter.id;
-                const completed = completedSteps.includes(chapter.id);
+          chapters
+        </div>
+        <nav style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '0 8px 8px' }}>
+          {learnChapters.map((chapter) => {
+            const selected = chapter.id === activeId;
 
-                return (
-                  <button
-                    aria-current={selected ? 'page' : undefined}
-                    data-chapter-id={chapter.id}
-                    key={chapter.id}
-                    onClick={() => selectChapter(chapter.id)}
-                    style={{
-                      alignItems: 'stretch',
-                      background: selected ? 'var(--tt-selection)' : 'transparent',
-                      border: '1px solid transparent',
-                      color: selected ? 'var(--tt-fg)' : 'var(--tt-fg-dark)',
-                      cursor: 'pointer',
-                      display: 'grid',
-                      gap: 8,
-                      gridTemplateColumns: selected ? '4px 28px minmax(0, 1fr) 16px' : '0 28px minmax(0, 1fr) 16px',
-                      minHeight: 44,
-                      padding: '8px 6px',
-                      textAlign: 'left',
-                      width: '100%',
-                    }}
-                    type="button"
-                  >
-                    <span aria-hidden="true" style={{ background: selected ? 'var(--tt-cyan)' : 'transparent' }} />
-                    <span
-                      style={{
-                        color: 'var(--tt-comment)',
-                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-                        fontSize: 12,
-                        lineHeight: 1.4,
-                      }}
-                    >
-                      {getChapterNumber(chapter)}
-                    </span>
-                    <span style={{ fontSize: 13, fontWeight: selected ? 700 : 500, lineHeight: 1.3 }}>
-                      {chapter.title}
-                    </span>
-                    <span aria-label={completed ? 'Completed' : undefined} style={{ color: 'var(--tt-green)' }}>
-                      {completed ? '*' : ''}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </Column>
-        </aside>
-
-        <article
-          aria-labelledby="learn-chapter-title"
-          onScroll={handleContentScroll}
-          ref={contentRef}
-          style={{
-            background: 'var(--tt-bg-dark)',
-            border: '1px solid var(--tt-border)',
-            minHeight: 0,
-            overflow: 'auto',
-            padding: '24px 28px',
-          }}
-        >
-          <Column gap={4}>
-            <header style={{ display: 'grid', gap: 8, maxWidth: 760 }}>
-              <Kicker>chapter {getChapterNumber(activeChapter)}</Kicker>
-              <h1
-                id="learn-chapter-title"
-                style={{ color: 'var(--tt-fg)', fontSize: 26, lineHeight: 1.15, margin: 0 }}
-              >
-                {activeChapter.title}
-              </h1>
-              <p style={{ color: 'var(--tt-comment)', lineHeight: 1.5, margin: 0 }}>
-                {activeChapter.description}
-              </p>
-            </header>
-
-            <LearnMDXProvider>
-              <ActiveContent />
-            </LearnMDXProvider>
-
-            <footer
-              style={{
-                alignItems: 'center',
-                borderTop: '1px solid var(--tt-border)',
-                display: 'flex',
-                gap: 10,
-                justifyContent: 'space-between',
-                maxWidth: 760,
-                paddingTop: 16,
-              }}
-            >
+            return (
               <button
-                disabled={!previousChapter}
-                onClick={() => previousChapter && selectChapter(previousChapter.id)}
+                aria-current={selected ? 'page' : undefined}
+                className="learn-chapter-row"
+                data-chapter-id={chapter.id}
+                key={chapter.id}
+                onClick={() => selectChapter(chapter.id)}
                 style={{
-                  background: 'var(--tt-bg)',
-                  border: '1px solid var(--tt-border)',
-                  color: previousChapter ? 'var(--tt-fg-dark)' : 'var(--tt-comment)',
-                  cursor: previousChapter ? 'pointer' : 'not-allowed',
-                  padding: '8px 10px',
-                }}
-                type="button"
-              >
-                Previous
-              </button>
-              <button
-                onClick={() => markCompleted(activeChapter.id)}
-                style={{
-                  background: completedSteps.includes(activeChapter.id) ? 'var(--tt-selection)' : 'var(--tt-bg)',
-                  border: '1px solid var(--tt-border-active)',
-                  color: 'var(--tt-fg)',
+                  alignItems: 'center',
+                  background: selected ? 'var(--tt-selection)' : 'transparent',
+                  border: 'none',
+                  borderLeft: `2px solid ${selected ? 'var(--tt-blue)' : 'transparent'}`,
+                  borderRadius: 6,
                   cursor: 'pointer',
-                  padding: '8px 10px',
+                  display: 'flex',
+                  gap: 10,
+                  margin: '1px 0',
+                  padding: '8px 9px',
+                  textAlign: 'left',
+                  width: '100%',
                 }}
                 type="button"
               >
-                {completedSteps.includes(activeChapter.id) ? 'Complete' : 'Mark complete'}
+                <span
+                  style={{
+                    color: selected ? 'var(--tt-blue)' : 'var(--tt-dim)',
+                    flex: 'none',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    width: 16,
+                  }}
+                >
+                  {chapterNumber(chapter.id)}
+                </span>
+                <span
+                  style={{
+                    color: selected ? 'var(--tt-fg)' : 'var(--tt-fg-dark)',
+                    fontSize: 12.5,
+                    minWidth: 0,
+                  }}
+                >
+                  {chapter.label}
+                </span>
               </button>
-              <button
-                disabled={!nextChapter}
-                onClick={() => nextChapter && selectChapter(nextChapter.id)}
-                style={{
-                  background: 'var(--tt-bg)',
-                  border: '1px solid var(--tt-border)',
-                  color: nextChapter ? 'var(--tt-fg-dark)' : 'var(--tt-comment)',
-                  cursor: nextChapter ? 'pointer' : 'not-allowed',
-                  padding: '8px 10px',
-                }}
-                type="button"
-              >
-                Next
-              </button>
-            </footer>
-          </Column>
-        </article>
+            );
+          })}
+        </nav>
+        <div
+          style={{
+            borderTop: '1px solid var(--tt-border)',
+            color: 'var(--tt-comment)',
+            fontSize: 11,
+            lineHeight: 1.9,
+            padding: '12px 16px',
+          }}
+        >
+          format · Anthropic evals.json
+          <br />
+          method · OpenAI eval-skills
+          <br />
+          runtime · <span style={{ color: 'var(--tt-teal)' }}>Pi</span>
+        </div>
+      </aside>
+
+      <div
+        id="learn-scroll"
+        ref={contentRef}
+        style={{ flex: 1, minHeight: 0, minWidth: 0, overflow: 'auto' }}
+      >
+        {activeId === 'overview' ? (
+          <ChapterOverview deepDives={deepDives} onNavigate={selectChapter} />
+        ) : null}
+        {activeId === 'skill' ? <ChapterSkill /> : null}
+        {activeId === 'create' ? <ChapterCreate /> : null}
+        {activeId === 'assert' ? <ChapterAssert /> : null}
+        {activeId === 'signal' ? <ChapterSignal /> : null}
+        {activeId === 'run' ? <ChapterRun /> : null}
+        {activeId === 'pi' ? <ChapterPi /> : null}
       </div>
     </main>
   );

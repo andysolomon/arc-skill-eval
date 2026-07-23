@@ -5,36 +5,100 @@ import { putLearnProgress, type LearnProgressRecord } from '@/persistence/learnP
 export const CREATE_WIZARD_CHAPTER_ID = 'create-wizard';
 
 export type CreateStepId = 'behaviors' | 'prompts' | 'assertions' | 'review';
-export type AssertionKind = 'judge' | 'script' | 'diff';
+export type BehaviorDimension = 'outcome' | 'process' | 'style' | 'efficiency';
+export type PromptFlavor = 'explicit' | 'implicit' | 'contextual' | 'adjacent-negative';
+export type AssertionKind = 'file-exists' | 'file-absent' | 'regex-match' | 'json-valid' | 'judge';
 
-export type PromptRow = {
-  id: string;
-  text: string;
+export type BehaviorAssertion = {
+  kind: AssertionKind;
+  val: string;
 };
 
-export type AssertionRow = {
+export type BehaviorRow = {
   id: string;
-  kind: AssertionKind;
-  body: string;
+  text: string;
+  dim: BehaviorDimension;
+  prompt: string;
+  flavor: PromptFlavor;
+  asserts: BehaviorAssertion[];
 };
 
 export type CreateDraft = {
-  skillName: string;
-  skillPath: string;
-  behaviorBullets: string;
-  prompts: PromptRow[];
-  assertions: AssertionRow[];
+  skill: string;
+  behaviors: BehaviorRow[];
 };
 
 export type EvalsJsonDraft = {
   skill_name: string;
   evals: Array<{
     id: string;
-    description: string;
     prompt: string;
-    expected_output: string;
-    assertions: Array<string | Record<string, unknown>>;
+    assertions: Array<string | Record<string, string>>;
   }>;
+};
+
+export const dimensionColors: Record<BehaviorDimension, string> = {
+  outcome: 'var(--tt-green)',
+  process: 'var(--tt-blue)',
+  style: 'var(--tt-magenta)',
+  efficiency: 'var(--tt-yellow)',
+};
+
+export const dimensions = Object.keys(dimensionColors) as BehaviorDimension[];
+
+export const flavorColors: Record<PromptFlavor, string> = {
+  explicit: 'var(--tt-green)',
+  implicit: 'var(--tt-blue)',
+  contextual: 'var(--tt-cyan)',
+  'adjacent-negative': 'var(--tt-orange)',
+};
+
+export const flavors = Object.keys(flavorColors) as PromptFlavor[];
+
+export const assertionKinds: AssertionKind[] = [
+  'file-exists',
+  'file-absent',
+  'regex-match',
+  'json-valid',
+  'judge',
+];
+
+export const assertionKindColor = (kind: AssertionKind) =>
+  kind === 'judge' ? 'var(--tt-magenta)' : 'var(--tt-cyan)';
+
+export const assertionField = (kind: AssertionKind) =>
+  kind === 'regex-match' ? 'pattern' : 'path';
+
+export const assertionPlaceholder = (kind: AssertionKind) =>
+  kind === 'judge'
+    ? 'one observable claim, graded true / false'
+    : kind === 'regex-match'
+      ? 'pattern e.g. conventionalcommits'
+      : 'path e.g. .releaserc.json';
+
+export const slugifyBehavior = (text: string, index: number) => {
+  const slug = (text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .split('-')
+    .slice(0, 4)
+    .join('-');
+
+  return slug || `case-${index + 1}`;
+};
+
+export const suggestPromptTemplate = (skill: string, behavior: BehaviorRow) => {
+  const text = (behavior.text || 'the target behavior').replace(/\.$/, '');
+  const lower = text.charAt(0).toLowerCase() + text.slice(1);
+  const templates: Record<PromptFlavor, string> = {
+    explicit: `Use ${skill || 'the skill'} to ${lower}.`,
+    implicit: `${text}.`,
+    contextual: `We keep running into trouble here — ${lower}. Sort it out.`,
+    'adjacent-negative': 'A nearby request the skill should stay out of.',
+  };
+
+  return templates[behavior.flavor] ?? `${text}.`;
 };
 
 type PersistedCreateProgress = LearnProgressRecord & {
@@ -45,38 +109,51 @@ type PersistedCreateProgress = LearnProgressRecord & {
 const stepOrder: CreateStepId[] = ['behaviors', 'prompts', 'assertions', 'review'];
 
 const defaultDraft = (): CreateDraft => ({
-  skillName: 'new-skill',
-  skillPath: './skills/new-skill',
-  behaviorBullets: '',
-  prompts: [{ id: makeId('prompt'), text: '' }],
-  assertions: [{ id: makeId('assertion'), kind: 'judge', body: '' }],
+  skill: 'my-skill',
+  behaviors: [],
 });
 
 const makeId = (prefix: string) =>
   `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
+export const makeBehaviorRow = (patch: Partial<Omit<BehaviorRow, 'id'>> = {}): BehaviorRow => ({
+  id: makeId('behavior'),
+  text: '',
+  dim: 'outcome',
+  prompt: '',
+  flavor: 'explicit',
+  asserts: [],
+  ...patch,
+});
+
 const isStepId = (value: unknown): value is CreateStepId =>
   typeof value === 'string' && stepOrder.includes(value as CreateStepId);
 
-const isPromptRow = (value: unknown): value is PromptRow =>
+const isAssertion = (value: unknown): value is BehaviorAssertion =>
   Boolean(
     value &&
       typeof value === 'object' &&
-      typeof (value as PromptRow).id === 'string' &&
-      typeof (value as PromptRow).text === 'string',
+      assertionKinds.includes((value as BehaviorAssertion).kind) &&
+      typeof (value as BehaviorAssertion).val === 'string',
   );
 
-const isAssertionKind = (value: unknown): value is AssertionKind =>
-  value === 'judge' || value === 'script' || value === 'diff';
+const isBehaviorRow = (value: unknown): value is BehaviorRow => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
 
-const isAssertionRow = (value: unknown): value is AssertionRow =>
-  Boolean(
-    value &&
-      typeof value === 'object' &&
-      typeof (value as AssertionRow).id === 'string' &&
-      isAssertionKind((value as AssertionRow).kind) &&
-      typeof (value as AssertionRow).body === 'string',
+  const row = value as BehaviorRow;
+
+  return (
+    typeof row.id === 'string' &&
+    typeof row.text === 'string' &&
+    dimensions.includes(row.dim) &&
+    typeof row.prompt === 'string' &&
+    flavors.includes(row.flavor) &&
+    Array.isArray(row.asserts) &&
+    row.asserts.every(isAssertion)
   );
+};
 
 const normalizeDraft = (value: unknown): CreateDraft => {
   const fallback = defaultDraft();
@@ -86,23 +163,13 @@ const normalizeDraft = (value: unknown): CreateDraft => {
   }
 
   const candidate = value as Partial<CreateDraft>;
-  const prompts = Array.isArray(candidate.prompts) && candidate.prompts.every(isPromptRow)
-    ? candidate.prompts
-    : fallback.prompts;
-  const assertions =
-    Array.isArray(candidate.assertions) && candidate.assertions.every(isAssertionRow)
-      ? candidate.assertions
-      : fallback.assertions;
 
   return {
-    skillName: typeof candidate.skillName === 'string' ? candidate.skillName : fallback.skillName,
-    skillPath: typeof candidate.skillPath === 'string' ? candidate.skillPath : fallback.skillPath,
-    behaviorBullets:
-      typeof candidate.behaviorBullets === 'string'
-        ? candidate.behaviorBullets
-        : fallback.behaviorBullets,
-    prompts: prompts.length > 0 ? prompts : fallback.prompts,
-    assertions: assertions.length > 0 ? assertions : fallback.assertions,
+    skill: typeof candidate.skill === 'string' ? candidate.skill : fallback.skill,
+    behaviors:
+      Array.isArray(candidate.behaviors) && candidate.behaviors.every(isBehaviorRow)
+        ? candidate.behaviors
+        : fallback.behaviors,
   };
 };
 
@@ -119,84 +186,92 @@ const readCreateProgress = async (): Promise<PersistedCreateProgress | undefined
   return record;
 };
 
-const parseBehaviorBullets = (value: string): string[] =>
-  value
-    .split(/\r?\n/)
-    .map((line) => line.replace(/^[-*]\s*/, '').trim())
-    .filter(Boolean);
+export const assembleEvalsJson = (draft: CreateDraft): EvalsJsonDraft => ({
+  skill_name: draft.skill || 'my-skill',
+  evals: draft.behaviors.map((behavior, index) => ({
+    id: slugifyBehavior(behavior.text, index),
+    prompt: behavior.prompt,
+    assertions: behavior.asserts.map((assertion) =>
+      assertion.kind === 'judge'
+        ? assertion.val
+        : { type: assertion.kind, [assertionField(assertion.kind)]: assertion.val },
+    ),
+  })),
+});
 
-const slugify = (value: string, fallback: string) => {
-  const slug = value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 48);
-
-  return slug || fallback;
-};
-
-const toEvalAssertion = (assertion: AssertionRow, index: number): string | Record<string, unknown> => {
-  const body = assertion.body.trim();
-
-  if (assertion.kind === 'judge') {
-    return body || 'TODO: judge the intended behavior from the run transcript.';
+export const behaviorsFromEvalsJson = (
+  evals: unknown,
+): { skill: string; rows: BehaviorRow[] } => {
+  if (!evals || typeof evals !== 'object') {
+    return { skill: '', rows: [] };
   }
 
-  if (assertion.kind === 'diff') {
-    return {
-      id: `diff-${index + 1}`,
-      kind: 'workspace',
-      method: 'snapshot-diff',
-      path: body || 'TODO/path-to-compare',
-    };
+  const candidate = evals as Record<string, unknown>;
+  const skill =
+    typeof candidate.skill_name === 'string' && candidate.skill_name.trim()
+      ? candidate.skill_name
+      : '';
+
+  if (!Array.isArray(candidate.evals)) {
+    return { skill: '', rows: [] };
   }
 
-  if (body.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(body);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>;
-      }
-    } catch {
-      // Fall through to a regex assertion so the preview remains valid JSON.
+  const rows = candidate.evals.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      return [];
     }
-  }
 
-  return {
-    type: 'file-exists',
-    path: body || 'TODO/path-the-skill-should-create',
-  };
-};
+    const evalEntry = entry as Record<string, unknown>;
+    const asserts = Array.isArray(evalEntry.assertions)
+      ? evalEntry.assertions.flatMap((assertion): BehaviorAssertion[] => {
+          if (typeof assertion === 'string') {
+            return [{ kind: 'judge', val: assertion }];
+          }
 
-export const assembleEvalsJson = (draft: CreateDraft): EvalsJsonDraft => {
-  const behaviors = parseBehaviorBullets(draft.behaviorBullets);
-  const filledPrompts = draft.prompts.map((prompt) => prompt.text.trim()).filter(Boolean);
-  const caseCount = Math.max(behaviors.length, filledPrompts.length);
-  const assertions = draft.assertions
-    .filter((assertion) => assertion.body.trim())
-    .map(toEvalAssertion);
+          if (!assertion || typeof assertion !== 'object' || Array.isArray(assertion)) {
+            return [];
+          }
 
-  return {
-    skill_name: slugify(draft.skillName, 'new-skill'),
-    evals: Array.from({ length: caseCount }, (_, index) => {
-      const behavior = behaviors[index] ?? behaviors[0] ?? `case ${index + 1}`;
-      const prompt = filledPrompts[index] ?? `TODO: prompt that exercises ${behavior}`;
-      const id = slugify(behavior, `case-${index + 1}`);
+          const assertionObject = assertion as Record<string, unknown>;
+          const type = assertionObject.type;
+          if (
+            typeof type !== 'string' ||
+            !assertionKinds.includes(type as AssertionKind)
+          ) {
+            return [];
+          }
 
-      return {
-        id,
-        description: behavior,
-        prompt,
-        expected_output: `The assistant satisfies this behavior: ${behavior}`,
-        assertions,
-      };
-    }),
-  };
+          const kind = type as AssertionKind;
+          return [
+            {
+              kind,
+              val: String(
+                assertionObject[assertionField(kind)] ??
+                  assertionObject.path ??
+                  assertionObject.pattern ??
+                  '',
+              ),
+            },
+          ];
+        })
+      : [];
+
+    return [
+      makeBehaviorRow({
+        text: typeof evalEntry.id === 'string' ? evalEntry.id.replace(/-/g, ' ') : '',
+        prompt: typeof evalEntry.prompt === 'string' ? evalEntry.prompt : '',
+        asserts,
+      }),
+    ];
+  });
+
+  return { skill, rows };
 };
 
 export const useDraft = () => {
   const [draft, setDraft] = useState<CreateDraft>(defaultDraft);
   const [activeStep, setActiveStep] = useState<CreateStepId>('behaviors');
+  const [wrote, setWrote] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -235,11 +310,10 @@ export const useDraft = () => {
     }
 
     const stepIndex = stepOrder.indexOf(activeStep);
-    const completedSteps = stepOrder.slice(0, stepIndex);
     const record: PersistedCreateProgress = {
       chapterId: CREATE_WIZARD_CHAPTER_ID,
       scrollPos: stepIndex,
-      completedSteps,
+      completedSteps: stepOrder.slice(0, stepIndex),
       lastVisited: activeStep,
       activeStep,
       draft,
@@ -248,79 +322,126 @@ export const useDraft = () => {
     void putLearnProgress(record);
   }, [activeStep, draft, hydrated]);
 
-  const updateDraft = useCallback((patch: Partial<CreateDraft>) => {
-    setDraft((current) => ({ ...current, ...patch }));
+  const mutateDraft = useCallback((mutate: (current: CreateDraft) => CreateDraft) => {
+    setWrote(false);
+    setDraft(mutate);
   }, []);
 
-  const addPrompt = useCallback(() => {
-    setDraft((current) => ({
-      ...current,
-      prompts: [...current.prompts, { id: makeId('prompt'), text: '' }],
-    }));
-  }, []);
+  const setSkill = useCallback(
+    (skill: string) => mutateDraft((current) => ({ ...current, skill })),
+    [mutateDraft],
+  );
 
-  const updatePrompt = useCallback((id: string, text: string) => {
-    setDraft((current) => ({
-      ...current,
-      prompts: current.prompts.map((prompt) => (prompt.id === id ? { ...prompt, text } : prompt)),
-    }));
-  }, []);
+  const addBehavior = useCallback(
+    () =>
+      mutateDraft((current) => ({
+        ...current,
+        behaviors: [...current.behaviors, makeBehaviorRow()],
+      })),
+    [mutateDraft],
+  );
 
-  const removePrompt = useCallback((id: string) => {
-    setDraft((current) => ({
-      ...current,
-      prompts:
-        current.prompts.length === 1
-          ? [{ ...current.prompts[0], text: '' }]
-          : current.prompts.filter((prompt) => prompt.id !== id),
-    }));
-  }, []);
+  const removeBehavior = useCallback(
+    (id: string) =>
+      mutateDraft((current) => ({
+        ...current,
+        behaviors: current.behaviors.filter((behavior) => behavior.id !== id),
+      })),
+    [mutateDraft],
+  );
 
-  const addAssertion = useCallback(() => {
-    setDraft((current) => ({
-      ...current,
-      assertions: [...current.assertions, { id: makeId('assertion'), kind: 'judge', body: '' }],
-    }));
-  }, []);
+  const updateBehavior = useCallback(
+    (id: string, patch: Partial<Omit<BehaviorRow, 'id'>>) =>
+      mutateDraft((current) => ({
+        ...current,
+        behaviors: current.behaviors.map((behavior) =>
+          behavior.id === id ? { ...behavior, ...patch } : behavior,
+        ),
+      })),
+    [mutateDraft],
+  );
 
-  const updateAssertion = useCallback((id: string, patch: Partial<Omit<AssertionRow, 'id'>>) => {
-    setDraft((current) => ({
-      ...current,
-      assertions: current.assertions.map((assertion) =>
-        assertion.id === id ? { ...assertion, ...patch } : assertion,
-      ),
-    }));
-  }, []);
+  const addAssertion = useCallback(
+    (behaviorId: string, kind: AssertionKind) =>
+      mutateDraft((current) => ({
+        ...current,
+        behaviors: current.behaviors.map((behavior) =>
+          behavior.id === behaviorId
+            ? { ...behavior, asserts: [...behavior.asserts, { kind, val: '' }] }
+            : behavior,
+        ),
+      })),
+    [mutateDraft],
+  );
 
-  const removeAssertion = useCallback((id: string) => {
-    setDraft((current) => ({
-      ...current,
-      assertions:
-        current.assertions.length === 1
-          ? [{ ...current.assertions[0], body: '' }]
-          : current.assertions.filter((assertion) => assertion.id !== id),
-    }));
-  }, []);
+  const removeAssertion = useCallback(
+    (behaviorId: string, index: number) =>
+      mutateDraft((current) => ({
+        ...current,
+        behaviors: current.behaviors.map((behavior) =>
+          behavior.id === behaviorId
+            ? { ...behavior, asserts: behavior.asserts.filter((_, i) => i !== index) }
+            : behavior,
+        ),
+      })),
+    [mutateDraft],
+  );
+
+  const setAssertionValue = useCallback(
+    (behaviorId: string, index: number, val: string) =>
+      mutateDraft((current) => ({
+        ...current,
+        behaviors: current.behaviors.map((behavior) =>
+          behavior.id === behaviorId
+            ? {
+                ...behavior,
+                asserts: behavior.asserts.map((assertion, i) =>
+                  i === index ? { ...assertion, val } : assertion,
+                ),
+              }
+            : behavior,
+        ),
+      })),
+    [mutateDraft],
+  );
+
+  const seedBehaviors = useCallback(
+    (skill: string, rows: BehaviorRow[]) => {
+      mutateDraft(() => ({ skill, behaviors: rows }));
+      setActiveStep('behaviors');
+    },
+    [mutateDraft],
+  );
+
+  const markWritten = useCallback(() => setWrote(true), []);
 
   const evalsJson = useMemo(() => assembleEvalsJson(draft), [draft]);
-  const activeStepIndex = stepOrder.indexOf(activeStep);
+  const assertionCount = draft.behaviors.reduce((n, behavior) => n + behavior.asserts.length, 0);
+  const deterministicCount = draft.behaviors.reduce(
+    (n, behavior) => n + behavior.asserts.filter((assertion) => assertion.kind !== 'judge').length,
+    0,
+  );
 
   return {
     activeStep,
-    activeStepIndex,
+    activeStepIndex: stepOrder.indexOf(activeStep),
     addAssertion,
-    addPrompt,
-    assertionCount: draft.assertions.filter((assertion) => assertion.body.trim()).length,
-    behaviorCount: parseBehaviorBullets(draft.behaviorBullets).length,
+    addBehavior,
+    assertionCount,
+    behaviorCount: draft.behaviors.length,
+    deterministicCount,
     draft,
     evalsJson,
-    promptCount: draft.prompts.filter((prompt) => prompt.text.trim()).length,
+    judgeCount: assertionCount - deterministicCount,
+    markWritten,
     removeAssertion,
-    removePrompt,
+    removeBehavior,
+    seedBehaviors,
     setActiveStep,
+    setAssertionValue,
+    setSkill,
     steps: stepOrder,
-    updateAssertion,
-    updateDraft,
-    updatePrompt,
+    updateBehavior,
+    wrote,
   };
 };

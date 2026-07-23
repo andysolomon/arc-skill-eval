@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { ComposerRow, Kicker } from '@/components/primitives';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+
 import { useRunLifecycle } from '@/state/runLifecycle';
-import { WorkspacePicker } from './WorkspacePicker';
+import { useWorkspace } from '@/state/workspace';
+import { readLastRunIdPreference } from './WorkspacePicker';
+import { useSpinner } from './useSpinner';
 import {
   useRunDaemon,
   type CompareMode,
@@ -51,45 +53,162 @@ export const defaultRunComposerState: RunComposerState = {
   sandbox: 'none',
 };
 
-const buttonStyle = (selected: boolean) => ({
-  background: selected ? 'var(--tt-selection)' : 'var(--tt-bg)',
+const inputStyle: CSSProperties = {
+  background: 'var(--tt-bg-dark)',
   border: '1px solid var(--tt-border)',
-  color: selected ? 'var(--tt-fg)' : 'var(--tt-fg-dark)',
-  cursor: 'pointer',
-  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-  minHeight: 30,
-  padding: '0 9px',
-  textAlign: 'left' as const,
-});
+  borderRadius: 6,
+  color: 'var(--tt-fg)',
+  fontSize: 12.5,
+  outline: 'none',
+  padding: '7px 10px',
+  width: '100%',
+};
+
+const FlagRow = ({
+  label,
+  value,
+  valueColor,
+  open,
+  onToggle,
+  children,
+}: {
+  label: string;
+  value: string;
+  valueColor: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) => (
+  <div>
+    <button
+      aria-expanded={open}
+      onClick={onToggle}
+      type="button"
+      style={{
+        alignItems: 'center',
+        background: open ? 'var(--tt-bg-hi)' : 'transparent',
+        border: 0,
+        cursor: 'pointer',
+        display: 'flex',
+        fontSize: 13,
+        gap: 12,
+        justifyContent: 'space-between',
+        padding: '8px 14px',
+        textAlign: 'left',
+        width: '100%',
+      }}
+    >
+      <span style={{ color: 'var(--tt-comment)', flex: 'none' }}>{label}</span>
+      <span style={{ alignItems: 'center', display: 'flex', gap: 8, minWidth: 0 }}>
+        <span
+          style={{
+            color: valueColor,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {value}
+        </span>
+        <span
+          aria-hidden="true"
+          style={{ color: open ? 'var(--tt-blue)' : 'var(--tt-dim)', flex: 'none', fontSize: 10 }}
+        >
+          {open ? '▴' : '▾'}
+        </span>
+      </span>
+    </button>
+    {open ? (
+      <div
+        style={{
+          background: 'var(--tt-bg-dark)',
+          borderBottom: '1px solid var(--tt-border)',
+          borderTop: '1px solid var(--tt-border)',
+          padding: '5px',
+        }}
+      >
+        {children}
+      </div>
+    ) : null}
+  </div>
+);
 
 const OptionList = <T extends string | number>({
   value,
+  valueColor,
   options,
   onSelect,
 }: {
   value: T;
+  valueColor: string;
   options: readonly T[];
   onSelect: (value: T) => void;
 }) => (
-  <div style={{ display: 'grid', gap: 6 }}>
-    {options.map((option) => (
-      <button
-        key={option}
-        onClick={() => onSelect(option)}
-        type="button"
-        style={buttonStyle(option === value)}
-      >
-        {option}
-      </button>
-    ))}
+  <div style={{ display: 'grid' }}>
+    {options.map((option) => {
+      const selected = option === value;
+
+      return (
+        <button
+          key={option}
+          onClick={() => onSelect(option)}
+          type="button"
+          style={{
+            alignItems: 'center',
+            background: selected ? 'var(--tt-selection)' : 'transparent',
+            border: 0,
+            borderRadius: 6,
+            color: selected ? valueColor : 'var(--tt-fg-dark)',
+            cursor: 'pointer',
+            display: 'flex',
+            fontSize: 13,
+            gap: 8,
+            padding: '7px 10px',
+            textAlign: 'left',
+            width: '100%',
+          }}
+        >
+          <span aria-hidden="true" style={{ color: 'var(--tt-green)', flex: 'none', width: 11 }}>
+            {selected ? '✓' : ''}
+          </span>
+          <span
+            style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          >
+            {option}
+          </span>
+        </button>
+      );
+    })}
   </div>
 );
 
 export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostProps) => {
   const [openField, setOpenField] = useState<FieldName | null>('skill');
   const [extraSkillDraft, setExtraSkillDraft] = useState('');
+  const { skills, workspace } = useWorkspace();
   const { state } = useRunLifecycle();
   const { startRun, cancelRun, resetRun } = useRunDaemon();
+  const spinner = useSpinner(state.status === 'running');
+  const [lastRunId, setLastRunId] = useState<string>();
+
+  useEffect(() => {
+    let cancelled = false;
+    void readLastRunIdPreference().then((id) => {
+      if (!cancelled) {
+        setLastRunId(id);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [state.status]);
+
+  const selectedSkill = skills.find((skill) => skill.path === value.workspaceRoot);
+  const skillLabel = selectedSkill?.id ?? (value.workspaceRoot ? value.workspaceRoot : 'choose a skill…');
+  // A skill picked from the list with no evals/evals.json can't be run. Manual
+  // paths (no selectedSkill) fall through to the daemon, which rejects them too.
+  const noEvals = Boolean(selectedSkill) && selectedSkill?.hasEvals === false;
+  const isIdle = state.status !== 'running' && state.status !== 'done';
 
   const update = (patch: Partial<RunComposerState>) => {
     onChange({ ...value, ...patch });
@@ -97,6 +216,11 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
 
   const toggleField = (field: FieldName) => {
     setOpenField((current) => (current === field ? null : field));
+  };
+
+  const selectField = <T,>(field: keyof RunComposerState) => (nextValue: T) => {
+    update({ [field]: nextValue } as Partial<RunComposerState>);
+    setOpenField(null);
   };
 
   const addExtraSkill = () => {
@@ -131,172 +255,386 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
       return;
     }
 
+    if (noEvals) {
+      setOpenField('skill');
+      window.alert(
+        `${selectedSkill?.id ?? 'This skill'} has no evals/evals.json — nothing to run. Author a suite in the create tab first.`,
+      );
+      return;
+    }
+
     void startRun(value).catch((error: unknown) => {
       window.alert(error instanceof Error ? error.message : 'Run failed.');
     });
   };
 
-  const runButtonLabel =
-    state.status === 'running' ? '↻ reset' : state.status === 'done' ? '↻ reset' : `▶ run${value.compare === 'on' ? ' --compare' : ''}`;
+  const runButton = (() => {
+    if (state.status === 'running') {
+      return {
+        label: `${spinner} running…`,
+        title: 'cancel run',
+        style: {
+          background: 'var(--tt-bg-dark)',
+          border: '1px solid var(--tt-border)',
+          color: 'var(--tt-cyan)',
+        },
+      };
+    }
+
+    if (state.status === 'done') {
+      return {
+        label: '↻ reset',
+        title: 'reset run',
+        style: {
+          background: 'var(--tt-bg-dark)',
+          border: '1px solid var(--tt-border)',
+          color: 'var(--tt-fg-dark)',
+        },
+      };
+    }
+
+    if (noEvals) {
+      return {
+        label: '▶ no evals to run',
+        title: 'this skill has no evals/evals.json — nothing to run',
+        style: {
+          background: 'transparent',
+          border: '1px solid var(--tt-border)',
+          color: 'var(--tt-dim)',
+        },
+      };
+    }
+
+    return {
+      label: `▶ run${value.compare === 'on' ? ' --compare' : ''}`,
+      title: 'start run',
+      style: {
+        background: 'color-mix(in srgb, var(--tt-green) 14%, var(--tt-bg))',
+        border: '1px solid var(--tt-green)',
+        color: 'var(--tt-green)',
+      },
+    };
+  })();
 
   return (
     <aside
       aria-label="Run composer localhost"
       style={{
-        background: 'var(--tt-bg-dark)',
         border: '1px solid var(--tt-border)',
-        color: 'var(--tt-fg)',
-        display: 'grid',
-        gap: 10,
-        gridTemplateRows: 'auto minmax(0, 1fr) auto',
-        minHeight: 320,
-        padding: 16,
+        borderRadius: 8,
+        display: 'flex',
+        flex: 'none',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        width: 392,
       }}
     >
-      <Kicker>composer (localhost)</Kicker>
-      <div style={{ display: 'grid', gap: 8, alignContent: 'start' }}>
-        <ComposerRow
-          label="--skill"
-          value={value.workspaceRoot || '<workspace picker>'}
-          isOpen={openField === 'skill'}
+      <div
+        style={{
+          background: 'var(--tt-bg-dark)',
+          borderBottom: '1px solid var(--tt-border)',
+          color: 'var(--tt-fg-dark)',
+          fontSize: 12,
+          fontWeight: 700,
+          padding: '7px 14px',
+        }}
+      >
+        compose run
+      </div>
+      <div style={{ flex: 1, overflow: 'auto', padding: '6px 0' }}>
+        <FlagRow
+          label="skill"
+          value={skillLabel}
+          valueColor={value.workspaceRoot ? 'var(--tt-fg)' : 'var(--tt-comment)'}
+          open={openField === 'skill'}
           onToggle={() => toggleField('skill')}
         >
-          <WorkspacePicker
-            value={value.workspaceRoot}
-            onChange={(workspaceRoot) => update({ workspaceRoot })}
-          />
-        </ComposerRow>
-        <ComposerRow
+          {skills.length > 0 ? (
+            <div style={{ display: 'grid', marginBottom: 4 }}>
+              <div
+                style={{
+                  color: 'var(--tt-comment)',
+                  fontSize: 10.5,
+                  letterSpacing: '.06em',
+                  padding: '3px 10px',
+                  textTransform: 'uppercase',
+                }}
+              >
+                skills in {workspace}
+              </div>
+              <div style={{ display: 'grid', maxHeight: 260, overflowY: 'auto' }}>
+              {skills.map((skill) => {
+                const selected = skill.path === value.workspaceRoot;
+
+                return (
+                  <button
+                    key={skill.path}
+                    onClick={() => {
+                      update({ workspaceRoot: skill.path ?? '' });
+                      setOpenField(null);
+                    }}
+                    title={skill.path}
+                    type="button"
+                    style={{
+                      alignItems: 'center',
+                      background: selected ? 'var(--tt-selection)' : 'transparent',
+                      border: 0,
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      fontSize: 13,
+                      gap: 8,
+                      padding: '6px 10px',
+                      textAlign: 'left',
+                      width: '100%',
+                    }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      style={{ color: 'var(--tt-green)', flex: 'none', width: 11 }}
+                    >
+                      {selected ? '✓' : ''}
+                    </span>
+                    <span
+                      style={{
+                        color: selected ? 'var(--tt-fg)' : 'var(--tt-fg-dark)',
+                        flex: 1,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {skill.id}
+                    </span>
+                    {skill.hasEvals ? (
+                      <span style={{ color: 'var(--tt-green)', flex: 'none', fontSize: 11 }}>
+                        evals
+                      </span>
+                    ) : (
+                      <span style={{ color: 'var(--tt-dim)', flex: 'none', fontSize: 11 }}>
+                        no evals
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+              </div>
+            </div>
+          ) : (
+            <div
+              style={{
+                color: 'var(--tt-comment)',
+                fontSize: 12,
+                lineHeight: 1.5,
+                padding: '6px 10px',
+              }}
+            >
+              no skills found in this workspace — set the{' '}
+              <span style={{ color: 'var(--tt-teal)' }}>dir</span> menu (top right) to a folder
+              with skills.
+            </div>
+          )}
+          <div
+            style={{
+              borderTop: '1px solid var(--tt-border)',
+              color: 'var(--tt-fg-dark)',
+              fontSize: 12,
+              marginTop: 4,
+              overflowWrap: 'anywhere',
+              padding: '6px 10px 2px',
+            }}
+          >
+            last run: {lastRunId ?? 'none'}
+          </div>
+        </FlagRow>
+        <FlagRow
           label="--case"
           value={value.case}
-          isOpen={openField === 'case'}
+          valueColor="var(--tt-fg-dark)"
+          open={openField === 'case'}
           onToggle={() => toggleField('case')}
         >
-          <OptionList value={value.case} options={caseOptions} onSelect={(nextCase) => update({ case: nextCase })} />
-        </ComposerRow>
-        <ComposerRow
+          <OptionList
+            value={value.case}
+            valueColor="var(--tt-fg-dark)"
+            options={caseOptions}
+            onSelect={selectField('case')}
+          />
+        </FlagRow>
+        <FlagRow
           label="--model"
           value={value.model}
-          isOpen={openField === 'model'}
+          valueColor="var(--tt-blue)"
+          open={openField === 'model'}
           onToggle={() => toggleField('model')}
         >
-          <OptionList value={value.model} options={models} onSelect={(model) => update({ model })} />
-        </ComposerRow>
-        <ComposerRow
+          <OptionList
+            value={value.model}
+            valueColor="var(--tt-blue)"
+            options={models}
+            onSelect={selectField('model')}
+          />
+        </FlagRow>
+        <FlagRow
           label="--judge-model"
           value={value.judgeModel}
-          isOpen={openField === 'judgeModel'}
+          valueColor="var(--tt-magenta)"
+          open={openField === 'judgeModel'}
           onToggle={() => toggleField('judgeModel')}
         >
           <OptionList
             value={value.judgeModel}
+            valueColor="var(--tt-magenta)"
             options={models}
-            onSelect={(judgeModel) => update({ judgeModel })}
+            onSelect={selectField('judgeModel')}
           />
-        </ComposerRow>
-        <ComposerRow
+        </FlagRow>
+        <FlagRow
           label="--compare"
           value={value.compare}
-          isOpen={openField === 'compare'}
+          valueColor={value.compare === 'off' ? 'var(--tt-comment)' : 'var(--tt-green)'}
+          open={openField === 'compare'}
           onToggle={() => toggleField('compare')}
         >
           <OptionList
             value={value.compare}
+            valueColor="var(--tt-green)"
             options={compareOptions}
-            onSelect={(compare) => update({ compare })}
+            onSelect={selectField('compare')}
           />
-        </ComposerRow>
-        <ComposerRow
+        </FlagRow>
+        <FlagRow
           label="--extra-skill"
-          value={value.extraSkill.length > 0 ? value.extraSkill.join(', ') : 'none'}
-          isOpen={openField === 'extraSkill'}
+          value={value.extraSkill.length > 0 ? value.extraSkill.join(', ') : '—'}
+          valueColor={value.extraSkill.length > 0 ? 'var(--tt-fg-dark)' : 'var(--tt-comment)'}
+          open={openField === 'extraSkill'}
           onToggle={() => toggleField('extraSkill')}
         >
-          <div style={{ display: 'grid', gap: 8 }}>
+          <div style={{ display: 'grid', gap: 8, padding: 5 }}>
             <input
               aria-label="Extra skill path"
               onChange={(event) => setExtraSkillDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  addExtraSkill();
+                }
+              }}
               placeholder="./path/to/extra-skill"
               value={extraSkillDraft}
-              style={{
-                background: 'var(--tt-bg)',
-                border: '1px solid var(--tt-border)',
-                color: 'var(--tt-fg)',
-                font: 'inherit',
-                minHeight: 32,
-                padding: '0 10px',
-              }}
+              style={inputStyle}
             />
-            <button onClick={addExtraSkill} type="button" style={buttonStyle(false)}>
-              Pick workspace
+            <button
+              onClick={addExtraSkill}
+              type="button"
+              style={{
+                background: 'transparent',
+                border: '1px dashed var(--tt-border)',
+                borderRadius: 6,
+                color: 'var(--tt-fg-dark)',
+                cursor: 'pointer',
+                fontSize: 12.5,
+                padding: '7px 10px',
+              }}
+            >
+              ＋ add distractor skill
             </button>
             {value.extraSkill.map((extraSkill) => (
               <button
                 key={extraSkill}
                 onClick={() => removeExtraSkill(extraSkill)}
+                title="remove"
                 type="button"
-                style={buttonStyle(true)}
+                style={{
+                  alignItems: 'center',
+                  background: 'var(--tt-selection)',
+                  border: 0,
+                  borderRadius: 6,
+                  color: 'var(--tt-fg)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  fontSize: 12.5,
+                  gap: 8,
+                  justifyContent: 'space-between',
+                  padding: '7px 10px',
+                }}
               >
-                {extraSkill} remove
+                <span
+                  style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                >
+                  {extraSkill}
+                </span>
+                <span aria-hidden="true" style={{ color: 'var(--tt-comment)' }}>
+                  ×
+                </span>
               </button>
             ))}
           </div>
-        </ComposerRow>
-        <ComposerRow
+        </FlagRow>
+        <FlagRow
           label="--iteration"
           value={String(value.iteration)}
-          isOpen={openField === 'iteration'}
+          valueColor="var(--tt-yellow)"
+          open={openField === 'iteration'}
           onToggle={() => toggleField('iteration')}
         >
           <OptionList
             value={value.iteration}
+            valueColor="var(--tt-yellow)"
             options={iterationOptions}
-            onSelect={(iteration) => update({ iteration })}
+            onSelect={selectField('iteration')}
           />
-        </ComposerRow>
-        <ComposerRow
+        </FlagRow>
+        <FlagRow
           label="--context-mode"
           value={value.contextMode}
-          isOpen={openField === 'contextMode'}
+          valueColor="var(--tt-teal)"
+          open={openField === 'contextMode'}
           onToggle={() => toggleField('contextMode')}
         >
           <OptionList
             value={value.contextMode}
+            valueColor="var(--tt-teal)"
             options={contextModeOptions}
-            onSelect={(contextMode) => update({ contextMode })}
+            onSelect={selectField('contextMode')}
           />
-        </ComposerRow>
-        <ComposerRow
+        </FlagRow>
+        <FlagRow
           label="--sandbox"
           value={value.sandbox}
-          isOpen={openField === 'sandbox'}
+          valueColor={value.sandbox === 'none' ? 'var(--tt-fg-dark)' : 'var(--tt-teal)'}
+          open={openField === 'sandbox'}
           onToggle={() => toggleField('sandbox')}
         >
           <OptionList
             value={value.sandbox}
+            valueColor="var(--tt-teal)"
             options={sandboxOptions}
-            onSelect={(sandbox) => update({ sandbox })}
+            onSelect={selectField('sandbox')}
           />
-        </ComposerRow>
+        </FlagRow>
       </div>
-      <button
-        onClick={handleRun}
-        type="button"
-        style={{
-          background: value.compare === 'on' && state.status === 'idle' ? 'var(--tt-green)' : 'var(--tt-bg)',
-          border: '1px solid var(--tt-border)',
-          color: value.compare === 'on' && state.status === 'idle' ? 'var(--tt-bg)' : 'var(--tt-fg)',
-          cursor: 'pointer',
-          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-          fontSize: 14,
-          fontWeight: 700,
-          minHeight: 42,
-          padding: '0 12px',
-          textAlign: 'left',
-        }}
-      >
-        {runButtonLabel}
-      </button>
+      <div style={{ borderTop: '1px solid var(--tt-border)', padding: '12px 14px' }}>
+        <button
+          disabled={isIdle && noEvals}
+          onClick={handleRun}
+          title={runButton.title}
+          type="button"
+          style={{
+            alignItems: 'center',
+            borderRadius: 7,
+            cursor: isIdle && noEvals ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            fontWeight: 700,
+            gap: 8,
+            height: 40,
+            justifyContent: 'center',
+            width: '100%',
+            ...runButton.style,
+          }}
+        >
+          {runButton.label}
+        </button>
+      </div>
     </aside>
   );
 };

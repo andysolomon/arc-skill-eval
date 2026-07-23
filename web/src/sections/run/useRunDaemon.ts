@@ -281,7 +281,16 @@ export const useRunDaemon = () => {
 
       if (!response.ok) {
         dispatch({ type: 'CANCEL' });
-        throw new Error(`Daemon rejected run with ${response.status}`);
+        let message = `Daemon rejected run with ${response.status}`;
+        try {
+          const body = (await response.json()) as { error?: string };
+          if (body?.error) {
+            message = body.error;
+          }
+        } catch {
+          // keep the status-based message
+        }
+        throw new Error(message);
       }
 
       const result = (await response.json()) as RunStartResponse;

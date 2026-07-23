@@ -1,4 +1,3 @@
-import { Column, Kicker, RunCard, type RunSummary } from '@/components/primitives';
 import type { BrowseRun } from './useBrowseData';
 
 type BrowseRunsProps = {
@@ -7,73 +6,53 @@ type BrowseRunsProps = {
   onSelectRun: (runId: string) => void;
 };
 
-const formatFinishedAt = (value: string) => {
-  const finishedAt = new Date(value);
-  const deltaMs = Date.now() - finishedAt.getTime();
+const statusGlyph = (run: BrowseRun) => {
+  const failed = run.cases.some((testCase) => testCase.status === 'fail');
+  const timeout = run.cases.some((testCase) => testCase.status === 'timeout');
 
-  if (Number.isNaN(deltaMs)) {
-    return value;
+  if (run.status === 'fail' || failed) {
+    return { glyph: '✗', color: 'var(--tt-red)' };
   }
 
-  const minutes = Math.max(1, Math.round(deltaMs / 60000));
-  if (minutes < 60) {
-    return `${minutes}m`;
+  if (run.status === 'timeout' || timeout) {
+    return { glyph: '◐', color: 'var(--tt-orange)' };
   }
 
-  const hours = Math.round(minutes / 60);
-  if (hours < 48) {
-    return `${hours}h`;
-  }
-
-  return `${Math.round(hours / 24)}d`;
-};
-
-const countCases = (run: BrowseRun): RunSummary['counts'] => ({
-  pass: run.cases.filter((testCase) => testCase.status === 'pass').length,
-  fail: run.cases.filter((testCase) => testCase.status === 'fail').length,
-  timeout: run.cases.filter((testCase) => testCase.status === 'timeout').length,
-});
-
-const toRunCard = (run: BrowseRun): RunSummary => {
-  const counts = countCases(run);
-  const status =
-    run.status === 'fail' || counts.fail > 0
-      ? 'fail'
-      : run.status === 'timeout' || counts.timeout > 0
-        ? 'timeout'
-        : run.status === 'partial'
-          ? 'partial'
-          : 'pass';
-
-  return {
-    counts,
-    finishedAt: formatFinishedAt(run.finishedAt),
-    runId: run.id,
-    skillName: run.skill,
-    status,
-  };
+  return { glyph: '✓', color: 'var(--tt-green)' };
 };
 
 export const BrowseRuns = ({ runs, selectedRunId, onSelectRun }: BrowseRunsProps) => (
-  <aside aria-label="Runs Rail" style={{ minWidth: 0, width: 200 }}>
-    <Column gap={3} width={200}>
-      <Kicker>runs rail</Kicker>
-      {runs.length === 0 ? (
-        <p
-          style={{
-            border: '1px dashed var(--tt-border-active)',
-            color: 'var(--tt-comment)',
-            fontSize: 13,
-            lineHeight: 1.45,
-            margin: 0,
-            padding: 12,
-          }}
-        >
-          no imported runs yet
-        </p>
-      ) : null}
+  <aside
+    aria-label="Runs Rail"
+    style={{
+      border: '1px solid var(--tt-border)',
+      borderRadius: 8,
+      display: 'flex',
+      flex: 'none',
+      flexDirection: 'column',
+      maxHeight: '40%',
+      minWidth: 0,
+      overflow: 'hidden',
+    }}
+  >
+    <div
+      style={{
+        background: 'var(--tt-bg-dark)',
+        borderBottom: '1px solid var(--tt-border)',
+        display: 'flex',
+        fontSize: 12,
+        justifyContent: 'space-between',
+        padding: '4px 10px',
+      }}
+    >
+      <span style={{ color: 'var(--tt-fg-dark)' }}>Runs</span>
+      <span style={{ color: 'var(--tt-dim)' }}>{runs.length}</span>
+    </div>
+    <div style={{ overflow: 'auto' }}>
       {runs.map((run) => {
         const selected = run.id === selectedRunId;
+        const status = statusGlyph(run);
+        const passed = run.cases.filter((testCase) => testCase.status === 'pass').length;
 
         return (
           <div
@@ -89,36 +68,48 @@ export const BrowseRuns = ({ runs, selectedRunId, onSelectRun }: BrowseRunsProps
             }}
             role="button"
             tabIndex={0}
-            title={run.finishedAt}
+            title={`${run.skill} · ${run.finishedAt}`}
             style={{
-              border: selected ? '1px solid var(--tt-border-active)' : '1px solid transparent',
+              alignItems: 'center',
+              background: selected ? 'var(--tt-selection)' : 'transparent',
               cursor: 'pointer',
-              display: 'grid',
-              gridTemplateColumns: selected ? '4px minmax(0, 1fr)' : '0 minmax(0, 1fr)',
+              display: 'flex',
+              gap: 6,
+              height: 24,
               minWidth: 0,
+              padding: '0 8px',
             }}
           >
-            <span aria-hidden="true" style={{ background: selected ? 'var(--tt-cyan)' : 'transparent' }} />
-            <div style={{ display: 'grid', gap: 6, minWidth: 0 }}>
-              <RunCard {...toRunCard(run)} />
-              {run.compare ? (
-                <span
-                  style={{
-                    border: '1px solid var(--tt-border)',
-                    color: 'var(--tt-yellow)',
-                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-                    fontSize: 11,
-                    justifySelf: 'start',
-                    padding: '3px 6px',
-                  }}
-                >
-                  delta {run.benchmarkDelta ?? 0}
-                </span>
-              ) : null}
-            </div>
+            <span
+              aria-hidden="true"
+              style={{ color: selected ? 'var(--tt-blue)' : 'transparent', width: 6 }}
+            >
+              ▌
+            </span>
+            <span
+              aria-hidden="true"
+              style={{ color: status.color, fontWeight: 700, width: 12 }}
+            >
+              {status.glyph}
+            </span>
+            <span
+              style={{
+                color: selected ? 'var(--tt-fg)' : 'var(--tt-fg-dark)',
+                flex: 1,
+                fontSize: 13,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {run.id}
+            </span>
+            <span style={{ color: 'var(--tt-comment)', fontSize: 11 }}>
+              {run.compare ? '⇄' : `${passed}/${run.cases.length}`}
+            </span>
           </div>
         );
       })}
-    </Column>
+    </div>
   </aside>
 );

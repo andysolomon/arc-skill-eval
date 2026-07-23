@@ -1,3 +1,4 @@
+import { color, text } from '@/design/tokens';
 import { useSection } from '@/state/section';
 import { Kicker } from './Kicker';
 
@@ -20,9 +21,9 @@ export const StepRail = ({ steps, activeId, onSelect }: StepRailProps) => {
       aria-label="create steps"
       data-section={activeSection.name}
       style={{
-        background: 'var(--tt-bg-dark)',
-        border: '1px solid var(--tt-border)',
-        color: 'var(--tt-fg)',
+        background: color.bgDark,
+        border: `1px solid ${color.border}`,
+        color: color.fg,
         display: 'grid',
         gap: 'var(--tt-gap-3, 12px)',
         padding: 12,
@@ -42,10 +43,10 @@ export const StepRail = ({ steps, activeId, onSelect }: StepRailProps) => {
                 type="button"
                 style={{
                   alignItems: 'center',
-                  background: isActive ? 'var(--tt-selection)' : 'var(--tt-bg-dark)',
+                  background: isActive ? color.selection : color.bgDark,
                   border: 0,
-                  borderLeft: `3px solid ${isActive ? 'var(--tt-cyan)' : 'var(--tt-border)'}`,
-                  color: isActive ? 'var(--tt-fg)' : 'var(--tt-fg-dark)',
+                  borderLeft: `3px solid ${isActive ? color.cyan : color.border}`,
+                  color: isActive ? color.fg : color.fgDark,
                   cursor: 'pointer',
                   display: 'grid',
                   gap: 'var(--tt-gap-2, 8px)',
@@ -56,7 +57,7 @@ export const StepRail = ({ steps, activeId, onSelect }: StepRailProps) => {
                   width: '100%',
                 }}
               >
-                <span style={{ color: 'var(--tt-comment)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 12 }}>
+                <span style={{ color: color.comment, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: text.sm }}>
                   {String(index + 1).padStart(2, '0')}
                 </span>
                 <span style={{ overflowWrap: 'anywhere' }}>{step.label}</span>
@@ -65,7 +66,7 @@ export const StepRail = ({ steps, activeId, onSelect }: StepRailProps) => {
           );
         })}
       </ol>
-      <p style={{ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.4, margin: 0 }}>
+      <p style={{ color: color.comment, fontSize: text.sm, lineHeight: 1.4, margin: 0 }}>
         mirrors the learn flow
       </p>
     </nav>

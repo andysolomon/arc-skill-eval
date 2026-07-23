@@ -1,185 +1,502 @@
-import { StepRail, type StepRailStep } from '@/components/primitives';
+import { useState } from 'react';
 import { useEnv } from '@/state/env';
+import { useWorkspace } from '@/state/workspace';
 import { LivePreview } from './LivePreview';
 import { StepAssertions } from './StepAssertions';
 import { StepListBehaviors } from './StepListBehaviors';
 import { StepPrompts } from './StepPrompts';
 import { StepReview } from './StepReview';
-import { type CreateStepId, useDraft } from './useDraft';
+import { useGenerateEvals } from './useGenerateEvals';
+import {
+  behaviorsFromEvalsJson,
+  makeBehaviorRow,
+  type BehaviorRow,
+  type CreateStepId,
+  useDraft,
+} from './useDraft';
 
-const railSteps: StepRailStep[] = [
-  { id: 'behaviors', label: 'behaviors' },
-  { id: 'prompts', label: 'prompts' },
-  { id: 'assertions', label: 'assertions' },
-  { id: 'review', label: 'review' },
+const railSteps: Array<{ id: CreateStepId; num: string; label: string }> = [
+  { id: 'behaviors', num: '01', label: 'List behaviors' },
+  { id: 'prompts', num: '02', label: 'Write prompts' },
+  { id: 'assertions', num: '03', label: 'Attach assertions' },
+  { id: 'review', num: '04', label: 'Review & run' },
 ];
 
-const isCreateStepId = (value: string): value is CreateStepId =>
-  railSteps.some((step) => step.id === value);
+const HostedBanner = () => (
+  <div
+    style={{
+      background: 'var(--tt-bg-dark)',
+      border: '1px solid var(--tt-border)',
+      borderLeft: '2px solid var(--tt-cyan)',
+      borderRadius: 8,
+      marginBottom: 20,
+      padding: '11px 14px',
+    }}
+  >
+    <span style={{ color: 'var(--tt-cyan)', fontSize: 12.5, fontWeight: 700 }}>
+      building on the hosted site
+    </span>
+    <div style={{ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.55, marginTop: 4 }}>
+      assemble your suite here by hand — it exports as{' '}
+      <span style={{ color: 'var(--tt-fg-dark)' }}>evals.json</span> to run. on{' '}
+      <span style={{ color: 'var(--tt-fg-dark)' }}>localhost</span>,{' '}
+      <span style={{ color: 'var(--tt-fg-dark)' }}>create --guided</span> can auto-draft one from
+      an existing SKILL.md with an LLM.
+    </div>
+  </div>
+);
 
-const buttonStyle = {
-  background: 'var(--tt-bg-dark)',
-  border: '1px solid var(--tt-border)',
-  color: 'var(--tt-fg)',
-  cursor: 'pointer',
-  padding: '8px 10px',
+type GenerateBannerProps = {
+  onGenerated: (skill: string, behaviors: string[]) => void;
+  onLoadEvals: (skill: string, rows: BehaviorRow[], path: string) => void;
+  workspaceRoot: string;
+};
+
+const GenerateBanner = ({ onGenerated, onLoadEvals, workspaceRoot }: GenerateBannerProps) => {
+  const { skills } = useWorkspace();
+  const { error, generateEvals, isGenerating } = useGenerateEvals();
+  const [selected, setSelected] = useState('');
+  const [generated, setGenerated] = useState<{ skill: string; count: number } | null>(null);
+  const [loaded, setLoaded] = useState<{ skill: string; count: number } | null>(null);
+  const [loadError, setLoadError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const selectedSkill = skills.find((skill) => skill.id === selected);
+  const isEdit = Boolean(selectedSkill?.hasEvals);
+  const active = Boolean(selected) && !isGenerating && !isLoading;
+
+  const handleGenerate = () => {
+    if (!selected) {
+      return;
+    }
+
+    setLoaded(null);
+    setLoadError('');
+
+    const skillPath =
+      skills.find((skill) => skill.id === selected)?.path ?? `${workspaceRoot}/${selected}`;
+
+    void generateEvals({ workspaceRoot: skillPath, behaviors: [] })
+      .then((result) => {
+        setGenerated({ skill: selected, count: result.behaviors.length });
+        onGenerated(selected, result.behaviors);
+      })
+      .catch(() => undefined);
+  };
+
+  const handleEdit = () => {
+    if (!selectedSkill?.path) {
+      setLoadError('could not resolve the selected skill path');
+      return;
+    }
+
+    const skillPath = selectedSkill.path;
+    setIsLoading(true);
+    setGenerated(null);
+    setLoadError('');
+
+    void fetch(
+      `http://localhost:7357/skill-evals?root=${encodeURIComponent(skillPath)}`,
+    )
+      .then(async (response) => {
+        const data = (await response.json()) as {
+          ok?: boolean;
+          evals?: unknown;
+          error?: string;
+        };
+
+        if (!data.ok) {
+          throw new Error(data.error || 'could not load evals.json');
+        }
+
+        const { skill, rows } = behaviorsFromEvalsJson(data.evals);
+        const loadedSkill = skill || selected;
+        setLoaded({ skill: loadedSkill, count: rows.length });
+        onLoadEvals(loadedSkill, rows, skillPath);
+      })
+      .catch((loadFailure: unknown) => {
+        setLoaded(null);
+        setLoadError(
+          loadFailure instanceof Error ? loadFailure.message : 'could not load evals.json',
+        );
+      })
+      .finally(() => setIsLoading(false));
+  };
+
+  const accent = isEdit ? 'var(--tt-blue)' : 'var(--tt-green)';
+
+  return (
+    <div
+      style={{
+        background: 'var(--tt-bg-dark)',
+        border: '1px solid var(--tt-border)',
+        borderLeft: '2px solid var(--tt-green)',
+        borderRadius: 8,
+        marginBottom: 20,
+        padding: '12px 14px',
+      }}
+    >
+      <div
+        style={{
+          alignItems: 'center',
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 8,
+          marginBottom: 10,
+        }}
+      >
+        <span style={{ color: 'var(--tt-green)', fontSize: 12.5, fontWeight: 700 }}>
+          generate starter evals
+        </span>
+        <span style={{ color: 'var(--tt-comment)', fontSize: 11.5, lineHeight: 1.5 }}>
+          choose a skill, then draft its behaviors, prompts &amp; assertions with an LLM (
+          <span style={{ color: 'var(--tt-fg-dark)' }}>create --guided</span>). optional — build
+          by hand instead.
+        </span>
+      </div>
+      <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <span style={{ color: 'var(--tt-comment)', fontSize: 12 }}>skill:</span>
+        {skills.map((skill) => {
+          const isSelected = selected === skill.id;
+
+          return (
+            <button
+              aria-pressed={isSelected}
+              key={skill.id}
+              onClick={() => setSelected(isSelected ? '' : skill.id)}
+              type="button"
+              style={{
+                alignItems: 'center',
+                background: isSelected
+                  ? 'color-mix(in srgb, var(--tt-green) 14%, var(--tt-bg))'
+                  : 'transparent',
+                border: `1px solid ${isSelected ? 'var(--tt-green)' : 'var(--tt-border)'}`,
+                borderRadius: 6,
+                color: isSelected ? 'var(--tt-green)' : 'var(--tt-fg-dark)',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                fontSize: 12,
+                gap: 6,
+                padding: '5px 11px',
+              }}
+              title={skill.hasEvals ? 'already has an eval suite — you can edit it' : undefined}
+            >
+              {skill.hasEvals ? (
+                <span
+                  aria-label="has evals"
+                  style={{ color: 'var(--tt-green)', flex: 'none', fontSize: 8 }}
+                >
+                  ●
+                </span>
+              ) : null}
+              {skill.id}
+            </button>
+          );
+        })}
+        <span style={{ flex: 1 }} />
+        <button
+          disabled={!active}
+          onClick={isEdit ? handleEdit : handleGenerate}
+          type="button"
+          style={{
+            alignItems: 'center',
+            background: 'transparent',
+            border: `1px solid ${active ? accent : 'var(--tt-border)'}`,
+            borderRadius: 6,
+            color: active ? accent : 'var(--tt-dim)',
+            cursor: active ? 'pointer' : 'default',
+            display: 'inline-flex',
+            fontSize: 12.5,
+            fontWeight: 700,
+            gap: 6,
+            padding: '6px 13px',
+          }}
+        >
+          {isLoading
+            ? '✎ loading…'
+            : isGenerating
+              ? '✦ generating…'
+              : isEdit
+                ? '✎ edit existing evals'
+                : '✦ generate evals'}
+        </button>
+      </div>
+      {generated ? (
+        <div style={{ color: 'var(--tt-green)', fontSize: 12, marginTop: 10 }}>
+          ✓ drafted {generated.count} behaviors from{' '}
+          <span style={{ color: 'var(--tt-teal)' }}>{generated.skill}</span> — step through to
+          refine each. add more by hand anytime.
+        </div>
+      ) : null}
+      {loaded ? (
+        <div style={{ color: 'var(--tt-green)', fontSize: 12, marginTop: 10 }}>
+          ✓ loaded {loaded.count} cases from{' '}
+          <span style={{ color: 'var(--tt-teal)' }}>{loaded.skill}</span>'s evals.json — edit and
+          re-write.
+        </div>
+      ) : null}
+      {error ? (
+        <div role="alert" style={{ color: 'var(--tt-red)', fontSize: 12, marginTop: 10 }}>
+          ✗ {error}
+        </div>
+      ) : null}
+      {loadError ? (
+        <div role="alert" style={{ color: 'var(--tt-red)', fontSize: 12, marginTop: 10 }}>
+          ✗ {loadError}
+        </div>
+      ) : null}
+    </div>
+  );
 };
 
 export const CreateApp = () => {
   const { env } = useEnv();
+  const { workspace } = useWorkspace();
+  const [editTargetPath, setEditTargetPath] = useState<string>();
   const {
     activeStep,
     activeStepIndex,
     addAssertion,
-    addPrompt,
+    addBehavior,
     assertionCount,
-    behaviorCount,
+    deterministicCount,
     draft,
     evalsJson,
-    promptCount,
+    judgeCount,
+    markWritten,
     removeAssertion,
-    removePrompt,
+    removeBehavior,
+    seedBehaviors,
     setActiveStep,
-    updateAssertion,
-    updateDraft,
-    updatePrompt,
+    setAssertionValue,
+    setSkill,
+    updateBehavior,
+    wrote,
   } = useDraft();
 
-  const canContinueByStep: Record<CreateStepId, boolean> = {
-    behaviors: behaviorCount > 0,
-    prompts: promptCount > 0,
-    assertions: assertionCount > 0,
-    review: evalsJson.evals.length > 0 && assertionCount > 0,
-  };
   const canGoBack = activeStepIndex > 0;
-  const canGoNext = activeStepIndex < railSteps.length - 1 && canContinueByStep[activeStep];
-  const nextStep = railSteps[activeStepIndex + 1]?.id;
-  const previousStep = railSteps[activeStepIndex - 1]?.id;
+  const canGoNext = activeStepIndex < railSteps.length - 1;
 
   return (
     <main
       className="app-main"
       data-screen-label={`create (${env})`}
       data-testid="create-app"
-      style={{ minWidth: 0, overflow: 'auto', padding: 16 }}
+      style={{ display: 'flex', minHeight: 0, minWidth: 0, padding: 0 }}
     >
-      <section
-        aria-label="Create eval suite workspace"
-        data-env={env}
+      <aside
+        aria-label="Create wizard steps"
         style={{
-          alignItems: 'stretch',
-          display: 'grid',
-          gap: 14,
-          gridTemplateColumns: '214px minmax(520px, 700px) 344px',
-          minHeight: 'calc(100vh - 116px)',
-          minWidth: 1100,
+          background: 'var(--tt-bg-dark)',
+          borderRight: '1px solid var(--tt-border)',
+          display: 'flex',
+          flex: 'none',
+          flexDirection: 'column',
+          width: 214,
         }}
       >
-        <StepRail
-          activeId={activeStep}
-          onSelect={(id) => {
-            if (isCreateStepId(id)) {
-              setActiveStep(id);
-            }
-          }}
-          steps={railSteps}
-        />
-
-        <section
-          aria-label="Create wizard step"
+        <div
           style={{
-            border: '1px solid var(--tt-border)',
-            display: 'grid',
-            gap: 14,
-            gridTemplateRows: 'minmax(0, 1fr) auto',
-            minHeight: 0,
-            padding: 16,
+            color: 'var(--tt-comment)',
+            fontSize: 11,
+            letterSpacing: '.08em',
+            padding: '13px 16px 7px',
+            textTransform: 'uppercase',
           }}
         >
-          <div style={{ minHeight: 0, overflow: 'auto' }}>
+          new eval suite
+        </div>
+        <nav style={{ flex: 1, overflow: 'auto', padding: '0 8px 8px' }}>
+          {railSteps.map((step) => {
+            const active = step.id === activeStep;
+
+            return (
+              <button
+                aria-current={active ? 'step' : undefined}
+                key={step.id}
+                onClick={() => setActiveStep(step.id)}
+                type="button"
+                style={{
+                  alignItems: 'center',
+                  background: active ? 'var(--tt-selection)' : 'transparent',
+                  border: 0,
+                  borderLeft: `2px solid ${active ? 'var(--tt-blue)' : 'transparent'}`,
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  gap: 10,
+                  margin: '1px 0',
+                  padding: '9px 9px',
+                  textAlign: 'left',
+                  width: '100%',
+                }}
+              >
+                <span
+                  style={{
+                    color: active ? 'var(--tt-blue)' : 'var(--tt-dim)',
+                    flex: 'none',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    width: 16,
+                  }}
+                >
+                  {step.num}
+                </span>
+                <span
+                  style={{
+                    color: active ? 'var(--tt-fg)' : 'var(--tt-fg-dark)',
+                    fontSize: 12.5,
+                  }}
+                >
+                  {step.label}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+        <div
+          style={{
+            borderTop: '1px solid var(--tt-border)',
+            color: 'var(--tt-comment)',
+            fontSize: 11,
+            lineHeight: 1.65,
+            padding: '12px 16px',
+          }}
+        >
+          mirrors the <span style={{ color: 'var(--tt-fg-dark)' }}>learn</span> flow — one step
+          per chapter. no eval experience needed.
+        </div>
+      </aside>
+
+      <section
+        aria-label="Create wizard step"
+        data-env={env}
+        style={{
+          display: 'flex',
+          flex: 1,
+          flexDirection: 'column',
+          minHeight: 0,
+          minWidth: 0,
+        }}
+      >
+        <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '26px 32px' }}>
+          <div style={{ maxWidth: 700 }}>
+            {env === 'localhost' ? (
+              <GenerateBanner
+                onGenerated={(skill, behaviors) => {
+                  setEditTargetPath(undefined);
+                  seedBehaviors(
+                    skill,
+                    behaviors.map((text) =>
+                      makeBehaviorRow({ text: text.replace(/\.$/, ''), flavor: 'implicit' }),
+                    ),
+                  );
+                }}
+                onLoadEvals={(skill, rows, path) => {
+                  seedBehaviors(skill, rows);
+                  setEditTargetPath(path);
+                }}
+                workspaceRoot={workspace}
+              />
+            ) : (
+              <HostedBanner />
+            )}
+
             {activeStep === 'behaviors' ? (
-              <StepListBehaviors draft={draft} env={env} onChange={updateDraft} />
+              <StepListBehaviors
+                draft={draft}
+                env={env}
+                onAddBehavior={addBehavior}
+                onRemoveBehavior={removeBehavior}
+                onSkill={(skill) => {
+                  setEditTargetPath(undefined);
+                  setSkill(skill);
+                }}
+                onUpdateBehavior={updateBehavior}
+              />
             ) : null}
             {activeStep === 'prompts' ? (
               <StepPrompts
-                behaviorCount={behaviorCount}
                 draft={draft}
                 env={env}
-                onAdd={addPrompt}
-                onGoToBehaviors={() => setActiveStep('behaviors')}
-                onRemove={removePrompt}
-                onUpdate={updatePrompt}
+                onUpdateBehavior={updateBehavior}
+                workspaceRoot={workspace}
               />
             ) : null}
             {activeStep === 'assertions' ? (
               <StepAssertions
                 draft={draft}
-                env={env}
-                onAdd={addAssertion}
-                onRemove={removeAssertion}
-                onUpdate={updateAssertion}
+                onAddAssertion={addAssertion}
+                onRemoveAssertion={removeAssertion}
+                onSetAssertionValue={setAssertionValue}
               />
             ) : null}
             {activeStep === 'review' ? (
               <StepReview
                 assertionCount={assertionCount}
+                deterministicCount={deterministicCount}
                 draft={draft}
                 env={env}
                 evalsJson={evalsJson}
+                judgeCount={judgeCount}
+                onWritten={markWritten}
+                workspaceRoot={editTargetPath ?? workspace}
+                wrote={wrote}
               />
             ) : null}
           </div>
+        </div>
 
-          <footer
-            aria-label="Create wizard navigation"
-            style={{
-              borderTop: '1px solid var(--tt-border)',
-              display: 'flex',
-              gap: 8,
-              justifyContent: 'space-between',
-              paddingTop: 12,
-            }}
-          >
+        <footer
+          aria-label="Create wizard navigation"
+          style={{
+            alignItems: 'center',
+            borderTop: '1px solid var(--tt-border)',
+            display: 'flex',
+            flex: 'none',
+            gap: 10,
+            padding: '12px 32px',
+          }}
+        >
+          {canGoBack ? (
             <button
-              disabled={!canGoBack}
-              onClick={() => {
-                if (previousStep && isCreateStepId(previousStep)) {
-                  setActiveStep(previousStep);
-                }
-              }}
+              onClick={() => setActiveStep(railSteps[activeStepIndex - 1].id)}
               type="button"
               style={{
-                ...buttonStyle,
-                color: canGoBack ? 'var(--tt-fg)' : 'var(--tt-comment)',
-                cursor: canGoBack ? 'pointer' : 'not-allowed',
+                background: 'transparent',
+                border: '1px solid var(--tt-border)',
+                borderRadius: 7,
+                color: 'var(--tt-fg-dark)',
+                cursor: 'pointer',
+                fontSize: 13,
+                padding: '8px 15px',
               }}
             >
-              back
+              ← back
             </button>
-            {activeStep === 'review' ? null : (
-              <button
-                disabled={!canGoNext}
-                onClick={() => {
-                  if (nextStep && isCreateStepId(nextStep)) {
-                    setActiveStep(nextStep);
-                  }
-                }}
-                type="button"
-                style={{
-                  ...buttonStyle,
-                  background: canGoNext ? 'var(--tt-selection)' : 'var(--tt-bg-dark)',
-                  color: canGoNext ? 'var(--tt-fg)' : 'var(--tt-comment)',
-                  cursor: canGoNext ? 'pointer' : 'not-allowed',
-                }}
-              >
-                next
-              </button>
-            )}
-          </footer>
-        </section>
-
-        <LivePreview evalsJson={evalsJson} />
+          ) : null}
+          <span style={{ flex: 1 }} />
+          {canGoNext ? (
+            <button
+              onClick={() => setActiveStep(railSteps[activeStepIndex + 1].id)}
+              type="button"
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--tt-border-active)',
+                borderRadius: 7,
+                color: 'var(--tt-blue)',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 700,
+                padding: '8px 18px',
+              }}
+            >
+              next →
+            </button>
+          ) : null}
+        </footer>
       </section>
+
+      <LivePreview evalsJson={evalsJson} />
     </main>
   );
 };
