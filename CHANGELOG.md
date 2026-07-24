@@ -1,3 +1,9 @@
+## [0.20.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.19.0...v0.20.0) (2026-07-24)
+
+### Features
+
+* **runtime:** add CLI harness adapters with BYOK via --runtime ([11a0285](https://github.com/andysolomon/arc-skill-eval/commit/11a028589ff4b4f92b5e589f0fd1482d14654ac0))
+
 ## [0.19.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.18.0...v0.19.0) (2026-07-24)
 
 ### Features
