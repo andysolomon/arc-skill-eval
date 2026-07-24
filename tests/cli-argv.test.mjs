@@ -170,6 +170,17 @@ test("parseCliArgs accepts --sandbox=just-bash inline form", () => {
   assert.equal(parsed.sandbox, "just-bash");
 });
 
+test("parseCliArgs accepts --runtime codex", () => {
+  const parsed = parseCliArgs(["run", "./skill", "--runtime", "codex"]);
+
+  assert.equal(parsed.command, "run");
+  assert.equal(parsed.runtime, "codex");
+});
+
+test("parseCliArgs rejects invalid --runtime", () => {
+  assert.throws(() => parseCliArgs(["run", "./skill", "--runtime", "docker"]), CliUsageError);
+});
+
 test("parseCliArgs leaves sandbox undefined when flag omitted", () => {
   const parsed = parseCliArgs(["run", "./skill"]);
 

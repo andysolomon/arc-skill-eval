@@ -1,9 +1,13 @@
 ---
 title: Runtime & Models
-description: Configure runner and judge models, Pi defaults, Ollama Cloud, and eval-owned runtime directories.
+description: Configure runner and judge models, Pi defaults, Ollama Cloud, eval-owned runtime directories, and optional non-Pi harnesses.
 ---
 
-Skeval runs skill cases through the Pi SDK. That means model providers, API keys, default models, and thinking levels come from Pi unless you explicitly pin them at the CLI layer.
+Skeval runs skill cases through the Pi SDK by default. That means model providers, API keys, default models, and thinking levels come from Pi unless you explicitly pin them at the CLI layer.
+
+Optional CLI harnesses (`--runtime codex`, `claude-code`, `cursor-agent`, or `copilot`) let you grade the same `evals.json` without Pi. Those adapters use **bring-your-own keys** via environment variables (or harness-native login) — see [Multi-harness runtimes](https://github.com/andysolomon/arc-skill-eval/blob/main/docs/multi-harness-runtimes.md) in the repo docs.
+
+CLI harnesses do **not** support `--sandbox just-bash` (use `--runtime pi-sdk` for sandboxed bash). Harness stderr is redacted in traces; a non-zero CLI exit code fails the case even when partial assistant text was parsed.
 
 ## Two model roles
 

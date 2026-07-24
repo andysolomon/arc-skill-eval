@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -76,6 +76,69 @@ test("writeCaseVariantArtifacts round-trips through readCaseVariantArtifacts", a
 
     const copied = await readFile(path.join(variantDir, "outputs", "out.txt"), "utf-8");
     assert.equal(copied, "ok");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("writeCaseVariantArtifacts excludes harness skill staging dirs from outputs", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "arc-artifacts-staging-"));
+  const variantDir = path.join(root, "eval-demo");
+  const workspaceDir = path.join(root, "workspace");
+
+  const timing = {
+    total_tokens: 0,
+    duration_ms: 1,
+    model: null,
+    token_usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
+  };
+  const grading = {
+    case_id: "demo",
+    assertion_results: [],
+    summary: { passed: 0, failed: 0, total: 0, pass_rate: 0 },
+  };
+  const trace = {
+    identity: { runtime: "codex", case: { caseId: "demo", prompt: "hi" } },
+    timing: { durationMs: 1 },
+    observations: { assistantText: "hello\n" },
+    raw: {},
+  };
+  const toolSummary = { tool_call_count: 0, tool_error_count: 0, mcp_tool_call_count: 0 };
+  const contextManifest = {
+    runtime: "pi",
+    mode: "isolated",
+    attached_skills: [],
+    available_tools: [],
+    active_tools: [],
+    mcp_tools: [],
+    mcp_servers: [],
+    ambient: {},
+  };
+
+  try {
+    await mkdir(path.join(workspaceDir, ".agents", "skills", "staged"), { recursive: true });
+    await writeFile(path.join(workspaceDir, ".agents", "skills", "staged", "SKILL.md"), "secret", "utf-8");
+    await writeFile(path.join(workspaceDir, "out.txt"), "ok", "utf-8");
+
+    await writeCaseVariantArtifacts({
+      variantDir,
+      assistantText: "hello",
+      workspaceDir,
+      timing,
+      grading,
+      trace,
+      toolSummary,
+      contextManifest,
+    });
+
+    assert.equal(await access(path.join(variantDir, "outputs", "out.txt")).then(() => true, () => false), true);
+    assert.equal(
+      await access(path.join(variantDir, "outputs", ".agents", "skills", "staged", "SKILL.md")).then(
+        () => true,
+        () => false,
+      ),
+      false,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }

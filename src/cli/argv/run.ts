@@ -1,4 +1,5 @@
 import { SANDBOX_MODE_VALUES, type ModelSelection, type SandboxMode } from "../../contracts/types.js";
+import { isCliRuntimeId } from "../../runtime/registry.js";
 import { CliUsageError } from "../types.js";
 import { isSandboxMode, parseModelSelectionFlag, readFlagValue } from "./shared.js";
 
@@ -17,6 +18,7 @@ export function parseRunCommandArgs(args: string[]) {
   let sandbox: SandboxMode | undefined;
   let model: ModelSelection | undefined;
   let judgeModel: ModelSelection | undefined;
+  let runtime: string | undefined;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
@@ -114,6 +116,18 @@ export function parseRunCommandArgs(args: string[]) {
       continue;
     }
 
+    if (arg === "--runtime" || arg.startsWith("--runtime=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      if (!isCliRuntimeId(parsed.value)) {
+        throw new CliUsageError(
+          `Invalid --runtime: ${parsed.value}. Expected pi-sdk, codex, claude-code, cursor-agent, or copilot.`,
+        );
+      }
+      runtime = parsed.value;
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
     if (arg.startsWith("-")) {
       throw new CliUsageError(`Unknown flag: ${arg}.`);
     }
@@ -129,5 +143,21 @@ export function parseRunCommandArgs(args: string[]) {
     throw new CliUsageError("Missing required <skill-dir-or-repo> argument.");
   }
 
-  return { input, skillNames, caseIds, outputDir, iteration, agentDir, extraSkillPaths, contextMode, sandbox, model, judgeModel, compare, laminar, json };
+  return {
+    input,
+    skillNames,
+    caseIds,
+    outputDir,
+    iteration,
+    agentDir,
+    extraSkillPaths,
+    contextMode,
+    sandbox,
+    model,
+    judgeModel,
+    runtime,
+    compare,
+    laminar,
+    json,
+  };
 }
