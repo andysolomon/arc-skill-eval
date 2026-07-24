@@ -211,9 +211,9 @@ Then explore Option B behind an experimental runtime interface.
 
 ## Proposed architecture
 
-See [ADR-0001: Defer AgentRuntime expansion](./adr/ADR-0001-defer-agent-runtime-expansion.md) for why broader runtime expansion (custom tool loop, CLI `--runtime` flag) is deferred while the seam ships in minimal form.
+The minimal `AgentRuntime` seam shipped under [ADR-0001](./adr/ADR-0001-defer-agent-runtime-expansion.md). Multi-harness CLI adapters + `--runtime` + BYOK are the approved expansion path under [ADR-0007](./adr/ADR-0007-multi-harness-cli-runtimes.md). Full detail: [multi-harness-runtimes.md](./multi-harness-runtimes.md).
 
-Introduce a runtime abstraction without replacing Pi yet:
+A custom in-process OpenAI-compatible tool loop (historical Option B) remains **deferred** — escape-hatch demand is better met by spawning the user’s real harness CLI.
 
 ```ts
 export interface AgentRuntime {
@@ -222,18 +222,19 @@ export interface AgentRuntime {
 }
 ```
 
-Initial implementations:
+Implementations:
 
-- `PiAgentRuntime` — current behavior
-- `MiniPiAgentRuntime` — Pi SDK with explicit eval-owned `agentDir`
-- `CustomOpenAiCompatRuntime` — future experimental minimal tool loop
+- `pi-sdk` — default (current behavior; optional `--agent-dir` for eval-owned Pi config)
+- `replay` — deterministic, provider-free (tests/CI)
+- `codex` / `claude-code` / `cursor-agent` / `copilot` — CLI-spawn adapters (rollout order in multi-harness doc)
 
 CLI shape:
 
 ```bash
-arc-skill-eval run ./skill --runtime pi
-arc-skill-eval run ./skill --runtime pi --agent-dir ./.arc-skill-eval/pi-agent
-arc-skill-eval run ./skill --runtime custom-openai-compat --base-url ... --api-key-env ...
+arc-skill-eval run ./skill
+arc-skill-eval run ./skill --agent-dir ./.arc-skill-eval/pi-agent
+arc-skill-eval run ./skill --runtime codex --model <codex-model-id>
+# requires CODEX_API_KEY (or prior codex login)
 ```
 
 ## Concrete next implementation steps

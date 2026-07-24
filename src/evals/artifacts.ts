@@ -89,6 +89,31 @@ export interface LoadedSkill {
   cases: LoadedCase[];
 }
 
+const WORKSPACE_OUTPUT_STAGING_PREFIXES = [
+  ".agents/skills",
+  ".claude/skills",
+  ".cursor/skills",
+  ".github/skills",
+] as const;
+
+function isExcludedStagingOutputPath(relativePosix: string): boolean {
+  const normalized = relativePosix.replace(/\\/g, "/");
+  return WORKSPACE_OUTPUT_STAGING_PREFIXES.some(
+    (prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`),
+  );
+}
+
+export function createWorkspaceOutputsCopyFilter(workspaceDir: string): (src: string) => boolean {
+  const root = path.resolve(workspaceDir);
+  return (src: string) => {
+    const relative = path.relative(root, src);
+    if (relative === "" || relative.startsWith(`..${path.sep}`) || relative === "..") {
+      return true;
+    }
+    return !isExcludedStagingOutputPath(relative);
+  };
+}
+
 export function resolveCaseVariantArtifactPaths(variantDir: string): CaseVariantArtifactPaths {
   return {
     assistant: path.join(variantDir, CASE_VARIANT_ARTIFACT_NAMES.assistant),
@@ -123,7 +148,11 @@ export async function writeCaseVariantArtifacts(
 
   await mkdir(paths.outputs, { recursive: true });
   await writeFile(paths.assistant, formatAssistantArtifact(input.assistantText), "utf-8");
-  await cp(input.workspaceDir, paths.outputs, { recursive: true, force: true });
+  await cp(input.workspaceDir, paths.outputs, {
+    recursive: true,
+    force: true,
+    filter: createWorkspaceOutputsCopyFilter(input.workspaceDir),
+  });
   await writeJsonArtifact(paths.timing, input.timing);
   await writeJsonArtifact(paths.grading, input.grading);
   await writeJsonArtifact(paths.trace, input.trace);

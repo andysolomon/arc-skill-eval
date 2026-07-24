@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-07-19)
+Accepted (2026-07-19) — **partially superseded** by [ADR-0007](./ADR-0007-multi-harness-cli-runtimes.md) for multi-harness CLI adapters and `--runtime` selection. Pi-as-default and the minimal `id` + `runCase` seam remain in force.
 
 ## Context
 
@@ -18,9 +18,11 @@ The Pi SDK adapter (`piSdkRuntime`) is a thin translation pass — it maps `Runt
 2. **Ship the minimal `AgentRuntime` seam as-is**: `id` + `runCase`, default `pi-sdk`, optional `runtime` injection and `createSession` test hook preserved unchanged.
 3. **Defer broader AgentRuntime expansion** — additional runtime implementations, CLI `--runtime` selection, and a custom tool-loop runtime — until Option A (eval-owned Pi agent dir) is fully exercised and there is concrete demand for a non-Pi path.
 
+> **Update (2026-07-24):** Demand for a non-Pi path is established. [ADR-0007](./ADR-0007-multi-harness-cli-runtimes.md) lifts the deferral for CLI-spawn harness adapters + `--runtime` + BYOK. Custom in-process tool-loop runtimes remain deferred.
+
 ## Consequences
 
 - **Positive:** Fewer modules; Pi translation and the default runtime live in one place (`sdk-eval-case.ts`). The seam (`types.ts`, `replay.ts`, `run-case` injection) stays intact for future runtimes.
 - **Positive:** No persisted-schema migration; `RuntimeCaseResult`, trace identity, and replay consumers are unchanged.
-- **Negative:** Adding a second runtime still requires a new adapter module and wiring; no CLI flag yet.
+- **Negative:** Adding a second runtime still requires a new adapter module and wiring; no CLI flag yet *(addressed by ADR-0007)*.
 - **Neutral:** Documentation and ADR record the deferral so future work does not re-litigate the scope cut.

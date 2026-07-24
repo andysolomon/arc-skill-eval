@@ -11,7 +11,14 @@ import type {
   PiSessionTelemetryToolResult,
 } from "../pi/types.js";
 
-export type EvalTraceRuntime = "pi-sdk" | "pi-cli-json" | "replay";
+export type EvalTraceRuntime =
+  | "pi-sdk"
+  | "pi-cli-json"
+  | "replay"
+  | "codex"
+  | "claude-code"
+  | "cursor-agent"
+  | "copilot";
 
 export interface EvalTraceIdentity {
   runtime: EvalTraceRuntime;

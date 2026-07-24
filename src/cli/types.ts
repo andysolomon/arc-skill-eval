@@ -17,6 +17,8 @@ export interface RunEvalsCliOptions extends CommandSelectionOptions {
   sandbox?: SandboxMode;
   model?: ModelSelection;
   judgeModel?: ModelSelection;
+  /** Harness runtime id (default pi-sdk). */
+  runtime?: string;
 }
 
 export interface InitRuntimeCliOptions {

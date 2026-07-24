@@ -12,6 +12,7 @@ import { renderHelp, parseCliArgs } from "./argv.js";
 import { formatRunEvalsResult } from "./render.js";
 import { resolveLaminarConfig } from "./laminar-config.js";
 import { createLaminarSink } from "../observability/sinks/laminar.js";
+import { assertRuntimeReady, resolveRuntime } from "../runtime/registry.js";
 import { CliCommandError, CliUsageError, type CliInvocationResult } from "./types.js";
 
 function formatDescriptionScore(result: ScoreDescriptionResult): string {
@@ -228,6 +229,13 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
 
         let result;
         try {
+          try {
+            await assertRuntimeReady(parsed.runtime, process.env);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            throw new CliCommandError(message);
+          }
+          const runtime = resolveRuntime(parsed.runtime);
           result = await runEvalsCommand({
             input: parsed.input,
             skillNames: parsed.skillNames,
@@ -242,6 +250,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
             observabilitySinks,
             model: parsed.model,
             judgeModel: parsed.judgeModel,
+            runtime,
           });
         } finally {
           // Drain sinks before the process exits so in-flight exports (e.g.
