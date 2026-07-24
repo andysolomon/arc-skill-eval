@@ -274,17 +274,23 @@ const WorkspaceChip = () => {
               {skills.map((skill) => (
                 <div
                   key={skill.id}
-                  title={skill.description}
+                  title={
+                    skill.hasEvals
+                      ? `${skill.id} — has an eval suite`
+                      : skill.description || `${skill.id} — no eval suite`
+                  }
                   style={{
-                    color: skill.role === 'distractor' ? 'var(--tt-comment)' : 'var(--tt-fg-dark)',
+                    color: skill.hasEvals
+                      ? 'var(--tt-green)'
+                      : skill.role === 'distractor'
+                        ? 'var(--tt-comment)'
+                        : 'var(--tt-fg-dark)',
                     fontSize: 12,
                     padding: '1px 0',
                   }}
                 >
-                  └ {skill.id}/
-                  {skill.hasEvals ? (
-                    <span style={{ color: 'var(--tt-green)' }}> · evals</span>
-                  ) : null}
+                  <span style={{ color: 'var(--tt-dim)' }}>└ </span>
+                  {skill.id}/
                 </div>
               ))}
               {skillsStatus === 'live' && resolvedPath ? (
