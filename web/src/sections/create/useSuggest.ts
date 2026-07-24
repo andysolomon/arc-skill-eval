@@ -1,10 +1,51 @@
 import { useCallback, useState } from 'react';
+import type {
+  AssertionKind,
+  BehaviorDimension,
+  PromptFlavor,
+} from './useDraft';
+
+type SuggestBehaviorInput = {
+  existing: string[];
+  skill: string;
+};
 
 type SuggestPromptInput = {
   behavior: string;
-  currentPrompt: string;
+  dim: BehaviorDimension;
+  flavor: PromptFlavor;
   rowId: string;
-  workspaceRoot: string;
+  skill: string;
+};
+
+type SuggestAssertionInput = {
+  behavior: string;
+  prompt: string;
+  rowId: string;
+  skill: string;
+};
+
+type SuggestDimensionInput = {
+  behavior: string;
+  rowId: string;
+  skill: string;
+};
+
+type SuggestFlavorInput = {
+  behavior: string;
+  prompt: string;
+  rowId: string;
+  skill: string;
+};
+
+type BehaviorSuggestion = {
+  text: string;
+  dim: BehaviorDimension;
+};
+
+type AssertionSuggestion = {
+  kind: AssertionKind;
+  val: string;
 };
 
 type SuggestState = {
@@ -15,89 +56,173 @@ type SuggestState = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value && typeof value === 'object' && !Array.isArray(value));
 
-const toText = (value: unknown): string | null =>
-  typeof value === 'string' && value.trim() ? value.trim() : null;
-
-const firstCase = (payload: unknown): Record<string, unknown> | null => {
-  if (!isRecord(payload)) {
-    return null;
+export const parseModel = (spec: string): { provider: string; id: string } | undefined => {
+  const slash = spec.indexOf('/');
+  if (slash <= 0 || slash >= spec.length - 1) {
+    return undefined;
   }
-
-  const evals = payload.evals;
-  if (Array.isArray(evals)) {
-    for (const item of evals) {
-      if (isRecord(item)) {
-        return item;
-      }
-    }
-  }
-
-  if (isRecord(evals) && Array.isArray(evals.evals)) {
-    for (const group of evals.evals) {
-      if (isRecord(group) && Array.isArray(group.cases)) {
-        for (const item of group.cases) {
-          if (isRecord(item)) {
-            return item;
-          }
-        }
-      }
-    }
-  }
-
-  return null;
+  return { provider: spec.slice(0, slash), id: spec.slice(slash + 1) };
 };
 
-const postSuggestion = async (payload: Record<string, unknown>) => {
-  const response = await fetch('/generate-evals', {
+const readError = async (response: Response) => {
+  try {
+    const payload = (await response.json()) as unknown;
+    if (isRecord(payload) && typeof payload.error === 'string' && payload.error.trim()) {
+      return payload.error.trim();
+    }
+  } catch {
+    // The daemon may be offline or return a non-JSON proxy response.
+  }
+
+  return `suggest failed with ${response.status}`;
+};
+
+const postSuggestion = async (
+  kind: 'behavior' | 'prompt' | 'assertion' | 'dimension' | 'flavor',
+  skill: string,
+  context: Record<string, unknown>,
+  model?: { provider: string; id: string },
+) => {
+  const response = await fetch('http://localhost:7357/suggest', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      kind,
+      skill,
+      context,
+      ...(model ? { model } : {}),
+    }),
   });
 
   if (!response.ok) {
-    throw new Error(`suggest failed with ${response.status}`);
+    throw new Error(await readError(response));
   }
 
-  return (await response.json()) as unknown;
+  const payload = (await response.json()) as unknown;
+  if (!isRecord(payload) || payload.ok !== true) {
+    throw new Error('suggest returned an invalid response');
+  }
+
+  return payload;
 };
 
-const fallbackPrompt = (behavior: string, currentPrompt: string) =>
-  currentPrompt.trim() ||
-  `Ask the agent to complete a task that demonstrates this behavior: ${behavior || 'the selected behavior'}.`;
-
-export const useSuggest = () => {
+export const useSuggest = (enabled: boolean, modelSpec?: string) => {
+  const parsedModel = modelSpec ? parseModel(modelSpec) : undefined;
   const [state, setState] = useState<SuggestState>({ error: null, pendingKey: null });
 
-  const suggestPrompt = useCallback(
-    async ({ behavior, currentPrompt, rowId, workspaceRoot }: SuggestPromptInput) => {
-      const pendingKey = `prompt:${rowId}`;
+  const run = useCallback(
+    async <T,>(pendingKey: string, request: () => Promise<T>): Promise<T> => {
+      if (!enabled) {
+        throw new Error('LLM assist is only available on localhost.');
+      }
+
       setState({ error: null, pendingKey });
 
       try {
-        const payload = await postSuggestion({
-          workspaceRoot,
-          behaviors: [behavior].filter(Boolean),
-          target: 'prompt',
-          currentPrompt,
-        });
-        const suggested =
-          toText(isRecord(payload) ? payload.prompt ?? payload.suggestion ?? payload.text : null) ??
-          toText(firstCase(payload)?.prompt) ??
-          fallbackPrompt(behavior, currentPrompt);
-
+        const result = await request();
         setState({ error: null, pendingKey: null });
-        return suggested;
+        return result;
       } catch (error) {
         const message = error instanceof Error ? error.message : 'suggest failed';
         setState({ error: message, pendingKey: null });
         throw error;
       }
     },
-    [],
+    [enabled],
+  );
+
+  const suggestBehavior = useCallback(
+    ({ existing, skill }: SuggestBehaviorInput) =>
+      run<BehaviorSuggestion>('behavior', async () => {
+        const payload = await postSuggestion('behavior', skill, { existing }, parsedModel);
+        const behavior = payload.behavior;
+        if (
+          !isRecord(behavior)
+          || typeof behavior.text !== 'string'
+          || !['outcome', 'process', 'style', 'efficiency'].includes(String(behavior.dim))
+        ) {
+          throw new Error('suggest returned an invalid behavior');
+        }
+
+        return {
+          text: behavior.text,
+          dim: behavior.dim as BehaviorDimension,
+        };
+      }),
+    [parsedModel, run],
+  );
+
+  const suggestPrompt = useCallback(
+    ({ behavior, dim, flavor, rowId, skill }: SuggestPromptInput) =>
+      run<string>(`prompt:${rowId}`, async () => {
+        const payload = await postSuggestion('prompt', skill, { behavior, dim, flavor }, parsedModel);
+        if (typeof payload.prompt !== 'string' || !payload.prompt.trim()) {
+          throw new Error('suggest returned an invalid prompt');
+        }
+        return payload.prompt.trim();
+      }),
+    [parsedModel, run],
+  );
+
+  const suggestAssertion = useCallback(
+    ({ behavior, prompt, rowId, skill }: SuggestAssertionInput) =>
+      run<AssertionSuggestion>(`assertion:${rowId}`, async () => {
+        const payload = await postSuggestion('assertion', skill, { behavior, prompt }, parsedModel);
+        const assertion = payload.assertion;
+        if (
+          !isRecord(assertion)
+          || typeof assertion.val !== 'string'
+          || !['file-exists', 'file-absent', 'regex-match', 'json-valid', 'judge'].includes(
+            String(assertion.kind),
+          )
+        ) {
+          throw new Error('suggest returned an invalid assertion');
+        }
+
+        return {
+          kind: assertion.kind as AssertionKind,
+          val: assertion.val,
+        };
+      }),
+    [parsedModel, run],
+  );
+
+  const suggestDimension = useCallback(
+    ({ behavior, rowId, skill }: SuggestDimensionInput) =>
+      run<BehaviorDimension>(`dimension:${rowId}`, async () => {
+        const payload = await postSuggestion('dimension', skill, { behavior }, parsedModel);
+        if (
+          typeof payload.dim !== 'string'
+          || !['outcome', 'process', 'style', 'efficiency'].includes(payload.dim)
+        ) {
+          throw new Error('suggest returned an invalid dimension');
+        }
+        return payload.dim as BehaviorDimension;
+      }),
+    [parsedModel, run],
+  );
+
+  const suggestFlavor = useCallback(
+    ({ behavior, prompt, rowId, skill }: SuggestFlavorInput) =>
+      run<PromptFlavor>(`flavor:${rowId}`, async () => {
+        const payload = await postSuggestion('flavor', skill, { behavior, prompt }, parsedModel);
+        if (
+          typeof payload.flavor !== 'string'
+          || !['explicit', 'implicit', 'contextual', 'adjacent-negative'].includes(payload.flavor)
+        ) {
+          throw new Error('suggest returned an invalid flavor');
+        }
+        return payload.flavor as PromptFlavor;
+      }),
+    [parsedModel, run],
   );
 
   return {
     ...state,
+    suggestAssertion,
+    suggestBehavior,
+    suggestDimension,
+    suggestFlavor,
     suggestPrompt,
   };
 };

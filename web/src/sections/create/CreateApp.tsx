@@ -22,6 +22,14 @@ const railSteps: Array<{ id: CreateStepId; num: string; label: string }> = [
   { id: 'review', num: '04', label: 'Review & run' },
 ];
 
+const ASSIST_MODEL_OPTIONS = [
+  'minimax/MiniMax-M3',
+  'minimax/MiniMax-M2.7',
+  'anthropic/claude-sonnet-4',
+  'openai/gpt-5-mini',
+  'moonshot/kimi-k2-0905-preview',
+] as const;
+
 const HostedBanner = () => (
   <div
     style={{
@@ -47,12 +55,20 @@ const HostedBanner = () => (
 );
 
 type GenerateBannerProps = {
+  assistModel: string;
+  onAssistModelChange: (value: string) => void;
   onGenerated: (skill: string, behaviors: string[]) => void;
   onLoadEvals: (skill: string, rows: BehaviorRow[], path: string) => void;
   workspaceRoot: string;
 };
 
-const GenerateBanner = ({ onGenerated, onLoadEvals, workspaceRoot }: GenerateBannerProps) => {
+const GenerateBanner = ({
+  assistModel,
+  onAssistModelChange,
+  onGenerated,
+  onLoadEvals,
+  workspaceRoot,
+}: GenerateBannerProps) => {
   const { skills } = useWorkspace();
   const { error, generateEvals, isGenerating } = useGenerateEvals();
   const [selected, setSelected] = useState('');
@@ -75,7 +91,7 @@ const GenerateBanner = ({ onGenerated, onLoadEvals, workspaceRoot }: GenerateBan
     const skillPath =
       skills.find((skill) => skill.id === selected)?.path ?? `${workspaceRoot}/${selected}`;
 
-    void generateEvals({ workspaceRoot: skillPath, behaviors: [] })
+    void generateEvals({ workspaceRoot: skillPath, behaviors: [], model: assistModel })
       .then((result) => {
         setGenerated({ skill: selected, count: result.behaviors.length });
         onGenerated(selected, result.behaviors);
@@ -244,6 +260,38 @@ const GenerateBanner = ({ onGenerated, onLoadEvals, workspaceRoot }: GenerateBan
           ✗ {loadError}
         </div>
       ) : null}
+      <div
+        style={{
+          alignItems: 'center',
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 8,
+          marginTop: 10,
+        }}
+      >
+        <span style={{ color: 'var(--tt-comment)', fontSize: 12 }}>✦ assist model:</span>
+        <select
+          aria-label="assist model"
+          onChange={(event) => onAssistModelChange(event.target.value)}
+          value={assistModel}
+          style={{
+            background: 'var(--tt-bg)',
+            border: '1px solid var(--tt-border)',
+            borderRadius: 6,
+            color: 'var(--tt-fg-dark)',
+            cursor: 'pointer',
+            fontSize: 12,
+            maxWidth: '100%',
+            padding: '5px 8px',
+          }}
+        >
+          {ASSIST_MODEL_OPTIONS.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </div>
     </div>
   );
 };
@@ -251,6 +299,7 @@ const GenerateBanner = ({ onGenerated, onLoadEvals, workspaceRoot }: GenerateBan
 export const CreateApp = () => {
   const { env } = useEnv();
   const { workspace } = useWorkspace();
+  const [assistModel, setAssistModel] = useState('minimax/MiniMax-M3');
   const [editTargetPath, setEditTargetPath] = useState<string>();
   const {
     activeStep,
@@ -382,6 +431,8 @@ export const CreateApp = () => {
           <div style={{ maxWidth: 700 }}>
             {env === 'localhost' ? (
               <GenerateBanner
+                assistModel={assistModel}
+                onAssistModelChange={setAssistModel}
                 onGenerated={(skill, behaviors) => {
                   setEditTargetPath(undefined);
                   seedBehaviors(
@@ -403,6 +454,7 @@ export const CreateApp = () => {
 
             {activeStep === 'behaviors' ? (
               <StepListBehaviors
+                assistModel={assistModel}
                 draft={draft}
                 env={env}
                 onAddBehavior={addBehavior}
@@ -416,15 +468,17 @@ export const CreateApp = () => {
             ) : null}
             {activeStep === 'prompts' ? (
               <StepPrompts
+                assistModel={assistModel}
                 draft={draft}
                 env={env}
                 onUpdateBehavior={updateBehavior}
-                workspaceRoot={workspace}
               />
             ) : null}
             {activeStep === 'assertions' ? (
               <StepAssertions
+                assistModel={assistModel}
                 draft={draft}
+                env={env}
                 onAddAssertion={addAssertion}
                 onRemoveAssertion={removeAssertion}
                 onSetAssertionValue={setAssertionValue}

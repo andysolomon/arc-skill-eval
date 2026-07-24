@@ -1,13 +1,17 @@
+import { useEffect, useRef, useState } from 'react';
 import type { EnvName } from '@/persistence/preferences';
+import { useSuggest } from './useSuggest';
 import {
   dimensionColors,
   dimensions,
+  type BehaviorDimension,
   type BehaviorRow,
   type CreateDraft,
 } from './useDraft';
 import { cardStyle, inputStyle, kickerStyle, legendBoxStyle, introStyle, removeGlyphStyle, titleStyle } from './stepStyles';
 
 type StepListBehaviorsProps = {
+  assistModel: string;
   draft: CreateDraft;
   env: EnvName;
   onAddBehavior: () => void;
@@ -24,14 +28,60 @@ const dimensionLegend: Array<{ dim: string; copy: string }> = [
 ];
 
 export const StepListBehaviors = ({
+  assistModel,
   draft,
   env,
   onAddBehavior,
   onRemoveBehavior,
   onSkill,
   onUpdateBehavior,
-}: StepListBehaviorsProps) => (
-  <div>
+}: StepListBehaviorsProps) => {
+  const { error, pendingKey, suggestBehavior, suggestDimension } = useSuggest(
+    env === 'localhost',
+    assistModel,
+  );
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const [pendingInsert, setPendingInsert] = useState<{
+    before: string[];
+    dim: BehaviorDimension;
+    text: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!pendingInsert) {
+      return;
+    }
+
+    const inserted = draft.behaviors.find(
+      (behavior) => !pendingInsert.before.includes(behavior.id),
+    );
+    if (inserted) {
+      onUpdateBehavior(inserted.id, {
+        text: pendingInsert.text,
+        dim: pendingInsert.dim,
+      });
+      setPendingInsert(null);
+    }
+  }, [draft.behaviors, onUpdateBehavior, pendingInsert]);
+
+  const handleSuggest = () => {
+    void suggestBehavior({
+      existing: draft.behaviors.map((behavior) => behavior.text).filter(Boolean),
+      skill: draft.skill,
+    })
+      .then((suggestion) => {
+        setPendingInsert({
+          before: draftRef.current.behaviors.map((behavior) => behavior.id),
+          ...suggestion,
+        });
+        onAddBehavior();
+      })
+      .catch(() => undefined);
+  };
+
+  return (
+    <div>
     <div style={kickerStyle}>step 01</div>
     <h1 style={titleStyle}>List the behaviors that matter</h1>
     <p style={introStyle}>
@@ -103,7 +153,7 @@ export const StepListBehaviors = ({
             </button>
           ) : null}
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {dimensions.map((dim) => {
             const active = behavior.dim === dim;
             const color = dimensionColors[dim];
@@ -128,6 +178,33 @@ export const StepListBehaviors = ({
               </button>
             );
           })}
+          {env === 'localhost' && behavior.text.trim() ? (
+            <button
+              disabled={pendingKey !== null}
+              onClick={() => {
+                void suggestDimension({
+                  behavior: behavior.text,
+                  rowId: behavior.id,
+                  skill: draft.skill,
+                })
+                  .then((dim) => onUpdateBehavior(behavior.id, { dim }))
+                  .catch(() => undefined);
+              }}
+              type="button"
+              style={{
+                background: 'transparent',
+                border: 0,
+                color: 'var(--tt-yellow)',
+                cursor: pendingKey === `dimension:${behavior.id}` ? 'wait' : 'pointer',
+                fontSize: 12,
+                marginLeft: 4,
+                padding: 0,
+              }}
+              title="classify dimension with LLM"
+            >
+              {pendingKey === `dimension:${behavior.id}` ? '◌' : '✦'}
+            </button>
+          ) : null}
         </div>
       </div>
     ))}
@@ -151,23 +228,51 @@ export const StepListBehaviors = ({
       </div>
     ) : null}
 
-    <button
-      onClick={onAddBehavior}
-      type="button"
-      style={{
-        alignItems: 'center',
-        background: 'transparent',
-        border: '1px dashed var(--tt-border)',
-        borderRadius: 7,
-        color: 'var(--tt-fg-dark)',
-        cursor: 'pointer',
-        display: 'inline-flex',
-        fontSize: 12.5,
-        gap: 7,
-        padding: '8px 13px',
-      }}
-    >
-      ＋ add behavior
-    </button>
-  </div>
-);
+      <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 14 }}>
+        <button
+          onClick={onAddBehavior}
+          type="button"
+          style={{
+            alignItems: 'center',
+            background: 'transparent',
+            border: '1px dashed var(--tt-border)',
+            borderRadius: 7,
+            color: 'var(--tt-fg-dark)',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            fontSize: 12.5,
+            gap: 7,
+            padding: '8px 13px',
+          }}
+        >
+          ＋ add behavior
+        </button>
+        {env === 'localhost' ? (
+          <button
+            disabled={pendingKey === 'behavior' || Boolean(pendingInsert)}
+            onClick={handleSuggest}
+            type="button"
+            style={{
+              background: 'transparent',
+              border: 0,
+              color: 'var(--tt-yellow)',
+              cursor: pendingKey === 'behavior' || pendingInsert ? 'wait' : 'pointer',
+              fontSize: 12,
+              padding: 0,
+            }}
+          >
+            {pendingKey === 'behavior' || pendingInsert
+              ? '◌ generating…'
+              : '✦ suggest a behavior'}
+          </button>
+        ) : null}
+      </div>
+
+      {error ? (
+        <div role="alert" style={{ color: 'var(--tt-red)', fontSize: 12, marginTop: 8 }}>
+          {error}
+        </div>
+      ) : null}
+    </div>
+  );
+};

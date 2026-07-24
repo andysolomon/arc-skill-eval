@@ -11,10 +11,10 @@ import {
 import { cardStyle, inputStyle, kickerStyle, legendBoxStyle, introStyle, titleStyle } from './stepStyles';
 
 type StepPromptsProps = {
+  assistModel: string;
   draft: CreateDraft;
   env: EnvName;
   onUpdateBehavior: (id: string, patch: Partial<Omit<BehaviorRow, 'id'>>) => void;
-  workspaceRoot: string;
 };
 
 const flavorLegend: Array<{ flavor: string; copy: string }> = [
@@ -30,8 +30,26 @@ const flavorLegend: Array<{ flavor: string; copy: string }> = [
   },
 ];
 
-export const StepPrompts = ({ draft, env, onUpdateBehavior, workspaceRoot }: StepPromptsProps) => {
-  const { error, pendingKey, suggestPrompt } = useSuggest();
+export const StepPrompts = ({ assistModel, draft, env, onUpdateBehavior }: StepPromptsProps) => {
+  const { error, pendingKey, suggestFlavor, suggestPrompt } = useSuggest(
+    env === 'localhost',
+    assistModel,
+  );
+
+  const handleSuggestFlavor = (behavior: BehaviorRow) => {
+    if (env !== 'localhost' || !behavior.prompt.trim()) {
+      return;
+    }
+
+    void suggestFlavor({
+      behavior: behavior.text,
+      prompt: behavior.prompt,
+      rowId: behavior.id,
+      skill: draft.skill,
+    })
+      .then((flavor) => onUpdateBehavior(behavior.id, { flavor }))
+      .catch(() => undefined);
+  };
 
   const handleSuggest = (behavior: BehaviorRow) => {
     const fallback = suggestPromptTemplate(draft.skill, behavior);
@@ -43,9 +61,10 @@ export const StepPrompts = ({ draft, env, onUpdateBehavior, workspaceRoot }: Ste
 
     void suggestPrompt({
       behavior: behavior.text,
-      currentPrompt: behavior.prompt,
+      dim: behavior.dim,
+      flavor: behavior.flavor,
       rowId: behavior.id,
-      workspaceRoot,
+      skill: draft.skill,
     })
       .then((suggestion) => onUpdateBehavior(behavior.id, { prompt: suggestion }))
       .catch(() => onUpdateBehavior(behavior.id, { prompt: fallback }));
@@ -143,22 +162,43 @@ export const StepPrompts = ({ draft, env, onUpdateBehavior, workspaceRoot }: Ste
                 </button>
               );
             })}
+            {env === 'localhost' && behavior.prompt.trim() ? (
+              <button
+                aria-label="classify flavor with LLM"
+                disabled={pendingKey !== null}
+                onClick={() => handleSuggestFlavor(behavior)}
+                title="classify flavor with LLM"
+                type="button"
+                style={{
+                  background: 'transparent',
+                  border: 0,
+                  color: 'var(--tt-yellow)',
+                  cursor: pendingKey === `flavor:${behavior.id}` ? 'wait' : 'pointer',
+                  fontSize: 12,
+                  padding: '0 2px',
+                }}
+              >
+                {pendingKey === `flavor:${behavior.id}` ? '◌' : '✦'}
+              </button>
+            ) : null}
             <span style={{ flex: 1 }} />
-            <button
-              disabled={pendingKey === `prompt:${behavior.id}`}
-              onClick={() => handleSuggest(behavior)}
-              type="button"
-              style={{
-                background: 'transparent',
-                border: 0,
-                color: 'var(--tt-yellow)',
-                cursor: pendingKey === `prompt:${behavior.id}` ? 'wait' : 'pointer',
-                fontSize: 12,
-                padding: 0,
-              }}
-            >
-              ✦ suggest
-            </button>
+            {env === 'localhost' ? (
+              <button
+                disabled={pendingKey !== null}
+                onClick={() => handleSuggest(behavior)}
+                type="button"
+                style={{
+                  background: 'transparent',
+                  border: 0,
+                  color: 'var(--tt-yellow)',
+                  cursor: pendingKey === `prompt:${behavior.id}` ? 'wait' : 'pointer',
+                  fontSize: 12,
+                  padding: 0,
+                }}
+              >
+                {pendingKey === `prompt:${behavior.id}` ? '◌ generating…' : '✦ suggest'}
+              </button>
+            ) : null}
           </div>
         </div>
       ))}
