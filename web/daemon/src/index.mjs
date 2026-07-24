@@ -8,6 +8,7 @@ import { handleHealth } from "./routes/health.mjs";
 import { handleFs } from "./routes/fs.mjs";
 import { handleRuns } from "./routes/runs.mjs";
 import { handleSkillEvals } from "./routes/skill-evals.mjs";
+import { handleSuggest } from "./routes/suggest.mjs";
 import { handleWorkspace } from "./routes/workspace.mjs";
 import { createRunWebSocketServer } from "./ws.mjs";
 
@@ -62,6 +63,7 @@ async function routeRequest(request, response) {
 
   const handled = await handleHealth(request, response, context)
     || await handleRuns(request, response, context)
+    || await handleSuggest(request, response, context)
     || await handleGenerateEvals(request, response, context)
     || await handleApplyPlan(request, response, context)
     || await handleSkillEvals(request, response, context)

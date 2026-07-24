@@ -1,3 +1,6 @@
+import { useRef } from 'react';
+import type { EnvName } from '@/persistence/preferences';
+import { useSuggest } from './useSuggest';
 import {
   assertionKindColor,
   assertionKinds,
@@ -9,19 +12,49 @@ import {
 import { cardStyle, inputStyle, kickerStyle, legendBoxStyle, introStyle, removeGlyphStyle, titleStyle } from './stepStyles';
 
 type StepAssertionsProps = {
+  assistModel: string;
   draft: CreateDraft;
+  env: EnvName;
   onAddAssertion: (behaviorId: string, kind: AssertionKind) => void;
   onRemoveAssertion: (behaviorId: string, index: number) => void;
   onSetAssertionValue: (behaviorId: string, index: number, val: string) => void;
 };
 
 export const StepAssertions = ({
+  assistModel,
   draft,
+  env,
   onAddAssertion,
   onRemoveAssertion,
   onSetAssertionValue,
-}: StepAssertionsProps) => (
-  <div>
+}: StepAssertionsProps) => {
+  const { error, pendingKey, suggestAssertion } = useSuggest(env === 'localhost', assistModel);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+
+  const handleSuggest = (behaviorId: string) => {
+    const behavior = draft.behaviors.find((row) => row.id === behaviorId);
+    if (!behavior) {
+      return;
+    }
+
+    void suggestAssertion({
+      behavior: behavior.text,
+      prompt: behavior.prompt,
+      rowId: behavior.id,
+      skill: draft.skill,
+    })
+      .then((assertion) => {
+        const current = draftRef.current.behaviors.find((row) => row.id === behavior.id);
+        const index = current?.asserts.length ?? behavior.asserts.length;
+        onAddAssertion(behavior.id, assertion.kind);
+        onSetAssertionValue(behavior.id, index, assertion.val);
+      })
+      .catch(() => undefined);
+  };
+
+  return (
+    <div>
     <div style={kickerStyle}>step 03</div>
     <h1 style={titleStyle}>Attach assertions</h1>
     <p style={introStyle}>
@@ -105,7 +138,15 @@ export const StepAssertions = ({
           </div>
         ))}
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+        <div
+          style={{
+            alignItems: 'center',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 6,
+            marginTop: 10,
+          }}
+        >
           {assertionKinds.map((kind) => (
             <button
               key={kind}
@@ -124,8 +165,38 @@ export const StepAssertions = ({
               ＋ {kind}
             </button>
           ))}
+          {env === 'localhost' ? (
+            <>
+              <span style={{ flex: 1 }} />
+              <button
+                disabled={pendingKey !== null}
+                onClick={() => handleSuggest(behavior.id)}
+                type="button"
+                style={{
+                  background: 'transparent',
+                  border: 0,
+                  color: 'var(--tt-yellow)',
+                  cursor:
+                    pendingKey === `assertion:${behavior.id}` ? 'wait' : 'pointer',
+                  fontSize: 12,
+                  padding: 0,
+                }}
+              >
+                {pendingKey === `assertion:${behavior.id}`
+                  ? '◌ generating…'
+                  : '✦ suggest an assertion'}
+              </button>
+            </>
+          ) : null}
         </div>
       </div>
     ))}
-  </div>
-);
+
+      {error ? (
+        <div role="alert" style={{ color: 'var(--tt-red)', fontSize: 12 }}>
+          {error}
+        </div>
+      ) : null}
+    </div>
+  );
+};

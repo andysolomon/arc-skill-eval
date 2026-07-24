@@ -1,8 +1,10 @@
 import { useCallback, useState } from 'react';
+import { parseModel } from './useSuggest';
 
 type GenerateEvalsInput = {
   workspaceRoot: string;
   behaviors: string[];
+  model?: string;
 };
 
 type GenerateEvalsResult = {
@@ -90,18 +92,37 @@ export const useGenerateEvals = () => {
   });
 
   const generateEvals = useCallback(
-    async ({ workspaceRoot, behaviors }: GenerateEvalsInput): Promise<GenerateEvalsResult> => {
+    async ({ workspaceRoot, behaviors, model }: GenerateEvalsInput): Promise<GenerateEvalsResult> => {
       setState({ error: null, isGenerating: true });
+
+      const parsedModel = model ? parseModel(model) : undefined;
 
       try {
         const response = await fetch('http://localhost:7357/generate-evals', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ workspaceRoot, behaviors }),
+          body: JSON.stringify({
+            workspaceRoot,
+            behaviors,
+            ...(parsedModel ? { model: parsedModel } : {}),
+          }),
         });
 
         if (!response.ok) {
-          throw new Error(`generate evals failed with ${response.status}`);
+          let message = `generate evals failed with ${response.status}`;
+          try {
+            const failure = (await response.json()) as unknown;
+            if (
+              isRecord(failure) &&
+              typeof failure.error === 'string' &&
+              failure.error.trim()
+            ) {
+              message = failure.error.trim();
+            }
+          } catch {
+            // Keep the status-based fallback for non-JSON daemon/proxy responses.
+          }
+          throw new Error(message);
         }
 
         const partial = (await response.json()) as unknown;

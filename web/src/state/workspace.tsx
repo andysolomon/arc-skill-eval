@@ -9,11 +9,9 @@ import {
 } from 'react';
 import { getPrefs, setPrefs } from '@/persistence/preferences';
 
-export const defaultWorkspaceFavorites = [
-  '~/dev/arc-skills',
-  '~/work/agent-skills',
-  '~/src/skills',
-];
+// No pre-baked sample favorites — favorites are only directories the user has
+// actually referenced, and stale ones are pruned against the daemon on load.
+export const defaultWorkspaceFavorites: string[] = [];
 
 export type WorkspaceSkill = {
   id: string;
@@ -108,8 +106,8 @@ const fetchWorkspace = async (root: string, signal: AbortSignal): Promise<Worksp
 };
 
 export const WorkspaceProvider = ({ children }: PropsWithChildren) => {
-  const [workspace, setWorkspaceState] = useState(defaultWorkspaceFavorites[0]);
-  const [favorites, setFavorites] = useState<string[]>(defaultWorkspaceFavorites);
+  const [workspace, setWorkspaceState] = useState('');
+  const [favorites, setFavorites] = useState<string[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [resolution, setResolution] = useState<WorkspaceResolution>({
     skills: workspaceSkills,
@@ -144,8 +142,53 @@ export const WorkspaceProvider = ({ children }: PropsWithChildren) => {
     };
   }, []);
 
+  // Prune favorites that no longer resolve to a real directory (e.g. removed
+  // dirs or previously persisted sample paths). When the daemon is unreachable
+  // we can't verify, so we leave the list untouched.
+  useEffect(() => {
+    if (!hydrated || favorites.length === 0) {
+      return undefined;
+    }
+
+    const controller = new AbortController();
+
+    void Promise.all(
+      favorites.map(async (favorite) => {
+        try {
+          const response = await fetch(
+            `http://localhost:7357/fs?path=${encodeURIComponent(favorite)}`,
+            { signal: controller.signal },
+          );
+          const data = (await response.json()) as { ok?: boolean };
+          return { favorite, exists: data.ok === true };
+        } catch {
+          return { favorite, exists: true };
+        }
+      }),
+    )
+      .then((results) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        const kept = results.filter((result) => result.exists).map((result) => result.favorite);
+        if (kept.length !== favorites.length) {
+          setFavorites(kept);
+          void setPrefs({ workspaceFavorites: kept }).catch(() => undefined);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => controller.abort();
+  }, [favorites, hydrated]);
+
   useEffect(() => {
     if (!hydrated) {
+      return undefined;
+    }
+
+    if (!workspace) {
+      setResolution({ skills: [], status: 'offline' });
       return undefined;
     }
 
