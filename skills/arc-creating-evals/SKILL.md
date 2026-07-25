@@ -103,6 +103,33 @@ Apply assertions in priority order. Weaker signals should always be backed by st
 ## Phase 5 — Write files, pin a model, validate, dry-run, summarize
 
 1. **Write `<skillDir>/evals/evals.json`.** Pretty-print with 2-space indent. Validate the JSON parses before saving.
+
+   **Optional — author in TypeScript instead of raw JSON.** For larger suites, hand-writing JSON gets error-prone. You may instead write `<skillDir>/evals/evals.eval.ts` with the typed builder and compile it to the same `evals/evals.json`. This is authoring convenience only — the runner still reads `evals/evals.json`, never the `.eval.ts`; there is no second runtime.
+   ```ts
+   // evals/evals.eval.ts
+   import { defineSkillEval, evalCase, seeded, fileExists, regexMatch, judge } from "arc-skill-eval/evals";
+
+   export default defineSkillEval({
+     skill_name: "arc-conventional-commits",
+     cases: [
+       evalCase({
+         id: "trigger-explicit",
+         prompt: "Set up semantic-release in this repo.",
+         setup: seeded({ from: "files/clean-repo" }),
+         assertions: [
+           fileExists(".releaserc.json"),
+           regexMatch("conventionalcommits"),
+           judge("Summarizes the plugins it installed.").soft(),
+         ],
+       }),
+     ],
+   });
+   ```
+   ```bash
+   arc-skill-eval emit <skillDir>            # compiles evals/evals.eval.ts → evals/evals.json
+   arc-skill-eval emit <skillDir> --check    # CI drift guard: exit 1 if evals.json is out of date
+   ```
+   Helpers mirror the assertion ladder from Phase 4: script (`fileExists`, `fileAbsent`, `jsonValid`, `regexMatch`, `exact`), behavior/safety (`toolRequired`, `toolForbidden`, `skillReadRequired`, `noForbiddenFilesTouched`), and `judge` for LLM-graded claims. Chain `.soft()` / `.severity("warn")` / `.id("<slug>")` to make a miss soft or pin an id. `emit` validates through the same loader as `run`, so authoring errors (duplicate ids, bad shapes) fail at compile time. Commit **both** the `.eval.ts` and the generated `evals/evals.json`, and wire `emit --check` into CI so they can never drift.
 2. **Create any referenced fixtures** under `<skillDir>/evals/files/<fixture>/`. Keep each fixture minimal — just enough files for the case to have something real to touch. Never commit node_modules, build outputs, or live credentials.
 3. **Know which models will run and judge.** `evals.json` does not have a top-level `model` field; the runner model comes from `--model` or the author's Pi default. LLM-judged string assertions use, in order of precedence: `--judge-model`, else **the same model that ran the case** (always usable, since the run just used it), else a low-cost built-in fallback that needs its own credentials. The runner-model default means the model grades its own output — recommend `--judge-model <provider/model>` with a *different* model when that self-grading bias matters. Call the effective judge out explicitly in your summary; `grading.json` records it as `judge_model`.
 4. **Validate.** There is no separate validate command: `evals.json` is validated on load every time `run` (or the browse TUI) reads it, with errors that name the offending case or assertion. A JSON-parse check before saving plus a dry-run (next step) is the validation loop.
