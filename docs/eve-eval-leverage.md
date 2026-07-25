@@ -96,6 +96,8 @@ Also fix Learn drift vs runtime where Assert documents types that don't exist ye
 
 ### D. Typed builder that emits JSON
 
+> **Status: ✅ shipped (2026-07-25).** All five sequenced steps landed as their own reviewed PRs: builder + `toJSON` (#224), `arc-skill-eval emit` + `--check` (#225), Learn "Advanced: typed builder" callout (#226), `arc-creating-evals` optional-TS authoring path (#227), and fixture-relative dataset loaders (#228). The runner contract held throughout — `evals/evals.json` remains the sole runtime/discovery input. The subsections below are preserved as the original design; deviations are noted inline where the shipped code differs.
+
 **Goal:** give power users Eve-like authoring ergonomics (typed helpers, composition, dataset fan-out, severity on the assertion) while keeping **`evals/evals.json` as the only runtime/discovery contract**.
 
 This is **not** Eve `defineEval`. There is no `async test(t)`, no `t.send`, no live session driver. The builder constructs an `EvalsJsonFile` (same shape as `src/evals/types.ts`); the existing Pi runner stays unchanged.
@@ -198,6 +200,8 @@ export default defineSkillEval({
 
 Same idea as Eve’s array-exported `defineEval`s, but the product is still one `evals.json` blob (or one emit per skill).
 
+> **As shipped (#228):** `loadJson`/`loadJsonl` take an optional `{ base }` — pass `{ base: import.meta.url }` to resolve the data path relative to the suite file rather than the process cwd (absolute paths pass through). Read/parse failures throw `DatasetLoadError` so they surface cleanly through `emit`.
+
 #### Emit / discovery contract (locked)
 
 1. **Canonical on disk for runs:** `<skillDir>/evals/evals.json`
@@ -224,13 +228,13 @@ Reuse / wrap `src/evals/loader.ts` validators so emit fails early on:
 
 #### Sequencing relative to other workstreams
 
-Builder value is low until behavior asserts and soft severity exist — otherwise helpers wrap half-implemented types. Order:
+Builder value is low until behavior asserts and soft severity exist — otherwise helpers wrap half-implemented types. Order (all shipped):
 
-1. Behavior/safety grading + soft/`--strict`
-2. Thin `src/evals/builder/` + `toJSON` + unit tests that round-trip to loader
-3. `arc-skill-eval emit` (+ optional `--check`)
-4. Learn advanced callout + authoring-skill optional TS path
-5. Dataset loaders only if someone needs fan-out beyond hand JSON
+1. ✅ Behavior/safety grading + soft/`--strict` (#223)
+2. ✅ Thin `src/evals/builder/` + `toJSON` + unit tests that round-trip to loader (#224)
+3. ✅ `arc-skill-eval emit` (+ optional `--check`) (#225)
+4. ✅ Learn advanced callout (#226) + authoring-skill optional TS path (#227)
+5. ✅ Dataset loaders (`arc-skill-eval/evals/loaders`, `loadJson`/`loadJsonl`) for fan-out beyond hand JSON (#228)
 
 #### Explicitly out of scope for v1 builder
 
