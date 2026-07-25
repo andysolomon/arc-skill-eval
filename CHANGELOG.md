@@ -1,3 +1,9 @@
+## [0.26.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.25.0...v0.26.0) (2026-07-25)
+
+### Features
+
+* **evals:** scored judges with rubric threshold (.atLeast) ([#231](https://github.com/andysolomon/arc-skill-eval/issues/231)) ([8847c4f](https://github.com/andysolomon/arc-skill-eval/commit/8847c4f6d3a42a172674297e872e480e41c9f254))
+
 ## [0.25.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.24.0...v0.25.0) (2026-07-25)
 
 ### Features
