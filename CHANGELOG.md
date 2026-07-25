@@ -1,3 +1,9 @@
+## [0.25.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.24.0...v0.25.0) (2026-07-25)
+
+### Features
+
+* **evals:** add fixture-relative dataset loaders for builder fan-out ([#228](https://github.com/andysolomon/arc-skill-eval/issues/228)) ([a0077ac](https://github.com/andysolomon/arc-skill-eval/commit/a0077ac0bab4e6cc2cb449f18ee48c0f19023332))
+
 ## [0.24.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.23.0...v0.24.0) (2026-07-25)
 
 ### Features
