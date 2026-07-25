@@ -3,6 +3,7 @@ import { parseAuditCommandArgs } from "./audit.js";
 import { parseBrowseCommandArgs } from "./browse.js";
 import { parseBundledCommandArgs } from "./bundled.js";
 import { parseCreateCommandArgs } from "./create.js";
+import { parseEmitCommandArgs } from "./emit.js";
 import { parseImproveCommandArgs } from "./improve.js";
 import { parseInitRuntimeCommandArgs } from "./init-runtime.js";
 import { parseOptimizeDescriptionCommandArgs } from "./optimize-description.js";
@@ -68,6 +69,11 @@ export function parseCliArgs(argv: string[]): ParsedCliCommand {
         command: "bundled",
         ...parseBundledCommandArgs(rest),
       };
+    case "emit":
+      return {
+        command: "emit",
+        ...parseEmitCommandArgs(rest),
+      };
     default:
       throw new CliUsageError(`Unknown command: ${commandName}. Run \`arc-skill-eval --help\` for usage.`);
   }
@@ -88,6 +94,7 @@ export function renderHelp(): string {
     "  arc-skill-eval optimize-description <skill-dir> (--generate-only [--output <path>] [--force] | --eval-set <path> [--distractor <skill-dir>]... [--max-iterations <n> [--apply]]) [--model <provider/model[:thinking]>] [--agent-dir <path>]",
     "  arc-skill-eval package <skill-dir> [--output <path>] [--force]",
     "  arc-skill-eval bundled [<skill-name>] [--json]",
+    "  arc-skill-eval emit (<skill-dir> | --from <suite.eval.ts>) [--out <evals/evals.json>] [--check]",
     "",
     "Notes:",
     "  - <skill-dir-or-repo> is either a skill directory containing evals/evals.json,",
@@ -114,6 +121,7 @@ export function renderHelp(): string {
     "  - optimize-description --max-iterations N proposes improved descriptions from train-split failures and selects the winner by held-out test accuracy; SKILL.md changes only with --apply (which verifies the rewrite reads back cleanly and restores the original otherwise).",
     "  - package validates SKILL.md and evals/evals.json first, then bundles the skill directory plus a sha256 manifest.json into <name>.skill.tgz (excluding evals-runs/, node_modules/, dot-files, and prior *.skill.tgz artifacts); --output overrides the artifact path and --force overwrites an existing artifact.",
     "  - bundled prints absolute paths to skills shipped with the npm package; use in shell substitution, e.g. arc-skill-eval run \"$(arc-skill-eval bundled hello-world)\".",
+    "  - emit compiles a typed `defineSkillEval` suite (a .eval.ts that default-exports the suite; imported from arc-skill-eval/evals) into evals/evals.json, validating it through the same loader the runner uses. TypeScript suites are transpiled in-process. With <skill-dir> it resolves evals/evals.eval.ts → evals/evals.json; --check verifies the committed JSON matches the suite and exits 1 on drift (writes nothing) — ideal for CI.",
     "  - Format reference: https://platform.claude.com/docs/en/agents-and-tools/agent-skills",
   ].join("\n");
 }
