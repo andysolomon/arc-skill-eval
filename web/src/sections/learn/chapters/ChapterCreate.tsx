@@ -1,5 +1,5 @@
 import { useCreateAnimation } from '../useLearnAnimations';
-import { ChapterHeader, fadeStyle, pageStyle, SectionKicker, TrafficDots } from './ui';
+import { Callout, ChapterHeader, fadeStyle, pageStyle, SectionKicker, TrafficDots } from './ui';
 
 const pathChips = [
   { color: 'var(--tt-yellow)', label: 'behaviors' },
@@ -53,6 +53,76 @@ const pitfalls = [
   { title: 'no negative case', desc: 'never testing where the skill should stay silent' },
   { title: 'judge overload', desc: 'using a judge where a regex would settle it' },
 ];
+
+const codeColors = {
+  kw: 'var(--tt-magenta)',
+  fn: 'var(--tt-cyan)',
+  str: 'var(--tt-green)',
+  key: 'var(--tt-yellow)',
+  punc: 'var(--tt-comment)',
+  plain: 'var(--tt-fg-dark)',
+} as const;
+
+const { kw, fn, str, key, punc, plain } = codeColors;
+
+type CodeToken = readonly [text: string, color: string];
+type CodeRow = { indent?: number; toks: readonly CodeToken[] };
+
+// The same arc-conventional-commits suite as the JSON above, authored with the
+// typed builder. Kept faithful to the real arc-skill-eval/evals API.
+const builderLines: readonly CodeRow[] = [
+  { toks: [['import ', kw], ['{', punc]] },
+  { indent: 2, toks: [['defineSkillEval, evalCase, seeded, fileExists, regexMatch, judge,', plain]] },
+  { toks: [['} ', punc], ['from ', kw], ['"arc-skill-eval/evals"', str], [';', punc]] },
+  { toks: [[' ', punc]] },
+  { toks: [['export default ', kw], ['defineSkillEval', fn], ['({', punc]] },
+  { indent: 2, toks: [['skill_name', key], [': ', punc], ['"arc-conventional-commits"', str], [',', punc]] },
+  { indent: 2, toks: [['cases', key], [': [', punc]] },
+  { indent: 4, toks: [['evalCase', fn], ['({', punc]] },
+  { indent: 6, toks: [['id', key], [': ', punc], ['"trigger-explicit"', str], [',', punc]] },
+  { indent: 6, toks: [['prompt', key], [': ', punc], ['"Set up semantic-release in this repo."', str], [',', punc]] },
+  {
+    indent: 6,
+    toks: [
+      ['setup', key],
+      [': ', punc],
+      ['seeded', fn],
+      ['({ ', punc],
+      ['from', key],
+      [': ', punc],
+      ['"files/clean-repo"', str],
+      [' }),', punc],
+    ],
+  },
+  { indent: 6, toks: [['assertions', key], [': [', punc]] },
+  { indent: 8, toks: [['fileExists', fn], ['(', punc], ['".releaserc.json"', str], ['),', punc]] },
+  { indent: 8, toks: [['regexMatch', fn], ['(', punc], ['"conventionalcommits"', str], ['),', punc]] },
+  {
+    indent: 8,
+    toks: [
+      ['judge', fn],
+      ['(', punc],
+      ['"Summarizes the plugins it installed."', str],
+      [').', punc],
+      ['soft', fn],
+      ['(),', punc],
+    ],
+  },
+  { indent: 6, toks: [['],', punc]] },
+  { indent: 4, toks: [['}),', punc]] },
+  { indent: 2, toks: [['],', punc]] },
+  { toks: [['});', punc]] },
+];
+
+const codeCardStyle = {
+  background: 'var(--tt-bg-dark)',
+  border: '1px solid var(--tt-border)',
+  borderRadius: 8,
+  fontSize: 12,
+  lineHeight: 1.85,
+  overflowX: 'auto',
+  padding: '14px 16px',
+} as const;
 
 const StepBadge = ({ num }: { num: string }) => (
   <div
@@ -900,6 +970,87 @@ export const ChapterCreate = () => {
           <span style={{ color: 'var(--tt-comment)' }}>{'}'}</span>
         </div>
       </div>
+
+      <SectionKicker>advanced — the typed builder</SectionKicker>
+      <div
+        style={{
+          color: 'var(--tt-comment)',
+          fontSize: 12.5,
+          lineHeight: 1.6,
+          marginBottom: 14,
+          maxWidth: 820,
+        }}
+      >
+        the json is the contract — but you don&apos;t have to hand-write it. for larger suites,
+        author them in typescript with{' '}
+        <span style={{ color: 'var(--tt-fg-dark)' }}>defineSkillEval</span>: type-checked helpers
+        and one source of truth, then compile to{' '}
+        <span style={{ color: 'var(--tt-teal)' }}>evals/evals.json</span> with{' '}
+        <span style={{ color: 'var(--tt-fg-dark)' }}>emit</span>. same suite as above, authored
+        in code:
+      </div>
+
+      <div style={{ ...codeCardStyle, marginBottom: 12, overflow: 'hidden' }}>
+        <div
+          style={{
+            alignItems: 'center',
+            borderBottom: '1px solid var(--tt-border)',
+            display: 'flex',
+            gap: 6,
+            margin: '-14px -16px 12px',
+            padding: '7px 12px',
+          }}
+        >
+          <TrafficDots />
+          <span style={{ color: 'var(--tt-comment)', fontSize: 11, marginLeft: 8 }}>
+            evals/evals.eval.ts
+          </span>
+        </div>
+        {builderLines.map((line, index) => (
+          <div key={index} style={{ paddingLeft: `${line.indent ?? 0}ch` }}>
+            {line.toks.map((token, tokenIndex) => (
+              <span key={tokenIndex} style={{ color: token[1] }}>
+                {token[0]}
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      <div style={{ ...codeCardStyle, lineHeight: 1.9, marginBottom: 12 }}>
+        <div>
+          <span style={{ color: 'var(--tt-green)' }}>$ </span>
+          <span style={{ color: 'var(--tt-fg)' }}>
+            arc-skill-eval emit ./skills/arc-conventional-commits
+          </span>
+        </div>
+        <div>
+          <span style={{ color: 'var(--tt-green)' }}>✓</span>
+          <span style={{ color: 'var(--tt-fg-dark)' }}> wrote evals/evals.json · 3 cases</span>
+        </div>
+        <div style={{ height: 8 }} />
+        <div>
+          <span style={{ color: 'var(--tt-green)' }}>$ </span>
+          <span style={{ color: 'var(--tt-fg)' }}>
+            arc-skill-eval emit ./skills/arc-conventional-commits --check
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ color: 'var(--tt-green)' }}>✓</span>
+            <span style={{ color: 'var(--tt-fg-dark)' }}> evals/evals.json is up to date</span>
+          </span>
+          <span style={{ color: 'var(--tt-dim)', whiteSpace: 'nowrap' }}>← guards drift in ci</span>
+        </div>
+      </div>
+
+      <Callout accent="cyan" style={{ marginBottom: 32 }}>
+        the runner still reads <span style={{ color: 'var(--tt-teal)' }}>evals/evals.json</span>,
+        never the <span style={{ color: 'var(--tt-fg-dark)' }}>.eval.ts</span> — the builder is an
+        authoring convenience, not a second runtime. wire{' '}
+        <span style={{ color: 'var(--tt-fg-dark)' }}>emit --check</span> into ci and the build
+        fails whenever the committed json drifts from the suite.
+      </Callout>
 
       <SectionKicker>common pitfalls</SectionKicker>
       <div style={{ display: 'grid', gap: 10, gridTemplateColumns: '1fr 1fr' }}>
