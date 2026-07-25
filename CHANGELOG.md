@@ -1,3 +1,9 @@
+## [0.21.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.20.0...v0.21.0) (2026-07-25)
+
+### Features
+
+* **evals:** trace-aware behavior/safety grading, soft severity, file-absent ([#223](https://github.com/andysolomon/arc-skill-eval/issues/223)) ([942044e](https://github.com/andysolomon/arc-skill-eval/commit/942044e332000864779562e1badc8ca4a04ad23a))
+
 ## [0.20.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.19.0...v0.20.0) (2026-07-24)
 
 ### Features
