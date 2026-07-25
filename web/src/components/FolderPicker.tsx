@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { color, radius, text } from '@/design/tokens';
 
 /**
@@ -40,6 +40,12 @@ const rowBase = {
   width: '100%',
 } as const;
 
+const readListing = async (path?: string, signal?: AbortSignal): Promise<FsListing> => {
+  const url = path ? `${FS_URL}?path=${encodeURIComponent(path)}` : FS_URL;
+  const response = await fetch(url, { signal });
+  return response.json() as Promise<FsListing>;
+};
+
 export type FolderPickerProps = {
   initialPath?: string;
   onPick: (absolutePath: string) => void;
@@ -49,35 +55,69 @@ export type FolderPickerProps = {
 export const FolderPicker = ({ initialPath, onPick, onExit }: FolderPickerProps) => {
   const [listing, setListing] = useState<FsListing | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [inlineNotice, setInlineNotice] = useState<string | null>(null);
+  const listingRef = useRef<FsListing | null>(null);
+
+  listingRef.current = listing;
 
   const load = useCallback((path?: string, signal?: AbortSignal) => {
     setLoading(true);
-    setError(null);
-    const url = path ? `${FS_URL}?path=${encodeURIComponent(path)}` : FS_URL;
+    const hadListing = listingRef.current !== null;
 
-    void fetch(url, { signal })
-      .then((response) => response.json() as Promise<FsListing>)
-      .then((data) => {
+    void (async () => {
+      try {
+        const data = await readListing(path, signal);
         if (signal?.aborted) {
           return;
         }
+
         if (data.ok) {
           setListing(data);
+          setInlineNotice(null);
+          return;
+        }
+
+        const failError = data.error ?? 'could not read that directory';
+
+        if (hadListing) {
+          setInlineNotice(`✗ ${failError}`);
+          return;
+        }
+
+        let ancestor = data.parent;
+        for (let step = 0; step < 64 && ancestor; step += 1) {
+          const ancestorData = await readListing(ancestor, signal);
+          if (signal?.aborted) {
+            return;
+          }
+          if (ancestorData.ok) {
+            setListing(ancestorData);
+            setInlineNotice(`✗ ${failError} — showing ${ancestorData.path}`);
+            return;
+          }
+          ancestor = ancestorData.parent;
+        }
+
+        const homeData = await readListing(undefined, signal);
+        if (signal?.aborted) {
+          return;
+        }
+        if (homeData.ok) {
+          setListing(homeData);
+          setInlineNotice(`✗ ${failError} — showing ${homeData.path}`);
         } else {
-          setError(data.error ?? 'could not read that directory');
+          setInlineNotice(`✗ ${failError}`);
         }
-      })
-      .catch(() => {
+      } catch {
         if (!signal?.aborted) {
-          setError('daemon offline — start it with npm run dev');
+          setInlineNotice('daemon offline — start it with npm run dev');
         }
-      })
-      .finally(() => {
+      } finally {
         if (!signal?.aborted) {
           setLoading(false);
         }
-      });
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -88,6 +128,7 @@ export const FolderPicker = ({ initialPath, onPick, onExit }: FolderPickerProps)
 
   const directories = listing?.entries.filter((entry) => entry.type === 'dir') ?? [];
   const files = listing?.entries.filter((entry) => entry.type === 'file') ?? [];
+  const parentPath = listing?.parent ?? null;
 
   return (
     <div data-testid="folder-picker">
@@ -128,15 +169,15 @@ export const FolderPicker = ({ initialPath, onPick, onExit }: FolderPickerProps)
       >
         <button
           aria-label="parent directory"
-          disabled={!listing?.parent}
-          onClick={() => listing?.parent && load(listing.parent)}
+          disabled={!parentPath}
+          onClick={() => parentPath && load(parentPath)}
           type="button"
           style={{
             background: 'transparent',
             border: `1px solid ${color.border}`,
             borderRadius: radius.sm,
-            color: listing?.parent ? color.fgDark : color.dim,
-            cursor: listing?.parent ? 'pointer' : 'not-allowed',
+            color: parentPath ? color.fgDark : color.dim,
+            cursor: parentPath ? 'pointer' : 'not-allowed',
             flex: 'none',
             fontSize: text.sm,
             padding: '1px 7px',
@@ -166,10 +207,10 @@ export const FolderPicker = ({ initialPath, onPick, onExit }: FolderPickerProps)
             reading…
           </div>
         ) : null}
-        {error ? (
-          <div style={{ color: color.red, fontSize: text.xs, padding: '6px 8px' }}>✗ {error}</div>
+        {inlineNotice ? (
+          <div style={{ color: color.red, fontSize: text.xs, padding: '6px 8px' }}>{inlineNotice}</div>
         ) : null}
-        {!loading && !error && directories.length === 0 && files.length === 0 ? (
+        {!loading && listing && directories.length === 0 && files.length === 0 ? (
           <div style={{ color: color.comment, fontSize: text.sm, padding: '6px 8px' }}>
             empty directory
           </div>

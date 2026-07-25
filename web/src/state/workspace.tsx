@@ -96,6 +96,16 @@ const fetchWorkspace = async (root: string, signal: AbortSignal): Promise<Worksp
     ? payload.skills.map(asWorkspaceSkill).filter((skill): skill is WorkspaceSkill => !!skill)
     : [];
 
+  if (payload.ok === false) {
+    return {
+      skills: [],
+      status: 'live',
+      resolvedPath: typeof payload.resolvedPath === 'string' ? payload.resolvedPath : undefined,
+      source: payload.source === 'github' ? 'github' : 'local',
+      error: typeof payload.error === 'string' ? payload.error : 'directory not found',
+    };
+  }
+
   return {
     skills,
     status: 'live',
