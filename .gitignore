@@ -24,3 +24,5 @@ docs-site/.env.local
 wt/
 .vercel
 web/test-results/
+# Playwright output at the repo root (mirrors web/test-results/ above).
+test-results/
