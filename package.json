@@ -16,6 +16,10 @@
     "./evals": {
       "types": "./dist/evals/builder/index.d.ts",
       "default": "./dist/evals/builder/index.js"
+    },
+    "./evals/loaders": {
+      "types": "./dist/evals/builder/loaders.d.ts",
+      "default": "./dist/evals/builder/loaders.js"
     }
   },
   "repository": {
