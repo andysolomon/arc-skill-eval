@@ -116,6 +116,15 @@ export interface OutputAssertion extends BaseAssertion {
   pattern?: string;
   flags?: string;
   expected?: string;
+  /**
+   * Scored judge (judge method only). When set, the judge rates the output on a
+   * `1..scaleMax` rubric and the assertion passes iff `score >= threshold`
+   * instead of the judge's own binary verdict. Set via the builder's
+   * `.atLeast(n)`.
+   */
+  threshold?: number;
+  /** Rubric ceiling for a scored judge. Defaults to 5 when `threshold` is set. */
+  scaleMax?: number;
 }
 
 export interface WorkspaceAssertion extends BaseAssertion {
@@ -209,6 +218,10 @@ export interface AssertionResult {
    * assertion declares `mustPass: false` or `severity` of `info`/`warn`.
    */
   soft?: boolean;
+  /** Rubric score a scored judge (`threshold`) returned for this assertion. */
+  score?: number;
+  /** Rubric ceiling the {@link score} was graded against (the `scaleMax`). */
+  scoreScale?: number;
 }
 
 /** Shape of `grading.json` emitted per case. */

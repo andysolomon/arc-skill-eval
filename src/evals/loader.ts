@@ -318,6 +318,7 @@ function validateIntentAssertion(value: Record<string, unknown>, issues: string[
       if (value.method === "judge" && value.prompt !== undefined && typeof value.prompt !== "string") {
         issues.push("output judge assertion `prompt`, if present, must be a string");
       }
+      validateScoredJudgeFields(value, issues);
       if (value.method === "regex") {
         validateRegexFields(value, "output regex assertion", issues);
       }
@@ -398,6 +399,37 @@ function validateRegexFields(value: Record<string, unknown>, label: string, issu
   }
   if (value.flags !== undefined && typeof value.flags !== "string") {
     issues.push(`${label} \`flags\`, if present, must be a string`);
+  }
+}
+
+/**
+ * Validate the optional scored-judge fields (`threshold` / `scaleMax`) on an
+ * output assertion. Scoring is judge-only; `threshold` must sit within
+ * `1..scaleMax` (default ceiling 5).
+ */
+function validateScoredJudgeFields(value: Record<string, unknown>, issues: string[]): void {
+  const hasThreshold = value.threshold !== undefined;
+  const hasScaleMax = value.scaleMax !== undefined;
+  if (!hasThreshold && !hasScaleMax) return;
+
+  if (value.method !== "judge") {
+    issues.push("`threshold`/`scaleMax` are only valid on an output assertion with `method: \"judge\"`");
+    return;
+  }
+  if (hasScaleMax && (typeof value.scaleMax !== "number" || !Number.isFinite(value.scaleMax) || value.scaleMax < 2)) {
+    issues.push("scored judge `scaleMax`, if present, must be a number >= 2");
+  }
+  if (!hasThreshold) {
+    issues.push("scored judge `scaleMax` requires a `threshold`");
+    return;
+  }
+  if (typeof value.threshold !== "number" || !Number.isFinite(value.threshold)) {
+    issues.push("scored judge `threshold` must be a finite number");
+    return;
+  }
+  const ceiling = hasScaleMax && typeof value.scaleMax === "number" ? value.scaleMax : 5;
+  if (value.threshold < 1 || value.threshold > ceiling) {
+    issues.push(`scored judge \`threshold\` must be between 1 and ${ceiling} (the scaleMax)`);
   }
 }
 

@@ -29,16 +29,34 @@ import type {
   GradingJson,
 } from "./types.js";
 
+/** A scored-judge rubric for the assertion at `index` in {@link LlmJudgeInput.assertions}. */
+export interface JudgeRubric {
+  /** Position within the batched `assertions` array this rubric applies to. */
+  index: number;
+  /** Rubric ceiling — the judge rates the claim on a `1..scaleMax` scale. */
+  scaleMax: number;
+}
+
 export interface LlmJudgeInput {
   /** Final assistant text from the run. The judge grades this against assertions. */
   assistantText: string;
   /** Only the string assertions the judge must grade, in source order. */
   assertions: string[];
+  /**
+   * Sparse rubrics for scored assertions. Present only when the batch contains
+   * scored judges; absent for a purely binary batch (so existing judges that
+   * ignore it are unaffected).
+   */
+  rubrics?: JudgeRubric[];
 }
 
 export interface LlmJudgeOutput {
-  /** Per-assertion result in the same order as `input.assertions`. */
-  results: Array<{ passed: boolean; evidence: string }>;
+  /**
+   * Per-assertion result in the same order as `input.assertions`. `score` is
+   * present only for scored assertions (an integer on the rubric's scale); the
+   * grader turns it into `passed` via the assertion's `threshold`.
+   */
+  results: Array<{ passed: boolean; evidence: string; score?: number }>;
 }
 
 export type LlmJudgeFn = (input: LlmJudgeInput) => Promise<LlmJudgeOutput>;
@@ -93,12 +111,23 @@ export async function gradeEvalCase(options: GradeEvalCaseOptions): Promise<Grad
   // Pre-allocate slots so we can fill them in input order regardless of
   // whether the result comes from the judge or a script check.
   const results: (AssertionResult | undefined)[] = new Array(assertions.length);
-  const judgeAssertionSlots: Array<{ index: number; text: string; assertion: EvalAssertion }> = [];
+  const judgeAssertionSlots: Array<{
+    index: number;
+    text: string;
+    assertion: EvalAssertion;
+    /** Scored judge threshold + ceiling, when the assertion declares `threshold`. */
+    scored?: { threshold: number; scaleMax: number };
+  }> = [];
 
   for (let i = 0; i < assertions.length; i++) {
     const assertion = assertions[i]!;
     if (isJudgeAssertion(assertion)) {
-      judgeAssertionSlots.push({ index: i, text: judgePromptForAssertion(assertion), assertion });
+      judgeAssertionSlots.push({
+        index: i,
+        text: judgePromptForAssertion(assertion),
+        assertion,
+        ...(scoredRubricFor(assertion) ? { scored: scoredRubricFor(assertion)! } : {}),
+      });
     } else {
       results[i] = await gradeDeterministicAssertion(
         assertion as DeterministicAssertion,
@@ -113,20 +142,21 @@ export async function gradeEvalCase(options: GradeEvalCaseOptions): Promise<Grad
 
   if (judgeAssertionSlots.length > 0) {
     const judge = options.judge ?? createDefaultLlmJudge({ model: resolvedJudgeModel, agentDir: options.agentDir });
+    const rubrics: JudgeRubric[] = judgeAssertionSlots
+      .map((slot, j) => (slot.scored ? { index: j, scaleMax: slot.scored.scaleMax } : null))
+      .filter((r): r is JudgeRubric => r !== null);
     const judgeResults = await runJudgeSafely(judge, {
       assistantText: options.assistantText,
       assertions: judgeAssertionSlots.map((slot) => slot.text),
+      ...(rubrics.length > 0 ? { rubrics } : {}),
     });
 
     for (let j = 0; j < judgeAssertionSlots.length; j++) {
       const slot = judgeAssertionSlots[j]!;
       const judged = judgeResults[j] ?? { passed: false, evidence: JUDGE_MALFORMED_EVIDENCE };
-      results[slot.index] = {
-        text: slot.text,
-        passed: judged.passed,
-        evidence: judged.evidence,
-        assertion: slot.assertion,
-      };
+      results[slot.index] = slot.scored
+        ? scoredResult(slot.text, slot.assertion, slot.scored, judged)
+        : { text: slot.text, passed: judged.passed, evidence: judged.evidence, assertion: slot.assertion };
     }
   }
 
@@ -171,6 +201,57 @@ export async function gradeEvalCase(options: GradeEvalCaseOptions): Promise<Grad
   };
 }
 
+/** Rubric ceiling used when a scored judge sets `threshold` without a `scaleMax`. */
+const DEFAULT_JUDGE_SCALE_MAX = 5;
+
+/**
+ * A scored-judge rubric for an assertion, or null if it is a plain (binary)
+ * judge. Scoring applies only to output judge assertions carrying a numeric
+ * `threshold`; bare-string judges are always binary.
+ */
+function scoredRubricFor(assertion: EvalAssertion): { threshold: number; scaleMax: number } | null {
+  if (typeof assertion !== "object" || assertion === null || !("kind" in assertion)) return null;
+  if (assertion.kind !== "output" || assertion.method !== "judge") return null;
+  if (typeof assertion.threshold !== "number") return null;
+  const scaleMax = typeof assertion.scaleMax === "number" ? assertion.scaleMax : DEFAULT_JUDGE_SCALE_MAX;
+  return { threshold: assertion.threshold, scaleMax };
+}
+
+/**
+ * Turn a scored judge's response into an `AssertionResult`. Pass is decided by
+ * the rubric threshold, not the judge's own boolean. A judge that returned no
+ * numeric score falls back to its boolean verdict so a weak model never hard-
+ * fails on shape alone.
+ */
+function scoredResult(
+  text: string,
+  assertion: EvalAssertion,
+  scored: { threshold: number; scaleMax: number },
+  judged: { passed: boolean; evidence: string; score?: number },
+): AssertionResult {
+  const hasScore = typeof judged.score === "number" && Number.isFinite(judged.score);
+  const score = hasScore ? clampScore(judged.score as number, scored.scaleMax) : undefined;
+  const passed = score !== undefined ? score >= scored.threshold : judged.passed;
+  const prefix =
+    score !== undefined
+      ? `score ${score}/${scored.scaleMax} (need >= ${scored.threshold}) — `
+      : "no score returned — ";
+  return {
+    text,
+    passed,
+    evidence: `${prefix}${judged.evidence}`,
+    assertion,
+    ...(score !== undefined ? { score, scoreScale: scored.scaleMax } : {}),
+  };
+}
+
+/** Clamp a judge's score into `[1, scaleMax]`; scores arrive from an LLM and may drift. */
+function clampScore(score: number, scaleMax: number): number {
+  if (score < 1) return 1;
+  if (score > scaleMax) return scaleMax;
+  return score;
+}
+
 /**
  * Classify an assertion's severity and whether a miss is soft. Only intent
  * assertions (objects with a `kind`) can be soft — a bare string or a legacy
@@ -196,7 +277,7 @@ function classifyAssertion(assertion: EvalAssertion): { severity?: "info" | "war
 async function runJudgeSafely(
   judge: LlmJudgeFn,
   input: LlmJudgeInput,
-): Promise<Array<{ passed: boolean; evidence: string }>> {
+): Promise<Array<{ passed: boolean; evidence: string; score?: number }>> {
   const fallback = (evidence: string = JUDGE_MALFORMED_EVIDENCE) =>
     input.assertions.map(() => ({ passed: false, evidence }));
 
@@ -212,7 +293,7 @@ async function runJudgeSafely(
     return fallback();
   }
 
-  const normalized: Array<{ passed: boolean; evidence: string }> = [];
+  const normalized: Array<{ passed: boolean; evidence: string; score?: number }> = [];
   for (const entry of output.results) {
     if (
       typeof entry !== "object" ||
@@ -222,7 +303,11 @@ async function runJudgeSafely(
     ) {
       return fallback();
     }
-    normalized.push({ passed: entry.passed, evidence: entry.evidence });
+    normalized.push({
+      passed: entry.passed,
+      evidence: entry.evidence,
+      ...(typeof entry.score === "number" && Number.isFinite(entry.score) ? { score: entry.score } : {}),
+    });
   }
 
   return normalized;
@@ -255,9 +340,26 @@ export function createDefaultLlmJudge(options: { model: ModelSelection; agentDir
  * an opinion. Output must be a JSON array in assertion order.
  */
 export function buildJudgePrompt(input: LlmJudgeInput): string {
+  const scaleByIndex = new Map((input.rubrics ?? []).map((r) => [r.index, r.scaleMax]));
   const assertionList = input.assertions
-    .map((assertion, i) => `${i + 1}. ${assertion}`)
+    .map((assertion, i) => {
+      const scaleMax = scaleByIndex.get(i);
+      return scaleMax !== undefined
+        ? `${i + 1}. [SCORED 1-${scaleMax}] ${assertion}`
+        : `${i + 1}. ${assertion}`;
+    })
     .join("\n");
+
+  const scoredNote =
+    scaleByIndex.size > 0
+      ? [
+          "",
+          "Some assertions are marked [SCORED 1-N]. For those, do NOT decide pass/fail — instead",
+          '  rate how fully the assistant text satisfies the claim as an integer `score` from 1',
+          "  (not at all) to N (completely). Still include `passed` (your best binary read) and",
+          "  `evidence`. For all other (unmarked) assertions, omit `score` and just decide `passed`.",
+        ]
+      : [];
 
   return [
     "You are an assertion grader for an agent-skill evaluation harness.",
@@ -272,10 +374,11 @@ export function buildJudgePrompt(input: LlmJudgeInput): string {
     "- Evidence must be a short, literal string: either a quoted excerpt (<= 120 chars) or a brief",
     '  factual note like "No mention of .releaserc.json in the output."',
     "- Never include opinions, suggestions, or meta-commentary.",
+    ...scoredNote,
     "",
     "Output format:",
     "Return ONLY a JSON object of the form:",
-    `{ "results": [ { "passed": boolean, "evidence": string }, ... ] }`,
+    `{ "results": [ { "passed": boolean, "evidence": string, "score"?: number }, ... ] }`,
     `The results array must have exactly ${input.assertions.length} entries, in the same order`,
     "as the numbered assertions below.",
     "",
@@ -336,9 +439,11 @@ export function parseJudgeResponse(
     ) {
       return fallback;
     }
+    const rawScore = (entry as { score?: unknown }).score;
     results.push({
       passed: (entry as { passed: boolean }).passed,
       evidence: (entry as { evidence: string }).evidence,
+      ...(typeof rawScore === "number" && Number.isFinite(rawScore) ? { score: rawScore } : {}),
     });
   }
 
