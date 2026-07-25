@@ -70,7 +70,7 @@ Highest leverage, stays on `evals.json`:
 
 - Honor `mustPass: false` / `severity: "info"|"warn"` as soft: recorded in `grading.json`, do not fail the case by default.
 - Add CLI `--strict` so soft misses fail the exit code (CI gate).
-- Optional follow-on: scored judge assertions (0–1) with `atLeast`, inspired by `t.judge.autoevals.closedQA(...).atLeast(0.8)`, without requiring Braintrust.
+- ✅ **Shipped (#231):** scored judge assertions with `atLeast`, inspired by `t.judge.autoevals.closedQA(...).atLeast(0.8)`, without requiring Braintrust. Shipped as a `1..scaleMax` integer rubric (default 5) rather than the `0–1` fraction — `judge(...).atLeast(4)` passes iff the judge's rubric score is ≥ 4.
 
 ### C. Learn section: teach Eve *principles* in our product language
 
@@ -96,7 +96,7 @@ Also fix Learn drift vs runtime where Assert documents types that don't exist ye
 
 ### D. Typed builder that emits JSON
 
-> **Status: ✅ shipped (2026-07-25).** All five sequenced steps landed as their own reviewed PRs: builder + `toJSON` (#224), `arc-skill-eval emit` + `--check` (#225), Learn "Advanced: typed builder" callout (#226), `arc-creating-evals` optional-TS authoring path (#227), and fixture-relative dataset loaders (#228). The runner contract held throughout — `evals/evals.json` remains the sole runtime/discovery input. The subsections below are preserved as the original design; deviations are noted inline where the shipped code differs.
+> **Status: ✅ shipped (2026-07-25).** All five sequenced steps landed as their own reviewed PRs: builder + `toJSON` (#224), `arc-skill-eval emit` + `--check` (#225), Learn "Advanced: typed builder" callout (#226), `arc-creating-evals` optional-TS authoring path (#227), and fixture-relative dataset loaders (#228). Scored judges — the reserved `.atLeast(n)` handle — followed as a post-completion addition (#231). The runner contract held throughout — `evals/evals.json` remains the sole runtime/discovery input. The subsections below are preserved as the original design; deviations are noted inline where the shipped code differs.
 
 **Goal:** give power users Eve-like authoring ergonomics (typed helpers, composition, dataset fan-out, severity on the assertion) while keeping **`evals/evals.json` as the only runtime/discovery contract**.
 
@@ -170,7 +170,7 @@ export default defineSkillEval({
 
 - `.gate()` → hard fail (default for script/behavior)
 - `.soft()` → `mustPass: false` / `severity: "warn"` (default for judge once soft severity ships)
-- `.atLeast(n)` → reserved for scored judges (post gate/soft workstream)
+- `.atLeast(n)` → ✅ **shipped (#231):** scored judge. The judge rates the output on a `1..scaleMax` rubric (default 5) and the assertion passes iff `score >= n`. `.atLeast(8, { outOf: 10 })` sets a custom ceiling. Chained onto a non-judge assertion it throws at build time. (Note the shipped rubric is `1..N` integer, not the `0–1` fraction the earlier sketch imagined.)
 - `.id("…")` → stable assertion id for grading joins
 
 Helpers must be **pure and sync**. No I/O inside assertion builders; fixtures stay as `setup` / `files` data.
