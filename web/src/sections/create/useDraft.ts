@@ -7,7 +7,22 @@ export const CREATE_WIZARD_CHAPTER_ID = 'create-wizard';
 export type CreateStepId = 'behaviors' | 'prompts' | 'assertions' | 'review';
 export type BehaviorDimension = 'outcome' | 'process' | 'style' | 'efficiency';
 export type PromptFlavor = 'explicit' | 'implicit' | 'contextual' | 'adjacent-negative';
-export type AssertionKind = 'file-exists' | 'file-absent' | 'regex-match' | 'json-valid' | 'judge';
+export type ScriptAssertionKind = 'file-exists' | 'file-absent' | 'regex-match' | 'json-valid';
+export type BehaviorAssertionKind =
+  | 'tool-call-required'
+  | 'tool-call-forbidden'
+  | 'skill-read-required';
+export type AssertionKind = ScriptAssertionKind | BehaviorAssertionKind | 'judge';
+
+/** Trace-graded behavior methods that map to `{ kind: "behavior", method, value }`. */
+export const behaviorAssertionKinds: BehaviorAssertionKind[] = [
+  'tool-call-required',
+  'tool-call-forbidden',
+  'skill-read-required',
+];
+
+export const isBehaviorKind = (kind: AssertionKind): kind is BehaviorAssertionKind =>
+  (behaviorAssertionKinds as string[]).includes(kind);
 
 export type BehaviorAssertion = {
   kind: AssertionKind;
@@ -29,6 +44,7 @@ export type CreateDraft = {
 };
 
 export type EvalsJsonDraft = {
+  version: string;
   skill_name: string;
   evals: Array<{
     id: string;
@@ -60,21 +76,32 @@ export const assertionKinds: AssertionKind[] = [
   'file-absent',
   'regex-match',
   'json-valid',
+  'tool-call-required',
+  'tool-call-forbidden',
+  'skill-read-required',
   'judge',
 ];
 
-export const assertionKindColor = (kind: AssertionKind) =>
-  kind === 'judge' ? 'var(--tt-magenta)' : 'var(--tt-cyan)';
+export const assertionKindColor = (kind: AssertionKind) => {
+  if (kind === 'judge') return 'var(--tt-magenta)';
+  if (isBehaviorKind(kind)) return 'var(--tt-blue)';
+  return 'var(--tt-cyan)';
+};
 
-export const assertionField = (kind: AssertionKind) =>
-  kind === 'regex-match' ? 'pattern' : 'path';
+/** JSON field the wizard's single `val` maps to for a given kind. */
+export const assertionField = (kind: AssertionKind) => {
+  if (kind === 'regex-match') return 'pattern';
+  if (isBehaviorKind(kind)) return 'value';
+  return 'path';
+};
 
-export const assertionPlaceholder = (kind: AssertionKind) =>
-  kind === 'judge'
-    ? 'one observable claim, graded true / false'
-    : kind === 'regex-match'
-      ? 'pattern e.g. conventionalcommits'
-      : 'path e.g. .releaserc.json';
+export const assertionPlaceholder = (kind: AssertionKind) => {
+  if (kind === 'judge') return 'one observable claim, graded true / false';
+  if (kind === 'regex-match') return 'pattern e.g. conventionalcommits';
+  if (kind === 'skill-read-required') return 'skill name e.g. arc-conventional-commits';
+  if (kind === 'tool-call-required' || kind === 'tool-call-forbidden') return 'tool name e.g. Write';
+  return 'path e.g. .releaserc.json';
+};
 
 export const slugifyBehavior = (text: string, index: number) => {
   const slug = (text || '')
@@ -187,16 +214,30 @@ const readCreateProgress = async (): Promise<PersistedCreateProgress | undefined
 };
 
 export const assembleEvalsJson = (draft: CreateDraft): EvalsJsonDraft => ({
+  version: '1',
   skill_name: draft.skill || 'my-skill',
-  evals: draft.behaviors.map((behavior, index) => ({
-    id: slugifyBehavior(behavior.text, index),
-    prompt: behavior.prompt,
-    assertions: behavior.asserts.map((assertion) =>
-      assertion.kind === 'judge'
-        ? assertion.val
-        : { type: assertion.kind, [assertionField(assertion.kind)]: assertion.val },
-    ),
-  })),
+  evals: draft.behaviors.map((behavior, index) => {
+    const slug = slugifyBehavior(behavior.text, index);
+    return {
+      id: slug,
+      prompt: behavior.prompt,
+      assertions: behavior.asserts.map((assertion, assertionIndex): string | Record<string, string> => {
+        if (assertion.kind === 'judge') {
+          return assertion.val;
+        }
+        // Behavior assertions are trace-graded intent objects and require an `id`.
+        if (isBehaviorKind(assertion.kind)) {
+          return {
+            id: `${slug}-${assertion.kind}-${assertionIndex + 1}`,
+            kind: 'behavior',
+            method: assertion.kind,
+            value: assertion.val,
+          };
+        }
+        return { type: assertion.kind, [assertionField(assertion.kind)]: assertion.val };
+      }),
+    };
+  }),
 });
 
 export const behaviorsFromEvalsJson = (
@@ -233,6 +274,21 @@ export const behaviorsFromEvalsJson = (
           }
 
           const assertionObject = assertion as Record<string, unknown>;
+
+          // Behavior intent object: { kind: "behavior", method, value }.
+          if (assertionObject.kind === 'behavior') {
+            const method = assertionObject.method;
+            if (typeof method !== 'string' || !isBehaviorKind(method as AssertionKind)) {
+              return [];
+            }
+            return [
+              {
+                kind: method as BehaviorAssertionKind,
+                val: String(assertionObject.value ?? ''),
+              },
+            ];
+          }
+
           const type = assertionObject.type;
           if (
             typeof type !== 'string' ||

@@ -8,6 +8,15 @@ docs [`hosted-empty-state-gating.md`](./decisions/hosted-empty-state-gating.md)
 and [`persistence-spec.md`](./persistence-spec.md). No runtime code in this
 ticket; this is the dev-handoff contract for the `learn` **App Section**.
 
+> **Implementation note (superseded here):** this spec assumes an MDX runtime
+> that loads `docs/web-app/learn/*.mdx`. The shipped app instead renders
+> **hardcoded TSX chapters** under `web/src/sections/learn/chapters/` (see
+> `chapterList.ts` for the seven-chapter rail). The TSX is the authoritative,
+> rendered source of truth; the MDX files are draft/spec only and have drifted
+> — see [`learn/README.md`](./learn/README.md). Treat the "MDX Authoring
+> Conventions" and per-chapter MDX references below as the original plan, not
+> the current wiring.
+
 ## Overview
 
 `learn` is the in-product teaching surface for `arc-skill-eval`: a chapter

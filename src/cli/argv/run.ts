@@ -9,6 +9,7 @@ export function parseRunCommandArgs(args: string[]) {
   let input: string | undefined;
   let json = false;
   let compare = false;
+  let strict = false;
   let laminar = false;
   let outputDir: string | undefined;
   let iteration: string | undefined;
@@ -30,6 +31,11 @@ export function parseRunCommandArgs(args: string[]) {
 
     if (arg === "--compare") {
       compare = true;
+      continue;
+    }
+
+    if (arg === "--strict") {
+      strict = true;
       continue;
     }
 
@@ -157,6 +163,7 @@ export function parseRunCommandArgs(args: string[]) {
     judgeModel,
     runtime,
     compare,
+    strict,
     laminar,
     json,
   };

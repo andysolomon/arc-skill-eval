@@ -11,6 +11,8 @@ export interface RunEvalsCliOptions extends CommandSelectionOptions {
   iteration?: string;
   agentDir?: string;
   compare?: boolean;
+  /** Fail the run (exit 1) on soft assertion misses that otherwise only warn. */
+  strict?: boolean;
   laminar?: boolean;
   extraSkillPaths?: string[];
   contextMode?: "isolated" | "ambient";

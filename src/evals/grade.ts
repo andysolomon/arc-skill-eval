@@ -20,6 +20,7 @@ import {
   type DeterministicAssertion,
 } from "./assertion-engine.js";
 
+import type { EvalTraceObservations } from "../traces/types.js";
 import type {
   AssertionResult,
   EvalAssertion,
@@ -49,6 +50,12 @@ export interface GradeEvalCaseOptions {
   workspaceDir: string;
   /** Final assistant text from the run — default target for `regex-match`. */
   assistantText: string;
+  /**
+   * Captured run trace (tool calls, skill reads, commands, touched files,
+   * external calls). Required for behavior/safety assertions; when omitted,
+   * those assertions fail with a "no trace" evidence.
+   */
+  observations?: EvalTraceObservations;
   /**
    * Model to use for the LLM-judge. The run command falls back to the
    * resolved runner model when this is absent; {@link DEFAULT_JUDGE_MODEL}
@@ -97,6 +104,7 @@ export async function gradeEvalCase(options: GradeEvalCaseOptions): Promise<Grad
         assertion as DeterministicAssertion,
         options.workspaceDir,
         options.assistantText,
+        options.observations,
       );
     }
   }
@@ -123,19 +131,28 @@ export async function gradeEvalCase(options: GradeEvalCaseOptions): Promise<Grad
   }
 
   const assertionResults: AssertionResult[] = results.map((result, index) => {
-    if (result) return result;
-    // Defensive fallback: should never happen because every index is filled above.
     const assertion = assertions[index]!;
-    return {
+    const base = result ?? {
+      // Defensive fallback: should never happen because every index is filled above.
       text: summarizeAssertion(assertion),
       passed: false,
       evidence: "Grader did not produce a result",
       assertion,
     };
+    const classification = classifyAssertion(assertion);
+    return {
+      ...base,
+      ...(classification.severity ? { severity: classification.severity } : {}),
+      ...(classification.soft ? { soft: true } : {}),
+    };
   });
 
   const passed = assertionResults.filter((r) => r.passed).length;
-  const failed = assertionResults.length - passed;
+  // Split misses into hard failures (fail the run by default) and soft misses
+  // (recorded, but fail the run only under `--strict`).
+  const misses = assertionResults.filter((r) => !r.passed);
+  const softFailed = misses.filter((r) => r.soft).length;
+  const failed = misses.length - softFailed;
   const total = assertionResults.length;
 
   return {
@@ -147,10 +164,26 @@ export async function gradeEvalCase(options: GradeEvalCaseOptions): Promise<Grad
     summary: {
       passed,
       failed,
+      soft_failed: softFailed,
       total,
       pass_rate: total === 0 ? null : passed / total,
     },
   };
+}
+
+/**
+ * Classify an assertion's severity and whether a miss is soft. Only intent
+ * assertions (objects with a `kind`) can be soft — a bare string or a legacy
+ * script (`type`) assertion is always hard. Soft applies when the assertion
+ * declares `mustPass: false` or an `info`/`warn` severity.
+ */
+function classifyAssertion(assertion: EvalAssertion): { severity?: "info" | "warn" | "error"; soft: boolean } {
+  if (typeof assertion !== "object" || !("kind" in assertion)) {
+    return { soft: false };
+  }
+  const severity = assertion.severity;
+  const soft = assertion.mustPass === false || severity === "info" || severity === "warn";
+  return { ...(severity ? { severity } : {}), soft };
 }
 
 /**

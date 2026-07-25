@@ -260,7 +260,10 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
             await Promise.resolve(sink.shutdown?.()).catch(() => undefined);
           }
         }
-        const failed = result.summary.failedCases > 0 || result.summary.failedAssertions > 0;
+        const failed =
+          result.summary.failedCases > 0 ||
+          result.summary.failedAssertions > 0 ||
+          (parsed.strict && result.summary.softFailedAssertions > 0);
         const laminarUrls = laminarSink?.evaluationUrls() ?? [];
         const laminarNote =
           laminarConfig && !parsed.json

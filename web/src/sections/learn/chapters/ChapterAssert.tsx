@@ -76,7 +76,81 @@ const deterministicTypes: { title: string; snippet: ReactNode; desc: ReactNode }
   },
 ];
 
-const beyondBasics: { label: string; desc: ReactNode }[] = [
+const behaviorTypes: { title: string; snippet: ReactNode; desc: ReactNode }[] = [
+  {
+    title: 'tool-call-required',
+    snippet: (
+      <>
+        {'{ "kind": '}
+        <span style={{ color: 'var(--tt-blue)' }}>&quot;behavior&quot;</span>
+        {', "method": "tool-call-required", "value": "Write" }'}
+      </>
+    ),
+    desc: (
+      <>
+        passes if the run actually called that tool.{' '}
+        <span style={{ color: 'var(--tt-fg-dark)' }}>use when</span> the <em>process</em> is the
+        claim. add <span style={{ color: 'var(--tt-fg-dark)' }}>&quot;match&quot;</span> to check
+        the tool input.
+      </>
+    ),
+  },
+  {
+    title: 'tool-call-forbidden',
+    snippet: (
+      <>
+        {'{ "kind": '}
+        <span style={{ color: 'var(--tt-blue)' }}>&quot;behavior&quot;</span>
+        {', "method": "tool-call-forbidden", "value": "Bash" }'}
+      </>
+    ),
+    desc: (
+      <>
+        passes if the tool was <span style={{ color: 'var(--tt-fg-dark)' }}>never</span> called.{' '}
+        <span style={{ color: 'var(--tt-orange)' }}>gotcha:</span> tool names are case-sensitive —{' '}
+        <span style={{ color: 'var(--tt-fg-dark)' }}>Write</span>, not <span style={{ color: 'var(--tt-fg-dark)' }}>write</span>.
+      </>
+    ),
+  },
+  {
+    title: 'skill-read-required',
+    snippet: (
+      <>
+        {'{ "kind": '}
+        <span style={{ color: 'var(--tt-blue)' }}>&quot;behavior&quot;</span>
+        {', "method": "skill-read-required", "value": "<skill>" }'}
+      </>
+    ),
+    desc: (
+      <>
+        passes if the skill was actually read from disk.{' '}
+        <span style={{ color: 'var(--tt-fg-dark)' }}>use when</span> a routing case must prove the
+        skill loaded.
+      </>
+    ),
+  },
+  {
+    title: 'no-forbidden-files-touched',
+    snippet: (
+      <>
+        {'{ "kind": '}
+        <span style={{ color: 'var(--tt-blue)' }}>&quot;safety&quot;</span>
+        {', "method": "no-forbidden-files-touched", "config": { "paths": [".env"] } }'}
+      </>
+    ),
+    desc: (
+      <>
+        passes if none of those paths were written or edited.{' '}
+        <span style={{ color: 'var(--tt-fg-dark)' }}>use when</span> a run must leave sensitive
+        files untouched.
+      </>
+    ),
+  },
+];
+
+// Not yet gradeable — declared honestly so authors don't write checks that
+// silently never run. Track them; don't ship suites that depend on them.
+const roadmap: { label: string; desc: ReactNode }[] = [
   {
     label: 'not-regex',
     desc: (
@@ -126,10 +200,12 @@ export const ChapterAssert = () => (
     <div
       style={{ color: 'var(--tt-fg-dark)', lineHeight: 1.7, marginBottom: 28, maxWidth: 820 }}
     >
-      an assertion is a single check with a boolean result. two families:{' '}
-      <span style={{ color: 'var(--tt-cyan)' }}>deterministic</span> (a script decides) and{' '}
-      <span style={{ color: 'var(--tt-magenta)' }}>llm-judge</span> (a rubric decides). prefer
-      the first.
+      an assertion is a single check with a boolean result. climb the ladder and stop at the
+      cheapest rung that proves the claim:{' '}
+      <span style={{ color: 'var(--tt-cyan)' }}>deterministic</span> (a script reads the files) →{' '}
+      <span style={{ color: 'var(--tt-blue)' }}>behavior</span> (the run trace is inspected) →{' '}
+      <span style={{ color: 'var(--tt-magenta)' }}>llm-judge</span> (a rubric decides — burns
+      tokens, keep it last).
     </div>
 
     <SectionKicker style={{ marginBottom: 14 }}>choosing a check</SectionKicker>
@@ -228,6 +304,75 @@ export const ChapterAssert = () => (
           </div>
         </div>
       ))}
+    </div>
+
+    <SectionKicker>behavior &amp; safety — graded from the run trace</SectionKicker>
+    <div
+      style={{ color: 'var(--tt-fg-dark)', fontSize: 12.5, lineHeight: 1.6, marginBottom: 14, maxWidth: 820 }}
+    >
+      still deterministic — no judge — but they read what the run <em>did</em> (tool calls, skill
+      reads, touched files) instead of the files it left behind. reach for these when the{' '}
+      <span style={{ color: 'var(--tt-blue)' }}>process</span> is the claim, before writing a
+      prose rubric.
+    </div>
+    <div
+      style={{
+        display: 'grid',
+        gap: 12,
+        gridTemplateColumns: 'repeat(2, 1fr)',
+        marginBottom: 22,
+      }}
+    >
+      {behaviorTypes.map((type) => (
+        <div
+          key={type.title}
+          style={{ border: '1px solid var(--tt-border)', borderRadius: 8, padding: '13px 15px' }}
+        >
+          <div style={{ color: 'var(--tt-blue)', fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
+            {type.title}
+          </div>
+          <div
+            style={{
+              background: 'var(--tt-bg-dark)',
+              borderRadius: 5,
+              color: 'var(--tt-fg-dark)',
+              fontSize: 11,
+              lineHeight: 1.5,
+              marginBottom: 8,
+              padding: '8px 10px',
+              wordBreak: 'break-word',
+            }}
+          >
+            {type.snippet}
+          </div>
+          <div style={{ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.55 }}>
+            {type.desc}
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <SectionKicker>gate vs soft</SectionKicker>
+    <div
+      style={{
+        border: '1px solid var(--tt-border)',
+        borderLeft: '2px solid var(--tt-blue)',
+        borderRadius: 8,
+        color: 'var(--tt-comment)',
+        fontSize: 12.5,
+        lineHeight: 1.6,
+        marginBottom: 30,
+        maxWidth: 820,
+        padding: '12px 15px',
+      }}
+    >
+      by default every failed assertion fails the run. mark one{' '}
+      <span style={{ color: 'var(--tt-fg)' }}>&quot;mustPass&quot;: false</span> or{' '}
+      <span style={{ color: 'var(--tt-fg)' }}>&quot;severity&quot;: &quot;warn&quot;</span> to make
+      a miss <span style={{ color: 'var(--tt-blue)' }}>soft</span> — it&apos;s recorded in{' '}
+      <span style={{ color: 'var(--tt-fg-dark)' }}>grading.json</span> but doesn&apos;t break the
+      build. use soft for style and quality signals; run{' '}
+      <span style={{ color: 'var(--tt-fg)' }}>--strict</span> in CI when you want them to gate too.
     </div>
 
     <SectionKicker>an llm-judge assertion</SectionKicker>
@@ -413,23 +558,32 @@ export const ChapterAssert = () => (
       </div>
     </div>
 
-    <SectionKicker>beyond the basics</SectionKicker>
+    <SectionKicker>on the roadmap — not gradeable yet</SectionKicker>
+    <div
+      style={{ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.6, marginBottom: 12, maxWidth: 820 }}
+    >
+      shapes we want but the runner does <span style={{ color: 'var(--tt-orange)' }}>not</span>{' '}
+      grade yet — don&apos;t depend on them in a suite you rely on. express the same intent today
+      with the checks above (e.g. <span style={{ color: 'var(--tt-fg-dark)' }}>not-regex</span> →
+      a <span style={{ color: 'var(--tt-blue)' }}>command-forbidden</span> or a judge claim).
+    </div>
     <div
       style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 32 }}
     >
-      {beyondBasics.map((item) => (
+      {roadmap.map((item) => (
         <div
           key={item.label}
           style={{
-            border: '1px solid var(--tt-border)',
+            border: '1px dashed var(--tt-border)',
             borderRadius: 7,
             display: 'flex',
             fontSize: 12.5,
             gap: 12,
+            opacity: 0.75,
             padding: '9px 13px',
           }}
         >
-          <span style={{ color: 'var(--tt-cyan)', flex: 'none', width: 118 }}>{item.label}</span>
+          <span style={{ color: 'var(--tt-dim)', flex: 'none', width: 118 }}>{item.label}</span>
           <span style={{ color: 'var(--tt-comment)' }}>{item.desc}</span>
         </div>
       ))}

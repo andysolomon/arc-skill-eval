@@ -79,7 +79,14 @@ export interface EvalRunSummary {
   caseFailureRate: number | null;
   totalAssertions: number;
   passedAssertions: number;
+  /** Hard assertion failures — these fail the run by default. */
   failedAssertions: number;
+  /**
+   * Soft assertion misses (declared `mustPass: false` or `info`/`warn`
+   * severity). Recorded but non-failing unless the run is invoked with
+   * `--strict`.
+   */
+  softFailedAssertions: number;
   assertionPassRate: number | null;
 }
 

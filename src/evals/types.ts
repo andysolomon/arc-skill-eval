@@ -91,6 +91,7 @@ export type EvalAssertion = string | ScriptAssertion | IntentAssertion;
 
 export type ScriptAssertion =
   | FileExistsAssertion
+  | FileAbsentAssertion
   | RegexMatchAssertion
   | JsonValidAssertion;
 
@@ -119,7 +120,7 @@ export interface OutputAssertion extends BaseAssertion {
 
 export interface WorkspaceAssertion extends BaseAssertion {
   kind: "workspace";
-  method: "file-exists" | "file-contains" | "json-valid" | "snapshot-diff";
+  method: "file-exists" | "file-absent" | "file-contains" | "json-valid" | "snapshot-diff";
   path?: string;
   pattern?: string;
   flags?: string;
@@ -133,7 +134,21 @@ export interface BehaviorAssertion extends BaseAssertion {
     | "tool-call-forbidden"
     | "external-call-forbidden"
     | "command-forbidden";
+  /**
+   * The subject of the assertion: a tool name for `tool-call-*`, a skill
+   * name for `skill-read-required`, or a command/external substring for the
+   * `*-forbidden` forms. Optional for the `-required` forms (absent = "any").
+   */
   value?: string;
+  /**
+   * Optional matcher tested against a tool call's `inputSummary` (only used
+   * by `tool-call-required` / `tool-call-forbidden`). Interpreted as a
+   * substring by default, or a regular-expression source when
+   * `matchKind === "regex"`. Kept deliberately minimal — no full predicate
+   * language (see `docs/eve-eval-leverage.md`).
+   */
+  match?: string;
+  matchKind?: "substring" | "regex";
 }
 
 export interface SafetyAssertion extends BaseAssertion {
@@ -145,6 +160,12 @@ export interface SafetyAssertion extends BaseAssertion {
 /** Passes iff the file exists at `path` (relative to the case workspace) after the run. */
 export interface FileExistsAssertion {
   type: "file-exists";
+  path: string;
+}
+
+/** Passes iff NO file exists at `path` after the run — the inverse of `file-exists`. */
+export interface FileAbsentAssertion {
+  type: "file-absent";
   path: string;
 }
 
@@ -180,6 +201,14 @@ export interface AssertionResult {
   evidence: string;
   /** The raw assertion the result was computed from. */
   assertion: EvalAssertion;
+  /** Effective severity for this result. Only intent assertions carry one. */
+  severity?: "info" | "warn" | "error";
+  /**
+   * True when a miss on this assertion is *soft* — recorded but not run-failing
+   * by default (it fails the run only under `--strict`). Soft applies when the
+   * assertion declares `mustPass: false` or `severity` of `info`/`warn`.
+   */
+  soft?: boolean;
 }
 
 /** Shape of `grading.json` emitted per case. */
@@ -190,9 +219,16 @@ export interface GradingJson {
   judge_model?: { provider: string; id: string };
   summary: {
     passed: number;
+    /** Hard failures only — soft misses are counted in `soft_failed`. */
     failed: number;
+    /**
+     * Soft misses: assertions that failed but declared `mustPass: false` or an
+     * `info`/`warn` severity. Not counted in `failed`; they fail the run only
+     * under `--strict`. Absent/0 for suites with no soft assertions.
+     */
+    soft_failed: number;
     total: number;
-    /** 0..1. `null` when `total === 0`. */
+    /** 0..1. `null` when `total === 0`. Counts only hard failures against `passed`. */
     pass_rate: number | null;
   };
 }

@@ -23,6 +23,56 @@ async function makeTempWorkspace() {
   };
 }
 
+test("gradeEvalCase separates hard failures from soft misses and grades behavior against a trace", async () => {
+  const ws = await makeTempWorkspace();
+  try {
+    const result = await gradeEvalCase({
+      case: {
+        id: "soft-1",
+        prompt: "noop",
+        assertions: [
+          // Hard behavior assertion that passes against the trace.
+          { id: "used-write", kind: "behavior", method: "tool-call-required", value: "Write" },
+          // Hard behavior assertion that fails (no such tool).
+          { id: "used-bash", kind: "behavior", method: "tool-call-required", value: "Bash" },
+          // Soft via mustPass:false — a miss must NOT count as a hard failure.
+          { id: "read-skill", kind: "behavior", method: "skill-read-required", value: "arc-x", mustPass: false },
+          // Soft via severity warn — a miss must NOT count as a hard failure.
+          { id: "no-ext", kind: "safety", method: "no-live-external-calls", severity: "warn" },
+        ],
+      },
+      workspaceDir: ws.dir,
+      assistantText: "done",
+      observations: {
+        assistantText: "done",
+        toolCalls: [{ toolCallId: "1", toolName: "Write", inputSummary: "out.txt" }],
+        toolResults: [],
+        bashCommands: [],
+        touchedFiles: [],
+        writtenFiles: ["out.txt"],
+        editedFiles: [],
+        skillReads: [],
+        externalCalls: [{ toolCallId: "2", system: "https", operation: "GET", target: "api" }],
+      },
+    });
+
+    assert.equal(result.summary.total, 4);
+    assert.equal(result.summary.passed, 1); // only used-write
+    assert.equal(result.summary.failed, 1); // only used-bash (hard)
+    assert.equal(result.summary.soft_failed, 2); // read-skill + no-ext
+
+    const byId = Object.fromEntries(result.assertion_results.map((r) => [r.assertion.id, r]));
+    assert.equal(byId["used-write"].passed, true);
+    assert.equal(byId["used-bash"].passed, false);
+    assert.equal(byId["used-bash"].soft, undefined);
+    assert.equal(byId["read-skill"].soft, true);
+    assert.equal(byId["no-ext"].soft, true);
+    assert.equal(byId["no-ext"].severity, "warn");
+  } finally {
+    await ws.cleanup();
+  }
+});
+
 test("gradeEvalCase resolves every assertion (string + script mixture, all pass)", async () => {
   const ws = await makeTempWorkspace();
   try {
@@ -456,6 +506,7 @@ test("gradeEvalCase returns null pass_rate on empty assertion list", async () =>
     assert.deepEqual(emptyArrayResult.summary, {
       passed: 0,
       failed: 0,
+      soft_failed: 0,
       total: 0,
       pass_rate: null,
     });
@@ -470,6 +521,7 @@ test("gradeEvalCase returns null pass_rate on empty assertion list", async () =>
     assert.deepEqual(missingAssertionsResult.summary, {
       passed: 0,
       failed: 0,
+      soft_failed: 0,
       total: 0,
       pass_rate: null,
     });

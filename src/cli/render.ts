@@ -11,8 +11,13 @@ export function formatRunEvalsResult(result: RunEvalsCommandResult, options: Cli
     ...(result.iteration ? [`Iteration: ${result.iteration}`] : []),
     `Skills evaluated: ${result.skills.length}`,
     `Cases: ${result.summary.totalCases} (passed ${result.summary.passedCases}, failed ${result.summary.failedCases})`,
-    `Assertions: ${result.summary.totalAssertions} (passed ${result.summary.passedAssertions}, failed ${result.summary.failedAssertions})`,
+    `Assertions: ${result.summary.totalAssertions} (passed ${result.summary.passedAssertions}, failed ${result.summary.failedAssertions}${
+      result.summary.softFailedAssertions > 0 ? `, soft ${result.summary.softFailedAssertions}` : ""
+    })`,
     `Assertion pass rate: ${formatFractionPercent(result.summary.assertionPassRate)}`,
+    ...(result.summary.softFailedAssertions > 0
+      ? [`Soft misses: ${result.summary.softFailedAssertions} (non-failing; use --strict to gate)`]
+      : []),
   ];
 
   for (const skill of result.skills) {

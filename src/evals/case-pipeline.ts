@@ -189,6 +189,7 @@ async function executeCaseVariant(args: {
       case: specification.evalCase,
       workspaceDir: run.workspaceDir,
       assistantText: run.assistantText,
+      observations: run.trace.observations,
       judge: execution.judge,
       judgeModel,
       agentDir: execution.agentDir,

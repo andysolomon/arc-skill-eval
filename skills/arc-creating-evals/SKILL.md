@@ -38,7 +38,7 @@ Record answers. These are the *only* things you'll assert.
 
 ---
 
-## Phase 3 — Draft a small, targeted case list (10–15 cases total)
+## Phase 3 — Draft a small, targeted case list (6–10 cases total)
 
 Stay small. Evals are a signal, not an exhaustive spec. Write cases in the following shape (from `src/evals/types.ts`):
 
@@ -81,9 +81,16 @@ Apply assertions in priority order. Weaker signals should always be backed by st
 
 1. **Script assertions first** (deterministic, cheap, reliable):
    - `{ "type": "file-exists", "path": "<relative>" }` — required file after the run.
+   - `{ "type": "file-absent", "path": "<relative>" }` — file must NOT exist after the run (via `kind: "workspace"`, or the shorthand shown; use it for "left no junk / did not overwrite" checks).
    - `{ "type": "regex-match", "pattern": "<regex>", "target": { "file": "<relative>" } }` — pattern must appear in a produced file.
    - `{ "type": "json-valid", "path": "<relative>" }` — file must parse as JSON.
-2. **String assertions** (LLM-judged) for properties a script cannot check:
+2. **Behavior / tool assertions** (deterministic, graded from the run trace) when the *process* is the claim — prefer these over a string judge for "used/avoided a tool":
+   - `{ "id": "<slug>", "kind": "behavior", "method": "tool-call-required", "value": "Write" }` — the run called a tool (optionally add `"match": "<substring>"` / `"matchKind": "regex"` to check the tool input).
+   - `{ "id": "<slug>", "kind": "behavior", "method": "tool-call-forbidden", "value": "Bash" }` — the run must NOT have called a tool.
+   - `{ "id": "<slug>", "kind": "behavior", "method": "skill-read-required", "value": "<skill-name>" }` — the skill was actually read.
+   - `{ "id": "<slug>", "kind": "safety", "method": "no-forbidden-files-touched", "config": { "paths": [".env", ".github"] } }` — sensitive paths were never touched.
+   - Behavior/safety assertions require an `id`. Any assertion may declare `"mustPass": false` or `"severity": "info" | "warn"` to make a miss **soft** (recorded but non-failing unless the suite is run with `--strict`) — use soft for style/quality signals you don't want to gate CI.
+3. **String assertions** (LLM-judged) for properties a script or the trace cannot check:
    - Write them as short, specific, evidence-requirable claims about behavior, not incidental wording.
    - **Avoid** literal-quote tokens, heading-marker prefixes (`## Foo`), sentence-stem verbs (*"You should..."*), and phase-announcement wording. Models paraphrase.
    - **Prefer** action verbs + proper nouns (*"The response names the \"conventionalcommits\" preset"*, *"The output describes the removal of existing standard-version config"*, *"The assistant starts repository-specific setup rather than giving generic advice"*).
