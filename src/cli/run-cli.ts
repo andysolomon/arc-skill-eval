@@ -1,7 +1,10 @@
+import path from "node:path";
+
 import { auditCommand, renderAuditMarkdown } from "./audit-command.js";
 import { bundledCommand } from "./bundled-command.js";
 import { browseCommand } from "./browse-command.js";
 import { createCommand, type CreateCommandResult } from "./create-command.js";
+import { emitCommand } from "./emit-command.js";
 import { improveCommand, type ImproveCommandResult } from "./improve-command.js";
 import { initRuntimeCommand } from "./init-runtime-command.js";
 import { optimizeDescriptionCommand, type OptimizeDescriptionRunResult, type ScoreDescriptionResult } from "./optimize-description-command.js";
@@ -344,6 +347,38 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
             `- manifest: ${result.manifest.files.length} files, sha256 recorded`,
             "",
           ].join("\n"),
+          stderr: "",
+        };
+      }
+      case "emit": {
+        const result = await emitCommand({
+          from: parsed.from,
+          out: parsed.out,
+          skillDir: parsed.skillDir,
+          check: parsed.check,
+        });
+        const relFrom = path.relative(process.cwd(), result.fromPath) || result.fromPath;
+        const relOut = path.relative(process.cwd(), result.outPath) || result.outPath;
+        const cases = `${result.caseCount} case${result.caseCount === 1 ? "" : "s"}`;
+        if (result.check) {
+          if (result.changed) {
+            return {
+              exitCode: 1,
+              stdout: "",
+              stderr: `${relOut} is out of date with ${relFrom}. Run \`arc-skill-eval emit\` to regenerate it.\n`,
+            };
+          }
+          return {
+            exitCode: 0,
+            stdout: `${relOut} is up to date with ${relFrom} (${result.skillName}, ${cases}).\n`,
+            stderr: "",
+          };
+        }
+        const verb = result.changed ? "Wrote" : "Up to date";
+        const suffix = result.changed ? "" : " (unchanged)";
+        return {
+          exitCode: 0,
+          stdout: `${verb} ${relOut} from ${relFrom} — ${result.skillName}, ${cases}${suffix}.\n`,
           stderr: "",
         };
       }
