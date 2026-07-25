@@ -41,6 +41,8 @@ export class AssertionBuilder {
   private overrideId?: string;
   private overrideMustPass?: boolean;
   private overrideSeverity?: Severity;
+  private overrideThreshold?: number;
+  private overrideScaleMax?: number;
 
   constructor(opts: {
     idHint: string;
@@ -78,11 +80,23 @@ export class AssertionBuilder {
     return this;
   }
 
+  /**
+   * Scored judge: the judge rates the output on a `1..outOf` rubric (default 5)
+   * and the assertion passes iff the score is at least `n`. Judge-only — throws
+   * at build time if chained onto a non-judge assertion. Forces the intent form.
+   */
+  atLeast(n: number, opts: { outOf?: number } = {}): this {
+    this.overrideThreshold = n;
+    this.overrideScaleMax = opts.outOf ?? 5;
+    return this;
+  }
+
   private hasOverride(): boolean {
     return (
       this.overrideId !== undefined ||
       this.overrideMustPass !== undefined ||
-      this.overrideSeverity !== undefined
+      this.overrideSeverity !== undefined ||
+      this.overrideThreshold !== undefined
     );
   }
 
@@ -101,6 +115,14 @@ export class AssertionBuilder {
     const intent = this.intentFactory(id);
     if (this.overrideMustPass !== undefined) intent.mustPass = this.overrideMustPass;
     if (this.overrideSeverity !== undefined) intent.severity = this.overrideSeverity;
+    if (this.overrideThreshold !== undefined) {
+      if (intent.kind !== "output" || intent.method !== "judge") {
+        const where = intent.kind === "output" ? `output/${intent.method}` : intent.kind;
+        throw new Error(`.atLeast() is only valid on a judge() assertion (got ${where})`);
+      }
+      intent.threshold = this.overrideThreshold;
+      intent.scaleMax = this.overrideScaleMax;
+    }
     return intent;
   }
 
