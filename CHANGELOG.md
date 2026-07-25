@@ -1,3 +1,9 @@
+## [0.23.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.22.0...v0.23.0) (2026-07-25)
+
+### Features
+
+* **cli:** add `emit` command to compile typed suites to evals.json ([#225](https://github.com/andysolomon/arc-skill-eval/issues/225)) ([1ec34b3](https://github.com/andysolomon/arc-skill-eval/commit/1ec34b365f66407a6a5be0dd4152e21e9f71b196))
+
 ## [0.22.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.21.0...v0.22.0) (2026-07-25)
 
 ### Features
