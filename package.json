@@ -8,6 +8,16 @@
   "description": "Pi-native library and CLI that runs Anthropic-standard skill evals (evals/evals.json) with LLM-judged + script assertions.",
   "type": "module",
   "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./evals": {
+      "types": "./dist/evals/builder/index.d.ts",
+      "default": "./dist/evals/builder/index.js"
+    }
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/andysolomon/arc-skill-eval.git"

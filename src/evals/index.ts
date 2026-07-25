@@ -8,3 +8,4 @@ export * from "./assertion-engine.js";
 export * from "./artifacts.js";
 export * from "./case-pipeline.js";
 export * from "./eval-run/index.js";
+export * from "./builder/index.js";
