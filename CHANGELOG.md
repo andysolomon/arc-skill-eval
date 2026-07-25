@@ -1,3 +1,9 @@
+## [0.24.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.23.0...v0.24.0) (2026-07-25)
+
+### Features
+
+* **web:** add "Advanced: typed builder" callout to the Learn create chapter ([#226](https://github.com/andysolomon/arc-skill-eval/issues/226)) ([de30365](https://github.com/andysolomon/arc-skill-eval/commit/de30365c5db1eedef2e345bd89fa3c490720b83f))
+
 ## [0.23.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.22.0...v0.23.0) (2026-07-25)
 
 ### Features
