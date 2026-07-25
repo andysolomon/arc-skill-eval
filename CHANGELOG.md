@@ -1,3 +1,9 @@
+## [0.22.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.21.0...v0.22.0) (2026-07-25)
+
+### Features
+
+* **evals:** typed defineSkillEval authoring builder ([#224](https://github.com/andysolomon/arc-skill-eval/issues/224)) ([f0d6f5d](https://github.com/andysolomon/arc-skill-eval/commit/f0d6f5d36a017997268f1b24508b48fa2f20020d))
+
 ## [0.21.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.20.0...v0.21.0) (2026-07-25)
 
 ### Features
