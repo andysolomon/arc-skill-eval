@@ -22,6 +22,7 @@ export function aggregateEvalRun(skills: SkillRunResult[]): EvalRunSummary {
   let totalAssertions = 0;
   let passedAssertions = 0;
   let failedAssertions = 0;
+  let softFailedAssertions = 0;
 
   for (const skill of skills) {
     for (const caseArtifacts of skill.cases) {
@@ -29,6 +30,7 @@ export function aggregateEvalRun(skills: SkillRunResult[]): EvalRunSummary {
       totalAssertions += caseArtifacts.grading.summary.total;
       passedAssertions += caseArtifacts.grading.summary.passed;
       failedAssertions += caseArtifacts.grading.summary.failed;
+      softFailedAssertions += caseArtifacts.grading.summary.soft_failed ?? 0;
       if (caseArtifacts.grading.summary.failed === 0 && caseArtifacts.grading.summary.total > 0) {
         passedCases += 1;
       } else if (caseArtifacts.grading.summary.failed > 0) {
@@ -47,6 +49,7 @@ export function aggregateEvalRun(skills: SkillRunResult[]): EvalRunSummary {
     totalAssertions,
     passedAssertions,
     failedAssertions,
+    softFailedAssertions,
     assertionPassRate: totalAssertions === 0 ? null : passedAssertions / totalAssertions,
   };
 }

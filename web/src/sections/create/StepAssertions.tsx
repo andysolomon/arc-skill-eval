@@ -115,7 +115,9 @@ export const StepAssertions = ({
                 color: assertionKindColor(assertion.kind),
                 flex: 'none',
                 fontSize: 11.5,
-                width: 88,
+                lineHeight: 1.3,
+                width: 112,
+                wordBreak: 'break-word',
               }}
             >
               {assertion.kind}

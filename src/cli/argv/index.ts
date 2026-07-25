@@ -78,7 +78,7 @@ export function renderHelp(): string {
     "arc-skill-eval",
     "",
     "Usage:",
-    "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--runtime pi-sdk|codex|claude-code|cursor-agent|copilot] [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--agent-dir <path>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--sandbox none|just-bash] [--compare] [--laminar] [--json]",
+    "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--runtime pi-sdk|codex|claude-code|cursor-agent|copilot] [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--agent-dir <path>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--sandbox none|just-bash] [--compare] [--strict] [--laminar] [--json]",
     "  arc-skill-eval init-runtime <agent-dir> --provider <provider> --model <model> [--force]",
     "  arc-skill-eval review <run-dir> [--output <dir>] [--force]",
     "  arc-skill-eval improve --from-feedback <feedback.json> [--dry-run] [--summary] [--apply]",

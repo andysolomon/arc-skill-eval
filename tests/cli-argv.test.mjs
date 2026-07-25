@@ -223,6 +223,24 @@ test("parseCliArgs leaves laminar falsy when flag omitted", () => {
   assert.ok(!parsed.laminar);
 });
 
+test("parseCliArgs sets strict true when --strict is passed", () => {
+  const parsed = parseCliArgs(["run", "./skill", "--strict"]);
+
+  assert.equal(parsed.command, "run");
+  assert.equal(parsed.strict, true);
+});
+
+test("parseCliArgs leaves strict false when flag omitted", () => {
+  const parsed = parseCliArgs(["run", "./skill"]);
+
+  assert.equal(parsed.command, "run");
+  assert.equal(parsed.strict, false);
+});
+
+test("parseCliArgs still rejects unknown flags after adding --strict", () => {
+  assert.throws(() => parseCliArgs(["run", "./skill", "--nope"]), CliUsageError);
+});
+
 test("parseCliArgs rejects model pins without provider", () => {
   assert.throws(
     () => parseCliArgs(["run", "./skill", "--model", "gpt-5.5"]),

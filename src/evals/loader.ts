@@ -19,11 +19,12 @@ import type {
   ScriptAssertion,
 } from "./types.js";
 
-const SCRIPT_ASSERTION_TYPES = new Set(["file-exists", "regex-match", "json-valid"]);
+const SCRIPT_ASSERTION_TYPES = new Set(["file-exists", "file-absent", "regex-match", "json-valid"]);
 const INTENT_ASSERTION_KINDS = new Set(["output", "workspace", "behavior", "safety"]);
 const OUTPUT_ASSERTION_METHODS = new Set(["judge", "regex", "exact"]);
 const WORKSPACE_ASSERTION_METHODS = new Set([
   "file-exists",
+  "file-absent",
   "file-contains",
   "json-valid",
   "snapshot-diff",
@@ -256,6 +257,7 @@ function validateScriptAssertion(value: Record<string, unknown>, issues: string[
 
   switch (value.type) {
     case "file-exists":
+    case "file-absent":
     case "json-valid":
       if (typeof value.path !== "string" || value.path.length === 0) {
         issues.push(`\`${value.type}\` requires a non-empty \`path\` string`);
@@ -337,9 +339,37 @@ function validateIntentAssertion(value: Record<string, unknown>, issues: string[
       if (value.value !== undefined && typeof value.value !== "string") {
         issues.push("behavior assertion `value`, if present, must be a string");
       }
+      if (value.match !== undefined && typeof value.match !== "string") {
+        issues.push("behavior assertion `match`, if present, must be a string");
+      }
+      if (
+        value.matchKind !== undefined &&
+        value.matchKind !== "substring" &&
+        value.matchKind !== "regex"
+      ) {
+        issues.push('behavior assertion `matchKind`, if present, must be "substring" or "regex"');
+      }
+      if (value.matchKind === "regex" && typeof value.match === "string") {
+        try {
+          new RegExp(value.match);
+        } catch {
+          issues.push("behavior assertion `match` is not a valid regular expression");
+        }
+      }
       break;
     case "safety":
       validateEnumField(value, "method", SAFETY_ASSERTION_METHODS, "safety assertion", issues);
+      if (value.method === "no-forbidden-files-touched") {
+        const config = value.config;
+        const paths = isRecord(config) ? (config as { paths?: unknown }).paths : undefined;
+        if (
+          !isRecord(config) ||
+          !Array.isArray(paths) ||
+          !paths.every((entry) => typeof entry === "string")
+        ) {
+          issues.push("`no-forbidden-files-touched` requires `config.paths` to be an array of strings");
+        }
+      }
       break;
   }
 }

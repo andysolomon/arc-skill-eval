@@ -3,13 +3,17 @@
  *
  * This module deliberately has no judge or Pi runtime dependency. The caller
  * owns judge invocation; this engine owns every assertion that is not sent to
- * that judge, including deterministic failures for trace-aware forms that are
- * not implemented yet.
+ * that judge, including trace-aware behavior/safety forms which grade against
+ * the run's captured observations.
  */
 
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
+import type { EvalTraceObservations } from "../traces/types.js";
+import type {
+  PiSessionTelemetryToolCall,
+} from "../pi/types.js";
 import type {
   AssertionResult,
   BehaviorAssertion,
@@ -32,7 +36,12 @@ export type DeterministicAssertion =
   | Exclude<IntentAssertion, OutputAssertion>;
 
 /** Legacy script-type view retained for artifact consumers; classification stays in this engine. */
-export const DETERMINISTIC_ASSERTION_TYPES = new Set(["file-exists", "regex-match", "json-valid"]);
+export const DETERMINISTIC_ASSERTION_TYPES = new Set([
+  "file-exists",
+  "file-absent",
+  "regex-match",
+  "json-valid",
+]);
 
 /** The authoritative boundary between judge-backed and deterministic assertions. */
 export function isJudgeAssertion(assertion: unknown): assertion is JudgeAssertion {
@@ -48,17 +57,25 @@ export function judgePromptForAssertion(assertion: JudgeAssertion): string {
   return assertion.prompt ?? assertion.expected ?? `Output assertion ${assertion.id} must pass`;
 }
 
-/** Grade one non-judge assertion without invoking an LLM or runtime adapter. */
+/**
+ * Grade one non-judge assertion without invoking an LLM or runtime adapter.
+ *
+ * `observations` is the run's captured trace (tool calls, skill reads, bash
+ * commands, touched files, external calls). It is required for behavior/safety
+ * assertions; when absent, those forms fail with a "no trace" evidence so the
+ * never-throws contract holds and the miss is diagnosable.
+ */
 export async function gradeDeterministicAssertion(
   assertion: DeterministicAssertion,
   workspaceDir: string,
   assistantText: string,
+  observations?: EvalTraceObservations,
 ): Promise<AssertionResult> {
   if (isScriptAssertion(assertion)) {
     return await gradeScriptAssertion(assertion, workspaceDir, assistantText);
   }
 
-  return await gradeIntentAssertion(assertion, workspaceDir, assistantText);
+  return await gradeIntentAssertion(assertion, workspaceDir, assistantText, observations);
 }
 
 function isScriptAssertion(assertion: EvalAssertion): assertion is ScriptAssertion {
@@ -77,6 +94,8 @@ async function gradeScriptAssertion(
   switch (assertion.type) {
     case "file-exists":
       return await gradeFileExists(assertion, workspaceDir);
+    case "file-absent":
+      return await checkFileAbsent(assertion.path, workspaceDir, assertion);
     case "regex-match":
       return await gradeRegexMatch(assertion, workspaceDir, assistantText);
     case "json-valid":
@@ -88,6 +107,7 @@ async function gradeIntentAssertion(
   assertion: Exclude<IntentAssertion, OutputAssertion> | (OutputAssertion & { method: "regex" | "exact" }),
   workspaceDir: string,
   assistantText: string,
+  observations?: EvalTraceObservations,
 ): Promise<AssertionResult> {
   switch (assertion.kind) {
     case "output":
@@ -95,9 +115,9 @@ async function gradeIntentAssertion(
     case "workspace":
       return await gradeWorkspaceAssertion(assertion, workspaceDir);
     case "behavior":
-      return gradeBehaviorAssertion(assertion);
+      return gradeBehaviorAssertion(assertion, observations);
     case "safety":
-      return gradeSafetyAssertion(assertion);
+      return gradeSafetyAssertion(assertion, observations);
   }
 }
 
@@ -140,6 +160,8 @@ async function gradeWorkspaceAssertion(
   switch (assertion.method) {
     case "file-exists":
       return await gradeFileExists(assertionToFileExists(assertion), workspaceDir, assertion);
+    case "file-absent":
+      return await checkFileAbsent(assertion.path ?? "", workspaceDir, assertion);
     case "file-contains":
       return await gradeWorkspaceFileContains(assertion, workspaceDir);
     case "json-valid":
@@ -149,20 +171,217 @@ async function gradeWorkspaceAssertion(
   }
 }
 
-function gradeBehaviorAssertion(assertion: BehaviorAssertion): AssertionResult {
-  return failed(
-    summarizeAssertion(assertion),
-    "Behavior assertions require trace-aware grading and are not implemented yet",
-    assertion,
-  );
+/**
+ * Shared core for `file-absent`, reachable both as a script assertion
+ * (`{ type: "file-absent" }`) and as a workspace method
+ * (`{ kind: "workspace", method: "file-absent" }`). `rawAssertion` is the
+ * caller's original object so the result records the exact shape authored.
+ */
+async function checkFileAbsent(
+  pathLabel: string,
+  workspaceDir: string,
+  rawAssertion: EvalAssertion,
+): Promise<AssertionResult> {
+  const text = `file-absent: ${pathLabel}`;
+  const resolved = resolveInWorkspace(workspaceDir, pathLabel);
+
+  if (!resolved.ok) return failed(text, resolved.evidence, rawAssertion);
+
+  try {
+    const info = await stat(resolved.absolutePath);
+    // A directory at the path is not the file the author forbade, so treat it
+    // as present-but-not-a-file rather than a pass.
+    const kind = info.isDirectory() ? "directory" : "file";
+    return failed(text, `Expected \`${pathLabel}\` to be absent, but a ${kind} exists`, rawAssertion);
+  } catch {
+    return { text, passed: true, evidence: `No such file: \`${pathLabel}\` (absent as required)`, assertion: rawAssertion };
+  }
 }
 
-function gradeSafetyAssertion(assertion: SafetyAssertion): AssertionResult {
-  return failed(
-    summarizeAssertion(assertion),
-    "Safety assertions require trace-aware grading and are not implemented yet",
-    assertion,
-  );
+/**
+ * Grade behavior assertions against the run's captured tool/skill/command
+ * observations. The matcher is deliberately minimal: an exact tool/skill name
+ * plus an optional substring/regex tested against a tool call's `inputSummary`.
+ */
+function gradeBehaviorAssertion(
+  assertion: BehaviorAssertion,
+  observations?: EvalTraceObservations,
+): AssertionResult {
+  const text = summarizeAssertion(assertion);
+  if (!observations) {
+    return failed(text, "No trace available for behavior grading", assertion);
+  }
+
+  switch (assertion.method) {
+    case "tool-call-required": {
+      const check = compileToolMatcher(assertion);
+      if (!check.ok) return failed(text, check.evidence, assertion);
+      const match = observations.toolCalls.find(check.predicate);
+      if (match) {
+        return { text, passed: true, evidence: describeToolCall("Tool called", match), assertion };
+      }
+      return failed(text, describeNoToolMatch(assertion, observations.toolCalls), assertion);
+    }
+    case "tool-call-forbidden": {
+      const check = compileToolMatcher(assertion);
+      if (!check.ok) return failed(text, check.evidence, assertion);
+      const match = observations.toolCalls.find(check.predicate);
+      if (match) {
+        return failed(text, describeToolCall("Forbidden tool called", match), assertion);
+      }
+      const subject = assertion.value ?? "any tool";
+      return { text, passed: true, evidence: `No forbidden tool call for "${subject}" observed`, assertion };
+    }
+    case "skill-read-required": {
+      const wanted = assertion.value;
+      const reads = observations.skillReads;
+      const match = wanted ? reads.find((read) => read.skillName === wanted) : reads[0];
+      if (match) {
+        return { text, passed: true, evidence: `Skill "${match.skillName}" read from ${match.path}`, assertion };
+      }
+      const seen = reads.length === 0 ? "no skills read" : `read: ${reads.map((r) => r.skillName).join(", ")}`;
+      const subject = wanted ? `"${wanted}"` : "any skill";
+      return failed(text, `Skill ${subject} was not read (${seen})`, assertion);
+    }
+    case "external-call-forbidden": {
+      const wanted = assertion.value;
+      const calls = observations.externalCalls;
+      const match = wanted
+        ? calls.find((call) => renderExternalCall(call).includes(wanted))
+        : calls[0];
+      if (match) {
+        return failed(text, `Forbidden external call: ${renderExternalCall(match)}`, assertion);
+      }
+      const subject = wanted ? `"${wanted}"` : "any external call";
+      return { text, passed: true, evidence: `No forbidden external call for ${subject} observed`, assertion };
+    }
+    case "command-forbidden": {
+      if (!assertion.value && !assertion.match) {
+        return failed(text, "`command-forbidden` requires a `value` or `match` to forbid", assertion);
+      }
+      const check = compileStringMatcher(assertion.match ?? assertion.value ?? "", assertion.matchKind);
+      if (!check.ok) return failed(text, check.evidence, assertion);
+      const match = observations.bashCommands.find(check.predicate);
+      if (match) {
+        return failed(text, `Forbidden command matched: "${truncate(match, 80)}"`, assertion);
+      }
+      return { text, passed: true, evidence: `No forbidden command observed (${observations.bashCommands.length} run)`, assertion };
+    }
+  }
+}
+
+/**
+ * Grade safety assertions against captured observations. `config` is read
+ * defensively; malformed config fails the assertion with a clear message.
+ */
+function gradeSafetyAssertion(
+  assertion: SafetyAssertion,
+  observations?: EvalTraceObservations,
+): AssertionResult {
+  const text = summarizeAssertion(assertion);
+  if (!observations) {
+    return failed(text, "No trace available for safety grading", assertion);
+  }
+
+  switch (assertion.method) {
+    case "no-forbidden-files-touched": {
+      const paths = readForbiddenPaths(assertion.config);
+      if (!paths.ok) return failed(text, paths.evidence, assertion);
+      const touched = observations.touchedFiles;
+      const hit = touched.find((file) => paths.value.some((forbidden) => pathMatchesForbidden(file.path, forbidden)));
+      if (hit) {
+        return failed(text, `Forbidden file touched: ${hit.path}`, assertion);
+      }
+      return { text, passed: true, evidence: `No forbidden files touched (${touched.length} files touched)`, assertion };
+    }
+    case "no-live-external-calls": {
+      const calls = observations.externalCalls;
+      if (calls.length > 0) {
+        return failed(text, `Live external call: ${renderExternalCall(calls[0]!)}`, assertion);
+      }
+      return { text, passed: true, evidence: "No live external calls observed", assertion };
+    }
+    case "custom":
+      return failed(text, "safety `custom` assertions are not implemented yet", assertion);
+  }
+}
+
+type MatcherResult<T> =
+  | { ok: true; predicate: (candidate: T) => boolean }
+  | { ok: false; evidence: string };
+
+/** Build a tool-call predicate from an exact name + optional input matcher. */
+function compileToolMatcher(assertion: BehaviorAssertion): MatcherResult<PiSessionTelemetryToolCall> {
+  const name = assertion.value;
+  let inputCheck: ((summary: string) => boolean) | null = null;
+  if (assertion.match !== undefined) {
+    const compiled = compileStringMatcher(assertion.match, assertion.matchKind);
+    if (!compiled.ok) return compiled;
+    inputCheck = compiled.predicate;
+  }
+  return {
+    ok: true,
+    predicate: (call) => {
+      if (name !== undefined && call.toolName !== name) return false;
+      if (inputCheck) return inputCheck(call.inputSummary ?? "");
+      return true;
+    },
+  };
+}
+
+/** Build a string predicate: substring by default, regex when `matchKind: "regex"`. */
+function compileStringMatcher(needle: string, matchKind?: "substring" | "regex"): MatcherResult<string> {
+  if (matchKind === "regex") {
+    let regex: RegExp;
+    try {
+      regex = new RegExp(needle);
+    } catch (error) {
+      return { ok: false, evidence: `Invalid regex: ${(error as Error).message}` };
+    }
+    return { ok: true, predicate: (candidate) => regex.test(candidate) };
+  }
+  return { ok: true, predicate: (candidate) => candidate.includes(needle) };
+}
+
+function describeToolCall(prefix: string, call: PiSessionTelemetryToolCall): string {
+  const input = call.inputSummary ? `: ${truncate(call.inputSummary, 80)}` : "";
+  return `${prefix}: "${call.toolName}"${input}`;
+}
+
+function describeNoToolMatch(assertion: BehaviorAssertion, calls: PiSessionTelemetryToolCall[]): string {
+  const subject = assertion.value ?? "any tool";
+  const suffix = assertion.match ? ` matching ${assertion.matchKind ?? "substring"} "${assertion.match}"` : "";
+  const seen = calls.length === 0 ? "no tool calls observed" : `${calls.length} tool calls observed`;
+  return `No matching tool call for "${subject}"${suffix} (${seen})`;
+}
+
+function renderExternalCall(call: { system: string; operation: string; target?: string }): string {
+  const target = call.target ? ` ${call.target}` : "";
+  return `${call.system}:${call.operation}${target}`;
+}
+
+function readForbiddenPaths(config: unknown): { ok: true; value: string[] } | { ok: false; evidence: string } {
+  if (typeof config !== "object" || config === null || !("paths" in config)) {
+    return { ok: false, evidence: "`no-forbidden-files-touched` requires `config.paths: string[]`" };
+  }
+  const paths = (config as { paths: unknown }).paths;
+  if (!Array.isArray(paths) || !paths.every((p) => typeof p === "string")) {
+    return { ok: false, evidence: "`config.paths` must be an array of strings" };
+  }
+  return { ok: true, value: paths as string[] };
+}
+
+/** Minimal path match: exact, or the touched path sits under a forbidden prefix. */
+function pathMatchesForbidden(touched: string, forbidden: string): boolean {
+  if (touched === forbidden) return true;
+  const prefix = forbidden.endsWith("/") ? forbidden : `${forbidden}/`;
+  if (touched.startsWith(prefix)) return true;
+  return touched.includes(forbidden);
+}
+
+function truncate(value: string, max: number): string {
+  const collapsed = value.replace(/\s+/g, " ").trim();
+  return collapsed.length <= max ? collapsed : `${collapsed.slice(0, max)}…`;
 }
 
 function assertionToFileExists(assertion: WorkspaceAssertion): FileExistsAssertion {
@@ -343,6 +562,8 @@ export function summarizeAssertion(assertion: EvalAssertion): string {
     switch (assertion.type) {
       case "file-exists":
         return `file-exists: ${assertion.path}`;
+      case "file-absent":
+        return `file-absent: ${assertion.path}`;
       case "json-valid":
         return `json-valid: ${assertion.path}`;
       case "regex-match":

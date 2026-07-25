@@ -96,6 +96,80 @@ test("readEvalsJson parses explicit workspace setup and intent assertions", asyn
   }
 });
 
+test("readEvalsJson round-trips behavior match/matchKind, safety config, and file-absent", async () => {
+  const tmp = path.join(__dirname, "tmp-evals-behavior.json");
+  const { writeFile, unlink } = await import("node:fs/promises");
+  await writeFile(
+    tmp,
+    JSON.stringify({
+      version: "1",
+      skill_name: "alpha",
+      evals: [
+        {
+          id: "behavior-case",
+          prompt: "Set up releases.",
+          assertions: [
+            { id: "wrote", kind: "behavior", method: "tool-call-required", value: "Write", match: "releaserc", matchKind: "substring" },
+            { id: "no-publish", kind: "behavior", method: "command-forbidden", match: "^npm publish", matchKind: "regex" },
+            { id: "no-secrets", kind: "safety", method: "no-forbidden-files-touched", config: { paths: [".env", ".github"] } },
+            { id: "no-lock", kind: "workspace", method: "file-absent", path: "package-lock.json" },
+          ],
+        },
+      ],
+    }),
+    "utf-8",
+  );
+
+  try {
+    const file = await readEvalsJson(tmp);
+    const [wrote, noPublish, noSecrets, noLock] = file.evals[0].assertions;
+    assert.equal(wrote.match, "releaserc");
+    assert.equal(wrote.matchKind, "substring");
+    assert.equal(noPublish.matchKind, "regex");
+    assert.deepEqual(noSecrets.config.paths, [".env", ".github"]);
+    assert.equal(noLock.method, "file-absent");
+  } finally {
+    await unlink(tmp).catch(() => undefined);
+  }
+});
+
+test("readEvalsJson rejects malformed behavior matchKind and safety config", async () => {
+  const tmp = path.join(__dirname, "tmp-evals-behavior-bad.json");
+  const { writeFile, unlink } = await import("node:fs/promises");
+  await writeFile(
+    tmp,
+    JSON.stringify({
+      version: "1",
+      skill_name: "alpha",
+      evals: [
+        {
+          id: "bad-case",
+          prompt: "noop",
+          assertions: [
+            { id: "bad-kind", kind: "behavior", method: "tool-call-required", value: "Write", matchKind: "fuzzy" },
+            { id: "bad-regex", kind: "behavior", method: "command-forbidden", match: "([", matchKind: "regex" },
+            { id: "bad-config", kind: "safety", method: "no-forbidden-files-touched", config: { paths: "not-an-array" } },
+          ],
+        },
+      ],
+    }),
+    "utf-8",
+  );
+
+  try {
+    await readEvalsJson(tmp);
+    assert.fail("expected EvalsJsonValidationError");
+  } catch (error) {
+    assert.ok(error instanceof EvalsJsonValidationError);
+    const joined = error.issues.join("\n");
+    assert.match(joined, /matchKind/);
+    assert.match(joined, /not a valid regular expression/);
+    assert.match(joined, /config\.paths/);
+  } finally {
+    await unlink(tmp).catch(() => undefined);
+  }
+});
+
 test("readEvalsJson throws EvalsJsonValidationError with issue list on missing skill_name", async () => {
   const tmp = path.join(__dirname, "tmp-evals.json");
   const { writeFile, unlink } = await import("node:fs/promises");

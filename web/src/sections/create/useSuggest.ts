@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { assertionKinds } from './useDraft';
 import type {
   AssertionKind,
   BehaviorDimension,
@@ -172,9 +173,7 @@ export const useSuggest = (enabled: boolean, modelSpec?: string) => {
         if (
           !isRecord(assertion)
           || typeof assertion.val !== 'string'
-          || !['file-exists', 'file-absent', 'regex-match', 'json-valid', 'judge'].includes(
-            String(assertion.kind),
-          )
+          || !(assertionKinds as string[]).includes(String(assertion.kind))
         ) {
           throw new Error('suggest returned an invalid assertion');
         }
