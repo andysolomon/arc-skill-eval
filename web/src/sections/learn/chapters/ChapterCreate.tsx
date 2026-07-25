@@ -1044,6 +1044,23 @@ export const ChapterCreate = () => {
         </div>
       </div>
 
+      <div
+        style={{
+          color: 'var(--tt-comment)',
+          fontSize: 12,
+          lineHeight: 1.6,
+          marginBottom: 16,
+          maxWidth: 820,
+        }}
+      >
+        the same chain that sets severity also unlocks{' '}
+        <span style={{ color: 'var(--tt-fg-dark)' }}>scored</span> judges:{' '}
+        <span style={{ color: 'var(--tt-cyan)' }}>judge(&quot;…&quot;).atLeast(4)</span> grades the
+        output on a 1–5 rubric and passes only at or above the bar — the score lands in{' '}
+        <span style={{ color: 'var(--tt-teal)' }}>grading.json</span>. use it when a hard pass/fail
+        is too blunt for a quality signal.
+      </div>
+
       <Callout accent="cyan" style={{ marginBottom: 32 }}>
         the runner still reads <span style={{ color: 'var(--tt-teal)' }}>evals/evals.json</span>,
         never the <span style={{ color: 'var(--tt-fg-dark)' }}>.eval.ts</span> — the builder is an
