@@ -91,7 +91,15 @@ const WorkspaceChip = () => {
         }}
       >
         <span style={{ color: 'var(--tt-comment)', fontSize: 11 }}>dir</span>
-        <span style={{ color: 'var(--tt-teal)', fontSize: 12.5 }}>{workspace}</span>
+        <span
+          title={workspaceError ? `${workspace} — ${workspaceError}` : workspace}
+          style={{
+            color: workspaceError ? 'var(--tt-red)' : 'var(--tt-teal)',
+            fontSize: 12.5,
+          }}
+        >
+          {workspace}
+        </span>
         <span aria-hidden="true" style={{ color: 'var(--tt-dim)', fontSize: 10 }}>
           {open ? '▴' : '▾'}
         </span>

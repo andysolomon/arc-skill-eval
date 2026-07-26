@@ -14,6 +14,11 @@ function resolveFsPath(pathParam) {
     : path.resolve(ref);
 }
 
+function parentOf(resolved) {
+  const parentDir = path.dirname(resolved);
+  return parentDir === resolved ? null : parentDir;
+}
+
 export async function handleFs(request, response, context) {
   if (request.method !== "GET" || context.url.pathname !== "/fs") {
     return false;
@@ -24,18 +29,29 @@ export async function handleFs(request, response, context) {
   try {
     const stats = await stat(resolved).catch(() => null);
 
-    if (!stats?.isDirectory()) {
+    const parent = parentOf(resolved);
+
+    if (!stats) {
       context.sendJson(response, 200, {
         ok: false,
         path: resolved,
-        error: "not a directory",
+        parent,
+        error: "directory not found",
         entries: [],
       });
       return true;
     }
 
-    const parentDir = path.dirname(resolved);
-    const parent = parentDir === resolved ? null : parentDir;
+    if (!stats.isDirectory()) {
+      context.sendJson(response, 200, {
+        ok: false,
+        path: resolved,
+        parent,
+        error: "not a directory",
+        entries: [],
+      });
+      return true;
+    }
 
     const entries = (await readdir(resolved, { withFileTypes: true }))
       .filter((entry) => !entry.name.startsWith("."))
@@ -71,6 +87,7 @@ export async function handleFs(request, response, context) {
     context.sendJson(response, 200, {
       ok: false,
       path: resolved,
+      parent: parentOf(resolved),
       error: error.message,
       entries: [],
     });
