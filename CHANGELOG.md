@@ -1,3 +1,9 @@
+## [0.26.1](https://github.com/andysolomon/arc-skill-eval/compare/v0.26.0...v0.26.1) (2026-07-26)
+
+### Bug Fixes
+
+* **web:** recover the folder picker from an unlistable initial path ([#233](https://github.com/andysolomon/arc-skill-eval/issues/233)) ([d13f866](https://github.com/andysolomon/arc-skill-eval/commit/d13f86675a876f5b9ff56d4fab53e26750ca99f8))
+
 ## [0.26.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.25.0...v0.26.0) (2026-07-25)
 
 ### Features

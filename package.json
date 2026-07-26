@@ -1,6 +1,6 @@
 {
   "name": "arc-skill-eval",
-  "version": "0.26.0",
+  "version": "0.26.1",
   "workspaces": [
     "packages/*",
     "web"
