@@ -92,7 +92,7 @@ export const FolderPicker = ({ initialPath, onPick, onExit }: FolderPickerProps)
           }
           if (ancestorData.ok) {
             setListing(ancestorData);
-            setInlineNotice(`✗ ${failError} — showing ${ancestorData.path}`);
+            setInlineNotice(`✗ ${failError}. Showing ${ancestorData.path}`);
             return;
           }
           ancestor = ancestorData.parent;
@@ -104,13 +104,13 @@ export const FolderPicker = ({ initialPath, onPick, onExit }: FolderPickerProps)
         }
         if (homeData.ok) {
           setListing(homeData);
-          setInlineNotice(`✗ ${failError} — showing ${homeData.path}`);
+          setInlineNotice(`✗ ${failError}. Showing ${homeData.path}`);
         } else {
           setInlineNotice(`✗ ${failError}`);
         }
       } catch {
         if (!signal?.aborted) {
-          setInlineNotice('daemon offline — start it with npm run dev');
+          setInlineNotice('daemon offline. Start it with npm run dev');
         }
       } finally {
         if (!signal?.aborted) {
@@ -142,7 +142,7 @@ export const FolderPicker = ({ initialPath, onPick, onExit }: FolderPickerProps)
         }}
       >
         <button
-          aria-label="back to favorites"
+          aria-label="Back to saved directories"
           onClick={onExit}
           type="button"
           style={{
@@ -154,9 +154,11 @@ export const FolderPicker = ({ initialPath, onPick, onExit }: FolderPickerProps)
             padding: 0,
           }}
         >
-          ← back
+          ← Saved directories
         </button>
-        <span style={{ color: color.dim, fontSize: text['2xs'] }}>pick a folder to reference</span>
+        <span style={{ color: color.dim, fontSize: text['2xs'] }}>
+          Choose a working directory
+        </span>
       </div>
 
       <div
@@ -212,7 +214,7 @@ export const FolderPicker = ({ initialPath, onPick, onExit }: FolderPickerProps)
         ) : null}
         {!loading && listing && directories.length === 0 && files.length === 0 ? (
           <div style={{ color: color.comment, fontSize: text.sm, padding: '6px 8px' }}>
-            empty directory
+            This directory is empty
           </div>
         ) : null}
 
@@ -299,7 +301,7 @@ export const FolderPicker = ({ initialPath, onPick, onExit }: FolderPickerProps)
             width: '100%',
           }}
         >
-          use this folder →
+          Select this directory →
         </button>
       </div>
     </div>

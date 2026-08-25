@@ -21,10 +21,10 @@ type StepListBehaviorsProps = {
 };
 
 const dimensionLegend: Array<{ dim: string; copy: string }> = [
-  { dim: 'outcome', copy: "the task completes and the right artifact exists — the one you can't skip" },
-  { dim: 'process', copy: 'it triggered the skill and took the intended steps, not a lucky shortcut' },
-  { dim: 'style', copy: 'the output follows the conventions the skill promises' },
-  { dim: 'efficiency', copy: 'it got there without thrashing — tool calls and tokens in bounds' },
+  { dim: 'outcome', copy: 'The task completes and produces the required artifact' },
+  { dim: 'process', copy: 'The run uses the skill and follows the required steps' },
+  { dim: 'style', copy: 'The output follows the required conventions' },
+  { dim: 'efficiency', copy: 'Tool calls and token use stay within your limits' },
 ];
 
 export const StepListBehaviors = ({
@@ -83,11 +83,10 @@ export const StepListBehaviors = ({
   return (
     <div>
     <div style={kickerStyle}>step 01</div>
-    <h1 style={titleStyle}>List the behaviors that matter</h1>
+    <h1 style={titleStyle}>List required behaviors</h1>
     <p style={introStyle}>
-      start from what the skill promises. write each must-pass behavior in plain language, and
-      tag the dimension it lives in. you'll turn these into test cases next — no eval syntax
-      yet.
+      Write each behavior that must pass in plain language, then choose its dimension. You will
+      turn these behaviors into test cases next.
     </p>
 
     <div aria-label="behavior dimensions" style={legendBoxStyle}>
@@ -222,9 +221,9 @@ export const StepListBehaviors = ({
           textAlign: 'center',
         }}
       >
-        no behaviors yet —{' '}
-        {env === 'localhost' ? 'generate from a skill above, or ' : ''}
-        add your first below.
+        {env === 'localhost'
+          ? 'No behaviors yet. Draft them from a skill above, or add one below.'
+          : 'No behaviors yet. Add one below.'}
       </div>
     ) : null}
 
@@ -245,7 +244,7 @@ export const StepListBehaviors = ({
             padding: '8px 13px',
           }}
         >
-          ＋ add behavior
+          ＋ Add behavior
         </button>
         {env === 'localhost' ? (
           <button
@@ -262,8 +261,8 @@ export const StepListBehaviors = ({
             }}
           >
             {pendingKey === 'behavior' || pendingInsert
-              ? '◌ generating…'
-              : '✦ suggest a behavior'}
+              ? '◌ Generating…'
+              : '✦ Suggest a behavior'}
           </button>
         ) : null}
       </div>

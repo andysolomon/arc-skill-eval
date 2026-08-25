@@ -172,7 +172,8 @@ export const Overview = ({ run, testCase, variant, workspaceRoot }: OverviewProp
         <section style={{ display: 'grid', gap: 8, minWidth: 0 }}>
           <Kicker>compare</Kicker>
           <p style={{ color: 'var(--tt-fg-dark)', lineHeight: 1.55, margin: 0 }}>
-            Benchmark delta {run.benchmarkDelta ?? 0}; switch variants above to inspect each arm.
+            Benchmark difference: {run.benchmarkDelta ?? 0}. Select a variant above to inspect
+            its results.
           </p>
         </section>
       ) : null}

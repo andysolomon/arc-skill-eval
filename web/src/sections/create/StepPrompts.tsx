@@ -18,15 +18,15 @@ type StepPromptsProps = {
 };
 
 const flavorLegend: Array<{ flavor: string; copy: string }> = [
-  { flavor: 'explicit', copy: 'names the skill directly — your smoke test' },
+  { flavor: 'explicit', copy: 'Names the skill directly; use it as a smoke test' },
   {
     flavor: 'implicit',
-    copy: 'describes the scenario without naming it — tests whether the description earns the trigger',
+    copy: 'Describes the scenario without naming the skill; tests the description',
   },
-  { flavor: 'contextual', copy: 'a noisy real-world ask with distractions — closest to production' },
+  { flavor: 'contextual', copy: 'Adds relevant context and unrelated details' },
   {
     flavor: 'adjacent-negative',
-    copy: 'a nearby request the skill must NOT fire for — catches false positives',
+    copy: 'Defines a nearby request that must not trigger the skill',
   },
 ];
 
@@ -75,9 +75,9 @@ export const StepPrompts = ({ assistModel, draft, env, onUpdateBehavior }: StepP
       <div style={kickerStyle}>step 02</div>
       <h1 style={titleStyle}>Turn behaviors into prompts</h1>
       <p style={introStyle}>
-        write the request a real user would send for each behavior. pick a flavor — it decides
-        how hard the trigger boundary is tested. stuck? hit{' '}
-        <span style={{ color: 'var(--tt-fg)' }}>suggest</span>.
+        Write one user request for each behavior. Choose a prompt type to control how the case
+        tests skill selection. Select <span style={{ color: 'var(--tt-fg)' }}>Suggest</span> to
+        draft a prompt.
       </p>
 
       <div aria-label="prompt flavor legend" style={legendBoxStyle}>
@@ -118,7 +118,7 @@ export const StepPrompts = ({ assistModel, draft, env, onUpdateBehavior }: StepP
           <textarea
             aria-label={`prompt for ${behavior.text || 'unnamed behavior'}`}
             onChange={(event) => onUpdateBehavior(behavior.id, { prompt: event.target.value })}
-            placeholder="the user's request, in their words…"
+            placeholder="Enter the user's request…"
             value={behavior.prompt}
             style={{
               ...inputStyle,
@@ -196,7 +196,7 @@ export const StepPrompts = ({ assistModel, draft, env, onUpdateBehavior }: StepP
                   padding: 0,
                 }}
               >
-                {pendingKey === `prompt:${behavior.id}` ? '◌ generating…' : '✦ suggest'}
+                {pendingKey === `prompt:${behavior.id}` ? '◌ Generating…' : '✦ Suggest prompt'}
               </button>
             ) : null}
           </div>

@@ -5,9 +5,9 @@ sidebar:
   order: 6
 ---
 
-Every case produces the same artifact tree, and every run rolls up to a directory under `<skillDir>/evals-runs/<runId>/`. The tree is the same in default and `--compare` modes — `--compare` just nests two copies under per-variant directories.
+Each run writes case artifacts under `<skillDir>/evals-runs/<runId>/`. In `--compare` mode, each case contains separate directories for the two variants.
 
-## Default layout (single variant)
+## Default layout
 
 ```text
 <skillDir>/evals-runs/<runId>/
@@ -23,23 +23,23 @@ Every case produces the same artifact tree, and every run rolls up to a director
 
 Add `--iteration <name>` and the layout becomes `<skillDir>/evals-runs/iteration-<name>/<runId>/...`.
 
-## The seven per-case artifacts
+## Per-case artifacts
 
 ### `assistant.md`
 
-The final assistant response for the run. Plain markdown. This is what the model said back.
+The final response in plain markdown.
 
 ### `outputs/`
 
-The workspace filesystem snapshot after the run completes. If the skill writes `greeting.txt`, you'll find it here. If it writes nothing, the directory is empty. This is what the deterministic script assertions read against.
+The workspace snapshot after the run. If the skill writes `greeting.txt`, the file appears here. Deterministic script assertions read from this directory.
 
 ### `grading.json`
 
-The per-assertion verdict. Anthropic-compatible `assertion_results[]` array with `text` / `passed` / `evidence`, plus a `summary` block with `passed` / `failed` / `total` / `pass_rate`. See [Grading](/arc-skill-eval/concepts/grading/) for the shape and rationale.
+The per-assertion verdict. Its Anthropic-compatible `assertion_results[]` array contains `text`, `passed`, and `evidence`. The `summary` block contains `passed`, `failed`, `total`, and `pass_rate`. See [Grading](/arc-skill-eval/concepts/grading/).
 
 ### `timing.json`
 
-Runtime observability:
+Runtime measurements:
 
 ```json
 {
@@ -60,15 +60,15 @@ Runtime observability:
 }
 ```
 
-Captures duration, model identity, thinking level, token counts (including cache reads/writes), estimated cost, context-window size, and context-window percentage used. Enough to answer "how expensive was this case?" and "did the skill blow the context window?" without re-running.
+Records duration, model identity, thinking level, token counts, estimated cost, context-window size, and context-window use.
 
 ### `trace.json`
 
-The normalized runtime trace — assistant text, tool calls and their results, file touches, skill reads, external calls, and references to the raw runtime telemetry. Useful for debugging a specific case without replaying it. The `EvalTrace` shape is the same whether the case ran via the Pi SDK or the Pi CLI JSON runner.
+The normalized runtime trace: response text, tool calls and results, file changes, skill reads, external calls, and references to raw runtime data. The `EvalTrace` shape is the same for the Pi SDK and Pi CLI JSON runners.
 
 ### `tool-summary.json`
 
-Compact behavior counters:
+Tool-use counters:
 
 ```json
 {
@@ -82,11 +82,11 @@ Compact behavior counters:
 }
 ```
 
-Made-for-grepping. If a skill should never run shell commands and `bash` shows up in the call counts, that's an obvious red flag without opening the trace.
+Use these counters to spot unexpected behavior without opening the full trace. For example, `bash` in the call counts shows that the case ran shell commands.
 
 ### `context-manifest.json`
 
-The loadout — what was actually exposed to the model:
+The skills, tools, and ambient resources available during the case:
 
 ```json
 {
@@ -109,7 +109,7 @@ The loadout — what was actually exposed to the model:
 }
 ```
 
-Critical for `--compare` runs: a reviewer can confirm that the *only* difference between `with_skill` and `without_skill` was the target skill, not some ambient resource.
+For `--compare` runs, compare the manifests to confirm that only the target skill differs.
 
 ## The run-level `benchmark.json` (compare runs only)
 
@@ -123,15 +123,15 @@ Critical for `--compare` runs: a reviewer can confirm that the *only* difference
 │   └── without_skill/...
 ```
 
-The Anthropic-compatible core (per-case results, overall pass rates, overall delta, errors) stays at the top level of the document. Pi-specific extensions — artifact paths, trace paths, token counts, timing, model metadata, estimated cost, context-window usage, tool-call counts, MCP-looking tool counts, and attached-skill summaries — live under `metadata.extensions`. The artifact remains portable to any Anthropic-format consumer while keeping the debugging detail.
+Per-case results, overall pass rates, overall delta, and errors stay at the top level. Pi-specific fields such as artifact paths, trace paths, token counts, timing, model metadata, estimated cost, context-window use, tool-call counts, MCP tool counts, and attached-skill summaries live under `metadata.extensions`.
 
 ## External observability (Laminar)
 
-Local artifacts are always the canonical record. Optionally, `run --laminar` also reports the run to [Laminar](https://www.lmnr.ai/)'s **Evaluations** view so results can be inspected and compared in a dashboard. This is opt-in and additive — see the [`--laminar` flag](/arc-skill-eval/cli-reference/#--laminar) for setup.
+Local artifacts remain available whether or not export succeeds. `run --laminar` can also send results to [Laminar](https://www.lmnr.ai/)'s Evaluations view. See the [`--laminar` flag](/arc-skill-eval/cli-reference/#--laminar) for setup.
 
-The export creates **one evaluation per run variant** (`with_skill` / `without_skill`) with **one scored datapoint per case**. Both evaluations share a group (the skill name, or `LMNR_PROJECT_NAME` when set), which is what makes the two variants comparable side by side in the Evaluations UI. The run summary prints a direct dashboard URL per evaluation.
+The export creates one evaluation per run variant (`with_skill` and `without_skill`) and one scored datapoint per case. Both evaluations share a group: the skill name, or `LMNR_PROJECT_NAME` when set. The run summary prints a dashboard URL for each evaluation.
 
-Each datapoint carries **grading verdicts, metrics, and artifact paths, not full content** (assistant text, prompts, and file contents are never exported). The mapping from the local artifacts:
+Each datapoint includes grading verdicts, metrics, and artifact paths. It does not export response text, prompts, or file contents.
 
 | Local source | Laminar datapoint fields |
 | --- | --- |
@@ -141,14 +141,14 @@ Each datapoint carries **grading verdicts, metrics, and artifact paths, not full
 | `grading.json` summary | scores: `pass_rate`, `passed`, `failed` |
 | `grading.json` assertion results | output: per-assertion text, pass/fail, short evidence quote |
 | `tool-summary.json` | score: `tool_calls`; error/MCP/file-touch counts in metadata |
-| the seven per-case artifact paths | output `artifacts` — links back to the canonical local files |
+| per-case artifact paths | output `artifacts`, which links to the local files |
 
-A `pass_rate` of `null` (a case with no gradable assertions) is omitted from scores rather than coerced to `0`, so it never reads as a failure.
+When a case has no gradable assertions, its `pass_rate` is `null` and the export omits the score instead of reporting `0`.
 
-**When export fails:** Laminar errors are isolated — the run still completes, exits on assertion results as usual, and writes every local artifact. If an evaluation is missing from the dashboard, the local `evals-runs/<runId>/` tree is the authoritative copy; export failures surface in the run's reported sink results rather than aborting the run.
+If Laminar export fails, the run still completes, uses assertion results for its exit code, and writes local artifacts. The run reports the failed export without aborting.
 
-## What's not yet in the artifact tree
+## Not yet included
 
-- **Cross-iteration comparison.** Today, iterations are runner-only artifact buckets — they group outputs without proposing or applying `SKILL.md` edits or aggregating across iterations. A cross-iteration aggregate is on the post-MVP list.
-- **Human-review `feedback.json`.** Authoring ergonomic; not structural; deferred.
-- **Optional evaluated `SKILL.md` snapshot per iteration.** Useful for proving "this version of the skill scored this delta"; deferred until iterations need to carry skill mutations.
+- Cross-iteration comparison. Iteration directories group outputs but do not aggregate results or change `SKILL.md`.
+- Human-review `feedback.json`.
+- An evaluated `SKILL.md` snapshot for each iteration.

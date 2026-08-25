@@ -43,7 +43,7 @@ const flavorCards = [
   {
     color: 'var(--tt-orange)',
     label: 'adjacent-negative',
-    prompt: '"This PR only edits README.md — do I need a release?"',
+    prompt: '"This PR only edits README.md. do I need a release?"',
   },
 ];
 
@@ -175,7 +175,7 @@ export const ChapterCreate = () => {
       <div
         style={{ color: 'var(--tt-fg-dark)', lineHeight: 1.7, marginBottom: 24, maxWidth: 820 }}
       >
-        you don&apos;t need a benchmark — you need a handful of prompts that pin the behaviors
+        start with a handful of prompts that pin the behaviors you care about
         you care about, each with a few checks. here&apos;s the whole path, worked through on a
         real skill: <span style={{ color: 'var(--tt-teal)' }}>arc-conventional-commits</span>.
       </div>
@@ -395,7 +395,7 @@ export const ChapterCreate = () => {
       <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
         <StepBadge num="03" />
         <div style={stepCardStyle}>
-          <div style={stepTitleStyle}>Attach assertions — deterministic first</div>
+          <div style={stepTitleStyle}>Attach deterministic assertions first</div>
           <div style={stepIntroStyle}>
             give each case a few checks. reach for deterministic checks first; add a judge only
             for what scripts can&apos;t see.
@@ -464,7 +464,7 @@ export const ChapterCreate = () => {
       <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
         <StepBadge num="04" />
         <div style={stepCardStyle}>
-          <div style={stepTitleStyle}>Run it — twice</div>
+          <div style={stepTitleStyle}>Run both variants</div>
           <div style={stepIntroStyle}>
             the <span style={{ color: 'var(--tt-fg-dark)' }}>--compare</span> flag runs each case
             with the skill and again without it.
@@ -487,7 +487,7 @@ export const ChapterCreate = () => {
             style={{ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.6, marginTop: 8 }}
           >
             without <span style={{ color: 'var(--tt-fg-dark)' }}>--compare</span> you get a
-            single score. with it, you get the difference the skill makes — the load-bearing
+            single score. with it, you get the pass-rate difference the skill makes
             signal.
           </div>
         </div>
@@ -531,7 +531,7 @@ export const ChapterCreate = () => {
         </div>
       </div>
 
-      <SectionKicker style={{ marginBottom: 10 }}>figure — interactive authoring</SectionKicker>
+      <SectionKicker style={{ marginBottom: 10 }}>Interactive authoring</SectionKicker>
       <div
         style={{
           background: 'var(--tt-bg-dark)',
@@ -617,7 +617,7 @@ export const ChapterCreate = () => {
         style={{ color: 'var(--tt-comment)', fontSize: 11.5, lineHeight: 1.6, marginBottom: 8 }}
       >
         <span style={{ color: 'var(--tt-fg-dark)' }}>--interactive</span> walks each proposed
-        case — accept / skip / edit before anything is written to{' '}
+        case. accept / skip / edit before anything is written to{' '}
         <span style={{ color: 'var(--tt-teal)' }}>evals/evals.json</span>.
       </div>
 
@@ -672,7 +672,7 @@ export const ChapterCreate = () => {
         </div>
       </div>
 
-      <SectionKicker>fixtures — pin the starting state</SectionKicker>
+      <SectionKicker>Use fixtures for a consistent starting state</SectionKicker>
       <div
         style={{
           color: 'var(--tt-comment)',
@@ -842,8 +842,8 @@ export const ChapterCreate = () => {
       <div
         style={{ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.6, marginBottom: 32 }}
       >
-        a negative case just points at a different fixture — e.g.{' '}
-        <span style={{ color: 'var(--tt-teal)' }}>files/docs-only</span> — so &quot;should do
+        a negative case just points at a different fixture. e.g.{' '}
+        <span style={{ color: 'var(--tt-teal)' }}>files/docs-only</span>. so &quot;should do
         nothing&quot; is testable too.
       </div>
 
@@ -932,7 +932,7 @@ export const ChapterCreate = () => {
           <span style={{ color: 'var(--tt-yellow)' }}>&quot;prompt&quot;</span>
           <span style={{ color: 'var(--tt-comment)' }}>: </span>
           <span style={{ color: 'var(--tt-fg)' }}>
-            &quot;This PR only edits README.md — need a release?&quot;
+            &quot;This PR only edits README.md. need a release?&quot;
           </span>
           <span style={{ color: 'var(--tt-comment)' }}>,</span>
         </div>
@@ -971,7 +971,7 @@ export const ChapterCreate = () => {
         </div>
       </div>
 
-      <SectionKicker>advanced — the typed builder</SectionKicker>
+      <SectionKicker>Typed builder</SectionKicker>
       <div
         style={{
           color: 'var(--tt-comment)',
@@ -981,7 +981,7 @@ export const ChapterCreate = () => {
           maxWidth: 820,
         }}
       >
-        the json is the contract — but you don&apos;t have to hand-write it. for larger suites,
+        evals.json is the runtime contract. for larger suites, you do not have to hand-write it. for larger suites,
         author them in typescript with{' '}
         <span style={{ color: 'var(--tt-fg-dark)' }}>defineSkillEval</span>: type-checked helpers
         and one source of truth, then compile to{' '}
@@ -1056,14 +1056,14 @@ export const ChapterCreate = () => {
         the same chain that sets severity also unlocks{' '}
         <span style={{ color: 'var(--tt-fg-dark)' }}>scored</span> judges:{' '}
         <span style={{ color: 'var(--tt-cyan)' }}>judge(&quot;…&quot;).atLeast(4)</span> grades the
-        output on a 1–5 rubric and passes only at or above the bar — the score lands in{' '}
+        output on a 1–5 rubric and passes only at or above the bar. the score lands in{' '}
         <span style={{ color: 'var(--tt-teal)' }}>grading.json</span>. use it when a hard pass/fail
         is too blunt for a quality signal.
       </div>
 
       <Callout accent="cyan" style={{ marginBottom: 32 }}>
         the runner still reads <span style={{ color: 'var(--tt-teal)' }}>evals/evals.json</span>,
-        never the <span style={{ color: 'var(--tt-fg-dark)' }}>.eval.ts</span> — the builder is an
+        never the <span style={{ color: 'var(--tt-fg-dark)' }}>.eval.ts</span>. the builder is an
         authoring convenience, not a second runtime. wire{' '}
         <span style={{ color: 'var(--tt-fg-dark)' }}>emit --check</span> into ci and the build
         fails whenever the committed json drifts from the suite.

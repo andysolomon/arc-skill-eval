@@ -88,10 +88,10 @@ export const RunEmptyState = () => {
             padding: '2px 7px',
           }}
         >
-          localhost only
+          Localhost only
         </span>
         <span style={{ color: 'var(--tt-fg)', fontSize: 17, fontWeight: 700 }}>
-          running an eval needs an LLM
+          Run evals on your machine
         </span>
       </div>
       <div
@@ -102,8 +102,8 @@ export const RunEmptyState = () => {
           marginBottom: 16,
         }}
       >
-        a run drives a real model over your cases, so it executes where you have your own keys and
-        command line — not on the hosted site. install it and run locally:
+        A run calls a model and needs your API keys. Install the CLI and run it on your
+        machine:
       </div>
       <div
         style={{
@@ -128,13 +128,13 @@ export const RunEmptyState = () => {
         </div>
       </div>
       <div style={{ color: 'var(--tt-comment)', fontSize: 12.5, lineHeight: 1.6 }}>
-        here on the hosted site you can{' '}
+        On the hosted site, you can{' '}
         <a href="#" onClick={goTo('review')}>
-          review the JSON arc-skill-eval produces
+          import and review run JSON
         </a>{' '}
         or read the{' '}
         <a href="#" onClick={goTo('learn')}>
-          methodology in learn
+          evaluation guide
         </a>
         .
       </div>

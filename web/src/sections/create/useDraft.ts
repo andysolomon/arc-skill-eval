@@ -121,7 +121,7 @@ export const suggestPromptTemplate = (skill: string, behavior: BehaviorRow) => {
   const templates: Record<PromptFlavor, string> = {
     explicit: `Use ${skill || 'the skill'} to ${lower}.`,
     implicit: `${text}.`,
-    contextual: `We keep running into trouble here — ${lower}. Sort it out.`,
+    contextual: `We keep running into trouble here: ${lower}. Sort it out.`,
     'adjacent-negative': 'A nearby request the skill should stay out of.',
   };
 

@@ -47,7 +47,7 @@ export const BrowseDetail = ({ run, testCase, workspaceRoot }: BrowseDetailProps
 
   return (
     <section
-      aria-label="Detail Pane"
+      aria-label="Selected case details"
       style={{
         border: '1px solid var(--tt-border-active)',
         borderRadius: 8,
@@ -114,7 +114,7 @@ export const BrowseDetail = ({ run, testCase, workspaceRoot }: BrowseDetailProps
           </div>
         ) : null}
         <span style={{ flex: 1 }} />
-        <nav aria-label="Mode Tabs" style={{ display: 'flex', gap: 14 }}>
+        <nav aria-label="Case detail tabs" style={{ display: 'flex', gap: 14 }}>
           {tabs.map((tab) => (
             <button
               aria-current={activeTab === tab.id ? 'page' : undefined}

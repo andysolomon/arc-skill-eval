@@ -1,10 +1,10 @@
-# Multi-harness runtimes (Pi escape hatch + BYOK)
+# Multi-harness runtimes and BYOK
 
 _Last updated: 2026-07-24_
 
 ## Why
 
-`arc-skill-eval` defaults to the Pi SDK so skill evals get a consistent tool loop, skill loader, and traces. Many users already have **Claude Code**, **Codex**, **Cursor Agent**, or **GitHub Copilot CLI** — and some environments cannot install Pi.
+`arc-skill-eval` defaults to the Pi SDK so skill evals use a consistent tool loop, skill loader, and trace format. Many users already have **Claude Code**, **Codex**, **Cursor Agent**, or **GitHub Copilot CLI**, and some environments cannot install Pi.
 
 This document describes how we add those harnesses as optional `AgentRuntime` adapters while keeping:
 
@@ -12,7 +12,7 @@ This document describes how we add those harnesses as optional `AgentRuntime` ad
 - the same grading + artifacts pipeline
 - **bring-your-own keys (BYOK)** via environment variables (never pasted on the CLI, never written into artifacts)
 
-Cross-harness comparison on the same suite is a free consequence of the same adapters. The primary product story is the **Pi escape hatch + BYOK**.
+The same adapters also allow cross-harness comparisons on one suite. Their primary purpose is to run evals without Pi and use credentials supplied through the environment.
 
 See also: [ADR-0007](./adr/ADR-0007-multi-harness-cli-runtimes.md), [agent-runtime-strategy.md](./agent-runtime-strategy.md), [ADR-0001](./adr/ADR-0001-defer-agent-runtime-expansion.md) (partially superseded).
 
@@ -20,7 +20,7 @@ See also: [ADR-0007](./adr/ADR-0007-multi-harness-cli-runtimes.md), [agent-runti
 
 Spawn each harness’s **headless CLI** inside the prepared case workspace, parse its machine-readable event stream (JSON / JSONL), normalize into `EvalTrace`, then reuse existing assertions and artifacts.
 
-We do **not** embed vendor agent SDKs as the first path — auth, updates, and skill discovery are already solved by the CLIs users already run.
+The first implementation does **not** embed vendor SDKs. The installed CLIs already handle authentication, updates, and skill discovery.
 
 ```mermaid
 flowchart LR
@@ -71,10 +71,10 @@ Adapters stage the target skill into the harness discovery tree inside the case 
 ## CLI shape
 
 ```bash
-# Default — Pi SDK (unchanged)
+# Default: Pi SDK (unchanged)
 arc-skill-eval run ./skills/hello-world
 
-# Codex escape hatch (BYOK via CODEX_API_KEY)
+# Codex (BYOK via CODEX_API_KEY)
 arc-skill-eval run ./skills/hello-world --runtime codex --model <codex-model-id>
 
 # Other shipped CLI harnesses
@@ -100,10 +100,10 @@ arc-skill-eval run ./skills/hello-world --runtime copilot
 | `cursor-agent` | Shipped (`--runtime cursor-agent`); skill staging writes both `.cursor/skills` and `.agents/skills` |
 | `copilot` | Shipped (`--runtime copilot`); requires Copilot CLI + token entitlement |
 
-## Known blockers / honesty
+## Known limitations
 
 - Vendor event schemas differ; normalizers must map assistant text, tools, file touches, usage, and failures without assuming Pi event names.
-- Automatic skill *selection* remains model-dependent even after staging — evals that need “skill was read” should use behavior asserts once trace grading lands.
+- Automatic skill *selection* remains model-dependent after staging. Evals that need "skill was read" should use behavior assertions once trace grading lands.
 - Codex defaults lean read-only; file-producing evals need `workspace-write` (and a non-interactive approval policy).
 - Cursor CLI skill docs lag the installed binary; treat skill staging as experimental until smoked.
 - Copilot prompt mode may disable some repo-controlled extensions/MCP by default.

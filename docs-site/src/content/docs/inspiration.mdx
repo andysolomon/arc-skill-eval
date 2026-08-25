@@ -1,32 +1,32 @@
 ---
-title: Inspiration & credits
-description: The three pieces of writing that shaped arc-skill-eval — what each contributed, what to read first, and direct quotes from each.
+title: Inspiration and credits
+description: Sources for arc-skill-eval's grading workflow, file format, and runtime design.
 sidebar:
   order: 100
 ---
 
-`arc-skill-eval` (branded **Skeval** for the docs and blog) didn't invent skill evaluation. It assembles a methodology, a format, and a runtime philosophy that already existed — each from a different source — into one runner. Three pieces of writing shaped each layer, and this page is the canonical attribution.
+`arc-skill-eval`, branded Skeval in these docs, combines a grading workflow, file format, and runtime design from earlier work. This page credits those sources.
 
-## The eval methodology — OpenAI
+## Grading workflow from OpenAI
 
-**[Testing Agent Skills Systematically with Evals](https://developers.openai.com/blog/eval-skills)** — Dominik Kundel & Gabriel Chua, OpenAI Developers Blog, January 22, 2026.
+[Testing Agent Skills Systematically with Evals](https://developers.openai.com/blog/eval-skills), by Dominik Kundel and Gabriel Chua, OpenAI Developers Blog, January 22, 2026.
 
-This is the methodology blueprint. Almost every workflow choice in the grader and almost every piece of suite-authoring advice in these docs traces back to this post. Specifically:
+The post informed these parts of Skeval:
 
-- **The eval as a unit.** *"An eval is: a prompt → a captured run (trace + artifacts) → a small set of checks → a score you can compare over time."* This is the shape `arc-skill-eval` produces per case.
-- **Layered grading.** *"Start small, then layer in deeper checks only where they add real confidence."* The grader runs deterministic script assertions first, then a single batched LLM-judge call for prose claims — the same layered split.
-- **Multi-category metrics.** Outcome / process / style / efficiency. The bundled [`arc-creating-evals`](/arc-skill-eval/authoring-evals/) skill walks authors through these four dimensions in Phase 2.
-- **Starter suite size.** *"For a single skill, a small set of 10–20 prompts is enough."* The framework's authoring guidance defaults to 6–10 cases for a first suite, growing from real failures.
-- **Behavior, not vibes.** *"Everything is deterministic and debuggable. If a check fails, you can open the JSONL file and see exactly what happened."* Skeval's per-case `grading.json` + `trace.json` + `tool-summary.json` artifact tree is the same posture, ported onto Anthropic's format.
-- **Coverage from real failures.** *"Every manual fix you make here is a candidate for a future eval."* Repeated as a quality rule in the [Authoring evals](/arc-skill-eval/authoring-evals/) page.
+- The unit of evaluation: *"An eval is: a prompt → a captured run (trace + artifacts) → a small set of checks → a score you can compare over time."* Skeval uses this shape for each case.
+- Layered grading: *"Start small, then layer in deeper checks only where they add real confidence."* Skeval runs deterministic assertions and batches prose claims into one judge call.
+- Success criteria across outcome, process, style, and efficiency. [`arc-creating-evals`](/arc-skill-eval/authoring-evals/) asks authors about these criteria.
+- Starter suite size: *"For a single skill, a small set of 10–20 prompts is enough."* Skeval recommends six to ten cases for an initial suite.
+- Inspectable failures: *"Everything is deterministic and debuggable. If a check fails, you can open the JSONL file and see exactly what happened."* Skeval writes `grading.json`, `trace.json`, and `tool-summary.json` for each case.
+- Cases from observed failures: *"Every manual fix you make here is a candidate for a future eval."* [Authoring evals](/arc-skill-eval/authoring-evals/) applies this rule.
 
 If you read one source before authoring an eval, read OpenAI's.
 
-## The eval format — Anthropic
+## File format from Anthropic
 
-**[Anthropic's documented skill-eval methodology](https://platform.claude.com/docs/en/agents-and-tools/agent-skills)** — Anthropic Platform Documentation.
+[Anthropic's documented skill-eval methodology](https://platform.claude.com/docs/en/agents-and-tools/agent-skills), Anthropic Platform Documentation.
 
-What Anthropic provides is the *data contract*:
+Anthropic documents:
 
 - `evals/evals.json` next to `SKILL.md` as the on-disk shape.
 - `EvalCase` with `id`, `prompt`, `expected_output`, `assertions`.
@@ -34,53 +34,53 @@ What Anthropic provides is the *data contract*:
 - `with_skill` / `without_skill` execution as the dual-run comparison model.
 - `benchmark.json` as the aggregate over a `--compare` run.
 
-Skeval's loader, runner, and writers all conform to this format so the artifacts a skill author produces here can be read by any other tool that consumes Anthropic's published shape.
+Skeval's loader, runner, and writers use this format so other compatible tools can read its output.
 
-The companion piece, Anthropic Engineering's **[Demystifying evals for AI agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)** (Mikaela Grace et al., January 9, 2026), provides the formal apparatus around the format — graders categorized as code/model/human, *pass@k* vs *pass^k* as success metrics, the distinction between capability and regression evals, and the "Swiss-cheese" model of layered evaluation. Skeval's grader leans on this vocabulary even where it doesn't expose it directly to authors.
+Anthropic Engineering's [Demystifying evals for AI agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents) by Mikaela Grace et al., January 9, 2026, describes code, model, and human graders; *pass@k* and *pass^k*; capability and regression evals; and layered evaluation. Skeval uses this terminology where it applies.
 
-## The runtime philosophy — Ampcode and Mihail Eric
+## Runtime design from Ampcode and Mihail Eric
 
-Two posts converge on the same point: an agent's runtime is much smaller and more legible than its surface area suggests. Both shaped the bias toward a lean, transparent runner that isn't afraid to call itself a loop.
+Two posts describe a small tool-calling loop as the core of a coding agent. Skeval follows that structure.
 
-### **[How to Build an Agent](https://ampcode.com/notes/how-to-build-an-agent)** — Thorsten Ball, Ampcode, April 15, 2025
+### [How to Build an Agent](https://ampcode.com/notes/how-to-build-an-agent)
 
-The thesis is one sentence: *"It's an LLM, a loop, and enough tokens. It's what we've been saying on the podcast from the start."* Ball builds a working code-editing agent in Go using the Anthropic SDK, three tools (`read_file`, `list_files`, `edit_file`), and ~400 lines of code. The agent loop is exactly five steps: accept user input → send conversation to the model → check for tool-use requests → execute tools → return results → repeat until the model produces text only.
-
-What carried into Skeval:
-
-- **The inner loop is the runtime.** No orchestrator, no state machine, no DAG. The eval runner wraps the same shape Ball describes: hand the model a prompt, let it call tools, collect results, repeat until it stops.
-- **Tools defined by struct + description + schema + function.** The framework's tool surface (and the way `tool-summary.json` reports it) follows this pattern.
-- **Production complexity is engineering, not architecture.** *"300 lines of code and three tools and now you're able to talk to an alien intelligence that edits your code."* The artifacts that surround the loop — fixtures, traces, manifests — are *plumbing*, not novel architecture.
-
-### **[The Emperor Has No Clothes: How to Code Claude Code in 200 Lines of Code](https://www.mihaileric.com/The-Emperor-Has-No-Clothes/)** — Mihail Eric, January 2026
-
-Eric's post explicitly nods to Ball's "Emperor has no clothes" framing and makes the same case at the level of an agent harness: the core is *"about 200 lines of straightforward Python."* The pattern: a tool registry mapping names to functions, a parser that extracts `tool: NAME({JSON})` invocations from model output, an inner loop that chains tool calls until the model responds without requesting one. Three tools — read, list, edit — are sufficient baseline capability.
+Thorsten Ball, Ampcode, April 15, 2025. Ball writes, *"It's an LLM, a loop, and enough tokens. It's what we've been saying on the podcast from the start."* He builds a code-editing agent in Go with the Anthropic SDK and three tools: `read_file`, `list_files`, and `edit_file`. The loop accepts input, sends the conversation to the model, executes requested tools, returns results, and repeats until the model returns text.
 
 What carried into Skeval:
 
-- **Tool registry over tool plugins.** The framework's tool exposure to skill runs is a flat registry, not a plugin system.
-- **The agent never touches the filesystem.** The runner does. The model only requests; the harness executes. This is what makes `tool-summary.json` and `context-manifest.json` meaningful — they record what the *runner* did and what the *runner* exposed.
-- **Three tools as a baseline, not a ceiling.** Skeval's runtime supports more, but the floor is intentional — most useful eval cases need read, write, and bash, and almost nothing else.
+- Skeval passes a prompt to the model, executes tool calls, returns results, and repeats.
+- Tool definitions combine a name, description, schema, and function. `tool-summary.json` reports calls to those tools.
+- Fixtures, traces, and manifests support the loop. Ball summarizes the core: *"300 lines of code and three tools and now you're able to talk to an alien intelligence that edits your code."*
 
-## Reading order if you're new
+### [The Emperor Has No Clothes: How to Code Claude Code in 200 Lines of Code](https://www.mihaileric.com/The-Emperor-Has-No-Clothes/)
+
+Mihail Eric, January 2026. Eric describes a harness of *"about 200 lines of straightforward Python."* It uses a tool registry, parses `tool: NAME({JSON})` calls, and runs tools until the model responds without another request. The example starts with read, list, and edit tools.
+
+What carried into Skeval:
+
+- Skeval exposes a flat tool registry during skill runs.
+- The model requests file operations; the runner executes them. `tool-summary.json` and `context-manifest.json` record those actions and available tools.
+- Skeval supports more than three tools, but many cases need only read, write, and bash.
+
+## Suggested reading order
 
 If you're trying to write your first eval, in this order:
 
-1. **OpenAI's eval-skills post.** Internalize the methodology before reading the format.
-2. **Skeval's [Quickstart](/arc-skill-eval/quickstart/) and [hello-world example](/arc-skill-eval/examples/hello-world/).** See the methodology applied to one tiny worked case.
-3. **Anthropic's skill-eval docs.** Reference for the format details once you're authoring.
+1. Read OpenAI's eval-skills post for the grading workflow.
+2. Follow Skeval's [Quickstart](/arc-skill-eval/quickstart/) and [hello-world example](/arc-skill-eval/examples/hello-world/).
+3. Use Anthropic's skill-eval docs while authoring.
 
 If you're trying to extend the framework or build a similar runner, in this order:
 
-1. **Ball's "How to Build an Agent."** Internalize the loop.
-2. **Eric's "The Emperor Has No Clothes."** Reinforce that the harness is small.
-3. **Skeval's [Concepts](/arc-skill-eval/concepts/) section, then `src/`.** See the loop wrapped in fixtures, traces, manifests, and assertion grading.
+1. Read Ball's "How to Build an Agent."
+2. Read Eric's "The Emperor Has No Clothes."
+3. Read Skeval's [Concepts](/arc-skill-eval/concepts/) section, then `src/`.
 
 ## Other writing in the space
 
-Worth reading once but not load-bearing for Skeval's design:
+Related sources:
 
-- Anthropic Console docs, **[Using the Evaluation Tool](https://platform.claude.com/docs/en/test-and-evaluate/eval-tool)** — a UI-based tool for prompt-level evals with dynamic variables and side-by-side comparison. Different surface; complementary mental model.
+- Anthropic Console docs, [Using the Evaluation Tool](https://platform.claude.com/docs/en/test-and-evaluate/eval-tool), describe prompt-level evals with variables and side-by-side comparison.
 - Inspiration only, not consulted for design: the [agents-v2](https://publish.obsidian.md/agents-v2/) Obsidian vault has notes on [single-turn evals](https://publish.obsidian.md/agents-v2/03-Single-Turn-Evals) and [multi-turn evals](https://publish.obsidian.md/agents-v2/05-Multi-turn-Evals) that point at where the single-prompt → captured-run methodology starts to break down. [Part 4 of the blog](/arc-skill-eval/blog/04-what-we-learned/) picks up the multi-turn thread.
 
 If you've published something on this topic that should be cited here, [open an issue](https://github.com/andysolomon/arc-skill-eval/issues).

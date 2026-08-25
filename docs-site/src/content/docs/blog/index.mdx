@@ -1,6 +1,6 @@
 ---
 title: Blog
-description: A multi-part series on skill evals — why they matter, how the Anthropic format works, what I built, and what I learned running it.
+description: "A multi-part series on skill evals: why they matter, how the Anthropic format works, what I built, and what I learned running it."
 sidebar:
   order: 0
 audio: false
@@ -8,8 +8,6 @@ audio: false
 
 import { getCollection } from 'astro:content';
 import Bio from './_bio.mdx';
-
-A multi-part series on skill evals. Part 1 publishes at site launch; Parts 2–4 ship on a weekly cadence after.
 
 export const posts = (await getCollection('docs'))
   .filter((entry) => entry.id.startsWith('blog/') && entry.id !== 'blog/index' && !entry.id.endsWith('_bio'))

@@ -1,26 +1,26 @@
 ---
 title: With/without skill
-description: The dual-run comparison and why the pass-rate delta — not the absolute pass rate — is the canonical signal that a skill works.
+description: Compare the same case with and without a skill to measure the skill's effect.
 sidebar:
   order: 4
 ---
 
-The single most load-bearing comparison in skill evaluation is **the same case, run twice, with and without the skill attached**. Skeval implements this as opt-in `--compare` mode.
+Use `--compare` to run the same case with and without the target skill. The difference between the results measures the skill's effect.
 
-## Why the delta, not the absolute
+## Why compare the results
 
-A case that passes 100% of the time *with* the skill is meaningless if it would pass 100% of the time without it — the model would do the right thing anyway, and the skill is contributing nothing. The signal a skill author wants is the *delta*: how much does attaching this skill change the outcome?
+A 100% pass rate with the skill does not show that the skill helped. If the case also passes without the skill, the model already knew how to handle the task. The delta shows how much the skill changed the pass rate.
 
-This isn't a Skeval invention. It maps directly onto what Anthropic publishes as the `with_skill` / `without_skill` execution model. What Skeval does is treat that delta as the canonical run-level metric — the question `benchmark.json` answers in one number.
+Anthropic publishes this as the `with_skill` / `without_skill` execution model. Skeval records the run-level delta in `benchmark.json`.
 
 ## How `--compare` runs
 
 For each case, Skeval runs the case twice in the same iteration:
 
-- **`with_skill`** — the target skill is attached to the model. This is the same execution path as a default run.
-- **`without_skill`** — the same prompt, the same model, the same fresh workspace, but the target skill is *not* attached. If `--extra-skill` paths are supplied, they're loaded into both variants — only the *target* skill is removed for the baseline.
+- `with_skill` attaches the target skill. This variant uses the same execution path as a default run.
+- `without_skill` omits the target skill but uses the same prompt, model, and fresh workspace. If you pass `--extra-skill`, both variants load those extra skills.
 
-Both variants materialize equivalent fresh workspaces before execution, so any pass-rate delta reflects the skill's contribution and not workspace contamination from a previous run.
+Skeval creates a fresh, equivalent workspace for each variant. Files from one variant cannot affect the other.
 
 ## The artifact layout
 
@@ -47,7 +47,7 @@ Both variants materialize equivalent fresh workspaces before execution, so any p
 └── ...
 ```
 
-Every variant produces the full set of artifacts independently. You can diff `with_skill/assistant.md` against `without_skill/assistant.md` for the same case; you can diff their `tool-summary.json` files to see whether the skill changed the tool-call profile; you can diff `context-manifest.json` to confirm the only difference between the two variants was the target skill itself.
+Each variant writes its own artifacts. Compare `assistant.md` for response changes, `tool-summary.json` for tool-use changes, and `context-manifest.json` to check that only the target skill differs.
 
 ## What `benchmark.json` aggregates
 
@@ -58,24 +58,22 @@ Per case:
 - timing, token, model, cost, context-window, and tool summaries per variant
 - runtime or grading errors per variant
 
-Plus an overall (across-cases) summary with the mean pass rate per variant and the mean delta.
+The file also includes the mean pass rate for each variant and the mean delta across cases.
 
-The artifact's *core* — per-case results, overall pass rates, overall delta, error summaries — stays Anthropic-compatible. Pi-specific extensions (artifact paths, trace paths, model metadata, estimated cost) live under `metadata.extensions` so the file remains portable while preserving debugging detail.
+The top level keeps Anthropic's per-case results, overall pass rates, overall delta, and error summaries. Pi-specific fields such as artifact paths, trace paths, model metadata, and estimated cost live under `metadata.extensions`.
 
-## Conflict mode: `--extra-skill`
+## Test conflicts with `--extra-skill`
 
-`--extra-skill <path>` loads explicit distractor or conflict skills into the model's context. With `--compare`, the loadout becomes:
+`--extra-skill <path>` loads a distractor or conflicting skill into both variants:
 
 - `with_skill` = target + extras
 - `without_skill` = extras only
 
-This makes it possible to test whether some other skill conflicts with the target — or, conversely, whether some other skill's presence changes how often the target wins — without contaminating the no-target baseline. Good for "does this stack of skills coexist?" tests.
+This setup tests whether another skill changes the target skill's results while keeping the baseline comparable.
 
-## When `--compare` is *not* the right loop
+## When to skip `--compare`
 
-Two cases:
+1. When editing one assertion, use a single-variant run to avoid the second model call. Compare after the case is stable.
+2. When checking that a case runs end to end, run one variant first.
 
-1. **Iterating on a single assertion.** A default single-variant run is faster (one model call per case instead of two). Use `--compare` once you've stabilized the case.
-2. **Single-case smoke tests.** If you're sanity-checking that a case runs end-to-end, you don't need the baseline yet.
-
-Default to single-variant runs while authoring; turn on `--compare` when you want the trust signal.
+Use single-variant runs while editing a case. Use `--compare` when you need to measure the skill's effect.

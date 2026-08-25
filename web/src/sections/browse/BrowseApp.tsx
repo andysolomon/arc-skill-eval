@@ -137,7 +137,7 @@ export const BrowseApp = () => {
               fontWeight: 700,
             }}
           >
-            {env}
+            {env === 'hosted' ? 'Hosted' : 'Localhost'}
           </span>
           <SkillPicker
             label="browsing"
@@ -148,12 +148,12 @@ export const BrowseApp = () => {
           <span style={{ color: 'var(--tt-comment)' }}>
             {env === 'hosted' ? (
               <>
-                exploring imported runs — import a suite in{' '}
-                <span style={{ color: 'var(--tt-fg-dark)' }}>review</span> to browse its results.
+                Browsing imported runs. Import run JSON in{' '}
+                <span style={{ color: 'var(--tt-fg-dark)' }}>Review</span> to add results.
               </>
             ) : (
               <>
-                reading <span style={{ color: 'var(--tt-teal)' }}>./evals-runs</span> from disk.
+                Reading <span style={{ color: 'var(--tt-teal)' }}>./evals-runs</span> from disk.
               </>
             )}
           </span>
@@ -161,7 +161,7 @@ export const BrowseApp = () => {
       ) : null}
       {activeRun && activeCase ? (
         <section
-          aria-label="Browse workspace"
+          aria-label="Browse run results"
           style={{
             display: 'flex',
             flex: 1,

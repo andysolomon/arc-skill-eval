@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft (2026-07-22) — closes #170. Consumes ADR-0002 (stack), ADR-0004
+Draft (2026-07-22). Closes #170. Depends on ADR-0002 (stack), ADR-0004
 (hosted persistence boundary), ADR-0006 (theme integration), and the
 decision docs [`workspace-picker.md`](./decisions/workspace-picker.md),
 [`hosted-empty-state-gating.md`](./decisions/hosted-empty-state-gating.md),
@@ -10,14 +10,14 @@ and [`persistence-spec.md`](./persistence-spec.md).
 
 ## Overview
 
-`run` is the **flagship section** of the web app: the surface where
+`run` is where
 the user composes and launches an eval run. On `localhost` it reads the
 skill directory from the **Workspace Picker** and dispatches the run
 through the local CLI daemon (per
 [`workspace-picker.md`](./decisions/workspace-picker.md)). On `hosted`
-the section is replaced by an `import evals.json` workflow — hosted
+the section is replaced by an `import evals.json` workflow. Hosted
 never executes a run; `run` on hosted is purely an artifact-import
-gateway into `browse` and `review`.
+path into `browse` and `review`.
 
 `run` renders in exactly one **Env Variant** and one **Theme Variant** at
 a time, inside the global chrome.
@@ -79,14 +79,14 @@ States, top to bottom:
     workspace), and an `inspect in browse →` link that opens
     `browse` at the same run id
 
-## Composer (hosted) — none
+## Composer (hosted)
 
 The composer exists only on localhost. Hosted replaces it with an
 **Import Card** centered in the page.
 
 ### Import Card
 
-`import evals.json` — dashed file target, paste textarea, `validate`
+`import evals.json`: dashed file target, paste textarea, `validate`
 and `sample` buttons in a footer row.
 
 - **File drop:** accepts `evals.json` directly (per the design
@@ -104,7 +104,7 @@ After a successful import, the section header gains a small
 `run-import-2025-…` chip; clicking it jumps to `review` for the
 imported bundle.
 
-## Empty State Hero (both variants when no data)
+## Empty state card
 
 - **Hosted, no imports yet:** 560px card centered, headline
   `localhost only`, supporting copy pointing at the install/run
@@ -114,7 +114,7 @@ imported bundle.
   supporting copy explaining that `run` needs a workspace and pointing
   at the **Workspace Picker**.
 
-## Run lifecycle state machine
+## Run lifecycle
 
 `idle` → `running` → `done`. Stored in the global app store per
 [`docs/web-app/CONTEXT.md`](./CONTEXT.md)'s `App Section` state
@@ -146,23 +146,23 @@ daemon confirms).
 
 ## Cross-references
 
-- [ADR-0002](../adr/ADR-0002-web-app-stack-vite-react-ts-tailwind-token-mapped.md)
-  — Vite + React + TS; Composer + Console = the canonical two-panel
+- [ADR-0002](../adr/ADR-0002-web-app-stack-vite-react-ts-tailwind-token-mapped.md):
+  Vite + React + TS; Composer + Console is the standard two-panel
   layout pattern (also used by `browse` and `review`).
-- [ADR-0004](../adr/ADR-0004-no-auth-single-user-indexeddb-hosted.md)
-  — hosted has no LLM; `import evals.json` is the expression of that.
-- [ADR-0006](../adr/ADR-0006-tailwind-datatheme-integration.md) —
+- [ADR-0004](../adr/ADR-0004-no-auth-single-user-indexeddb-hosted.md):
+  hosted has no LLM, so it uses `import evals.json`.
+- [ADR-0006](../adr/ADR-0006-tailwind-datatheme-integration.md):
   spinners + glyphs read theme roles; theming never remounts.
-- [`docs/web-app/CONTEXT.md`](./CONTEXT.md) — `App Section`,
+- [`docs/web-app/CONTEXT.md`](./CONTEXT.md): `App Section`,
   `Composer Row`, `Workspace Picker`, `Benchmark Delta`, `Import Card`,
   `Empty State Hero`, `Install Command Pill`.
-- [`decisions/workspace-picker.md`](./decisions/workspace-picker.md) —
+- [`decisions/workspace-picker.md`](./decisions/workspace-picker.md):
   the localhost CLI daemon is the channel for `POST /runs` and
   `DELETE /runs/:id`.
-- [`decisions/hosted-empty-state-gating.md`](./decisions/hosted-empty-state-gating.md)
-  — `run (localhost)` vs `run (hosted)` are structurally distinct
+- [`decisions/hosted-empty-state-gating.md`](./decisions/hosted-empty-state-gating.md):
+  `run (localhost)` vs `run (hosted)` are structurally distinct
   sections; the consumer never mixes the two.
-- [`persistence-spec.md`](./persistence-spec.md) — `preferences.lastRunId`
+- [`persistence-spec.md`](./persistence-spec.md): `preferences.lastRunId`
   persists across sections; `Reset hosted data` clears hosted imports.
 - Issues: [#170](https://github.com/andysolomon/arc-skill-eval/issues/170)
   (this `run` spec) · [#171](https://github.com/andysolomon/arc-skill-eval/issues/171)

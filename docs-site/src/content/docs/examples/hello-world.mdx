@@ -5,7 +5,7 @@ sidebar:
   order: 1
 ---
 
-`hello-world` is the deterministic smoke-test skill that ships with `arc-skill-eval`. It exists for one reason: give the framework a stable, cheap, predictable target to exercise every pipeline stage. If the hello-world evals pass, discovery, runner, grader, workspace capture, script assertions, and the LLM-judged assertion are all healthy.
+`hello-world` is a small reference skill that ships with `arc-skill-eval`. It exercises discovery, execution, grading, workspace capture, and artifact writing. If its evals pass, those pipeline stages are working.
 
 You can find it in the repo at [`skills/hello-world/`](https://github.com/andysolomon/arc-skill-eval/tree/main/skills/hello-world).
 
@@ -21,7 +21,7 @@ The skill is intentionally trivial. From its `SKILL.md`:
 > 2. Use the **Write** tool to create a file called **`greeting.txt`** in the workspace root. The file content is exactly one line: `Hello, <name>!` (note the comma, the space after it, and the trailing exclamation mark).
 > 3. Reply with a **single sentence** that confirms the file was written and mentions the filename `greeting.txt` explicitly.
 
-Two non-obvious choices in this `SKILL.md` worth calling out:
+Two details make the skill straightforward to grade:
 
 - The "exactly one line" + literal punctuation gives a script assertion something concrete to regex-match against. Models can paraphrase intent; they can't paraphrase punctuation.
 - The "must mention `greeting.txt` explicitly" rule gives the LLM-judge assertion a checkable claim — there's a literal token to find in the assistant's reply.
@@ -115,7 +115,7 @@ Three things to spot-check on a successful run:
 arc-skill-eval run ./skills/hello-world --compare
 ```
 
-This is where the demo gets interesting. *With* the skill attached, modern Claude/GPT models pass all three cases reliably. *Without* the skill, the model usually gets the first case (it's a generic enough request that any reasonable agent would write a greeting file) but routinely skips the literal punctuation contract or names a different filename. The `benchmark.json` delta is the proof that the skill changed model behavior — not just that the model is competent.
+Compare mode shows whether the skill instructions change the result. With the skill attached, modern Claude and GPT models usually pass all three cases. Without it, the model often writes a different filename or skips the exact punctuation contract. The `benchmark.json` delta records how pass rates differ between the two runs.
 
 ## Use it as a template
 

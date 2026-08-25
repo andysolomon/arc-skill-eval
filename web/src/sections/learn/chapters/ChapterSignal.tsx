@@ -5,7 +5,7 @@ const deltaCards = [
     accent: 'var(--tt-green)',
     titleColor: 'var(--tt-green)',
     title: 'Δ > 0',
-    desc: 'the skill helps — it lifts behavior the base model misses. keep it.',
+    desc: 'the skill improved results on these cases. keep it.',
   },
   {
     accent: 'var(--tt-comment)',
@@ -17,7 +17,7 @@ const deltaCards = [
     accent: 'var(--tt-red)',
     titleColor: 'var(--tt-red)',
     title: 'Δ < 0',
-    desc: 'the skill hurts — misfiring, over-constraining, or conflicting with a neighbor.',
+    desc: 'the skill reduced results. inspect the trace for a wrong trigger or conflict.',
   },
 ];
 
@@ -50,7 +50,7 @@ const patternCards = [
       </>
     ),
     title: "the skill's value → study it",
-    desc: 'this is where the skill earns its delta. understand which instruction made the difference — and protect it.',
+    desc: 'inspect which instruction changed the result and protect it in the skill.',
   },
   {
     tag: (
@@ -72,7 +72,7 @@ export const ChapterSignal = () => (
     >
       the single most useful number arc-skill-eval produces is the{' '}
       <span style={{ color: 'var(--tt-fg)' }}>delta</span> between running a case with the skill
-      and without it. it&apos;s the evidence the skill earned its place — not a vibe.
+      and without it. a positive delta shows the skill improved the measured result.
     </div>
 
     <div
@@ -228,7 +228,7 @@ export const ChapterSignal = () => (
           textTransform: 'none',
         }}
       >
-        — illustrative
+       . illustrative
       </span>
     </SectionKicker>
     <div
@@ -353,7 +353,7 @@ export const ChapterSignal = () => (
     <div
       style={{ color: 'var(--tt-fg-dark)', fontSize: 12, lineHeight: 1.6, marginBottom: 32 }}
     >
-      a negative bar is a gift — it points straight at a case where the skill is doing harm. use{' '}
+      a negative delta identifies a case where the skill hurt results. use{' '}
       <span style={{ color: 'var(--tt-fg-dark)' }}>--extra-skill</span> to load a distractor and
       confirm your skill doesn&apos;t fight a neighbor (e.g. release-please vs
       conventional-commits).
@@ -371,7 +371,7 @@ export const ChapterSignal = () => (
     >
       the delta says what the skill buys;{' '}
       <span style={{ color: 'var(--tt-fg-dark)' }}>benchmark.json</span> also says what it costs
-      — extra time and tokens vs the baseline. read them together.
+     . extra time and tokens vs the baseline. read them together.
     </div>
     <div
       style={{
@@ -402,7 +402,7 @@ export const ChapterSignal = () => (
         <div
           style={{ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.5, marginTop: 4 }}
         >
-          a big lift for a small cost — the skill earns its context.
+          a big lift for a small cost. the skill earns its context.
         </div>
       </div>
       <div
@@ -426,7 +426,7 @@ export const ChapterSignal = () => (
         <div
           style={{ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.5, marginTop: 4 }}
         >
-          marginal gain, doubled cost — trim the skill or cut it.
+          marginal gain, doubled cost. trim the skill or cut it.
         </div>
       </div>
     </div>
@@ -475,7 +475,7 @@ export const ChapterSignal = () => (
       </span>{' '}
       give both outputs to a judge without saying which came from which version and let it score
       organization, formatting, and polish on its own rubric. two outputs can pass the same
-      assertions and still differ in quality — blind comparison catches that without bias.
+      assertions and still differ in quality. blind comparison catches that without bias.
     </Callout>
   </div>
 );

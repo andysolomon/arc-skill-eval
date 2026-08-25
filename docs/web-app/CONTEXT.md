@@ -1,4 +1,4 @@
-# Web App Context
+# Web app context
 
 The Vite + React hosted web app for `arc-skill-eval`. Five sections (`run`, `browse`,
 `create`, `review`, `learn`), three themes (tokyonight default, gruvbox, nord), each section
@@ -20,7 +20,7 @@ content layout. Sections are switched by the `1`–`5` keyboard shortcuts or the
 _Avoid_: page, screen, route, view.
 
 **Env Variant**:
-Each App Section renders twice — `localhost` (reads local `evals-runs/` from disk and may
+Each App Section has two variants: `localhost` (reads local `evals-runs/` from disk and may
 invoke the Runtime CLI) and `hosted` (imports JSON instead of files, no filesystem, no LLM
 execution). The active variant is a top-level state and is reflected in the
 `data-screen-label` attribute for testing.
@@ -44,14 +44,14 @@ instructions shown on hosted empty-state heroes.
 _Avoid_: command pill (incomplete), copy button.
 
 **Composer Row**:
-Field row in the `run` composer — label-left (`--tt-comment`), value-right in the field's
+Field row in the `run` composer: label-left (`--tt-comment`), value-right in the field's
 accent color (e.g. `--tt-magenta` for `--compare`, `--tt-cyan` for `--context-mode`), with a
 small chevron. Clicking expands one row at a time into an inline option dropdown
 (`openField`). Only one row may be expanded at a time.
 _Avoid_: input row, flag row, field.
 
 **Benchmark Delta**:
-The `Δ` figure revealed at the end of a compare run — e.g. `Δ +33.3%`. Computed from
+The `Δ` figure shown at the end of a compare run, such as `Δ +33.3%`. Computed from
 per-case `with_skill` vs `without_skill` pass rates aggregated into `benchmark.json`. Always
 accompanied by the per-arm glyph bars and the artifact path.
 _Avoid_: score, improvement.
@@ -64,7 +64,7 @@ paste textarea, or a `validate` button. Shows check-list results including a
 _Avoid_: uploader, drop zone, json paste.
 
 **Empty State Hero**:
-A 560px-wide card shown when a section has no actionable data — either a hosted section
+A 560px-wide card shown when a section has no actionable data: either a hosted section
 with no imported JSON, or a localhost section with no workspace dir. Carries the
 `localhost only` headline, supporting copy, and install/run command blocks.
 _Avoid_: empty state, no-data screen, hero card (collision with marketing connotation).
@@ -90,7 +90,7 @@ _Avoid_: heading, label.
 The right-rail panel on `review` describing proposed changes derived from recorded
 `feedback.json` notes. Renders as a list of before/after diff items with rationale. The
 `propose changes` magenta button produces the plan; nothing is applied without an explicit
-`--apply` action. In a browser context, "apply" means download/inspect — never silent
+`--apply` action. In a browser context, "apply" means download and inspect, never silent
 filesystem writes.
 _Avoid_: diff view (collision with Detail · Diff tab), suggestion list.
 
@@ -108,27 +108,22 @@ _Avoid_: comment, annotation.
 - `run` and `browse` feature an **Empty State Hero** whenever they have no actionable data
   for the current env. `run` and `review` host the **Import Card** instead when hosted.
 - A **Composer Row** expands at most once per page; clicking another row collapses the first.
-- A **Benchmark Delta** is the closing act of a `run`; it appears only on completion and
+- A **Benchmark Delta** appears when a `run` completes and
   points at the artifact dir consumed by `browse`.
 - A **Feedback Note** may exist without an **Improve Plan**, but an **Improve Plan** is
   derived from one or more notes.
 - The **Workspace Picker** is hidden when the active **Env Variant** is hosted.
 
-## Example dialogue
+## Examples
 
-> **Implementer:** "In the `run` composer, where do I draw the `--context-mode` accent?"
->
-> **Spec owner:** "On the **Composer Row**'s value column. Use `--tt-cyan` for `--context-mode` —
-> the **Section Kicker** in `design.md §1.2` pins that role to cyan."
->
-> **Implementer:** "Where does the helper `copied ✓` text come from?"
->
-> **Spec owner:** "It's the click-to-copy feedback on the **Install Command Pill**. Spec at
-> `docs/web-app/interactions.md` once Ticket 7 lands."
+- In the `run` composer, draw the `--context-mode` accent on the **Composer Row** value
+  column. Use `--tt-cyan`, as specified for that role in `design.md §1.2`.
+- The `copied ✓` text is click-to-copy feedback on the **Install Command Pill**. Its
+  specification will be in `docs/web-app/interactions.md` after Ticket 7 lands.
 
 ## Flagged ambiguities
 
-- "Variant" alone is ambiguous — say `Env Variant` or `Theme Variant` explicitly.
+- "Variant" alone is ambiguous. Say `Env Variant` or `Theme Variant` explicitly.
 - "Section" is overloaded with `review`'s per-case cards; say `App Section` for the top-level
   `run | browse | create | review | learn` axis, and `Case Card` (defined per-ticket in
   Ticket 10) for in-section cards.

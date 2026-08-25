@@ -64,7 +64,7 @@ export const Response = ({ run, testCase, variant, workspaceRoot }: ResponseProp
             padding: 12,
           }}
         >
-          {assistantArtifact.error ?? 'assistant.md is empty for this variant.'}
+          {assistantArtifact.error ?? 'No assistant response was recorded for this variant.'}
         </p>
       )}
     </section>

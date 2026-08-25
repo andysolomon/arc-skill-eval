@@ -204,7 +204,7 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
   }, [state.status]);
 
   const selectedSkill = skills.find((skill) => skill.path === value.workspaceRoot);
-  const skillLabel = selectedSkill?.id ?? (value.workspaceRoot ? value.workspaceRoot : 'choose a skill…');
+  const skillLabel = selectedSkill?.id ?? (value.workspaceRoot ? value.workspaceRoot : 'Choose a skill…');
   // A skill picked from the list with no evals/evals.json can't be run. Manual
   // paths (no selectedSkill) fall through to the daemon, which rejects them too.
   const noEvals = Boolean(selectedSkill) && selectedSkill?.hasEvals === false;
@@ -251,14 +251,14 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
 
     if (!value.workspaceRoot) {
       setOpenField('skill');
-      window.alert('Pick a workspace before running.');
+      window.alert('Choose a skill before starting the run.');
       return;
     }
 
     if (noEvals) {
       setOpenField('skill');
       window.alert(
-        `${selectedSkill?.id ?? 'This skill'} has no evals/evals.json — nothing to run. Author a suite in the create tab first.`,
+        `${selectedSkill?.id ?? 'This skill'} has no evals/evals.json. Create an eval suite in the Create tab first.`,
       );
       return;
     }
@@ -271,8 +271,8 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
   const runButton = (() => {
     if (state.status === 'running') {
       return {
-        label: `${spinner} running…`,
-        title: 'cancel run',
+        label: `${spinner} Running…`,
+        title: 'Cancel run',
         style: {
           background: 'var(--tt-bg-dark)',
           border: '1px solid var(--tt-border)',
@@ -283,8 +283,8 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
 
     if (state.status === 'done') {
       return {
-        label: '↻ reset',
-        title: 'reset run',
+        label: '↻ Reset run',
+        title: 'Reset run',
         style: {
           background: 'var(--tt-bg-dark)',
           border: '1px solid var(--tt-border)',
@@ -295,8 +295,8 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
 
     if (noEvals) {
       return {
-        label: '▶ no evals to run',
-        title: 'this skill has no evals/evals.json — nothing to run',
+        label: '▶ Create evals first',
+        title: 'This skill has no evals/evals.json',
         style: {
           background: 'transparent',
           border: '1px solid var(--tt-border)',
@@ -306,8 +306,8 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
     }
 
     return {
-      label: `▶ run${value.compare === 'on' ? ' --compare' : ''}`,
-      title: 'start run',
+      label: `▶ Run${value.compare === 'on' ? ' with comparison' : ''}`,
+      title: 'Start run',
       style: {
         background: 'color-mix(in srgb, var(--tt-green) 14%, var(--tt-bg))',
         border: '1px solid var(--tt-green)',
@@ -318,7 +318,7 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
 
   return (
     <aside
-      aria-label="Run composer localhost"
+      aria-label="Configure local run"
       style={{
         border: '1px solid var(--tt-border)',
         borderRadius: 8,
@@ -339,11 +339,11 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
           padding: '7px 14px',
         }}
       >
-        compose run
+        Configure run
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: '6px 0' }}>
         <FlagRow
-          label="skill"
+          label="Skill"
           value={skillLabel}
           valueColor={value.workspaceRoot ? 'var(--tt-fg)' : 'var(--tt-comment)'}
           open={openField === 'skill'}
@@ -360,7 +360,7 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
                   textTransform: 'uppercase',
                 }}
               >
-                skills in {workspace}
+                Skills in {workspace}
               </div>
               <div style={{ display: 'grid', maxHeight: 260, overflowY: 'auto' }}>
               {skills.map((skill) => {
@@ -429,9 +429,8 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
                 padding: '6px 10px',
               }}
             >
-              no skills found in this workspace — set the{' '}
-              <span style={{ color: 'var(--tt-teal)' }}>dir</span> menu (top right) to a folder
-              with skills.
+              No skills found in this workspace. Choose a directory that contains skills from the{' '}
+              <span style={{ color: 'var(--tt-teal)' }}>workspace</span> menu in the header.
             </div>
           )}
           <div
@@ -444,11 +443,11 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
               padding: '6px 10px 2px',
             }}
           >
-            last run: {lastRunId ?? 'none'}
+            Last run: {lastRunId ?? 'None'}
           </div>
         </FlagRow>
         <FlagRow
-          label="--case"
+          label="Cases (--case)"
           value={value.case}
           valueColor="var(--tt-fg-dark)"
           open={openField === 'case'}
@@ -462,7 +461,7 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
           />
         </FlagRow>
         <FlagRow
-          label="--model"
+          label="Run model (--model)"
           value={value.model}
           valueColor="var(--tt-blue)"
           open={openField === 'model'}
@@ -476,7 +475,7 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
           />
         </FlagRow>
         <FlagRow
-          label="--judge-model"
+          label="Judge model (--judge-model)"
           value={value.judgeModel}
           valueColor="var(--tt-magenta)"
           open={openField === 'judgeModel'}
@@ -490,7 +489,7 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
           />
         </FlagRow>
         <FlagRow
-          label="--compare"
+          label="Comparison (--compare)"
           value={value.compare}
           valueColor={value.compare === 'off' ? 'var(--tt-comment)' : 'var(--tt-green)'}
           open={openField === 'compare'}
@@ -504,8 +503,8 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
           />
         </FlagRow>
         <FlagRow
-          label="--extra-skill"
-          value={value.extraSkill.length > 0 ? value.extraSkill.join(', ') : '—'}
+          label="Additional skills (--extra-skill)"
+          value={value.extraSkill.length > 0 ? value.extraSkill.join(', ') : 'None'}
           valueColor={value.extraSkill.length > 0 ? 'var(--tt-fg-dark)' : 'var(--tt-comment)'}
           open={openField === 'extraSkill'}
           onToggle={() => toggleField('extraSkill')}
@@ -536,13 +535,13 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
                 padding: '7px 10px',
               }}
             >
-              ＋ add distractor skill
+              ＋ Add comparison skill
             </button>
             {value.extraSkill.map((extraSkill) => (
               <button
                 key={extraSkill}
                 onClick={() => removeExtraSkill(extraSkill)}
-                title="remove"
+                title="Remove comparison skill"
                 type="button"
                 style={{
                   alignItems: 'center',
@@ -571,7 +570,7 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
           </div>
         </FlagRow>
         <FlagRow
-          label="--iteration"
+          label="Iterations (--iteration)"
           value={String(value.iteration)}
           valueColor="var(--tt-yellow)"
           open={openField === 'iteration'}
@@ -585,7 +584,7 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
           />
         </FlagRow>
         <FlagRow
-          label="--context-mode"
+          label="Context (--context-mode)"
           value={value.contextMode}
           valueColor="var(--tt-teal)"
           open={openField === 'contextMode'}
@@ -599,7 +598,7 @@ export const RunComposerLocalhost = ({ value, onChange }: RunComposerLocalhostPr
           />
         </FlagRow>
         <FlagRow
-          label="--sandbox"
+          label="Sandbox (--sandbox)"
           value={value.sandbox}
           valueColor={value.sandbox === 'none' ? 'var(--tt-fg-dark)' : 'var(--tt-teal)'}
           open={openField === 'sandbox'}

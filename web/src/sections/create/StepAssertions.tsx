@@ -58,25 +58,25 @@ export const StepAssertions = ({
     <div style={kickerStyle}>step 03</div>
     <h1 style={titleStyle}>Attach assertions</h1>
     <p style={introStyle}>
-      add the checks that decide pass or fail. reach for{' '}
-      <span style={{ color: 'var(--tt-cyan)' }}>deterministic</span> ones first (a script
-      decides); add a <span style={{ color: 'var(--tt-magenta)' }}>judge</span> only for prose a
-      script can't see.
+      Add checks that decide whether each case passes. Use{' '}
+      <span style={{ color: 'var(--tt-cyan)' }}>deterministic</span> checks when a script can
+      verify the result. Use a <span style={{ color: 'var(--tt-magenta)' }}>judge</span> for
+      prose that requires interpretation.
     </p>
 
     <div aria-label="assertion examples" style={legendBoxStyle}>
       <div style={{ display: 'flex', gap: 10 }}>
         <span style={{ color: 'var(--tt-green)', flex: 'none', fontWeight: 700, width: 20 }}>✓</span>
         <span style={{ color: 'var(--tt-comment)' }}>
-          "the workflow triggers on pull_request" — one observable claim, checkable the same way
-          twice
+          "The workflow triggers on pull_request" is one observable claim that you can check the
+          same way twice
         </span>
       </div>
       <div style={{ display: 'flex', gap: 10 }}>
         <span style={{ color: 'var(--tt-red)', flex: 'none', fontWeight: 700, width: 20 }}>✗</span>
         <span style={{ color: 'var(--tt-comment)' }}>
-          "the output is good" — too vague to grade; "says exactly: setup complete" — too
-          brittle, fails a correct paraphrase
+          "The output is good" is too vague to grade. "Says exactly: setup complete" is too
+          brittle because a correct paraphrase fails.
         </span>
       </div>
     </div>
@@ -101,7 +101,7 @@ export const StepAssertions = ({
 
         {behavior.asserts.length === 0 ? (
           <div style={{ color: 'var(--tt-comment)', fontSize: 12, padding: '4px 0 10px' }}>
-            no checks yet — add one below.
+            No checks yet. Add one below.
           </div>
         ) : null}
 
@@ -185,8 +185,8 @@ export const StepAssertions = ({
                 }}
               >
                 {pendingKey === `assertion:${behavior.id}`
-                  ? '◌ generating…'
-                  : '✦ suggest an assertion'}
+                  ? '◌ Generating…'
+                  : '✦ Suggest an assertion'}
               </button>
             </>
           ) : null}

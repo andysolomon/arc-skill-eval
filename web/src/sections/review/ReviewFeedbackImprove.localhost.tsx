@@ -6,7 +6,7 @@ import type { ReviewImproveVariantProps } from './ReviewFeedbackImprove';
 const inFlightStatuses = new Set(['proposing', 'staging', 'committing', 'cancelling']);
 
 const renderPlanItems = (plan: ProposedImprovePlan) => (
-  <div aria-label="proposed improve plan">
+  <div aria-label="Proposed change plan">
     {plan.items.map((item, index) => (
       <div key={`${item.path}-${index}`} style={{ marginBottom: 12 }}>
         <div
@@ -92,7 +92,7 @@ export const ReviewFeedbackImproveLocalhost = ({
 
   return (
     <section
-      aria-label="improve from feedback localhost"
+      aria-label="Propose changes from local feedback"
       style={{
         border: '1px solid var(--tt-border)',
         borderRadius: 8,
@@ -113,13 +113,13 @@ export const ReviewFeedbackImproveLocalhost = ({
           padding: '6px 12px',
         }}
       >
-        improve --from-feedback
+        Propose changes from feedback
       </header>
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 12 }}>
         {!propose.plan ? (
           <div style={{ color: 'var(--tt-comment)', fontSize: 12.5, lineHeight: 1.6 }}>
-            turn review notes + failing assertions into a focused plan — prompt, assertion,
-            fixture, or adjacent-negative changes with rationale. nothing is written without{' '}
+            Use review notes and failed assertions to propose changes to prompts, assertions,
+            fixtures, or adjacent-negative cases. Review the plan before passing{' '}
             <span style={{ color: 'var(--tt-yellow)' }}>--apply</span>.
           </div>
         ) : null}
@@ -146,7 +146,7 @@ export const ReviewFeedbackImproveLocalhost = ({
 
         {stagedPlan ? (
           <section
-            aria-label="staged improve diff"
+            aria-label="Staged change plan"
             style={{
               border: '1px solid var(--tt-green)',
               borderRadius: 7,
@@ -193,7 +193,7 @@ export const ReviewFeedbackImproveLocalhost = ({
                   padding: '6px 13px',
                 }}
               >
-                commit
+                Apply changes
               </button>
               <button
                 disabled={isInFlight}
@@ -208,7 +208,7 @@ export const ReviewFeedbackImproveLocalhost = ({
                   padding: '6px 13px',
                 }}
               >
-                cancel
+                Discard plan
               </button>
             </div>
           </section>
@@ -216,7 +216,7 @@ export const ReviewFeedbackImproveLocalhost = ({
 
         {apply.status === 'committed' ? (
           <div role="status" style={{ color: 'var(--tt-green)', fontSize: 12.5, marginTop: 10 }}>
-            ✓ committed staged plan{apply.result?.path ? ` to ${apply.result.path}` : ''}
+            ✓ Applied changes{apply.result?.path ? ` to ${apply.result.path}` : ''}
           </div>
         ) : null}
         {apply.status === 'cancelled' ? (
@@ -224,7 +224,7 @@ export const ReviewFeedbackImproveLocalhost = ({
             role="status"
             style={{ color: 'var(--tt-comment)', fontSize: 12.5, marginTop: 10 }}
           >
-            cancelled staged plan
+            Discarded change plan
           </div>
         ) : null}
         {propose.error || apply.error ? (
@@ -244,7 +244,7 @@ export const ReviewFeedbackImproveLocalhost = ({
         <button
           disabled={!canPropose}
           onClick={handlePropose}
-          title={canPropose ? 'propose an improve plan' : 'locked until feedback exists'}
+          title={canPropose ? 'Propose changes from feedback' : 'Add feedback to propose changes'}
           type="button"
           style={{
             alignItems: 'center',
@@ -261,7 +261,7 @@ export const ReviewFeedbackImproveLocalhost = ({
             opacity: canPropose ? 1 : 0.6,
           }}
         >
-          {isInFlight ? 'improving…' : 'improve'}
+          {isInFlight ? 'Proposing changes…' : 'Propose changes'}
         </button>
       </footer>
     </section>

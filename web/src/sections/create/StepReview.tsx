@@ -96,9 +96,9 @@ export const StepReview = ({
       <div style={kickerStyle}>step 04</div>
       <h1 style={titleStyle}>Review &amp; run</h1>
       <p style={{ ...introStyle, marginBottom: 22 }}>
-        this is your starter suite. write it, then run with{' '}
-        <span style={{ color: 'var(--tt-fg)' }}>--compare</span> to see the difference the skill
-        makes.
+        Review the suite, then write it to evals/evals.json. Run with{' '}
+        <span style={{ color: 'var(--tt-fg)' }}>--compare</span> to compare results with and
+        without the skill.
       </p>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
@@ -162,7 +162,7 @@ export const StepReview = ({
         </button>
         {wrote ? (
           <a href="#" onClick={gotoRun} style={{ fontSize: 13 }}>
-            run it in the console →
+            Open the run console →
           </a>
         ) : null}
       </div>
@@ -212,7 +212,7 @@ export const StepReview = ({
                 padding: '7px 14px',
               }}
             >
-              commit
+              Apply changes
             </button>
             <button
               disabled={writeInFlight}
@@ -227,7 +227,7 @@ export const StepReview = ({
                 padding: '7px 14px',
               }}
             >
-              cancel
+              Discard changes
             </button>
           </div>
         </section>
@@ -254,9 +254,8 @@ export const StepReview = ({
           paddingTop: 14,
         }}
       >
-        then keep the loop going: <span style={{ color: 'var(--tt-fg-dark)' }}>review</span> the
-        run, note what's off, and <span style={{ color: 'var(--tt-fg-dark)' }}>improve</span> —
-        every fix becomes the next case.
+        After the run, review failed cases and add cases for behavior that the suite does not yet
+        cover.
       </div>
     </div>
   );

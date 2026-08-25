@@ -27,7 +27,7 @@ const rowsForArm = (
         {
           sign: ' ',
           text: hostedSource
-            ? 'without_skill assistant.md is not included in the hosted import shape yet.'
+            ? 'The imported JSON does not include the without_skill response.'
             : response,
           tone: 'var(--tt-comment)',
         },
@@ -64,8 +64,7 @@ export const Diff = ({ run, testCase, variant, workspaceRoot }: DiffProps) => {
             padding: 12,
           }}
         >
-          This imported run was not captured with compare mode, so browse has no with_skill
-          versus without_skill pair to diff.
+          This run has no comparison results.
         </p>
       </section>
     );

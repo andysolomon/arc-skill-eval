@@ -51,10 +51,10 @@ export const BrowseEmptyState = ({ env }: BrowseEmptyStateProps) => {
               padding: '2px 7px',
             }}
           >
-            localhost only
+            {env === 'hosted' ? 'Hosted mode' : 'Localhost'}
           </span>
           <span style={{ color: 'var(--tt-fg)', fontSize: 17, fontWeight: 700 }}>
-            browse reads local run artifacts
+            {env === 'hosted' ? 'Import a run to browse results' : 'No local run artifacts found'}
           </span>
         </div>
         <div
@@ -65,34 +65,42 @@ export const BrowseEmptyState = ({ env }: BrowseEmptyStateProps) => {
             marginBottom: 16,
           }}
         >
-          the four-panel browser walks the{' '}
-          <span style={{ color: 'var(--tt-teal)' }}>./evals-runs</span> folders on your disk,
-          which only exist after you run locally:
+          {env === 'hosted' ? (
+            <>Browse shows run artifacts that you import in Review.</>
+          ) : (
+            <>
+              Browse reads run artifacts from{' '}
+              <span style={{ color: 'var(--tt-teal)' }}>./evals-runs</span>. Create them by
+              running an eval locally:
+            </>
+          )}
         </div>
-        <div
-          style={{
-            background: 'var(--tt-bg)',
-            border: '1px solid var(--tt-border)',
-            borderRadius: 8,
-            fontSize: 13,
-            lineHeight: 1.9,
-            marginBottom: 16,
-            padding: '12px 14px',
-          }}
-        >
-          <div>
-            <span style={{ color: 'var(--tt-green)' }}>$ </span>
-            <span style={{ color: 'var(--tt-fg)' }}>
-              arc-skill-eval run ./skills/my-skill --compare
-            </span>
+        {env === 'localhost' ? (
+          <div
+            style={{
+              background: 'var(--tt-bg)',
+              border: '1px solid var(--tt-border)',
+              borderRadius: 8,
+              fontSize: 13,
+              lineHeight: 1.9,
+              marginBottom: 16,
+              padding: '12px 14px',
+            }}
+          >
+            <div>
+              <span style={{ color: 'var(--tt-green)' }}>$ </span>
+              <span style={{ color: 'var(--tt-fg)' }}>
+                arc-skill-eval run ./skills/my-skill --compare
+              </span>
+            </div>
+            <div>
+              <span style={{ color: 'var(--tt-green)' }}>$ </span>
+              <span style={{ color: 'var(--tt-fg)' }}>arc-skill-eval browse</span>
+            </div>
           </div>
-          <div>
-            <span style={{ color: 'var(--tt-green)' }}>$ </span>
-            <span style={{ color: 'var(--tt-fg)' }}>arc-skill-eval browse</span>
-          </div>
-        </div>
+        ) : null}
         <div style={{ color: 'var(--tt-comment)', fontSize: 12.5, lineHeight: 1.6 }}>
-          to inspect a single artifact here on the hosted site,{' '}
+          {env === 'hosted' ? 'To add a run, ' : 'To inspect a JSON artifact, '}
           <a
             href="#"
             onClick={(event) => {
@@ -102,9 +110,9 @@ export const BrowseEmptyState = ({ env }: BrowseEmptyStateProps) => {
               }
             }}
           >
-            review its JSON
-          </a>{' '}
-          instead.
+            import run JSON in Review
+          </a>
+          .
         </div>
       </div>
     </section>

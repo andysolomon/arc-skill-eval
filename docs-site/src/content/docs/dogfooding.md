@@ -1,5 +1,5 @@
 ---
-title: Dogfooding & Authoring Loop
+title: Dogfooding and authoring loop
 description: Use arc-creating-evals, compare mode, and iteration artifacts to improve skills from evidence.
 ---
 
@@ -47,7 +47,7 @@ A conceptual skill such as `grill-me` should usually lean on judge assertions an
 
 ## Creating evals with `arc-creating-evals`
 
-The companion `arc-creating-evals` skill is the recommended authoring path. Ask your agent to use it with prompts like:
+The companion `arc-creating-evals` skill helps with cases that need more judgment. Ask your agent to use it with prompts like:
 
 - "Create evals for this skill."
 - "Make `arc-conventional-commits` testable."
@@ -70,16 +70,12 @@ An absolute pass rate can be misleading. A skill that passes because the base mo
 
 `--compare` runs every case twice:
 
-- `with_skill` — target skill plus any explicit extras
-- `without_skill` — no target skill, but the same prompt and fixtures
+- `with_skill` includes the target skill and any explicit extras.
+- `without_skill` omits the target skill but uses the same prompt, fixtures, and extras.
 
 Skeval writes a `benchmark.json` with per-case and aggregate deltas.
 
-Interpretation:
-
-- **Positive delta** — the skill is helping. Keep or expand coverage.
-- **Neutral delta** — the case may be too easy, too generic, or not discriminating.
-- **Negative delta** — the skill may be confusing the model, over-constraining the task, or triggering the wrong behavior.
+A positive delta means the skill helped. Keep the case and consider adding nearby cases. A neutral delta often means the base model already passes or the assertion does not distinguish the two runs. A negative delta means the skill hurt the result; inspect the trace for a wrong trigger, an overly strict instruction, or a conflict with another skill.
 
 ## Make assertions discriminating
 
@@ -164,14 +160,14 @@ In compare mode, `with_skill` receives the target plus extras. `without_skill` r
 
 ## Optimize the description for routing accuracy
 
-Most skill failures we've measured are routing failures: the description either misses implicit phrasings it should catch or captures adjacent requests it shouldn't. `optimize-description` turns that into a measurable loop:
+Most measured failures happen during routing. The description misses an implicit request or matches a nearby request that should not trigger the skill. `optimize-description` measures both errors:
 
 ```bash
 # Generate should-trigger + adjacent near-miss prompts, tagged train/test
 arc-skill-eval optimize-description ./skills/my-skill --generate-only
 
-# Review evals/description-evals.json by hand — the near-miss negatives are
-# the ones worth editing — then score the current description
+# Review evals/description-evals.json by hand.
+# Edit the near-miss negatives, then score the current description.
 arc-skill-eval optimize-description ./skills/my-skill \
   --eval-set ./skills/my-skill/evals/description-evals.json
 
@@ -181,17 +177,17 @@ arc-skill-eval optimize-description ./skills/my-skill \
   --max-iterations 5
 ```
 
-Every probe is a single no-tools completion that pits the description against real sibling-skill descriptions in rotated order — cheap enough to run ~100 probes for less than one agent-session eval case. Candidates are proposed from **train**-split failures and the winner is chosen by **held-out test** accuracy, so a description that merely memorizes the train prompts never wins. Apply the winner only after the report shows a held-out improvement, and re-run your regular eval suite afterwards — a description tuned for routing must not break execution behavior.
+Each probe is a no-tools completion that compares the target description with real sibling-skill descriptions in rotated order. About 100 probes cost less than one agent-session eval case. The optimizer proposes candidates from **train** failures and chooses a winner by **held-out test** accuracy, which prevents a description from winning by memorizing train prompts. Apply a candidate only after it improves held-out accuracy. Then rerun the regular suite to check that better routing did not break execution.
 
 ## Run the bundled dogfood suite
 
-`arc-creating-evals` — the bundled skill that teaches eval authoring — ships with its own eval suite at `skills/arc-creating-evals/evals/`, so the eval-creation skill is held to the standard it teaches. From the repo root:
+The bundled `arc-creating-evals` skill has its own suite at `skills/arc-creating-evals/evals/`. Run it from the repository root:
 
 ```bash
 arc-skill-eval run skills/arc-creating-evals
 ```
 
-The suite seeds a tiny fixture skill (`arc-demo-file-writer`) and checks that the assistant, guided by `arc-creating-evals`, actually authors a valid `evals/evals.json` for it — plus an adjacent-negative case proving a plain unit-test request does not trigger eval authoring. This is the same skill `create --guided` uses as its authoring reference, so a green run here backs both the documented workflow and the guided-create path.
+The suite gives the assistant a small fixture skill named `arc-demo-file-writer` and checks that `arc-creating-evals` produces a valid `evals/evals.json`. An adjacent-negative case checks that a plain unit-test request does not trigger eval authoring. `create --guided` uses the same authoring skill, so this suite covers both paths.
 
 When triaging failures, follow the skill's own Phase 5 rules: `Judge error:` evidence means the judge infrastructure failed (fix `--judge-model` or provider auth, not the assertion); paraphrased evidence means the assertion should be tightened or replaced with a script assertion.
 
