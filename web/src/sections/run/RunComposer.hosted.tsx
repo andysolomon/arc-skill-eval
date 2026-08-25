@@ -7,7 +7,7 @@ const WORKSPACE_PICKER_DECISION_URL =
 export const RunComposerHosted = () => (
   <aside
     aria-disabled="true"
-    aria-label="Run composer hosted stub"
+    aria-label="Run controls unavailable on hosted site"
     style={{
       background: 'var(--tt-bg-dark)',
       border: '1px solid var(--tt-border)',
@@ -17,14 +17,14 @@ export const RunComposerHosted = () => (
     }}
   >
     <Column gap={4}>
-      <Kicker>composer (hosted)</Kicker>
+      <Kicker>hosted mode</Kicker>
       <div style={{ display: 'grid', gap: 8 }}>
         <h2 style={{ fontSize: 20, lineHeight: 1.2, margin: 0 }}>
-          Composer is available on localhost
+          Configure and start runs locally
         </h2>
         <p style={{ color: 'var(--tt-fg-dark)', lineHeight: 1.5, margin: 0 }}>
-          Hosted cannot read a workspace or launch local evals. Run the CLI command from a local
-          checkout to compose and execute a compare run.
+          The hosted site cannot access your workspace or API keys. Run the CLI command from your
+          local checkout to compare results with and without the skill.
         </p>
       </div>
       <InstallCommandPill />
@@ -39,7 +39,7 @@ export const RunComposerHosted = () => (
           textUnderlineOffset: 3,
         }}
       >
-        what is localhost mode? ↗
+        Read about localhost mode ↗
       </a>
     </Column>
   </aside>

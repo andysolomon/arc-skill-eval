@@ -25,7 +25,7 @@ export const ChapterPi = () => {
         coding agent (
         <span style={{ color: 'var(--tt-fg)' }}>@mariozechner/pi-coding-agent</span>). the choice
         is philosophical as much as technical: an agent is{' '}
-        <span style={{ color: 'var(--tt-fg)' }}>an llm, a loop, and enough tokens</span> — a tool
+        <span style={{ color: 'var(--tt-fg)' }}>an llm, a loop, and enough tokens</span>. a tool
         registry, an inner loop, and a parser. production complexity is engineering, not
         architecture.
       </div>
@@ -42,7 +42,7 @@ export const ChapterPi = () => {
       >
         an eval is only as trustworthy as the machinery between the prompt and the trace. a
         small, legible runtime means the artifacts describe the{' '}
-        <span style={{ color: 'var(--tt-fg-dark)' }}>skill&apos;s</span> behavior — not a
+        <span style={{ color: 'var(--tt-fg-dark)' }}>skill&apos;s</span> behavior. not a
         framework&apos;s.
       </div>
       <div
@@ -197,7 +197,7 @@ export const ChapterPi = () => {
                 <span style={{ color: 'var(--tt-green)', fontWeight: 700 }}>✓ done</span>
                 <span style={{ color: 'var(--tt-comment)' }}>
                   {' '}
-                  — the model stopped calling tools; artifacts written
+                 . the model stopped calling tools; artifacts written
                 </span>
               </div>
             </div>
@@ -217,7 +217,7 @@ export const ChapterPi = () => {
       <div
         style={{ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.6, marginBottom: 32 }}
       >
-        that&apos;s the whole story — nothing hidden in a framework layer. when a check fails,
+        that&apos;s the whole story. nothing hidden in a framework layer. when a check fails,
         the trace explains it.
       </div>
 
@@ -232,7 +232,7 @@ export const ChapterPi = () => {
         }}
       >
         arc-skill-eval inherits Pi&apos;s provider registry, so the runner and the judge each pin
-        to any configured model — or fall back to Pi&apos;s default when unpinned.
+        to any configured model. or fall back to Pi&apos;s default when unpinned.
       </div>
       <div
         style={{
@@ -282,14 +282,14 @@ export const ChapterPi = () => {
         <span style={{ color: 'var(--tt-orange)', fontWeight: 700 }}>
           the judge defaults to the runner&apos;s model.
         </span>{' '}
-        that means the model grades its own output — fine for smoke tests, biased for anything
+        that means the model grades its own output. fine for smoke tests, biased for anything
         you&apos;ll act on. pin <span style={{ color: 'var(--tt-fg)' }}>--judge-model</span> to a
         different model when the verdict matters. a small cheap judge (ministral-8b) grades tight
         rubrics well.
       </Callout>
 
       <SectionKicker style={{ marginBottom: 6 }}>
-        an eval-owned runtime — reproducible runs
+        an eval-owned runtime for reproducible runs
       </SectionKicker>
       <div
         style={{
@@ -302,7 +302,7 @@ export const ChapterPi = () => {
       >
         by default the runner uses your personal Pi config (
         <span style={{ color: 'var(--tt-teal)' }}>~/.pi/agent</span>). for team and CI runs,
-        that&apos;s a hidden variable — your default model isn&apos;t your teammate&apos;s.{' '}
+        that&apos;s a hidden variable. your default model isn&apos;t your teammate&apos;s.{' '}
         <span style={{ color: 'var(--tt-fg-dark)' }}>init-runtime</span> creates a tiny config
         the eval owns instead:
       </div>
@@ -374,7 +374,7 @@ export const ChapterPi = () => {
               marginTop: 8,
             }}
           >
-            that&apos;s the whole runtime. keys stay out of it — reference secrets by env-var
+            that&apos;s the whole runtime. keys stay out of it. reference secrets by env-var
             name (
             <span style={{ color: 'var(--tt-fg-dark)' }}>
               &quot;apiKey&quot;: &quot;OLLAMA_API_KEY&quot;
@@ -387,7 +387,7 @@ export const ChapterPi = () => {
         style={{ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.6, marginBottom: 32 }}
       >
         <span style={{ color: 'var(--tt-fg-dark)' }}>run</span> preflights the directory before
-        executing anything — missing models.json, provider entries, or API-key env vars are
+        executing anything. missing models.json, provider entries, or API-key env vars are
         reported once, with the <span style={{ color: 'var(--tt-fg-dark)' }}>init-runtime</span>{' '}
         fix named. a cheap lane like{' '}
         <span style={{ color: 'var(--tt-fg-dark)' }}>ollama-cloud/gpt-oss:20b</span> makes good
@@ -395,7 +395,7 @@ export const ChapterPi = () => {
       </div>
 
       <SectionKicker style={{ marginBottom: 6 }}>
-        isolated by default — context modes
+        isolated by default: context modes
       </SectionKicker>
       <div
         style={{
@@ -458,7 +458,7 @@ export const ChapterPi = () => {
             --context-mode ambient
           </div>
           <div style={{ color: 'var(--tt-comment)', fontSize: 12.5, lineHeight: 1.55 }}>
-            opt in to your normal Pi loadout — extension tools, MCP-style tools, configured
+            opt in to your normal Pi loadout. extension tools, MCP-style tools, configured
             resources. use it to test how the skill behaves in a crowded context.
           </div>
         </div>
@@ -467,11 +467,11 @@ export const ChapterPi = () => {
         style={{ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.6, marginBottom: 32 }}
       >
         either way, the resolved loadout is recorded in{' '}
-        <span style={{ color: 'var(--tt-fg-dark)' }}>context-manifest.json</span> — so when a
+        <span style={{ color: 'var(--tt-fg-dark)' }}>context-manifest.json</span>. so when a
         skill misfires, you can see exactly what else was in the room.
       </div>
 
-      <SectionKicker style={{ marginBottom: 6 }}>sandboxes — where the bash runs</SectionKicker>
+      <SectionKicker style={{ marginBottom: 6 }}>where bash runs</SectionKicker>
       <div
         style={{
           display: 'grid',
@@ -500,7 +500,7 @@ export const ChapterPi = () => {
             </span>
           </div>
           <div style={{ color: 'var(--tt-comment)', fontSize: 12.5, lineHeight: 1.55 }}>
-            the case runs in a temp workspace on your machine — real shell, real npm. right for
+            the case runs in a temp workspace on your machine. real shell, real npm. right for
             skills whose commands must actually work.
           </div>
         </div>
@@ -511,7 +511,7 @@ export const ChapterPi = () => {
             --sandbox just-bash
           </div>
           <div style={{ color: 'var(--tt-comment)', fontSize: 12.5, lineHeight: 1.55 }}>
-            bash executes in an in-process virtual shell rooted at the case workspace — no host
+            bash executes in an in-process virtual shell rooted at the case workspace. no host
             shell, repo tree never touched.{' '}
             <span style={{ color: 'var(--tt-fg-dark)' }}>npm</span> /{' '}
             <span style={{ color: 'var(--tt-fg-dark)' }}>npx</span> /{' '}

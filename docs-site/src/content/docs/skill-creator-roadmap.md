@@ -1,13 +1,13 @@
 ---
-title: Skill Creator Roadmap
+title: Skill creator roadmap
 description: What Skeval already has, and what it plans to add from Claude's skill-creator workflow.
 ---
 
-Claude's `skill-creator` skill is more than an eval generator. It is a skill authoring, testing, review, and iteration loop. Skeval already has the core eval runner. The next product work is to add the workflow around that runner.
+Claude's `skill-creator` covers authoring, testing, review, and iteration. Skeval already runs evals. This roadmap tracks the surrounding workflow.
 
 ## Already shipped
 
-Skeval can already:
+Skeval can:
 
 - discover `SKILL.md` + `evals/evals.json` pairs
 - materialize fixture files into isolated workspaces
@@ -23,7 +23,7 @@ Skeval can already:
 - propose eval-suite improvements from review feedback with `improve`
 - scaffold starter eval suites with `create`
 
-Those pieces make the eval signal real. The roadmap below focuses on making the skill improvement loop easier to drive.
+The remaining work focuses on packaging and runtime support.
 
 ## Planned commands
 
@@ -47,7 +47,7 @@ Generate a starter eval suite for an existing skill:
 arc-skill-eval create ./skills/my-skill
 ```
 
-The first version inspects `SKILL.md` frontmatter and writes trigger, execution, and adjacent-negative starter cases. It also infers deterministic `file-exists` and `json-valid` assertions from obvious artifact paths such as `plan.md` or `report.json`, scaffolds likely input fixtures such as `notes/input.md` under `evals/files/starter-inputs/`, generates domain-aware adjacent-negative prompts for common skill types, and `--summary` prints a human-readable review of generated cases and assertions.
+The command reads `SKILL.md` frontmatter and writes trigger, execution, and adjacent-negative starter cases. It infers `file-exists` and `json-valid` assertions from paths such as `plan.md` or `report.json`, creates likely inputs such as `notes/input.md` under `evals/files/starter-inputs/`, and tailors adjacent-negative prompts to common skill types. `--summary` prints the proposed cases and assertions.
 
 ### `review` ✅
 
@@ -57,7 +57,7 @@ Turn run or compare artifacts into a static human-review report:
 arc-skill-eval review ./skills/my-skill/evals-runs/<runId>
 ```
 
-The first version shows case summaries, with-skill and without-skill outputs for compare runs, grading evidence, timing/model/tool metadata when available, benchmark deltas, and a `feedback.json` template.
+The report shows case summaries, both variants for compare runs, grading evidence, timing and tool data, benchmark deltas, and a `feedback.json` template.
 
 ### `improve` ✅
 
@@ -67,7 +67,7 @@ Convert review feedback into a targeted improvement plan:
 arc-skill-eval improve --from-feedback ./skills/my-skill/evals-runs/<runId>/feedback.json --summary
 ```
 
-The first version is plan-first rather than auto-edit-first: it reads human notes and failing assertion summaries from `feedback.json`, then proposes prompt, assertion, fixture, and adjacent-negative improvements with rationale. No eval files change unless `--apply` writes validated improvement metadata to the matching `evals/evals.json`.
+The command reads notes and failed assertions from `feedback.json`, then proposes changes to prompts, assertions, fixtures, and adjacent-negative cases. It changes `evals/evals.json` only when you pass `--apply`.
 
 ### `optimize-description` ✅
 
@@ -87,7 +87,7 @@ arc-skill-eval optimize-description ./skills/my-skill \
   --max-iterations 5
 ```
 
-The first version generates should-trigger prompts (explicit and implicit) plus adjacent near-miss negatives with train/test split tags, and asks for human review before optimizing. Scoring presents the target description alongside real distractor skill frontmatter (sibling skills by default, `--distractor` to add more) with rotated option ordering, and reports per-prompt verdicts with separate train and held-out test accuracy. The optimizer proposes candidates from train-split failures only and selects the winner by test accuracy, so it cannot overfit the prompts it trains on; when nothing beats the current description on held-out prompts it says to keep it. `SKILL.md` changes only with `--apply`, which rewrites just the frontmatter description (block-scalar safe), verifies the file reads back cleanly, and restores the original otherwise.
+The command generates explicit and implicit trigger prompts plus adjacent negatives, tagged for train and test splits. Scoring compares the target description with sibling skill descriptions and any `--distractor` entries, rotates option order, and reports train and held-out test accuracy. It proposes candidates from train failures and chooses by test accuracy. `--apply` changes only the frontmatter description, verifies the result, and restores the original if validation fails.
 
 ### `package`
 
@@ -97,13 +97,13 @@ Package a validated skill plus evals and fixtures into a distributable artifact:
 arc-skill-eval package ./skills/my-skill
 ```
 
-Packaging is lower priority than runtime, review, and creation because distribution is only useful after behavior is proven.
+Packaging remains planned.
 
 ## Runtime future
 
-The groundwork is shipped: an internal `AgentRuntime` interface (`src/runtime/`) now sits between the eval pipeline and whatever executes a case. Pi's SDK runner is the default implementation behind it — unchanged behavior, unchanged artifacts — and the runtime's id is recorded in every trace identity. A deterministic **replay** runtime proves the seam is real: it runs cases with no model and no network, writing scripted files and assistant text so the full grade-and-artifact pipeline (including honest failures) can be exercised in tests and CI provider-free.
+The internal `AgentRuntime` interface in `src/runtime/` separates case execution from the eval pipeline. Pi's SDK runner is the default implementation, and each trace records the runtime ID. A deterministic replay runtime runs scripted cases without a model or network so tests and CI can exercise grading and artifact writing.
 
-Still future: an experimental OpenAI-compatible custom runtime behind the same interface. That needs a model adapter layer, a safe tool loop, read/write/edit/bash tools, skill loading, workspace safety, and trace normalization — the interface now defines exactly the contract it has to meet.
+A custom OpenAI-compatible runtime remains planned. It needs model adapters, a tool loop, read/write/edit/bash tools, skill loading, workspace controls, and trace normalization.
 
 ## Detailed planning artifacts
 

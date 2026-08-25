@@ -75,7 +75,7 @@ const WorkspaceChip = () => {
       <button
         data-testid="workspace-chip"
         onClick={() => setOpen((current) => !current)}
-        title="working directory"
+        title="Choose working directory"
         type="button"
         style={{
           alignItems: 'center',
@@ -90,9 +90,9 @@ const WorkspaceChip = () => {
           whiteSpace: 'nowrap',
         }}
       >
-        <span style={{ color: 'var(--tt-comment)', fontSize: 11 }}>dir</span>
+        <span style={{ color: 'var(--tt-comment)', fontSize: 11 }}>workspace</span>
         <span
-          title={workspaceError ? `${workspace} — ${workspaceError}` : workspace}
+          title={workspaceError ? `${workspace}: ${workspaceError}` : workspace}
           style={{
             color: workspaceError ? 'var(--tt-red)' : 'var(--tt-teal)',
             fontSize: 12.5,
@@ -150,8 +150,8 @@ const WorkspaceChip = () => {
                     padding: '7px 12px',
                   }}
                 >
-                  workspace — arc-skill-eval runs from a directory root, no skill file needed. pick
-                  one:
+                  Choose the directory that contains your skills. arc-skill-eval scans its
+                  subdirectories.
                 </div>
             <div
               style={{
@@ -162,7 +162,7 @@ const WorkspaceChip = () => {
                 textTransform: 'uppercase',
               }}
             >
-              favorites
+              Saved directories
             </div>
             <div style={{ padding: '0 5px 4px' }}>
               {favorites.map((path) => {
@@ -211,7 +211,7 @@ const WorkspaceChip = () => {
                   ⇱
                 </span>
                 <input
-                  aria-label="reference a folder or github repo"
+                  aria-label="Enter a folder path or GitHub repository URL"
                   onChange={(event) => setReference(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') {
@@ -234,7 +234,7 @@ const WorkspaceChip = () => {
                 />
               </div>
               <button
-                aria-label="browse folders"
+                aria-label="Choose a folder"
                 onClick={() => setMode('browse')}
                 type="button"
                 style={{
@@ -253,20 +253,20 @@ const WorkspaceChip = () => {
                   width: '100%',
                 }}
               >
-                ⇱ browse folders…
+                ⇱ Choose a folder…
               </button>
             </div>
             <div style={{ borderTop: '1px solid var(--tt-border)', padding: '7px 12px' }}>
               <div style={{ color: 'var(--tt-comment)', fontSize: 11, marginBottom: 5 }}>
-                skills found here
+                Skills in this directory
                 {skillsStatus === 'loading' ? (
-                  <span style={{ color: 'var(--tt-dim)' }}> · scanning…</span>
+                  <span style={{ color: 'var(--tt-dim)' }}> · Scanning…</span>
                 ) : null}
                 {skillsStatus === 'offline' ? (
-                  <span style={{ color: 'var(--tt-dim)' }}> · sample — daemon offline</span>
+                  <span style={{ color: 'var(--tt-dim)' }}> · Sample data; daemon offline</span>
                 ) : null}
                 {skillsStatus === 'live' && source === 'github' ? (
-                  <span style={{ color: 'var(--tt-dim)' }}> · cloned from github</span>
+                  <span style={{ color: 'var(--tt-dim)' }}> · Cloned from GitHub</span>
                 ) : null}
               </div>
               {workspaceError ? (
@@ -276,7 +276,7 @@ const WorkspaceChip = () => {
               ) : null}
               {!workspaceError && skills.length === 0 && skillsStatus === 'live' ? (
                 <div style={{ color: 'var(--tt-comment)', fontSize: 12, padding: '1px 0' }}>
-                  no skills found under this directory
+                  No skills found in this directory
                 </div>
               ) : null}
               {skills.map((skill) => (
@@ -284,8 +284,8 @@ const WorkspaceChip = () => {
                   key={skill.id}
                   title={
                     skill.hasEvals
-                      ? `${skill.id} — has an eval suite`
-                      : skill.description || `${skill.id} — no eval suite`
+                      ? `${skill.id}: has an eval suite`
+                      : skill.description || `${skill.id}: no eval suite`
                   }
                   style={{
                     color: skill.hasEvals

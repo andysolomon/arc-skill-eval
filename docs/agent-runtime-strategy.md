@@ -31,7 +31,7 @@ Observed result on 2026-06-18:
 - Failure cause: model asked a clarifying question for the ambiguous default-world prompt instead of writing `greeting.txt`
 - Infra status: successful — model resolved, ran, produced trace/tokens, and judge executed
 
-This proves the issue is no longer provider setup. It is normal eval/model behavior.
+The provider completed the run and judge calls. The remaining failure came from model behavior, not provider setup.
 
 ## Important discovery: Ollama model IDs contain colons
 
@@ -49,13 +49,13 @@ Current parser behavior:
 - `ollama-cloud/gpt-oss:20b` -> model `gpt-oss:20b`, no thinking
 - `ollama/qwen3.5:cloud:medium` -> model `qwen3.5:cloud`, thinking `medium`
 
-## Option A — Keep using Pi, but make a tiny eval-only Pi instance
+## Option A: keep Pi with an eval-only configuration
 
 This is the recommended next step.
 
-### What “tiny Pi instance” means
+### Eval-only Pi configuration
 
-A tiny Pi instance is not a fork of Pi. It is an eval-owned Pi config directory and runtime profile with:
+This is not a fork of Pi. It is an eval-owned Pi configuration directory and runtime profile with:
 
 - minimal `models.json`
 - minimal `settings.json`
@@ -85,7 +85,7 @@ arc-skill-eval init-runtime ./.arc-skill-eval/pi-agent \
   --model gpt-oss:20b
 ```
 
-### Example tiny `models.json`
+### Example `models.json`
 
 ```json
 {
@@ -106,7 +106,7 @@ arc-skill-eval init-runtime ./.arc-skill-eval/pi-agent \
 
 Pi resolves `apiKey` values by first checking environment variables, so `"apiKey": "OLLAMA_API_KEY"` reads `process.env.OLLAMA_API_KEY` when set.
 
-### Example tiny `settings.json`
+### Example `settings.json`
 
 ```json
 {
@@ -118,7 +118,7 @@ Pi resolves `apiKey` values by first checking environment variables, so `"apiKey
 
 ### Benefits
 
-- Fastest path from current implementation
+- Requires the fewest changes to the current implementation
 - Keeps Pi's tool loop, skills, sessions, and model registry
 - Lets us avoid touching global `~/.pi/agent` during CI or local experiments
 - Makes eval runs more reproducible
@@ -130,9 +130,9 @@ Pi resolves `apiKey` values by first checking environment variables, so `"apiKey
 - Some Pi APIs changed across versions already, so dependency upgrades can require adaptation
 - We inherit Pi's model API abstractions, which may not match every provider perfectly
 
-## Option B — Build our own minimal agent runtime
+## Option B: build a minimal agent runtime
 
-This is attractive long-term, but it should be a deliberate project. A skill-eval runner needs less than a full coding agent, but still more than a single LLM call.
+This may be useful later, but it requires a separate implementation project. A skill-eval runner needs less than a full coding agent but more than a single LLM call.
 
 ### Minimum viable custom runtime
 
@@ -182,14 +182,14 @@ A custom runtime would need:
 
 ### Benefits
 
-- Full control over behavior and traces
+- Direct control over behavior and traces
 - No Pi dependency churn
 - Could be optimized specifically for evals rather than interactive coding
 - Easier to make CI-friendly and deterministic
 
 ### Costs / risks
 
-- Rebuilding an agent loop is non-trivial
+- Rebuilding an agent loop requires substantial work
 - Tool calling differs across providers
 - Bash/edit safety is easy to get wrong
 - Skill loading semantics could drift from real agents
@@ -204,8 +204,8 @@ Why:
 1. We already have working Pi-backed evals.
 2. We just proved Ollama Cloud works through Pi with `gpt-oss:20b`.
 3. The main pain is configuration isolation, not lack of an agent loop.
-4. A tiny Pi instance makes CI and dogfood reproducible.
-5. It keeps the product focused on its core magic power: authoring and running skill evals.
+4. An eval-only Pi configuration makes CI and internal eval runs more reproducible.
+5. It keeps the work focused on authoring and running skill evals.
 
 Then explore Option B behind an experimental runtime interface.
 
@@ -213,7 +213,7 @@ Then explore Option B behind an experimental runtime interface.
 
 The minimal `AgentRuntime` seam shipped under [ADR-0001](./adr/ADR-0001-defer-agent-runtime-expansion.md). Multi-harness CLI adapters + `--runtime` + BYOK are the approved expansion path under [ADR-0007](./adr/ADR-0007-multi-harness-cli-runtimes.md). Full detail: [multi-harness-runtimes.md](./multi-harness-runtimes.md).
 
-A custom in-process OpenAI-compatible tool loop (historical Option B) remains **deferred** — escape-hatch demand is better met by spawning the user’s real harness CLI.
+A custom in-process OpenAI-compatible tool loop (historical Option B) remains **deferred**. Spawning the user's installed harness CLI covers the current need for another runtime.
 
 ```ts
 export interface AgentRuntime {

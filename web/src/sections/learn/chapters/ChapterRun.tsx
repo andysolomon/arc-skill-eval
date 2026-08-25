@@ -243,7 +243,7 @@ export const ChapterRun = () => (
       ))}
     </div>
 
-    <SectionKicker style={{ marginBottom: 10 }}>figure — the run browser</SectionKicker>
+    <SectionKicker style={{ marginBottom: 10 }}>the run browser</SectionKicker>
     <div
       style={{
         background: 'var(--tt-bg-dark)',
@@ -384,7 +384,7 @@ export const ChapterRun = () => (
       <span style={{ color: 'var(--tt-fg-dark)' }}>browse</span> reads these files into the
       four-panel viewer. <span style={{ color: 'var(--tt-fg-dark)' }}>review</span> renders the
       same run as a static report and captures your notes in{' '}
-      <span style={{ color: 'var(--tt-teal)' }}>feedback.json</span> — the input to{' '}
+      <span style={{ color: 'var(--tt-teal)' }}>feedback.json</span>. the input to{' '}
       <span style={{ color: 'var(--tt-fg-dark)' }}>improve</span>.
     </div>
   </div>

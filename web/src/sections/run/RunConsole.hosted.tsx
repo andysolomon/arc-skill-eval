@@ -16,7 +16,7 @@ arc-skill-eval run <skill-dir> \\
 export const RunConsoleHosted = () => (
   <section
     aria-disabled="true"
-    aria-label="Run console hosted stub"
+    aria-label="Hosted run command"
     style={{
       background: 'var(--tt-bg-dark)',
       border: '1px solid var(--tt-border)',
@@ -27,7 +27,7 @@ export const RunConsoleHosted = () => (
     }}
   >
     <div style={{ display: 'grid', gap: 12 }}>
-      <Kicker>console</Kicker>
+      <Kicker>Run this command locally</Kicker>
       <pre
         aria-label="assembled CLI command"
         aria-readonly="true"

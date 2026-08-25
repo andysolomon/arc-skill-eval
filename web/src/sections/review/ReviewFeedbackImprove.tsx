@@ -48,7 +48,7 @@ export const ReviewFeedbackImprove = ({
 
   return (
     <aside
-      aria-label="Feedback and improve"
+      aria-label="Feedback and proposed changes"
       style={{
         display: 'flex',
         flex: 'none',
@@ -87,7 +87,7 @@ export const ReviewFeedbackImprove = ({
           >
             feedback.json
           </h2>
-          <span style={{ color: 'var(--tt-comment)' }}> — {selectedCaseId ?? 'run'}</span>
+          <span style={{ color: 'var(--tt-comment)' }}>: {selectedCaseId ?? 'run'}</span>
         </header>
         <div style={{ padding: 12 }}>
           <textarea

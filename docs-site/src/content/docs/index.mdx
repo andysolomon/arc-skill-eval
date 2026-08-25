@@ -1,9 +1,9 @@
 ---
 title: Skeval
-description: Anthropic-standard skill evaluations for Claude skills. Run evals/evals.json with the skill attached, grade with LLM-judged + script assertions, compare against a no-skill baseline.
+description: Run Anthropic-format skill evals, grade them with LLM and script assertions, and compare them with a no-skill baseline.
 template: splash
 hero:
-  tagline: Skill Eval — Anthropic-standard skill evaluations for Claude skills.
+  tagline: Run and compare skill evals in Anthropic's published format.
   actions:
     - text: Get started
       link: /arc-skill-eval/quickstart/
@@ -17,33 +17,33 @@ hero:
 
 ## What is Skeval?
 
-**Skeval** is the docs and blog home for [`arc-skill-eval`](https://github.com/andysolomon/arc-skill-eval) — a Pi-native CLI for running skill evals. You author `evals/evals.json` next to your `SKILL.md`. Skeval discovers it, runs each case with the skill attached, grades the output, and writes a tree of artifacts you can inspect or diff.
+**Skeval** documents [`arc-skill-eval`](https://github.com/andysolomon/arc-skill-eval), a Pi-native CLI for running skill evals. Put `evals/evals.json` next to `SKILL.md`. The CLI finds the suite, runs each case with the skill attached, grades the output, and writes artifacts you can inspect or compare.
 
-The eval **methodology** — layered grading, small starter suites, growing the suite from real failures, the with-skill / without-skill comparison as the load-bearing signal — is taken directly from OpenAI's [Testing Agent Skills Systematically with Evals](https://developers.openai.com/blog/eval-skills) (Kundel & Chua, January 2026). The on-disk **format** — `evals/evals.json`, `grading.json`, `benchmark.json`, with-skill / without-skill variants — follows [Anthropic's published shape](https://platform.claude.com/docs/en/agents-and-tools/agent-skills) so artifacts travel cleanly to other consumers. The **runtime philosophy** ("an LLM, a loop, and enough tokens") borrows from [Ampcode's How to Build an Agent](https://ampcode.com/notes/how-to-build-an-agent) and Mihail Eric's [The Emperor Has No Clothes](https://www.mihaileric.com/The-Emperor-Has-No-Clothes/). See [Inspiration & credits](/arc-skill-eval/inspiration/) for the full story.
+The grading workflow comes from OpenAI's [Testing Agent Skills Systematically with Evals](https://developers.openai.com/blog/eval-skills): start with a small suite, add cases from real failures, and compare the same prompts with and without the skill. Files follow [Anthropic's published format](https://platform.claude.com/docs/en/agents-and-tools/agent-skills), including `evals/evals.json`, `grading.json`, and `benchmark.json`. The runtime design draws on [Ampcode's How to Build an Agent](https://ampcode.com/notes/how-to-build-an-agent) and Mihail Eric's [The Emperor Has No Clothes](https://www.mihaileric.com/The-Emperor-Has-No-Clothes/). [Inspiration and credits](/arc-skill-eval/inspiration/) has the full attribution.
 
 The brand is Skeval. The package and the CLI binary are still `arc-skill-eval`.
 
 ## Why it exists
 
-Skills are markdown files plus optional scripts. They change model behavior in ways that are easy to feel and hard to verify. Skeval makes the "does this skill work?" question answerable, and answers it with the comparison that matters: **the same prompt run with and without the skill attached, graded against the same assertions.** The pass-rate delta is the canonical signal.
+Skills are markdown files with optional scripts. They can change model behavior without making the change easy to measure. Skeval runs the same prompt with and without the skill, then grades both runs against the same assertions. The pass-rate difference shows whether the skill helped.
 
 ## What you get
 
-- `evals/evals.json` as the authoring format — the same shape Anthropic publishes.
+- `evals/evals.json` as the authoring format, using Anthropic's published shape.
 - LLM-judged assertions for prose claims, deterministic script assertions for file presence, regex, and JSON validity.
 - Opt-in `with_skill` vs `without_skill` dual runs and a `benchmark.json` aggregate.
 - Per-case observability: `assistant.md`, `outputs/`, `timing.json`, `trace.json`, `tool-summary.json`, `context-manifest.json`.
 - Model pinning for runner and judge models, including GPT 5.5 and Ollama Cloud through Pi.
-- A first-class authoring skill ([`arc-creating-evals`](/arc-skill-eval/authoring-evals/)) that interviews you across Anthropic's four success dimensions and emits a real eval suite.
-- A public roadmap toward Claude skill-creator-style runtime setup, review reports, feedback-driven improvement, and description optimization.
+- An authoring skill, [`arc-creating-evals`](/arc-skill-eval/authoring-evals/), that turns success criteria into cases, assertions, and fixtures.
+- A public roadmap for runtime setup, review reports, feedback-driven changes, and description testing.
 
 ## Where to start
 
-- **[Quickstart](/arc-skill-eval/quickstart/)** — install, run the `hello-world` skill, read your first `grading.json`.
-- **[Concepts](/arc-skill-eval/concepts/)** — the runtime entities: skills, eval cases, assertions, the with/without delta, grading, artifacts.
-- **[Authoring evals](/arc-skill-eval/authoring-evals/)** — how to write `evals/evals.json` for your own skill.
-- **[Dogfooding & Authoring Loop](/arc-skill-eval/dogfooding/)** — how to use `--compare`, iterations, and artifacts to improve a skill.
-- **[Runtime & Models](/arc-skill-eval/runtime-and-models/)** — Pi defaults, model pinning, GPT 5.5, Ollama Cloud, and eval-owned runtime plans.
-- **[Skill Creator Roadmap](/arc-skill-eval/skill-creator-roadmap/)** — planned commands and product direction for Claude skill-creator parity.
-- **[Blog](/arc-skill-eval/blog/)** — a multi-part series on why skill evals matter and what I learned building this.
-- **[Inspiration & credits](/arc-skill-eval/inspiration/)** — the three pieces of writing that shaped this project, with direct quotes and reading order.
+- **[Quickstart](/arc-skill-eval/quickstart/).** Install the CLI, run the `hello-world` skill, and read `grading.json`.
+- **[Concepts](/arc-skill-eval/concepts/).** Learn about skills, cases, assertions, grading, artifacts, and the with/without difference.
+- **[Authoring evals](/arc-skill-eval/authoring-evals/).** Write `evals/evals.json` for your own skill.
+- **[Dogfooding and authoring loop](/arc-skill-eval/dogfooding/).** Use `--compare`, iterations, and artifacts to improve a skill.
+- **[Runtime and models](/arc-skill-eval/runtime-and-models/).** Configure Pi defaults, pinned models, GPT 5.5, Ollama Cloud, and eval-owned runtimes.
+- **[Skill creator roadmap](/arc-skill-eval/skill-creator-roadmap/).** See planned commands and product work.
+- **[Blog](/arc-skill-eval/blog/).** Read why skill evals matter and what I learned while building this project.
+- **[Inspiration and credits](/arc-skill-eval/inspiration/).** Read the sources that shaped the project.

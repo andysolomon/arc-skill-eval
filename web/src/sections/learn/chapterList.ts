@@ -23,7 +23,7 @@ export const learnChapters: readonly LearnChapter[] = [
   {
     id: 'create',
     label: 'Creating an eval',
-    desc: 'From behaviors to a runnable case — a worked example, step by step.',
+    desc: 'Create runnable cases from required behaviors.',
   },
   {
     id: 'assert',
@@ -43,7 +43,7 @@ export const learnChapters: readonly LearnChapter[] = [
   {
     id: 'pi',
     label: 'The Pi runtime',
-    desc: 'Why the runner is Pi — an llm, a loop, and enough tokens — and how to pin it down.',
+    desc: 'How Pi runs cases and how to pin models for repeatable results.',
   },
 ];
 

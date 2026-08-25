@@ -1,9 +1,9 @@
 ---
 title: Authoring evals
-description: How to write evals/evals.json for your own skill, with the bundled `arc-creating-evals` interview-style skill or by hand.
+description: Create evals/evals.json with the CLI, the arc-creating-evals skill, or a text editor.
 ---
 
-You have four paths to a real eval suite for your skill: use deterministic `arc-skill-eval create`, use guided `arc-skill-eval create --guided`, drive the task through the bundled [`arc-creating-evals`](https://github.com/andysolomon/arc-skill-eval/tree/main/skills/arc-creating-evals) interview skill, or write `evals/evals.json` by hand. All paths produce the same artifact: an `evals/` directory next to your `SKILL.md` containing `evals.json` and any required fixture files.
+You can create a suite in four ways: run `arc-skill-eval create`, run `arc-skill-eval create --guided`, use the bundled [`arc-creating-evals`](https://github.com/andysolomon/arc-skill-eval/tree/main/skills/arc-creating-evals) skill, or write `evals/evals.json` yourself. Each method creates an `evals/` directory next to `SKILL.md`, with `evals.json` and any fixture files.
 
 ## Choose deterministic or guided create
 
@@ -14,7 +14,7 @@ arc-skill-eval create ./skills/my-skill --dry-run --summary
 arc-skill-eval create ./skills/my-skill
 ```
 
-This mode is fast, free, repeatable, and CI-safe. It reads `SKILL.md`, creates trigger/golden-path/adjacent-negative cases, infers fixture inputs, and adds deterministic assertions for files, JSON, and regexes when the skill mentions concrete artifacts.
+This mode does not call a model. It reads `SKILL.md`, creates trigger, execution, and adjacent-negative cases, infers fixture inputs, and adds deterministic assertions when the skill names files, JSON, or text patterns.
 
 Use guided create when the eval design itself needs judgment:
 
@@ -22,21 +22,21 @@ Use guided create when the eval design itself needs judgment:
 arc-skill-eval create ./skills/my-skill --guided --interactive
 ```
 
-Guided mode is useful for conceptual skills, planning/review skills, routing behavior, and skills whose success is mostly semantic. Treat its output as a proposal: review rationale, remove weak cases, edit assertion language, and keep deterministic assertions anywhere the skill has concrete artifacts.
+Use guided mode for conceptual, planning, review, and routing skills. Review its proposal before writing files: remove weak cases, edit vague assertions, and keep deterministic checks for concrete outputs.
 
 ### Conceptual example: `grill-me`
 
-A `grill-me` skill promises a relentless interview to sharpen a plan. It probably has no `report.json` or `plan.md` output to check. A good suite therefore emphasizes:
+A `grill-me` skill interviews a user about a plan. It may not produce a `report.json` or `plan.md` file. Its suite can check:
 
 - explicit trigger cases such as "grill me on this launch plan"
 - adjacent negatives such as "summarize this launch plan" or "rewrite this plan more clearly"
 - judge assertions that the assistant asks pointed follow-up questions, challenges assumptions, explores tradeoffs, and avoids solving the plan for the user too early
 
-That is better than inventing fake file assertions. Deterministic assertions are strongest when there are real artifacts; judge assertions are appropriate for tone, reasoning shape, interview behavior, and other semantic properties.
+Do not invent file assertions for files the skill does not create. Use deterministic assertions for concrete outputs and judge assertions for tone, interview behavior, and other prose properties.
 
 ## Prefer behavior-focused assertions
 
-Good evals check what the skill actually promises: files created, JSON shape, commands avoided, tools used, routing decisions, and the semantic behavior of the assistant. They should not fail just because a correct answer used different prose.
+Check the skill's stated behavior: created files, JSON shape, avoided commands, tool use, routing decisions, and response content. A correct response should not fail because it uses different wording.
 
 Brittle examples:
 
@@ -46,7 +46,7 @@ Brittle examples:
 "The response mentions the arc-conventional-commits skill name."
 ```
 
-Improved behavior-focused alternatives:
+Checks for observable results:
 
 ```json
 { "type": "file-exists", "path": ".releaserc.json" }
@@ -65,9 +65,9 @@ Exact wording is still valid when the words are the feature. Commit messages, CL
 }
 ```
 
-## The interview path: `arc-creating-evals`
+## Use `arc-creating-evals`
 
-`arc-creating-evals` is a skill that ships in this repo. Install it into your agent's skills directory (`.claude/skills/` for Claude Code, equivalent for other tools — see [`skills/README.md`](https://github.com/andysolomon/arc-skill-eval/blob/main/skills/README.md)) and trigger it with prompts like:
+`arc-creating-evals` ships in this repository. Install it in your tool's skills directory, such as `.claude/skills/` for Claude Code. See [`skills/README.md`](https://github.com/andysolomon/arc-skill-eval/blob/main/skills/README.md). Then use prompts such as:
 
 - *"Write evals for this skill."*
 - *"Create evals.json for `arc-conventional-commits`."*
@@ -75,22 +75,22 @@ Exact wording is still valid when the words are the feature. Commit messages, CL
 
 It walks five phases and stops at each boundary for confirmation:
 
-1. **Locate and summarize the target skill.** Reads the skill's `SKILL.md`, extracts name, description, numbered phases, expected tools, and files the skill creates or edits. Asks: *"Did I capture the skill's behavior correctly?"*
-2. **Define success across Anthropic's four dimensions.**
-   - **Outcome** — what file state, response content, or artifact proves the skill worked?
-   - **Process** — which tools must (or must not) be called?
-   - **Style** — is tone, structure, or formatting material?
-   - **Efficiency** — any upper bound on tool calls or duration?
-3. **Draft 6–10 cases** across three classes:
-   - *Trigger cases* (3–5) — explicit invocations, implicit positives derived from trigger phrases, and one adjacent negative.
-   - *Execution cases* (1–3) — fixture-backed golden path plus alternate paths if the skill has meaningfully different code paths.
-   - *Edge / negative cases* (1–2) — malformed input, ambiguous request, conflict with existing state.
-4. **Layer assertions** — script assertions first (cheap, deterministic), then string assertions (LLM-judged) for prose properties scripts can't check. Budget: 2–5 assertions per case.
-5. **Write the files, validate, dry-run one case, summarize.**
+1. Locate and summarize the target skill. The skill reads `SKILL.md` and extracts its name, description, phases, expected tools, and file changes. It asks, *"Did I capture the skill's behavior correctly?"*
+2. Define success across outcome, process, style, and efficiency.
+   - Outcome: what file state, response content, or artifact shows that the skill worked?
+   - Process: which tools must or must not run?
+   - Style: does tone, structure, or formatting matter?
+   - Efficiency: is there a limit on tool calls or duration?
+3. Draft six to ten cases in three groups:
+   - Three to five trigger cases, including explicit and implicit requests plus an adjacent negative.
+   - One to three execution cases, including a fixture-backed main path and materially different alternate paths.
+   - One or two edge or negative cases for malformed input, ambiguity, or conflicting state.
+4. Add two to five assertions per case. Start with scripts, then add judged strings for prose that scripts cannot check.
+5. Write and validate the files, run one case, and summarize the suite.
 
-The phase boundaries are real stop points — the skill won't draft assertions until you've signed off on the four success dimensions, and it won't write files until you've signed off on the cases.
+The skill pauses after the success criteria and case list. It does not write files until you approve the cases.
 
-## The by-hand path: write `evals/evals.json`
+## Write `evals/evals.json` by hand
 
 The shape (also documented under [Concepts → Eval cases](/arc-skill-eval/concepts/eval-cases/) and [Concepts → Assertions](/arc-skill-eval/concepts/assertions/)):
 
@@ -117,14 +117,14 @@ Place the file at `<your-skill>/evals/evals.json`. Fixtures, if any, go under `<
 
 ## Quality rules
 
-These come straight out of `arc-creating-evals`'s own guidance and are worth following whether or not you use the interview path:
+Follow these rules for every authoring method:
 
-- **Don't invent cases the skill isn't built for.** A trigger case the skill wasn't designed to respond to is noise, not a bug.
-- **Don't write string assertions without testing them against a real run first.** Model paraphrasing will ambush you otherwise. Once you've seen a real assistant reply, you can tighten the assertion to cite specific tokens.
-- **Don't copy the skill's instructions into assertions verbatim.** If the skill says "the .releaserc.json MUST have the conventionalcommits preset," asserting that exact text won't distinguish skill output from regurgitation. Assert on the *effect* — `{ "type": "json-valid", "path": ".releaserc.json" }` plus a regex match for `conventionalcommits`.
-- **Prefer 1 execution case + strong script assertions over 3 execution cases + weak text matches.** Mechanical checks fail honestly; weak text matches fail for paraphrase reasons.
-- **Lowercase kebab-case slugs for `id`** (or numbers). The CLI sanitizes for filesystem paths, but readable IDs make `eval-<id>` directories self-documenting.
-- **When in doubt, stop and ask.** Authoring evals by guessing produces false-positive passes that teach you nothing.
+- Do not add cases for behavior the skill does not support.
+- Test string assertions against a real run before keeping them.
+- Do not copy `SKILL.md` instructions into assertions. Check the effect, such as valid JSON containing `conventionalcommits`.
+- Prefer one execution case with strong script assertions to several cases with weak text checks.
+- Use lowercase kebab-case IDs or numbers.
+- Ask the user when expected behavior is unclear.
 
 ## Pinning a model and dry-running
 
@@ -138,6 +138,6 @@ arc-skill-eval run <your-skill> --case <first-case-id>
 
 If the judge's evidence reads like it paraphrased the assertion instead of citing assistant text, tighten the assertion (more literal, more specific) or swap it for a script assertion.
 
-## Once it's running
+## Add regression cases
 
-Add a new case every time you debug a real regression. Every manual fix is a signal. The eval suite is a living artifact — its job is to catch the next instance of whatever you just fixed by hand.
+Add a case when you fix a regression. The new case should reproduce the failure and prevent it from returning.

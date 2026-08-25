@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft (2026-07-22) — closes #172. Consumes ADR-0002 (stack), ADR-0004
+Draft (2026-07-22). Closes #172. Depends on ADR-0002 (stack), ADR-0004
 (hosted persistence boundary), ADR-0006 (theme integration), and the
 decision docs [`hosted-empty-state-gating.md`](./decisions/hosted-empty-state-gating.md)
 and [`persistence-spec.md`](./persistence-spec.md). The `Workspace Picker`
@@ -42,9 +42,9 @@ Footer nav: `← back` / `next →` buttons. Back is `DISABLED` at step 1.
 valid. At step 4 the `next →` collapses into the primary
 `write evals.json` button (see [Step 4](#step-4-review--run)).
 
-## Step 1 — list the behaviors that matter
+## Step 1: list the behaviors that matter
 
-`STEP 01 — list the behaviors that matter`
+`STEP 01: list the behaviors that matter`
 
 - **Skill path input** at the top. On `localhost` this is wired to the
   **Workspace Picker** per
@@ -63,35 +63,35 @@ valid. At step 4 the `next →` collapses into the primary
   | style | formatting, tone, structure |
   | efficiency | tokens, wall time, tool budget |
 
-- **Behavior cards** — one per behavior, stacked. Each card is a text
+- **Behavior cards:** one per behavior, stacked. Each card is a text
   input (the behavior text) with four dimension chips
   (`trigger / execution / output / adjacent`) and a `remove` (×) button.
   Cards are reorderable via drag handle (mouse) or
   <kbd>Cmd/Ctrl+↑/↓</kbd> (keyboard).
 
-- `＋ add behavior` — a dashed bordered button at the bottom of the
+- `＋ add behavior`: a dashed bordered button at the bottom of the
   list. Click to append an empty card focused on its text input.
 
 - **Localhost-only callout** (green): `generate starter evals`. Contains
   a skill-chips row (selected skill-adjacent directory chips from the
   workspace picker) and an `✦ generate evals` button. The button invokes
   the sub-decision flow described in [Sub-decision: `generate starter evals`](#sub-decision-generate-starter-evals-llm-callout-localhost-only)
-  and **appends** generated behaviors to the card list — never replaces.
+  and **appends** generated behaviors to the card list. It never replaces existing behaviors.
 
 - **Hosted callout** (cyan, no action): explains why `generate starter
   evals` is a localhost-only feature and points at the Runtime CLI for
   hosted users.
 
-## Step 2 — turn behaviors into prompts
+## Step 2: turn behaviors into prompts
 
-`STEP 02 — turn behaviors into prompts`
+`STEP 02: turn behaviors into prompts`
 
 - **Flavor legend** above the per-behavior list, one line per flavor:
 
   | Flavor | Use |
   |---|---|
   | explicit | surfaces the behavior verbatim in the prompt |
-  | implicit | paraphrases; tests whether the agent reads between the lines |
+  | implicit | paraphrases; tests whether the agent infers the behavior from the request |
   | contextual | provides a setup context the prompt relies on |
   | adjacent-negative | verifies the agent *does not* do X (regression guard) |
 
@@ -101,18 +101,18 @@ valid. At step 4 the `next →` collapses into the primary
   - A textarea for the prompt body, ~80 chars tall (large enough for
     3-4 lines), with character count and `expand` toggle.
   - Four flavor chips (one per row, set independently per behavior).
-    Selecting a chip places the chip in `advisory` position — a single
+    Selecting a chip places the chip in `advisory` position. A single
     prompt can carry multiple flavors.
-  - `✦ suggest` button (localhost only) — invokes an LLM fill for the
+  - `✦ suggest` button (localhost only): invokes an LLM fill for the
     textarea given the behavior text + selected flavors; the suggested
     text replaces the textarea content after a 1.5s dwell with a
     `↶ revert` chip for undo within 30s.
 
-- Hosted has no `✦ suggest` button — the textarea is the only input.
+- Hosted has no `✦ suggest` button. The textarea is the only input.
 
-## Step 3 — attach assertions
+## Step 3: attach assertions
 
-`STEP 03 — attach assertions`
+`STEP 03: attach assertions`
 
 - **Hint box** at the top, one line: "Good assertions are deterministic
   *or* judge-prompted; weak ones script regexes hoping for the right
@@ -130,9 +130,9 @@ valid. At step 4 the `next →` collapses into the primary
   `✦ suggest assertions` button that proposes deterministic assertions
   from the prompt and behavior text.
 
-## Step 4 — review & run
+## Step 4: review and run
 
-`STEP 04 — review & run`
+`STEP 04: review and run`
 
 - **Four stat cards** in a 1×4 row:
 
@@ -155,7 +155,7 @@ valid. At step 4 the `next →` collapses into the primary
   - Hosted: downloads `evals.json` as a file (the Runtime CLI is the
     landing target).
 
-- A `run it in the console →` link below the button — on localhost this
+- A `run it in the console ->` link below the button. On localhost this
   opens the `run` section at the same composer; on hosted it links to
   the help page describing local CLI usage.
 
@@ -201,8 +201,8 @@ Content-Type: application/json
 { "skillPath": "<absolute>", "model": "<id>", "maxBehaviors": 8 }
 ```
 
-**Output shape.** A partial `evals.json` document — `{ evals: EvalCase[] }`
-— *without* `id`/`description` filled and with placeholder
+**Output shape.** A partial `evals.json` document, `{ evals: EvalCase[] }`,
+with empty `id` and `description` fields and placeholder
 `assertions: []`. The web app assigns ids (`behave-<n>`), back-fills
 `description` from the user-friendly behavior text, and inserts the
 cases into step 1's list. The user reviews the populated step 1 and
@@ -218,16 +218,16 @@ a `↻ retry` button.
 
 ## Cross-references
 
-- [ADR-0002](../adr/ADR-0002-web-app-stack-vite-react-ts-tailwind-token-mapped.md)
-  — Vite + React + TS stack; step-rail/working-pane/live-preview layout
+- [ADR-0002](../adr/ADR-0002-web-app-stack-vite-react-ts-tailwind-token-mapped.md):
+  Vite + React + TS stack; step-rail/working-pane/live-preview layout
   uses the gap + max-width conventions from §1.4 of design.md.
-- [ADR-0004](../adr/ADR-0004-no-auth-single-user-indexeddb-hosted.md)
-  — hosted is no-LLM and no-filesystem; the cyan callouts and the
+- [ADR-0004](../adr/ADR-0004-no-auth-single-user-indexeddb-hosted.md):
+  hosted has no LLM or filesystem, so it uses cyan callouts and the
   downloaded `evals.json` flow are the expression of that.
-- [ADR-0006](../adr/ADR-0006-tailwind-datatheme-integration.md) — theme
+- [ADR-0006](../adr/ADR-0006-tailwind-datatheme-integration.md): theme
   swap never remounts; the Live Preview's "live" dot pulses via the
   same tick cadence as the prototype.
-- [`docs/web-app/CONTEXT.md`](./CONTEXT.md) — `App Section`, `Env
+- [`docs/web-app/CONTEXT.md`](./CONTEXT.md): `App Section`, `Env
   Variant`, `Theme Variant`, `Step Rail`, `Live Preview`, `Section
   Kicker`, `Workspace Picker`, `Composer Row` *(for the run composer
   fields reused on step 4)*.

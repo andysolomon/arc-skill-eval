@@ -107,7 +107,7 @@ const behaviorTypes: { title: string; snippet: ReactNode; desc: ReactNode }[] = 
     desc: (
       <>
         passes if the tool was <span style={{ color: 'var(--tt-fg-dark)' }}>never</span> called.{' '}
-        <span style={{ color: 'var(--tt-orange)' }}>gotcha:</span> tool names are case-sensitive —{' '}
+        <span style={{ color: 'var(--tt-orange)' }}>gotcha:</span> tool names are case-sensitive ,{' '}
         <span style={{ color: 'var(--tt-fg-dark)' }}>Write</span>, not <span style={{ color: 'var(--tt-fg-dark)' }}>write</span>.
       </>
     ),
@@ -155,7 +155,7 @@ const roadmap: { label: string; desc: ReactNode }[] = [
     label: 'not-regex',
     desc: (
       <>
-        a pattern must NOT appear — e.g. no hardcoded{' '}
+        a pattern must NOT appear. e.g. no hardcoded{' '}
         <span style={{ color: 'var(--tt-fg-dark)' }}>npm publish</span>
       </>
     ),
@@ -164,7 +164,7 @@ const roadmap: { label: string; desc: ReactNode }[] = [
     label: 'json-path',
     desc: (
       <>
-        a value at a key equals X —{' '}
+        a value at a key equals X ,{' '}
         <span style={{ color: 'var(--tt-fg-dark)' }}>.on == &quot;pull_request&quot;</span>
       </>
     ),
@@ -204,7 +204,7 @@ export const ChapterAssert = () => (
       cheapest rung that proves the claim:{' '}
       <span style={{ color: 'var(--tt-cyan)' }}>deterministic</span> (a script reads the files) →{' '}
       <span style={{ color: 'var(--tt-blue)' }}>behavior</span> (the run trace is inspected) →{' '}
-      <span style={{ color: 'var(--tt-magenta)' }}>llm-judge</span> (a rubric decides — burns
+      <span style={{ color: 'var(--tt-magenta)' }}>llm-judge</span> (a rubric decides. burns
       tokens, keep it last).
     </div>
 
@@ -268,7 +268,7 @@ export const ChapterAssert = () => (
       </div>
     </div>
 
-    <SectionKicker>deterministic types — one by one</SectionKicker>
+    <SectionKicker>deterministic types, one by one</SectionKicker>
     <div
       style={{
         display: 'grid',
@@ -306,11 +306,11 @@ export const ChapterAssert = () => (
       ))}
     </div>
 
-    <SectionKicker>behavior &amp; safety — graded from the run trace</SectionKicker>
+    <SectionKicker>behavior and safety checks from the run trace</SectionKicker>
     <div
       style={{ color: 'var(--tt-fg-dark)', fontSize: 12.5, lineHeight: 1.6, marginBottom: 14, maxWidth: 820 }}
     >
-      still deterministic — no judge — but they read what the run <em>did</em> (tool calls, skill
+      still deterministic. no judge. but they read what the run <em>did</em> (tool calls, skill
       reads, touched files) instead of the files it left behind. reach for these when the{' '}
       <span style={{ color: 'var(--tt-blue)' }}>process</span> is the claim, before writing a
       prose rubric.
@@ -369,7 +369,7 @@ export const ChapterAssert = () => (
       by default every failed assertion fails the run. mark one{' '}
       <span style={{ color: 'var(--tt-fg)' }}>&quot;mustPass&quot;: false</span> or{' '}
       <span style={{ color: 'var(--tt-fg)' }}>&quot;severity&quot;: &quot;warn&quot;</span> to make
-      a miss <span style={{ color: 'var(--tt-blue)' }}>soft</span> — it&apos;s recorded in{' '}
+      a miss <span style={{ color: 'var(--tt-blue)' }}>soft</span>. it&apos;s recorded in{' '}
       <span style={{ color: 'var(--tt-fg-dark)' }}>grading.json</span> but doesn&apos;t break the
       build. use soft for style and quality signals; run{' '}
       <span style={{ color: 'var(--tt-fg)' }}>--strict</span> in CI when you want them to gate too.
@@ -420,7 +420,7 @@ export const ChapterAssert = () => (
             ✗ fail
           </div>
           <div style={{ color: 'var(--tt-fg-dark)', fontSize: 12, lineHeight: 1.5 }}>
-            &quot;Done — semantic-release is set up.&quot; — names no plugins
+            &quot;Done. semantic-release is set up.&quot;. names no plugins
           </div>
         </div>
       </div>
@@ -467,7 +467,7 @@ export const ChapterAssert = () => (
     </div>
     <Callout accent="orange" style={{ marginBottom: 34 }}>
       <span style={{ color: 'var(--tt-orange)', fontWeight: 700 }}>pin the judge.</span>{' '}
-      deterministic checks are fast, free and repeatable — lean on them. the judge is powerful
+      deterministic checks are fast, free and repeatable. lean on them. the judge is powerful
       for prose but slower, costs tokens, and can drift run to run, so pass{' '}
       <span style={{ color: 'var(--tt-fg)' }}>--judge-model</span> explicitly and never let a
       model grade its own output.
@@ -486,7 +486,7 @@ export const ChapterAssert = () => (
         style={{ border: '1px solid var(--tt-border)', borderRadius: 8, padding: '13px 15px' }}
       >
         <div style={{ color: 'var(--tt-cyan)', fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
-          deterministic — fields
+          deterministic. fields
         </div>
         <div
           style={{
@@ -537,7 +537,7 @@ export const ChapterAssert = () => (
         <div
           style={{ color: 'var(--tt-magenta)', fontSize: 12, fontWeight: 700, marginBottom: 8 }}
         >
-          judge — a single criterion
+          judge. a single criterion
         </div>
         <div
           style={{
@@ -553,17 +553,17 @@ export const ChapterAssert = () => (
           &quot;The workflow triggers on pull_request, not push.&quot;
         </div>
         <div style={{ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.55 }}>
-          one observable claim, graded true / false — not a paragraph, not a checklist.
+          one observable claim, graded true / false. not a paragraph, not a checklist.
         </div>
       </div>
     </div>
 
-    <SectionKicker>on the roadmap — not gradeable yet</SectionKicker>
+    <SectionKicker>planned checks that are not yet supported</SectionKicker>
     <div
       style={{ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.6, marginBottom: 12, maxWidth: 820 }}
     >
       shapes we want but the runner does <span style={{ color: 'var(--tt-orange)' }}>not</span>{' '}
-      grade yet — don&apos;t depend on them in a suite you rely on. express the same intent today
+      grade yet. don&apos;t depend on them in a suite you rely on. express the same intent today
       with the checks above (e.g. <span style={{ color: 'var(--tt-fg-dark)' }}>not-regex</span> →
       a <span style={{ color: 'var(--tt-blue)' }}>command-forbidden</span> or a judge claim).
     </div>
@@ -613,7 +613,7 @@ export const ChapterAssert = () => (
           &quot;The response is good and helpful.&quot;
         </div>
         <div style={{ color: 'var(--tt-comment)', fontSize: 11.5, marginTop: 6 }}>
-          subjective — two people (or two runs) disagree.
+          subjective. two people (or two runs) disagree.
         </div>
       </div>
       <div
@@ -664,10 +664,10 @@ export const ChapterAssert = () => (
         maxWidth: 820,
       }}
     >
-      a PASS needs concrete evidence that quotes or references the output — never the benefit of
+      a PASS needs concrete evidence that quotes or references the output. never the benefit of
       the doubt. if the rubric says &quot;includes a summary&quot; and the output has a section
       titled Summary with one vague sentence, that&apos;s a{' '}
-      <span style={{ color: 'var(--tt-red)' }}>FAIL</span> — the label is there, the substance
+      <span style={{ color: 'var(--tt-red)' }}>FAIL</span>. the label is there, the substance
       isn&apos;t. and while grading, grade the assertions themselves: too easy, too hard, or
       unverifiable ones get fixed for the next iteration.
     </div>

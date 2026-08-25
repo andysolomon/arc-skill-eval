@@ -4,13 +4,13 @@ _Last updated: 2026-06-17_
 
 ## Executive summary
 
-The repo's most important magic power should be this loop:
+The repo should support this loop:
 
 > **Skill intent -> small realistic eval suite -> isolated with-skill / without-skill runs -> assertion grading -> benchmark delta -> skill improvement PR.**
 
-For `arc-skill-eval`, the product should optimize for making that loop boring, repeatable, and portable across every skill in [`andysolomon/arc-skills`](https://github.com/andysolomon/arc-skills). The immediate opportunity is not another generic eval framework. It is a **skill-specific eval foundry**: a tool and bundled skill that can read a `SKILL.md`, interview for success criteria, generate `evals/evals.json` plus fixtures, run one cheap smoke case, and leave behind artifacts that prove whether the skill adds value over no skill.
+`arc-skill-eval` should make that loop repeatable and portable across every skill in [`andysolomon/arc-skills`](https://github.com/andysolomon/arc-skills). It should provide a tool and bundled skill that can read a `SKILL.md`, ask for success criteria, generate `evals/evals.json` and fixtures, run one low-cost smoke case, and save artifacts that show whether the skill improves results over the no-skill baseline.
 
-This document distills research from OpenAI's skill-eval guidance, Anthropic/Agent Skills eval methodology, Anthropic's broader agent-eval guidance, and this repo's existing implementation. It then applies that methodology to the `arc-skills` library and proposes a concrete mastery plan.
+This document summarizes guidance from OpenAI and Anthropic, compares it with this repo's implementation, and proposes an eval plan for the `arc-skills` library.
 
 ## Sources reviewed
 
@@ -26,12 +26,12 @@ A skill eval is **not** only a final-answer test. It is a lightweight end-to-end
 
 Each case should answer one or more of these questions:
 
-1. **Routing / activation** — does the model load the skill when it should?
-2. **Non-activation** — does it avoid the skill when the request is adjacent but different?
-3. **Outcome** — did the workspace, file, issue, report, or artifact end in the desired state?
-4. **Process** — did it avoid dangerous or wasteful behavior? Did it use required tools only when that matters?
-5. **Style / format** — did the produced artifact follow the required shape?
-6. **Efficiency** — did the skill reduce tokens, commands, time, or thrashing relative to baseline?
+1. **Routing / activation**: does the model load the skill when it should?
+2. **Non-activation**: does it avoid the skill when the request is adjacent but different?
+3. **Outcome**: did the workspace, file, issue, report, or artifact end in the desired state?
+4. **Process**: did it avoid dangerous or wasteful behavior? Did it use required tools only when that matters?
+5. **Style / format**: did the produced artifact follow the required shape?
+6. **Efficiency**: did the skill reduce tokens, commands, time, or repeated work relative to baseline?
 
 The core data structure is:
 
@@ -45,11 +45,11 @@ The core value signal is:
 with_skill pass rate - without_skill pass rate = skill value delta
 ```
 
-Absolute pass rate answers "does this work?" Delta answers "does the skill help?" For a skills library, the delta is the headline metric.
+Absolute pass rate answers "does this work?" Delta answers "does the skill help?" For a skills library, delta is the primary metric.
 
 ## What `arc-skill-eval` already supports
 
-Current repo capabilities are already close to the right product shape:
+The repo currently:
 
 - Discovers `SKILL.md` + sibling `evals/evals.json`.
 - Runs cases through Pi with the skill attached.
@@ -345,19 +345,19 @@ Current inventory from `andysolomon/arc-skills`:
 | `arc-system-design` | Teaching/coaching | No | Learner state fixture -> design-before-code coaching response. |
 | `arc-contract-review` | Expert document review | No | Synthetic NDA/SaaS agreement -> seeded risks + redlines. Note file uses `skill.md`, not `SKILL.md`, so portability/discovery may need cleanup. |
 
-## Priority order for mastering our own skills
+## Priority order for evaluating ARC skills
 
-### Wave 0 — Make the meta-skill undeniable
+### Wave 0: evaluate the eval-authoring skill
 
 **Target:** `arc-creating-evals`
 
-Why first: if this skill works, it compounds across every other skill.
+Why first: this skill can reduce the work required to add evals to other skills.
 
 Proposed cases:
 
 1. Explicit: "Use arc-creating-evals to write evals for this skill" with a tiny fixture skill.
 2. Implicit: "Add eval coverage to this SKILL.md".
-3. Golden path: fixture skill with file-generating behavior -> produces valid `evals/evals.json` and `evals/files/`.
+3. Main execution case: fixture skill with file-generating behavior -> produces valid `evals/evals.json` and `evals/files/`.
 4. Negative: user asks for a normal unit test, not a skill eval -> do not create `evals/evals.json` unless clarified.
 5. Edge: skill has external API dependency -> marks live smoke as deferred/offline.
 
@@ -369,18 +369,18 @@ Assertions:
 - contains explicit, implicit, negative, and execution case IDs
 - response warns about model/judge configuration and full-suite command
 
-### Wave 1 — Deterministic repo/file skills
+### Wave 1: deterministic repo and file skills
 
 These produce local artifacts, so they are easiest to grade reliably:
 
-1. `arc-conventional-commits` — already started; make it the gold example.
-2. `arc-implementation-plan-progress` — creates/updates `progress.txt` and has output-contract references.
-3. `arc-prd-to-issues` — markdown input -> structured issue output.
-4. `arc-defining-work` / `arc-creating-user-stories` — strict Gherkin/W-number formats.
+1. `arc-conventional-commits`: already started; use it as the reference example.
+2. `arc-implementation-plan-progress`: creates or updates `progress.txt` and has output-contract references.
+3. `arc-prd-to-issues`: markdown input -> structured issue output.
+4. `arc-defining-work` / `arc-creating-user-stories`: strict Gherkin and W-number formats.
 
 Goal: get 4 skills to passing `--compare` runs with clear positive deltas.
 
-### Wave 2 — CLI/platform workflow skills in offline mode
+### Wave 2: CLI and platform workflow skills in offline mode
 
 1. `arc-gitlab-glab`
 2. `arc-git-pr-check`
@@ -389,7 +389,7 @@ Goal: get 4 skills to passing `--compare` runs with clear positive deltas.
 
 Goal: separate **offline planning/config generation** from **live external execution**. The default suite should never require credentials.
 
-### Wave 3 — Complex orchestration and subjective expertise
+### Wave 3: orchestration and subjective review
 
 1. `arc-bug-finder`
 2. `arc-bug-fixer`
@@ -399,7 +399,7 @@ Goal: separate **offline planning/config generation** from **live external execu
 
 Goal: use narrow seeded scenarios and LLM judge assertions; add human review samples because these are judgment-heavy.
 
-### Wave 4 — Live/browser/deployment smoke suites
+### Wave 4: live browser and deployment smoke suites
 
 1. `arc-ideabrowser-openclaw-flow`
 2. `arc-project-deploy-portfolio-sync`
@@ -478,9 +478,9 @@ Ideal behavior:
 - runs one smoke case
 - prints next commands
 
-### 2. Make behavior/safety assertions real
+### 2. Implement behavior and safety assertions
 
-The repo already has types for trace-aware assertions. Implementing them would unlock skill-specific process checks:
+The repo already has types for trace-aware assertions. Implementing them would enable skill-specific process checks:
 
 ```json
 { "kind": "behavior", "id": "reads-skill", "method": "skill-read-required", "value": "arc-conventional-commits" }
@@ -528,7 +528,7 @@ arc-skill-eval run . --exclude-tag live-smoke
 
 ### 5. Add reference-solution checks
 
-For fixture-heavy cases, support a checked-in `reference/` output that proves the grader is solvable. This follows Anthropic's guidance: if a reference solution cannot pass the grader, the task or grader is broken.
+For fixture-heavy cases, support a checked-in `reference/` output that shows the grader is solvable. This follows Anthropic's guidance: if a reference solution cannot pass the grader, the task or grader is broken.
 
 ### 6. Improve discovery portability
 
@@ -568,4 +568,4 @@ A skill is "eval-ready" when:
 6. Add tags/skip support for live-smoke separation.
 7. Start Wave 1 coverage for `arc-implementation-plan-progress`, `arc-prd-to-issues`, and `arc-defining-work`.
 
-The north-star demo should be simple: clone `arc-skills`, run one command, and get a table showing which ARC skills are proven, where they beat baseline, and exactly which assertion failed when they don't.
+The target demo is simple: clone `arc-skills`, run one command, and get a table showing which ARC skills pass, where they beat the baseline, and which assertion failed when they do not.

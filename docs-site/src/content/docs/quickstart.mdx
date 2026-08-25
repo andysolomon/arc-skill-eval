@@ -1,6 +1,6 @@
 ---
 title: Quickstart
-description: Install arc-skill-eval, run the hello-world reference skill, and read your first grading.json — in about five minutes.
+description: Install arc-skill-eval, run the hello-world reference skill, and read your first grading.json in about five minutes.
 ---
 
 This page gets you from zero to a green eval run on the bundled `hello-world` skill in about five minutes. Everything here uses Anthropic's `evals/evals.json` standard; nothing about the format is Skeval-specific.
@@ -64,7 +64,7 @@ skills/hello-world/evals-runs/<runId>/
     └── ...
 ```
 
-Open `grading.json` for any case to see the per-assertion verdict + evidence in [Anthropic's published format](https://platform.claude.com/docs/en/agents-and-tools/agent-skills):
+Open `grading.json` for any case to see each assertion's verdict and evidence in [Anthropic's published format](https://platform.claude.com/docs/en/agents-and-tools/agent-skills):
 
 ```json
 {
@@ -117,7 +117,7 @@ A `grill-me` interview skill is a good example. It probably should not assert th
 
 ## Compare against a no-skill baseline
 
-The pass-rate delta is the load-bearing signal. Add `--compare` to run each case twice — once with the skill attached, once without — and emit a top-level `benchmark.json`:
+The pass-rate difference shows whether the skill helped. Add `--compare` to run each case once with the skill and once without it. The command also writes a top-level `benchmark.json`:
 
 ```bash
 arc-skill-eval run ./skills/hello-world --compare
@@ -140,12 +140,12 @@ arc-skill-eval improve ./skills/hello-world \
   --from-feedback ./skills/hello-world/evals-runs/<runId>/feedback.json
 ```
 
-The usual loop is: `create` or `create --guided`, run one case, run with `--compare`, generate `review.html`, capture feedback, improve the skill or evals, then repeat under a new `--iteration`.
+The usual loop is to create a suite, run one case, run with `--compare`, inspect `review.html`, record feedback, and change the skill or evals. Start a new `--iteration` and repeat.
 
 ## Where next
 
-- **[CLI reference](/arc-skill-eval/cli-reference/)** — every flag of `arc-skill-eval run`.
-- **[Runtime & Models](/arc-skill-eval/runtime-and-models/)** — model pinning, Pi defaults, GPT 5.5, and Ollama Cloud.
-- **[Authoring evals](/arc-skill-eval/authoring-evals/)** — how to write `evals/evals.json` for your own skill.
-- **[Dogfooding & Authoring Loop](/arc-skill-eval/dogfooding/)** — how to iterate using `--compare` and run artifacts.
-- **[Examples → hello-world](/arc-skill-eval/examples/hello-world/)** — the full walkthrough of the skill you just ran.
+- **[CLI reference](/arc-skill-eval/cli-reference/).** See every `arc-skill-eval run` flag.
+- **[Runtime and models](/arc-skill-eval/runtime-and-models/).** Configure model pinning, Pi defaults, GPT 5.5, and Ollama Cloud.
+- **[Authoring evals](/arc-skill-eval/authoring-evals/).** Write `evals/evals.json` for your own skill.
+- **[Dogfooding and authoring loop](/arc-skill-eval/dogfooding/).** Iterate with `--compare` and run artifacts.
+- **[Hello-world example](/arc-skill-eval/examples/hello-world/).** Walk through the skill you just ran.

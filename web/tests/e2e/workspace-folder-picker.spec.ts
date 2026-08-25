@@ -18,13 +18,13 @@ test('browse folders stays navigable when workspace root is stale', async ({ pag
   await page.getByTestId('workspace-chip').click();
   await expect(page.getByTestId('workspace-dropdown')).toBeVisible();
 
-  const reference = page.getByRole('textbox', { name: 'reference a folder or github repo' });
+  const reference = page.getByRole('textbox', { name: 'Enter a folder path or GitHub repository URL' });
   await reference.fill(STALE_WORKSPACE_ROOT);
   await reference.press('Enter');
 
   await page.getByTestId('workspace-chip').click();
   await expect(page.getByTestId('workspace-dropdown')).toBeVisible();
-  await page.getByRole('button', { name: 'browse folders' }).click();
+  await page.getByRole('button', { name: 'Choose a folder' }).click();
   await expect(page.getByTestId('folder-picker')).toBeVisible();
 
   await expect(page.getByRole('button', { name: 'parent directory' })).toBeEnabled();

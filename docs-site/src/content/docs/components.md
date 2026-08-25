@@ -1,35 +1,33 @@
 ---
-title: Components & themes
-description: The browse TUI's component catalog and theme palettes — panels, status bar, bars, the diff renderer, and the tokyonight / gruvbox / nord token sets.
+title: Components and themes
+description: Browse TUI components and the tokyonight, gruvbox, and nord themes.
 ---
 
-The `browse` TUI is built from a small set of components rendered over a capability-aware token set (palette + glyphs). This page is the reviewable spec; the **interactive gallery** below is the visual reference, and [`src/tui/STYLE.md`](https://github.com/andysolomon/arc-skill-eval/blob/main/src/tui/STYLE.md) is the source-of-truth that `theme.ts` / `caps.ts` implement and `tests/tui-components.test.mjs` pins.
+The `browse` TUI uses shared components, color tokens, and glyphs. Use the gallery for a visual reference. [`src/tui/STYLE.md`](https://github.com/andysolomon/arc-skill-eval/blob/main/src/tui/STYLE.md) defines the tokens implemented by `theme.ts` and `caps.ts` and checked by `tests/tui-components.test.mjs`.
 
 ## Interactive gallery
 
-A standalone, clickable catalog of every component across all three themes:
+[Open the TUI component gallery](/arc-skill-eval/component-gallery.html) to view each component in all three themes.
 
-👉 **[Open the TUI Component Gallery](/arc-skill-eval/component-gallery.html)**
-
-> The gallery is a generated design snapshot (a DC export). It's a static visual reference — the authoritative, reviewable tokens live in `STYLE.md` and the conformance test, not in that file.
+> The gallery is a generated DC export. `STYLE.md` and the conformance test define the implemented tokens.
 
 ## Components
 
 | Component | What it is |
 | --- | --- |
-| **Panel** | Rounded-border box with a `[n] Name` title (bold blue + `borderActive` when focused) and a count/position badge; holds a row list. |
-| **RowList** | Selectable rows; the focused selection gets a `selection` background and an `accent` bar, and windows with `↑`/`↓` overflow markers. |
-| **MainPane** | The right-hand detail pane — title + sub-header, free-scrolling body, and an in-pane cursor for drill-in. |
-| **StatusBar** | One row: context-sensitive `key label` hints (or the `/ ` filter, `note:`, and `o` flag prompts; or active `/filter` · `fail-only` · `sort:` flags) on the left, and `▶ model  Σ cost` on the right. |
-| **Bars** | `bar(frac, color, width)` — a `▓`/`░` proportional fill used for pass-rate and context-window usage. |
-| **Diff renderer** | LCS line diff of `without_skill` → `with_skill` responses, with `+`/`-` gutters and add/remove wash colors. |
-| **Badges** | Status glyphs (`✓ ✗ ◐ ◌`) + `passed/total` fractions, colored by pass rate and delta. |
-| **RunConsole** | Overlay shown while `r`/`R` run evals in-process (Ink stays mounted): spinner header, elapsed timer, per-case pass bars, and a run summary. |
-| **NewCaseForm** | Overlay for `n` — three fields (id · prompt · expected) that append a skeleton case to `evals.json`. |
+| **Panel** | A rounded box with a `[n] Name` title, count or position badge, and row list. Focus applies `borderActive` and blue title text. |
+| **RowList** | Selectable rows with a `selection` background, an `accent` bar, and `↑` or `↓` overflow markers. |
+| **MainPane** | The right-hand detail pane with a title, subheader, scrolling body, and cursor. |
+| **StatusBar** | Context-sensitive key hints, prompts, and filter state on the left; model and cost on the right. |
+| **Bars** | `bar(frac, color, width)` renders a proportional `▓` and `░` bar for pass rate and context-window use. |
+| **Diff renderer** | An LCS line diff from `without_skill` to `with_skill`, with `+` and `-` gutters and background colors. |
+| **Badges** | Status glyphs (`✓ ✗ ◐ ◌`) and `passed/total` fractions colored by pass rate and delta. |
+| **RunConsole** | An overlay with a spinner, elapsed time, per-case pass bars, and run summary while `r` or `R` runs evals. |
+| **NewCaseForm** | An overlay for entering an ID, prompt, and expected result before appending a case skeleton to `evals.json`. |
 
 ## Themes
 
-Select with `ARC_TUI_THEME=tokyonight|gruvbox|nord` (default `tokyonight`). Below 256-color terminals, the hex palette falls back to named 16-color ANSI.
+Set `ARC_TUI_THEME=tokyonight|gruvbox|nord`. The default is `tokyonight`. Terminals with fewer than 256 colors use named ANSI values.
 
 | Token | tokyonight | gruvbox | nord |
 | --- | --- | --- | --- |
@@ -46,7 +44,7 @@ The full 18-token set, the unicode/ASCII glyph tables, and component anatomy are
 
 ## Glyphs
 
-Unicode on UTF-8 locales; ASCII fallback otherwise (or with `ARC_TUI_ASCII=1`):
+UTF-8 locales use Unicode. Other locales use ASCII. Set `ARC_TUI_ASCII=1` to force ASCII.
 
 | Status | Bars | Cursor | Nav |
 | --- | --- | --- | --- |
@@ -54,5 +52,5 @@ Unicode on UTF-8 locales; ASCII fallback otherwise (or with `ARC_TUI_ASCII=1`):
 
 ## See also
 
-- [Browse (TUI)](/arc-skill-eval/browse/) — the interactive run browser these components render
-- [`STYLE.md`](https://github.com/andysolomon/arc-skill-eval/blob/main/src/tui/STYLE.md) — token source of truth
+- [Browse (TUI)](/arc-skill-eval/browse/) explains the interactive run browser.
+- [`STYLE.md`](https://github.com/andysolomon/arc-skill-eval/blob/main/src/tui/STYLE.md) defines the tokens.

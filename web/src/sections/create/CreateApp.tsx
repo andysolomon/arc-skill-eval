@@ -42,14 +42,14 @@ const HostedBanner = () => (
     }}
   >
     <span style={{ color: 'var(--tt-cyan)', fontSize: 12.5, fontWeight: 700 }}>
-      building on the hosted site
+      Create on the hosted site
     </span>
     <div style={{ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.55, marginTop: 4 }}>
-      assemble your suite here by hand — it exports as{' '}
-      <span style={{ color: 'var(--tt-fg-dark)' }}>evals.json</span> to run. on{' '}
+      Build the suite below, then download{' '}
+      <span style={{ color: 'var(--tt-fg-dark)' }}>evals.json</span>. On{' '}
       <span style={{ color: 'var(--tt-fg-dark)' }}>localhost</span>,{' '}
-      <span style={{ color: 'var(--tt-fg-dark)' }}>create --guided</span> can auto-draft one from
-      an existing SKILL.md with an LLM.
+      <span style={{ color: 'var(--tt-fg-dark)' }}>create --guided</span> can draft a suite from an
+      existing SKILL.md.
     </div>
   </div>
 );
@@ -161,16 +161,16 @@ const GenerateBanner = ({
         }}
       >
         <span style={{ color: 'var(--tt-green)', fontSize: 12.5, fontWeight: 700 }}>
-          generate starter evals
+          Draft an eval suite
         </span>
         <span style={{ color: 'var(--tt-comment)', fontSize: 11.5, lineHeight: 1.5 }}>
-          choose a skill, then draft its behaviors, prompts &amp; assertions with an LLM (
-          <span style={{ color: 'var(--tt-fg-dark)' }}>create --guided</span>). optional — build
-          by hand instead.
+          Choose a skill to draft behaviors, prompts, and assertions with an LLM (
+          <span style={{ color: 'var(--tt-fg-dark)' }}>create --guided</span>). You can also build
+          the suite by hand.
         </span>
       </div>
       <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        <span style={{ color: 'var(--tt-comment)', fontSize: 12 }}>skill:</span>
+        <span style={{ color: 'var(--tt-comment)', fontSize: 12 }}>Skill:</span>
         {skills.map((skill) => {
           const isSelected = selected === skill.id;
 
@@ -194,7 +194,7 @@ const GenerateBanner = ({
                 gap: 6,
                 padding: '5px 11px',
               }}
-              title={skill.hasEvals ? 'already has an eval suite — you can edit it' : undefined}
+              title={skill.hasEvals ? 'already has an eval suite; you can edit it' : undefined}
             >
               {skill.hasEvals ? (
                 <span
@@ -232,22 +232,22 @@ const GenerateBanner = ({
             : isGenerating
               ? '✦ generating…'
               : isEdit
-                ? '✎ edit existing evals'
-                : '✦ generate evals'}
+                ? '✎ Edit existing evals'
+                : '✦ Draft evals'}
         </button>
       </div>
       {generated ? (
         <div style={{ color: 'var(--tt-green)', fontSize: 12, marginTop: 10 }}>
-          ✓ drafted {generated.count} behaviors from{' '}
-          <span style={{ color: 'var(--tt-teal)' }}>{generated.skill}</span> — step through to
-          refine each. add more by hand anytime.
+          ✓ Drafted {generated.count} behaviors from{' '}
+          <span style={{ color: 'var(--tt-teal)' }}>{generated.skill}</span>. Review each behavior,
+          or add more by hand.
         </div>
       ) : null}
       {loaded ? (
         <div style={{ color: 'var(--tt-green)', fontSize: 12, marginTop: 10 }}>
-          ✓ loaded {loaded.count} cases from{' '}
-          <span style={{ color: 'var(--tt-teal)' }}>{loaded.skill}</span>'s evals.json — edit and
-          re-write.
+          ✓ Loaded {loaded.count} cases from{' '}
+          <span style={{ color: 'var(--tt-teal)' }}>{loaded.skill}</span>'s evals.json. Edit the
+          cases, then write the file again.
         </div>
       ) : null}
       {error ? (
@@ -269,7 +269,7 @@ const GenerateBanner = ({
           marginTop: 10,
         }}
       >
-        <span style={{ color: 'var(--tt-comment)', fontSize: 12 }}>✦ assist model:</span>
+        <span style={{ color: 'var(--tt-comment)', fontSize: 12 }}>✦ Assist model:</span>
         <select
           aria-label="assist model"
           onChange={(event) => onAssistModelChange(event.target.value)}
@@ -352,7 +352,7 @@ export const CreateApp = () => {
             textTransform: 'uppercase',
           }}
         >
-          new eval suite
+          Create an eval suite
         </div>
         <nav style={{ flex: 1, overflow: 'auto', padding: '0 8px 8px' }}>
           {railSteps.map((step) => {
@@ -411,8 +411,7 @@ export const CreateApp = () => {
             padding: '12px 16px',
           }}
         >
-          mirrors the <span style={{ color: 'var(--tt-fg-dark)' }}>learn</span> flow — one step
-          per chapter. no eval experience needed.
+          Complete each step to define cases and write evals/evals.json.
         </div>
       </aside>
 

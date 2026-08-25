@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft (2026-07-22) — closes #173. Consumes ADR-0002 (stack), ADR-0004
+Draft (2026-07-22). Closes #173. Depends on ADR-0002 (stack), ADR-0004
 (hosted persistence boundary + no silent writes), ADR-0006 (theme
 integration), [`persistence-spec.md`](./persistence-spec.md) (the
 `feedback` and `improvePlans` IndexedDB stores), and the decision docs
@@ -11,10 +11,10 @@ integration), [`persistence-spec.md`](./persistence-spec.md) (the
 
 ## Overview
 
-`review` is the close-out surface of an eval run: it reads the
+`review` reads the
 `grading.json`, `benchmark.json`, and `feedback.json` artifacts (the
 first two from the Runtime's run tree, the third from the user's notes
-during this section) and turns observations into an **Improve Plan**
+during this section) and turns notes into an **Improve Plan**
 the user can take to the `create` wizard. `review` is read-mostly
 locally; on hosted it gains an import card that lets the user import
 an artifact bundle (a tar/gzip of an `evals-runs/<id>/` tree) for
@@ -93,7 +93,7 @@ The recorded notes are listed below the textarea, newest first:
   Feedback Note exists for the selected run.
 - On click: derives an **Improve Plan** in-memory from the notes + the
   selected `evals.json`. The plan replaces the explainer with a list of
-  `before → after` diff items, each with a one-line rationale.
+  `before -> after` diff items, each with a one-line rationale.
 - The plan is *proposed only*: it does **not** mutate anything on
   disk or in IndexedDB until the user clicks `--apply`.
 - Clicking `--apply` on `localhost` triggers the workspace-picker
@@ -102,7 +102,7 @@ The recorded notes are listed below the textarea, newest first:
   On `hosted` it triggers a JSON download (see ADR-0004's no-silent-write
   rule).
 
-## Hosted variant — import card
+## Hosted variant: import card
 
 On `hosted` mode (env segmented control), `review` opens with an
 **Import Card** centered in the page, above the columns:
@@ -114,7 +114,7 @@ On `hosted` mode (env segmented control), `review` opens with an
   run id, pass counts) before it lands in the runs column
 - `sample` button: preloads the design's example bundle
 
-Once the bundle is imported, the columns populate as normal — the only
+Once the bundle is imported, the columns populate as normal. The only
 delta from the localhost view is the lack of a `--apply` triggering a
 write to disk; on hosted, `--apply` always downloads.
 
@@ -143,7 +143,7 @@ The daemon writes the resulting edits in a temp staging area and
 returns a `planId` plus the diff hunks. The web app then surfaces a
 `review changes` link in the status bar that opens a `git diff`-style
 viewer; only after the user clicks `commit` does the daemon finalize.
-There is *no* auto-commit path on `localhost` either — every apply
+There is *no* auto-commit path on `localhost` either. Every apply
 ends with `commit` as a separate gate.
 
 **Hosted execution.** The web app triggers a JSON download:
@@ -153,29 +153,29 @@ local CLI (`arc-skill-eval improve --from-feedback <path>`).
 
 **Atomicity.** Plan application is *all-or-nothing*: a partial apply
 is a daemon error (`409 Conflict`, surfaced in the status bar as
-`! apply failed — daemon rolled back`), and the Improve Plan stays in
+`! apply failed: daemon rolled back`), and the Improve Plan stays in
 `improvePlans` IndexedDB store so the user can retry.
 
 ## Cross-references
 
-- [ADR-0002](../adr/ADR-0002-web-app-stack-vite-react-ts-tailwind-token-mapped.md)
-  — Vite + React + TS; the three-column layout pattern shared with
+- [ADR-0002](../adr/ADR-0002-web-app-stack-vite-react-ts-tailwind-token-mapped.md):
+  Vite + React + TS; the three-column layout pattern shared with
   `run` and `browse`.
-- [ADR-0004](../adr/ADR-0004-no-auth-single-user-indexeddb-hosted.md) —
+- [ADR-0004](../adr/ADR-0004-no-auth-single-user-indexeddb-hosted.md):
   the no-silent-write rule that the `--apply` contract codifies.
-- [ADR-0006](../adr/ADR-0006-tailwind-datatheme-integration.md) —
+- [ADR-0006](../adr/ADR-0006-tailwind-datatheme-integration.md):
   glyph colors are theme roles; failing-card red-tint derives from
   `--tt-red` 10% alpha.
-- [`docs/web-app/CONTEXT.md`](./CONTEXT.md) — `Feedback Note`,
+- [`docs/web-app/CONTEXT.md`](./CONTEXT.md): `Feedback Note`,
   `Improve Plan`, `Empty State Hero` (for the empty case), `Env
   Variant`.
-- [`decisions/workspace-picker.md`](./decisions/workspace-picker.md) —
+- [`decisions/workspace-picker.md`](./decisions/workspace-picker.md):
   supplies the `POST /apply-plan` channel and the workspace path on
   localhost.
-- [`decisions/hosted-empty-state-gating.md`](./decisions/hosted-empty-state-gating.md)
-  — `review (localhost)` is a three-column reading surface; `review
+- [`decisions/hosted-empty-state-gating.md`](./decisions/hosted-empty-state-gating.md):
+  `review (localhost)` is a three-column reading surface; `review
   (hosted)` adds the import card.
-- [`persistence-spec.md`](./persistence-spec.md) — the `feedback` and
+- [`persistence-spec.md`](./persistence-spec.md): the `feedback` and
   `improvePlans` stores are the persistence boundary; `Reset hosted
   data` clears both.
 - Issues: [#173](https://github.com/andysolomon/arc-skill-eval/issues/173)

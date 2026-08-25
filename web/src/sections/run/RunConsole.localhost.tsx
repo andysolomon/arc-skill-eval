@@ -137,7 +137,7 @@ export const RunConsoleLocalhost = ({ composerState }: RunConsoleLocalhostProps)
         }}
       >
         <span style={{ color: 'var(--tt-fg-dark)', fontWeight: 700 }}>console</span>
-        {' — '}
+        {': '}
         {state.runId ?? 'no run yet'}
       </div>
       <div style={{ flex: 1, lineHeight: 1.6, overflow: 'auto', padding: '16px 20px' }}>
@@ -154,10 +154,10 @@ export const RunConsoleLocalhost = ({ composerState }: RunConsoleLocalhostProps)
 
         {state.status === 'idle' ? (
           <div style={{ color: 'var(--tt-comment)', padding: '6px 0' }}>
-            press <span style={{ color: 'var(--tt-green)' }}>▶ run</span> to execute. grades{' '}
-            <span style={{ color: 'var(--tt-cyan)' }}>with_skill</span> against a{' '}
-            <span style={{ color: 'var(--tt-orange)' }}>without_skill</span> baseline and reports
-            the delta — the load-bearing signal.
+            Select <span style={{ color: 'var(--tt-green)' }}>▶ Run</span> to start. Comparison
+            mode grades <span style={{ color: 'var(--tt-cyan)' }}>with_skill</span> and{' '}
+            <span style={{ color: 'var(--tt-orange)' }}>without_skill</span>, then reports the
+            difference.
           </div>
         ) : null}
 

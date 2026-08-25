@@ -132,7 +132,7 @@ export const ReviewApp = () => {
             padding: '9px 16px',
           }}
         >
-          <span style={{ color: 'var(--tt-green)', fontWeight: 700 }}>localhost</span>
+          <span style={{ color: 'var(--tt-green)', fontWeight: 700 }}>Localhost</span>
           <SkillPicker
             label="reviewing"
             onSelectSkill={setSelectedSkillId}
@@ -140,7 +140,7 @@ export const ReviewApp = () => {
             skillIds={skillIds}
           />
           <span style={{ color: 'var(--tt-comment)' }}>
-            runs under <span style={{ color: 'var(--tt-teal)' }}>./evals-runs</span> — pick one on
+            Runs under <span style={{ color: 'var(--tt-teal)' }}>./evals-runs</span>. Pick one on
             the left.
           </span>
         </div>

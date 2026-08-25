@@ -57,7 +57,7 @@ export const ChapterSkill = () => (
       style={{ color: 'var(--tt-fg-dark)', lineHeight: 1.7, marginBottom: 30, maxWidth: 800 }}
     >
       a skill is a folder the agent pulls into context when it&apos;s relevant. exactly one file
-      is required — <span style={{ color: 'var(--tt-teal)' }}>SKILL.md</span> — and everything
+      is required. <span style={{ color: 'var(--tt-teal)' }}>SKILL.md</span>. and everything
       else (scripts, references, an eval suite) is optional and loaded only when it&apos;s
       needed.
     </div>
@@ -109,14 +109,14 @@ export const ChapterSkill = () => (
     </div>
     <Callout accent="orange" style={{ marginBottom: 32 }}>
       <span style={{ color: 'var(--tt-orange)', fontWeight: 700 }}>
-        name + description are load-bearing.
+        name and description control invocation.
       </span>{' '}
       they&apos;re the only part always in context, so they alone decide whether the skill fires.
-      write the description for the situations it should trigger in — not just what it does.
+      write the description for the situations it should trigger in. not just what it does.
     </Callout>
 
     <SectionKicker style={{ marginBottom: 16 }}>
-      progressive disclosure — what loads, when
+      progressive disclosure. what loads, when
     </SectionKicker>
     <div
       style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12 }}
@@ -211,7 +211,7 @@ export const ChapterSkill = () => (
     </div>
 
     <SectionKicker style={{ margin: '34px 0 8px' }}>
-      the description — your load-bearing line
+      write the invocation description
     </SectionKicker>
     <div
       style={{
@@ -225,7 +225,7 @@ export const ChapterSkill = () => (
       a description does two jobs: say <span style={{ color: 'var(--tt-fg-dark)' }}>what</span>{' '}
       the skill does, and name the{' '}
       <span style={{ color: 'var(--tt-fg-dark)' }}>situations</span> it should fire in. the
-      second is the part most people forget — and it&apos;s what makes the difference between a
+      second is the part most people forget. and it&apos;s what makes the difference between a
       skill that triggers and one that sits unused.
     </div>
     <div
@@ -260,7 +260,7 @@ export const ChapterSkill = () => (
           &quot;Helps with commits.&quot;
         </div>
         <div style={{ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.5 }}>
-          no situations, no nouns the request will contain — the agent can&apos;t tell when to
+          no situations, no nouns the request will contain. the agent can&apos;t tell when to
           reach for it.
         </div>
       </div>
@@ -287,7 +287,7 @@ export const ChapterSkill = () => (
             padding: '8px 10px',
           }}
         >
-          &quot;Set up &amp; enforce Conventional Commits — semantic-release, commitlint, release
+          &quot;Set up &amp; enforce Conventional Commits. semantic-release, commitlint, release
           automation. Use when a repo needs versioned releases or commit rules.&quot;
         </div>
         <div style={{ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.5 }}>
@@ -418,7 +418,7 @@ export const ChapterSkill = () => (
     </div>
     <Callout accent="teal">
       <span style={{ color: 'var(--tt-teal)', fontWeight: 700 }}>keep the body lean.</span>{' '}
-      everything in SKILL.md loads on every trigger — push depth into{' '}
+      everything in SKILL.md loads on every trigger. push depth into{' '}
       <span style={{ color: 'var(--tt-fg)' }}>reference/</span> files the agent opens only when
       it needs them, and let evals catch what the instructions miss.
     </Callout>

@@ -94,10 +94,11 @@ export const ReviewImportPanel = ({ createSampleRun, onImport }: ReviewImportPan
             fontWeight: 700,
           }}
         >
-          review imports — review a JSON artifact
+          Import run JSON
         </span>
         <span style={{ color: 'var(--tt-comment)', fontSize: 12 }}>
-          hosted has no LLM, so no runs — bring a file arc-skill-eval produced and inspect it here.
+          The hosted app cannot run models. Import JSON produced by arc-skill-eval to review its
+          results.
         </span>
       </div>
       <div
@@ -130,7 +131,7 @@ export const ReviewImportPanel = ({ createSampleRun, onImport }: ReviewImportPan
               justifyContent: 'center',
             }}
           >
-            ⇱ choose file
+            ⇱ Choose JSON file
             <input
               accept="application/json,.json"
               onChange={handleFilePick}
@@ -141,7 +142,7 @@ export const ReviewImportPanel = ({ createSampleRun, onImport }: ReviewImportPan
           <textarea
             aria-label="paste arc-skill-eval json"
             onChange={(event) => setText(event.target.value)}
-            placeholder="…or paste any arc-skill-eval JSON"
+            placeholder="Or paste arc-skill-eval JSON"
             spellCheck={false}
             value={text}
             style={{
@@ -180,7 +181,7 @@ export const ReviewImportPanel = ({ createSampleRun, onImport }: ReviewImportPan
                 justifyContent: 'center',
               }}
             >
-              inspect
+              Inspect JSON
             </button>
             <button
               onClick={handleSample}
@@ -199,7 +200,7 @@ export const ReviewImportPanel = ({ createSampleRun, onImport }: ReviewImportPan
                 padding: '0 12px',
               }}
             >
-              sample
+              Load sample
             </button>
           </div>
           {result ? (
@@ -243,7 +244,7 @@ export const ReviewImportPanel = ({ createSampleRun, onImport }: ReviewImportPan
                     {advisory.ok ? '✓' : '○'}
                   </span>
                   <span style={{ color: 'var(--tt-comment)' }}>
-                    {advisory.label} <span style={{ color: 'var(--tt-dim)' }}>· recommended</span>
+                    {advisory.label} <span style={{ color: 'var(--tt-dim)' }}>· Recommended</span>
                   </span>
                 </div>
               ))}

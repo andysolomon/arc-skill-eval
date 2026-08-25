@@ -1,14 +1,14 @@
-# Pivot to `evals/evals.json` (Anthropic Skill-Eval Standard)
+# Pivot to `evals/evals.json`
 
 ## Direction
-`arc-skill-eval` is pivoting away from its custom TypeScript contract format (`skill.eval.ts` / `SkillEvalContract`) to consume **[Anthropic's documented skill-eval methodology](https://platform.claude.com/docs/en/agents-and-tools/agent-skills)** — `evals/evals.json` inside each skill directory, dual-runtime comparison (`with_skill` vs `without_skill`), assertion-based grading, and iteration workspaces.
+`arc-skill-eval` is moving from its custom TypeScript contract format (`skill.eval.ts` / `SkillEvalContract`) to **[Anthropic's documented skill-eval methodology](https://platform.claude.com/docs/en/agents-and-tools/agent-skills)**: `evals/evals.json` inside each skill directory, comparison of `with_skill` and `without_skill`, assertion-based grading, and iteration workspaces.
 
 Decision date: 2026-04-22. Superseded formats: the TS contract on `main`, the Evalite-conformance experiment on `experiment/evalite-conformance`.
 
 ## Why this pivot
-- **The SKILL.md half is already a standard.** `agentskills.io` is an open format supported by a dozen+ agent vendors (Claude Code, Cursor, Codex, Gemini CLI, OpenCode, OpenHands, Pi, and more). Keeping this alignment is free.
-- **The eval half has a published methodology too.** Anthropic's `evals/evals.json` + `with_skill/without_skill` + `grading.json` + `benchmark.json` is the canonical shape. Competing with a standard costs us authoring friction and ecosystem isolation.
-- **The user-stated goal is trust, not flexibility.** "Every skill ships with an eval so users know it works well." Pass-rate deltas against a no-skill baseline are the direct signal for that; our lanes/dimensions/scorecards are indirect and harder for a user to read.
+- **`SKILL.md` already uses a shared format.** `agentskills.io` is supported by Claude Code, Cursor, Codex, Gemini CLI, OpenCode, OpenHands, Pi, and other tools. Keeping that format avoids conversion.
+- **The eval format also has a published method.** Anthropic documents `evals/evals.json`, `with_skill` and `without_skill`, `grading.json`, and `benchmark.json`. Using it avoids a separate authoring format.
+- **The stated goal is to show that each skill works.** Pass-rate deltas against a no-skill baseline measure that directly. The previous lanes, dimensions, and scorecards were less direct.
 
 ## Authoring format (what skill authors write)
 ```
@@ -41,7 +41,7 @@ Shape of `evals/evals.json`:
 ```
 
 ## Execution model
-Every case runs **twice** in the same iteration — once with the skill attached, once without — so the pass-rate **delta** is the output signal, not an absolute score.
+Every case runs **twice** in the same iteration: once with the skill attached and once without it. The result reports the pass-rate **delta**, not an absolute score.
 
 ```
 <skill>-workspace/
@@ -78,15 +78,15 @@ Per Anthropic's guidance: *"Require concrete evidence for a PASS. Don't give the
 
 ## What's deprecated
 - `SkillEvalContract` TypeScript type and the `skill.eval.ts` adjacency pattern.
-- Lane taxonomy (routing / execution / cli-parity / live-smoke) at the *authoring* surface. May survive internally as execution strategies — e.g., routing-style cases might still run as a single-turn observation — but authors won't name lanes.
+- Lane taxonomy (routing / execution / cli-parity / live-smoke) in the authoring format. It may remain internally as execution strategies. For example, routing cases might still run as single-turn observations, but authors will not name lanes.
 - Profile concept (planning / repo-mutation / external-api / orchestration) at the authoring surface. Same reasoning.
 - The custom `report.json` / `report.html` output shape. Replaced by per-case `grading.json` + aggregate `benchmark.json`.
 - Deterministic scorer packs (`src/scorers/profiles/*`) and the scoring engine. Replaced by assertion grading.
-- `docs/skill-eval-schema.md`, `docs/skill-evals-v1.md`, `docs/framework-repo-structure.md` — all deleted. The README is now the authoritative authoring guide; it points at Anthropic's docs for the canonical schema and documents our runtime-specific extensions (script assertions) only.
+- `docs/skill-eval-schema.md`, `docs/skill-evals-v1.md`, and `docs/framework-repo-structure.md` were deleted. The README is now the authoring guide; it links to Anthropic's schema documentation and describes this runtime's script assertion extensions.
 
 ## Slim-MVP milestone plan
 
-The pivot starts as a minimum-viable shape: **single run per case, assertion grading, no dual-runtime, no iteration workspaces**. Anthropic's `with_skill` vs `without_skill` delta, `iteration-N/` dirs, and `benchmark.json` aggregation are all recognized post-MVP extensions — useful for *proving a skill adds value* but not required to answer *does my skill work*. They land after the MVP is proven.
+The first release supports **one run per case and assertion grading, without dual-runtime runs or iteration workspaces**. The `with_skill` and `without_skill` delta, `iteration-N/` directories, and `benchmark.json` aggregation are post-MVP extensions. They measure whether a skill improves results but are not required to check whether a skill works.
 
 | Milestone | Scope | Rough size |
 |---|---|---|
@@ -94,39 +94,39 @@ The pivot starts as a minimum-viable shape: **single run per case, assertion gra
 | **M2** ✅ | Runner (M2A, #16): Pi SDK with skill attached, one run per case, capture assistant text + workspace + timing. Grader (M2B, #17): LLM-judge for string assertions, mechanical script assertions (`file-exists`, `regex-match`, `json-valid`). Per-case `grading.json` output | done |
 | **M3** ✅ | CLI `arc-skill-eval run` (M3a, #18). `arc-creating-evals` authoring skill at `skills/arc-creating-evals/` (M3b, #19). Deprecation pass (M3c, this PR): `src/scorers/`, `src/reporting/`, `src/traces/compare-parity.ts`, `src/cli/{list,validate,test}-command.ts`, legacy `src/load/` loaders, `src/contracts/validate.ts`, `tests/{cli,reporting,deterministic-scoring,contracts-and-loaders}.test.mjs`. Retained `src/contracts/{types,normalize}.ts` and `src/load/source-types.ts` as internal scaffolding that M2A's run-case.ts synthesizes for Pi's existing signature | done |
 
-**Actual delivery: ~3 focused days, 8 PRs (#14 direction, #15 M1, #16 M2A, #17 M2B, #18 M3a, #19 M3b, this M3c; plus #10 docs-only divergence note).**
+**Actual delivery: about 3 days and 8 PRs (#14 direction, #15 M1, #16 M2A, #17 M2B, #18 M3a, #19 M3b, this M3c, plus the #10 documentation note).**
 
 ## Deferred to post-MVP
 - **Automatic iteration selection and improvement loops** (`<skill>-workspace/iteration-N/`, per-iteration LLM-proposed SKILL.md diffs). Explicit runner-only iteration buckets are implemented via `--iteration`.
 - **Cross-run / cross-iteration benchmark comparison.** Builds on the per-run `benchmark.json` artifact.
-- **Human-review `feedback.json`.** Authoring ergonomic; nice to have, not structural.
+- **Human-review `feedback.json`.** Useful for authoring, but not required by the runtime structure.
 
 ## Post-MVP progress
-- **`with_skill` vs `without_skill` dual-run** — implemented as opt-in `--compare`. This emits per-case `with_skill/` and `without_skill/` artifacts and computes case-level pass-rate deltas.
-- **`benchmark.json` aggregation** — implemented for `--compare` runs only. The artifact keeps an Anthropic-compatible core and stores Pi-specific artifact paths/timing/model/token/cost/context/tool metadata under `metadata.extensions`.
-- **Explicit iteration output layout** — implemented as `--iteration <name>`, writing under `<skillDir>/evals-runs/iteration-<name>/<runId>/` while leaving default layout unchanged.
-- **Response and usage artifacts** — implemented per run variant: `assistant.md` stores the final assistant response, and `timing.json` records duration, model, thinking level, token usage, estimated cost, context-window size, and context-window percentage used.
-- **Tool/context observability artifacts** — implemented per run variant: `trace.json`, `tool-summary.json`, and `context-manifest.json` capture tool-call counts, skill reads, MCP-looking tool activity, external calls, and the skills/tools/context exposed to the model.
-- **Context loadout / conflict mode** — implemented as opt-in flags: `--extra-skill <path>` loads explicit distractor skills for conflict evals, and `--context-mode ambient` allows normal Pi ambient resources while recording the resulting loadout.
+- **`with_skill` vs `without_skill` dual-run:** implemented as opt-in `--compare`. This emits per-case `with_skill/` and `without_skill/` artifacts and computes case-level pass-rate deltas.
+- **`benchmark.json` aggregation:** implemented for `--compare` runs only. The artifact keeps an Anthropic-compatible core and stores Pi-specific artifact paths, timing, model, token, cost, context, and tool metadata under `metadata.extensions`.
+- **Explicit iteration output layout:** implemented as `--iteration <name>`, writing under `<skillDir>/evals-runs/iteration-<name>/<runId>/` while leaving the default layout unchanged.
+- **Response and usage artifacts:** implemented per run variant. `assistant.md` stores the final assistant response, and `timing.json` records duration, model, thinking level, token usage, estimated cost, context-window size, and context-window percentage used.
+- **Tool and context artifacts:** implemented per run variant. `trace.json`, `tool-summary.json`, and `context-manifest.json` capture tool-call counts, skill reads, MCP-looking tool activity, external calls, and the skills, tools, and context exposed to the model.
+- **Context loadout and conflict mode:** implemented as opt-in flags. `--extra-skill <path>` loads explicit distractor skills for conflict evals, and `--context-mode ambient` allows normal Pi ambient resources while recording the resulting loadout.
 
 ## Sequencing guidance
 - Each milestone ships as its own PR against `main`.
-- Each milestone must leave `npm run typecheck` and `npm test` green. Deprecation happens in-place — we keep the old code paths until the new ones cover them end-to-end, then delete in M3.
+- Each milestone must leave `npm run typecheck` and `npm test` passing. Keep old code paths until the new ones cover them end to end, then delete the old paths in M3.
 - Within M2 the runner and grader can split into parallel subagents once M1's types are on main.
 
 ## Assertion grading contract
 The MVP accepts both assertion shapes in a case's `assertions` array:
 
-- **`string`** — graded by an LLM-judge prompt, result is `{ passed, evidence }`.
-- **`{ type: "file-exists" | "regex-match" | "json-valid", ...args }`** — graded by a deterministic script. Faster and cheaper than the LLM-judge, and reliable for mechanical checks.
+- **`string`:** graded by an LLM-judge prompt; the result is `{ passed, evidence }`.
+- **`{ type: "file-exists" | "regex-match" | "json-valid", ...args }`:** graded by a deterministic script. This is faster and less expensive than an LLM judge and reliable for mechanical checks.
 
 Script assertions cover cases where the LLM-judge is overkill or unreliable (file presence, exact regex, JSON validity). String assertions handle the rest. Anthropic's published format uses string-only; the typed-object variant is our extension.
 
 ## CLI + package name
-Keep `arc-skill-eval` as the package and CLI name. The framework still tests skills via evals — the name remains accurate; migrating it costs work for zero value.
+Keep `arc-skill-eval` as the package and CLI name. It still tests skills through evals, so renaming would add migration work without clarifying the product.
 
 ## Out of scope for this pivot
-- **Rubric scoring.** Anthropic's methodology doesn't use a separate rubric lane — subjective-quality concerns show up as assertions or as human-review feedback. Our stubbed rubric type goes away with the TS contract.
+- **Rubric scoring.** Anthropic's methodology does not use a separate rubric lane. Subjective quality appears in assertions or human-review feedback. The stubbed rubric type is removed with the TypeScript contract.
 - **CLI parity as a first-class lane.** In the new model, SDK-vs-CLI drift detection would be a *variant run configuration*, not an authoring concern. Defer until actually requested.
 - **Tiering.** Never implemented on main; doesn't carry over. If we need trust tiers later, they'd come from pass-rate thresholds, not declared target tiers.
 
@@ -134,4 +134,4 @@ Keep `arc-skill-eval` as the package and CLI name. The framework still tests ski
 - [OpenAI blog: Eval Skills](https://developers.openai.com/blog/eval-skills)
 - [Anthropic Skills docs (eval methodology)](https://platform.claude.com/docs/en/agents-and-tools/agent-skills)
 - [Open Skills standard](https://agentskills.io)
-- Experiment that surfaced this direction: [`experiment/evalite-conformance`](https://github.com/andysolomon/arc-skill-eval/tree/experiment/evalite-conformance) — not for merge.
+- Experiment that led to this direction: [`experiment/evalite-conformance`](https://github.com/andysolomon/arc-skill-eval/tree/experiment/evalite-conformance), not intended for merge.

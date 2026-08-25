@@ -1,11 +1,11 @@
 ---
 title: Assertions
-description: The discriminated union of assertion types — LLM-judged strings, deterministic scripts, and intent assertions.
+description: Choose among judged strings, deterministic scripts, and structured intent assertions.
 sidebar:
   order: 3
 ---
 
-Assertions are the load-bearing part of an eval case. Each assertion is graded independently and contributes one row to the case's `grading.json`. The framework supports three families, picked per assertion based on what you're trying to check.
+Assertions define what each case checks. Skeval grades them independently and writes one result per assertion to `grading.json`. Choose the assertion type based on the result you need to check.
 
 ```ts
 type EvalAssertion =
@@ -16,21 +16,21 @@ type EvalAssertion =
 
 ## LLM-judged string assertions
 
-A bare string is graded by the LLM-judge. This is the format Anthropic's published spec uses, and it's the right choice for prose claims.
+A bare string uses the LLM judge. Anthropic's published format uses this form for prose claims.
 
 ```json
 "The response summarizes the semantic-release plugins it installed."
 ```
 
-The judge produces `{ passed, evidence }` per assertion. The `evidence` field cites a passage from the assistant text or a workspace file — that's the proof the assertion actually held, not just the verdict.
+The judge returns `{ passed, evidence }`. `evidence` cites the response or a workspace file that supports the verdict.
 
-**When to use:** for claims about prose properties, summaries, intent, tone, structure of natural-language output. Anything a script can't reliably detect.
+Use string assertions for summaries, intent, tone, or natural-language structure that a script cannot check reliably.
 
-**When not to use:** for mechanical facts (file presence, exact regex, JSON validity). A script is faster, cheaper, and not subject to paraphrase.
+Use scripts for file presence, exact patterns, and JSON validity. They run faster and do not depend on paraphrase.
 
 ## Deterministic script assertions
 
-Three legacy script types are built in. They're synchronous and don't make any LLM calls.
+Skeval includes three synchronous script types. They do not call a model.
 
 ### `file-exists`
 
@@ -38,7 +38,7 @@ Three legacy script types are built in. They're synchronous and don't make any L
 { "type": "file-exists", "path": ".releaserc.json" }
 ```
 
-Path is relative to the workspace root, with a path-traversal guard. Evidence reports the resolved path and the file size.
+The path is relative to the workspace root. A path-traversal check prevents access outside the workspace. Evidence includes the resolved path and file size.
 
 ### `regex-match`
 
@@ -46,7 +46,7 @@ Path is relative to the workspace root, with a path-traversal guard. Evidence re
 { "type": "regex-match", "pattern": "conventionalcommits", "target": { "file": ".releaserc.json" } }
 ```
 
-Target is either `{ "file": "<relative-path>" }` or the string `"assistant-text"`. The pattern is a JavaScript regex string (escape backslashes accordingly).
+Set `target` to `{ "file": "<relative-path>" }` or `"assistant-text"`. Write `pattern` as a JavaScript regular-expression string and escape backslashes for JSON.
 
 ### `json-valid`
 
@@ -54,30 +54,30 @@ Target is either `{ "file": "<relative-path>" }` or the string `"assistant-text"
 { "type": "json-valid", "path": ".releaserc.json" }
 ```
 
-True if the file parses as JSON. Evidence reports either a parsed type summary or the parse error.
+Passes when the file parses as JSON. Evidence includes a type summary or the parse error.
 
 ## Intent assertions
 
-A newer, structured shape with explicit `id`, `kind`, and `method` fields. They split assertions by the entity they target:
+Intent assertions use explicit `id`, `kind`, and `method` fields:
 
-- **`kind: "output"`** with `method: "judge" | "regex" | "exact"` — assertions about the assistant's reply.
-- **`kind: "workspace"`** with `method: "file-exists" | "file-contains" | "json-valid" | "snapshot-diff"` — assertions about the workspace state after the run.
-- **`kind: "behavior"`** and **`kind: "safety"`** — trace-aware checks. They validate as input today; deterministic grading for them is deferred.
+- `kind: "output"` with `method: "judge" | "regex" | "exact"` checks the response.
+- `kind: "workspace"` with `method: "file-exists" | "file-contains" | "json-valid" | "snapshot-diff"` checks workspace state.
+- `kind: "behavior"` and `kind: "safety"` define trace-aware checks. Skeval validates these inputs but does not yet grade them deterministically.
 
-Intent assertions are richer than the legacy shapes — they carry a stable id (good for diffing across runs) and an explicit kind that maps cleanly onto the artifact the grader needs to read.
+The stable ID supports cross-run comparisons. The kind identifies which run artifact the grader should read.
 
 ## How the grader fits these together
 
-The grader (`src/evals/grade.ts`) batches all LLM-judged work into a single judge call where it can — string assertions and any `kind: "output"` with `method: "judge"` go in one batch — while script-type assertions run synchronously. That keeps the cost of a case proportional to the prose claims, not the total assertion count.
+The grader in `src/evals/grade.ts` batches string assertions and `kind: "output"` assertions with `method: "judge"` into one judge call per case. Script assertions run synchronously. Only judged prose claims add model-call cost.
 
-A path-traversal guard runs on every workspace path before any file read, so a malformed assertion can't escape the temp workspace.
+Before reading a file, the grader checks that its path stays inside the temporary workspace.
 
 ## Authoring guidelines
 
-- **Script assertions first.** They're cheap, deterministic, and fail honestly. Only reach for the judge when you need to assert about prose.
-- **Budget 2–5 assertions per case.** More than that and one will start failing for the wrong reasons.
-- **Prefer behavior over wording.** Assertions should describe the observable outcome: a file exists, JSON contains the expected plugin, the assistant starts the setup instead of giving generic advice, or an adjacent negative does not trigger the workflow.
-- **Avoid literal-quote assertions unless the quote is the contract.** *"The response says 'Hello, world!'"* is brittle if the skill only promises a greeting; assert on the produced file instead. Literal checks are appropriate for required CLI output, public copy, commit messages, email subjects, or mandatory safety language.
-- **Make legitimate wording requirements explicit.** If exact phrasing matters, put that requirement in `expected_output` and use a deterministic `regex-match` or intent `kind: "output", method: "exact"` assertion so the failure points to the missing text.
-- **Don't copy the skill's instructions verbatim into assertions.** If `SKILL.md` says "the .releaserc.json must use the conventionalcommits preset," asserting that exact text won't distinguish skill output from regurgitation.
-- **Prefer action verbs and proper nouns.** *"The response names the conventionalcommits preset"* is checkable. *"You should explain it"* is not.
+- Start with script assertions. Use the judge only for prose.
+- Keep each case to two to five assertions.
+- Check observable results rather than incidental wording.
+- Use literal text checks only when the text is part of the contract, such as CLI output, public copy, commit messages, email subjects, or required safety language.
+- Put exact wording requirements in `expected_output`, then use `regex-match` or an output assertion with `method: "exact"`.
+- Do not copy instructions from `SKILL.md` into an assertion. Check their effect instead.
+- Name specific actions and proper nouns. "The response names the conventionalcommits preset" is checkable; "You should explain it" is not.

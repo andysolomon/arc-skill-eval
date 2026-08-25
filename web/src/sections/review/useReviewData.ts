@@ -257,7 +257,7 @@ export const inspectReviewArtifact = (text: string): ReviewImportInspection => {
   try {
     parsed = JSON.parse(text);
   } catch (error) {
-    parseError = `not valid JSON — ${error instanceof Error ? error.message : String(error)}`;
+    parseError = `Not valid JSON: ${error instanceof Error ? error.message : String(error)}`;
   }
 
   const record = toRecord(parsed);

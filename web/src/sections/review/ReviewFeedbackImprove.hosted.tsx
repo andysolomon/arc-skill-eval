@@ -22,7 +22,7 @@ const downloadImprovePlan = (plan: ProposedImprovePlan, skill: string) => {
 };
 
 const renderPlanItems = (plan: ProposedImprovePlan) => (
-  <div aria-label="downloaded improve plan">
+  <div aria-label="Downloaded change plan">
     {plan.items.map((item, index) => (
       <div key={`${item.path}-${index}`} style={{ marginBottom: 12 }}>
         <div
@@ -76,7 +76,7 @@ export const ReviewFeedbackImproveHosted = ({
 
   return (
     <section
-      aria-label="improve from feedback hosted"
+      aria-label="Download changes proposed from feedback"
       data-env="hosted"
       style={{
         border: '1px solid var(--tt-border)',
@@ -98,15 +98,14 @@ export const ReviewFeedbackImproveHosted = ({
           padding: '6px 12px',
         }}
       >
-        improve --from-feedback
+        Download a change plan
       </header>
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 12 }}>
         {!propose.plan ? (
           <div style={{ color: 'var(--tt-comment)', fontSize: 12.5, lineHeight: 1.6 }}>
-            turn review notes + failing assertions into a focused plan — prompt, assertion,
-            fixture, or adjacent-negative changes with rationale. nothing is written without{' '}
-            <span style={{ color: 'var(--tt-yellow)' }}>--apply</span>. on hosted, the plan
-            downloads as JSON.
+            Use review notes and failed assertions to propose changes to prompts, assertions,
+            fixtures, or adjacent-negative cases. The hosted app downloads the plan as JSON and does not
+            write files.
           </div>
         ) : null}
 
@@ -132,7 +131,7 @@ export const ReviewFeedbackImproveHosted = ({
 
         {downloaded ? (
           <div role="status" style={{ color: 'var(--tt-green)', fontSize: 12.5, marginTop: 10 }}>
-            ✓ improve plan download started
+            ✓ Change plan download started
           </div>
         ) : null}
         {propose.error ? (
@@ -152,7 +151,7 @@ export const ReviewFeedbackImproveHosted = ({
         <button
           disabled={!canPropose}
           onClick={handlePropose}
-          title={canPropose ? 'download proposed improve plan' : 'locked until feedback exists'}
+          title={canPropose ? 'Download change plan' : 'Add feedback to download a change plan'}
           type="button"
           style={{
             alignItems: 'center',
@@ -169,7 +168,7 @@ export const ReviewFeedbackImproveHosted = ({
             opacity: canPropose ? 1 : 0.6,
           }}
         >
-          {propose.status === 'proposing' ? 'improving…' : 'improve'}
+          {propose.status === 'proposing' ? 'Preparing change plan…' : 'Download change plan'}
         </button>
       </footer>
     </section>

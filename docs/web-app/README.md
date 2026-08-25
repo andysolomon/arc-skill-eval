@@ -1,30 +1,22 @@
-# Arc Skill Eval — Web App Dev Handoff
+# Arc Skill Eval web app documentation
 
-> **You are here.** An implementer opening this README has been handed
-> the complete spec/handoff for the Vite + React hosted web app
-> version of `arc-skill-eval`. Below is the entry point — read this
-> file end to end, then follow the linked specs in the order they
-> appear.
+This README indexes the specifications for the Vite + React hosted web
+app. Read the linked documents in order before implementing a section.
 
 ## What this is
 
 A five-section hosted web app (`run` · `browse` · `create` · `review` ·
 `learn`) that surfaces `arc-skill-eval`'s eval pipeline in a browser.
-It does not replace the CLI or the Ink TUI — it provides a hosted
+It does not replace the CLI or the Ink TUI. It provides a hosted
 companion, sharing design tokens with both via the
 `@arc-skill-eval/tokens` workspace package.
 
 **Source of truth for layout & behavior** is the design prototype at
 `docs/Arc skill eval web design/design_handoff_arc_skill_eval/arc-skill-eval-app.dc.html`.
 **Source of truth for tokens** is `design.md` in the same handoff dir.
-This handoff docs + those two artifacts are the complete spec — there
-is nothing further to infer.
-
-## The destination
-
-A future implementer can build the full web app from these docs with
-no further questions answered. If a spec is ambiguous, the spec is
-**wrong** — file a follow-up issue, do not invent the answer.
+These documents and artifacts define the current web app behavior. If
+a specification is ambiguous, file a follow-up issue instead of
+choosing behavior without recording the decision.
 
 ## Read in this order
 
@@ -37,9 +29,9 @@ no further questions answered. If a spec is ambiguous, the spec is
 | 5 | Decisions in `./decisions/` ([gating](./decisions/hosted-empty-state-gating.md), [workspace picker](./decisions/workspace-picker.md)) | Two structural decisions that affect every section. |
 | 6 | Section specs in `docs/web-app/`: [`run`](./section-run.md), [`browse`](./section-browse.md), [`create`](./section-create.md), [`review`](./section-review.md), [`learn`](./section-learn.md) | One per App Section, in priority order (run is flagship). |
 
-After reading, jump straight to the section you are about to implement.
+Then open the specification for the section you are implementing.
 
-## Repo layout (as the implementer will see it)
+## Repository layout
 
 ```
 .
@@ -48,12 +40,12 @@ After reading, jump straight to the section you are about to implement.
 │   ├── tailwind-theme.css.template                 # Mustache-style @theme template
 │   ├── scripts/build.mjs                           # dep-free generator
 │   └── dist/web-theme.css                          # gitignored; emitted by build
-├── web/                                            # TBD — implementer scaffolds here
+├── web/                                            # web app
 │   ├── src/
 │   ├── public/
 │   ├── vite.config.ts
 │   └── tsconfig.json
-├── docs/web-app/                                   # ← you are here
+├── docs/web-app/                                   # web app documentation
 │   ├── README.md                                   # this file
 │   ├── CONTEXT.md                                  # web-app glossary
 │   ├── persistence-spec.md
@@ -80,34 +72,32 @@ After reading, jump straight to the section you are about to implement.
   is selection-shaped (in `browse`/`review`); `not-yet-authored | pristine | dirty | valid`
   is wizard-shaped (in `create`). State machines belong to the section
   spec, not duplicated elsewhere.
-- **No silent writes.** Anything that touches the filesystem or
+- **No silent writes.** Any filesystem or
   IndexedDB goes through a user-clicked gate and surfaces a status-bar
-  toast. ADR-0004 is the law.
+  toast. Follow ADR-0004.
 - **Hosted has no LLM.** The cyan callouts in `create` and the import
   cards in `run`/`review` are the expression of this. Do not
   introduce an LLM path on hosted.
 
-## Verification you can run
+## Verification
 
-A full verification suite belongs to the implementer, but the
-following short checks are the floor:
+Run at least these checks:
 
-- `npm --workspace @arc-skill-eval/tokens run build` → emits
+- `npm --workspace @arc-skill-eval/tokens run build` -> emits
   `packages/tokens/dist/web-theme.css` and exits 0.
 - `node -e "console.log(require('@arc-skill-eval/tokens').themes.tokyonight.bg)"`
-  → prints `#1a1b26`.
+  -> prints `#1a1b26`.
 - A future `npm --prefix web run build` (not yet wired) emits
   `web/dist/`. The static bundle deploys to Vercel or Cloudflare
   Pages with no server.
 - The repo's existing test suite at `tests/*.test.mjs` continues to
-  pass — web-app changes must not break the Runtime.
+  pass. Web app changes must not break the Runtime.
 
-## Open questions (graduated from the chart)
+## Open questions
 
 These are tracked on the map at
 [#163](https://github.com/andysolomon/arc-skill-eval/issues/163) under
-"**Not yet specified**". The implementer should *not* decide these
-silently — surface them in a follow-up issue.
+"**Not yet specified**". Record any decision in a follow-up issue.
 
 - `create` step 1 `generate starter evals` model picker (now the same
   as the run composer's `--model` field; documented in
@@ -120,7 +110,7 @@ silently — surface them in a follow-up issue.
   chapter 5.
 - Vision / contrast themes beyond tokyonight / gruvbox / nord.
 
-## How to file a handoff correction
+## How to file a documentation correction
 
 Open an issue with the `epic:web-app` label and reference the section
 spec filename. The chart session's map at

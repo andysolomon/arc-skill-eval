@@ -1,11 +1,11 @@
 ---
 title: Skills
-description: What counts as a skill in Skeval, how it gets discovered, and the domain types that describe what it can do.
+description: How Skeval finds skills and represents their purpose, capabilities, policy, environment, and inference metadata.
 sidebar:
   order: 1
 ---
 
-A **skill** in Skeval is a directory that ships both a `SKILL.md` (the [agentskills.io](https://agentskills.io) format) and a sibling `evals/evals.json` (the [Anthropic skill-eval format](https://platform.claude.com/docs/en/agents-and-tools/agent-skills)). The first declares what the skill *does*; the second declares how to *prove it does that*.
+A skill in Skeval is a directory with `SKILL.md` in the [agentskills.io](https://agentskills.io) format and `evals/evals.json` in the [Anthropic skill-eval format](https://platform.claude.com/docs/en/agents-and-tools/agent-skills). `SKILL.md` defines the behavior. `evals.json` defines the cases and assertions that check it.
 
 ```text
 <skill-dir>/
@@ -17,26 +17,26 @@ A **skill** in Skeval is a directory that ships both a `SKILL.md` (the [agentski
 
 ## Discovery
 
-`arc-skill-eval` walks a repo and yields every `(SKILL.md, evals/evals.json)` pair it finds, respecting `.gitignore`-style ignored directories and skipping dot-prefixed dirs unless `includeDotDirs` is set. The result is a list of `DiscoveredEvalSkill` records — each pointing at one skill directory and the case file inside it.
+`arc-skill-eval` walks a repository and returns each `(SKILL.md, evals/evals.json)` pair. It respects `.gitignore`-style exclusions and skips dot-prefixed directories unless `includeDotDirs` is set. Each `DiscoveredEvalSkill` record points to a skill directory and its case file.
 
 Two implications:
 
-1. A skill *without* `evals/evals.json` is invisible to the runner. That's deliberate: the framework is for evaluating skills that have committed to being evaluable.
+1. The runner ignores a skill without `evals/evals.json`.
 2. Multiple skills can coexist in one repo. Pointing the CLI at the repo root runs them all; pointing at a single skill directory runs only that one.
 
 ## Skill domain types
 
-New code in the framework distinguishes four orthogonal dimensions of a skill instead of overloading a single `profile` enum:
+The framework represents five separate dimensions instead of combining them in one `profile` enum:
 
-- **`SkillCategory` / `SkillClassification`** — what the skill is *for*. Primary and secondary categories with confidence.
-- **`SkillCapabilities`** — what the skill *can do*. `readsRepo`, `writesRepo`, `usesGit`, external API access, orchestration, planning, validation.
-- **`SkillPolicy`** — thinking level, enforcement mode, target tier.
-- **`EnvironmentRequirements`** — workspace, git, network, tool, and env-var requirements.
-- **`InferenceMetadata`** — source, confidence, and rationale for inferred values, so it's traceable how Skeval came up with a classification.
+- `SkillCategory` and `SkillClassification` describe the skill's primary and secondary purposes and classification confidence.
+- `SkillCapabilities` records actions such as `readsRepo`, `writesRepo`, `usesGit`, external API access, orchestration, planning, and validation.
+- `SkillPolicy` records the thinking level, enforcement mode, and target tier.
+- `EnvironmentRequirements` records workspace, Git, network, tool, and environment-variable requirements.
+- `InferenceMetadata` records the source, confidence, and rationale for inferred values.
 
-The aggregate type is `SkillDefinition<EvalSuiteT>`: descriptor + source path + optional eval suite, all in one record. The older `PROFILE_VALUES` and `SkillProfile` aliases remain as deprecated compatibility shims while existing code migrates.
+`SkillDefinition<EvalSuiteT>` combines the descriptor, source path, and optional eval suite. `PROFILE_VALUES` and `SkillProfile` remain as deprecated compatibility aliases.
 
-## The pipeline at a glance
+## Pipeline
 
 ```text
 <skill-dir>
@@ -57,4 +57,4 @@ GradingJson ({ assertion_results, summary })
 <skillDir>/evals-runs/<runId>/eval-<id>/{assistant.md, outputs, grading.json, timing.json, trace.json, tool-summary.json, context-manifest.json}
 ```
 
-Each arrow corresponds to a function in `src/evals/`: `discover.ts`, `loader.ts`, `run-case.ts`, `grade.ts`, plus the workspace materializer in `src/fixtures/`. The CLI handler in `src/cli/run-evals-command.ts` orchestrates them and writes artifacts.
+The pipeline uses `discover.ts`, `loader.ts`, `run-case.ts`, and `grade.ts` under `src/evals/`, plus the workspace materializer under `src/fixtures/`. `src/cli/run-evals-command.ts` runs the sequence and writes artifacts.

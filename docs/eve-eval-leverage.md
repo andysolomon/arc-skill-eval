@@ -1,4 +1,4 @@
-# Leverage Eve for skill evals (without adopting defineEval)
+# Eve features relevant to skill evals
 
 Decision / strategy note: 2026-07-22. Companion to [evals-json-pivot.md](./evals-json-pivot.md) and [laminar-integration-research.md](./laminar-integration-research.md).
 
@@ -17,7 +17,7 @@ Primary Eve references: [defineEval overview](https://eve.dev/docs/evals/overvie
 
 We already pivoted *to* Anthropic's format in [evals-json-pivot.md](./evals-json-pivot.md) for portability and trust ("every skill ships with an eval"). Adopting `defineEval` would reverse that: evals would become TypeScript tied to an eve app, not a skill artifact that travels with `SKILL.md`.
 
-**What we should do:** treat Eve as a reference implementation for *eval ergonomics and teaching*, then close the gaps where our types already exist but grading does not.
+Use Eve as a reference for eval authoring and documentation, then implement the grading behavior that our existing types already describe.
 
 ```mermaid
 flowchart LR
@@ -26,37 +26,37 @@ flowchart LR
     pi["Pi runtime"]
     compare["--compare with/without"]
   end
-  subgraph steal [Steal from Eve]
+  subgraph adopt [Adopt from Eve]
     behavior["tool/skill behavior asserts"]
     severity["gate vs soft + --strict"]
     judge["scored judges + thresholds"]
     ci["JUnit / artifact CI story"]
     learn["Learn pedagogy ladder"]
   end
-  steal --> keep
+  adopt --> keep
 ```
 
-## What Eve gets right (steal these)
+## Features to adopt from Eve
 
-1. **Drive + assert on one surface** — Eve's `t` is both session driver and assertion API. Our declarative JSON can't be identical, but Learn should teach the same mental model: *prompt drives, assertions grade, cheapest check wins*.
-2. **Behavior assertions first** — `t.calledTool`, `t.notCalledTool`, `t.toolOrder`, `t.loadedSkill`, `t.usedNoTools`. We already declare intent forms in `src/evals/types.ts` (`tool-call-required`, `tool-call-forbidden`, `skill-read-required`) but `src/evals/assertion-engine.ts` still returns *"not implemented yet"* for behavior/safety. Eve shows the product value of making these real.
-3. **Gate vs soft severity on the assertion** — Eve puts severity on the handle (`.gate()` / `.soft()` / `.atLeast()`), with `--strict` for CI. We have `mustPass` / `severity` fields but Learn and CLI treat everything as hard pass/fail. Soft judge scores + strict CI is the missing middle for style/quality checks.
-4. **Judge only when deterministic fails** — Eve's ladder (scoped → `t.check` → `t.judge.autoevals`) matches our authoring skill's priority but is taught more clearly. Their autoevals graders (`closedQA`, `factuality`) are better-named than free-form string rubrics.
-5. **CI packaging** — `eve eval --strict --junit` + `.eve/evals/<ts>/` artifacts. We have rich per-case artifacts; the Learn/Run story should make the CI recipe as obvious.
-6. **Small smoke baseline** — Eve docs push a few behavioral smokes before datasets/judges. Aligns with `arc-creating-evals` (6–10 cases) and should be the Learn Create chapter's north star.
+1. **Combined driver and assertion API.** Eve's `t` is both the session driver and assertion API. Our declarative JSON cannot use the same API, but Learn should teach the same sequence: the prompt drives the run, assertions grade it, and authors should use the least expensive suitable check.
+2. **Behavior assertions.** Eve provides `t.calledTool`, `t.notCalledTool`, `t.toolOrder`, `t.loadedSkill`, and `t.usedNoTools`. We already declare related forms in `src/evals/types.ts` (`tool-call-required`, `tool-call-forbidden`, `skill-read-required`), but `src/evals/assertion-engine.ts` still returns *"not implemented yet"* for behavior and safety assertions. Implementing them would support process checks.
+3. **Gate and soft severity.** Eve puts severity on the handle (`.gate()` / `.soft()` / `.atLeast()`), with `--strict` for CI. We have `mustPass` / `severity` fields, but Learn and CLI treat every assertion as hard pass/fail. Soft judge scores with strict CI would support non-blocking style and quality checks.
+4. **Use judges only when deterministic checks are insufficient.** Eve's sequence (scoped -> `t.check` -> `t.judge.autoevals`) matches our authoring skill's priority but explains it more clearly. Its autoevals graders (`closedQA`, `factuality`) also have more specific names than free-form string rubrics.
+5. **CI output.** Eve provides `eve eval --strict --junit` and `.eve/evals/<ts>/` artifacts. We already produce detailed per-case artifacts; Learn and Run should document an equally direct CI command.
+6. **Small smoke baseline.** Eve recommends a few behavioral smoke tests before datasets or judges. This matches the 6-10 case guidance in `arc-creating-evals` and should be the initial approach taught in the Learn Create chapter.
 
 ## What *not* to copy
 
-- **`.eval.ts` / `defineEval` as the primary format** — breaks skill portability and Anthropic alignment.
-- **HTTP target model (`t.target`, schedules, channels)** — wrong substrate for skill evals on Pi workspaces.
-- **Path-as-id file fan-out** — our stable case `id` inside one `evals.json` is better for skill-adjacent suites.
-- **Full multi-turn imperative scripting** — useful later as an *optional* extension (`turns[]` in JSON), not a rewrite. Most skill evals are single-prompt + workspace outcome.
+- **`.eval.ts` / `defineEval` as the primary format.** This would make evals depend on an Eve app instead of keeping them portable with the skill.
+- **HTTP target model (`t.target`, schedules, channels).** It does not match skill evals that run in Pi workspaces.
+- **Path-as-id file fan-out.** A stable case `id` inside one `evals.json` is simpler for suites stored next to skills.
+- **Full multi-turn imperative scripting.** This may be useful later as an optional extension (`turns[]` in JSON), but most skill evals need one prompt and a workspace outcome.
 
 ## Recommended workstreams
 
-### A. Runtime: finish Eve-shaped assertion surfaces we already typed
+### A. Runtime: implement the typed behavior assertions
 
-Highest leverage, stays on `evals.json`:
+Keep these changes in `evals.json`:
 
 - Implement trace-aware grading for `BehaviorAssertion` / `SafetyAssertion` using existing `trace.json` / `tool-summary.json` from runs (`src/evals/assertion-engine.ts`).
 - Map Eve vocabulary → our JSON kinds for authoring guidance:
@@ -70,18 +70,18 @@ Highest leverage, stays on `evals.json`:
 
 - Honor `mustPass: false` / `severity: "info"|"warn"` as soft: recorded in `grading.json`, do not fail the case by default.
 - Add CLI `--strict` so soft misses fail the exit code (CI gate).
-- ✅ **Shipped (#231):** scored judge assertions with `atLeast`, inspired by `t.judge.autoevals.closedQA(...).atLeast(0.8)`, without requiring Braintrust. Shipped as a `1..scaleMax` integer rubric (default 5) rather than the `0–1` fraction — `judge(...).atLeast(4)` passes iff the judge's rubric score is ≥ 4.
+- ✅ **Shipped (#231):** scored judge assertions with `atLeast`, inspired by `t.judge.autoevals.closedQA(...).atLeast(0.8)`, without requiring Braintrust. The implementation uses a `1..scaleMax` integer rubric (default 5) rather than a `0-1` fraction. `judge(...).atLeast(4)` passes when the judge's rubric score is at least 4.
 
 ### C. Learn section: teach Eve *principles* in our product language
 
-Update chapters under `web/src/sections/learn/` (keep the seven-chapter rail from `chapterList.ts`; deepen content, don't add Eve as a product):
+Update chapters under `web/src/sections/learn/` (keep the seven chapters from `chapterList.ts`; add detail without presenting Eve as part of the product):
 
 | Chapter | Steal from Eve |
 |---|---|
 | **Create** | "Smoke first": succeeded-equivalent + 1–2 content/behavior checks before datasets; assert *effect*, not paraphrased instructions |
-| **Assert** | Explicit ladder: script/workspace → behavior/tool → regex/exact → judge; "judge burns tokens — last resort"; preview gate vs soft once B lands |
+| **Assert** | Explicit order: script/workspace -> behavior/tool -> regex/exact -> judge; "judges use tokens, so use them last"; preview gate vs soft once B lands |
 | **Signal** | Keep with/without (our differentiator Eve lacks); contrast Eve's absolute gates vs our delta signal |
-| **Run** | CI recipe: exit codes, `--strict`, upload `evals-runs/` artifacts; "console tight, artifacts have the story" |
+| **Run** | CI recipe: exit codes, `--strict`, and uploaded `evals-runs/` artifacts; keep console output brief and details in artifacts |
 | **Pi** | Pair with Eve's `mockModel` idea: when to use sandbox mocks / fixtures for deterministic process checks without live model noise |
 
 Also fix Learn drift vs runtime where Assert documents types that don't exist yet (`file-absent`) or aren't implemented (behavior) — either ship them or label as upcoming so the reader isn't lied to.
@@ -96,11 +96,11 @@ Also fix Learn drift vs runtime where Assert documents types that don't exist ye
 
 ### D. Typed builder that emits JSON
 
-> **Status: ✅ shipped (2026-07-25).** All five sequenced steps landed as their own reviewed PRs: builder + `toJSON` (#224), `arc-skill-eval emit` + `--check` (#225), Learn "Advanced: typed builder" callout (#226), `arc-creating-evals` optional-TS authoring path (#227), and fixture-relative dataset loaders (#228). Scored judges — the reserved `.atLeast(n)` handle — followed as a post-completion addition (#231). The runner contract held throughout — `evals/evals.json` remains the sole runtime/discovery input. The subsections below are preserved as the original design; deviations are noted inline where the shipped code differs.
+> **Status: ✅ shipped (2026-07-25).** Five reviewed PRs delivered the builder and `toJSON` (#224), `arc-skill-eval emit` and `--check` (#225), the Learn "Advanced: typed builder" callout (#226), the `arc-creating-evals` optional TypeScript authoring path (#227), and fixture-relative dataset loaders (#228). Scored judges using `.atLeast(n)` followed in #231. `evals/evals.json` remains the only runtime and discovery input. The subsections below preserve the original design and note differences in the shipped code.
 
-**Goal:** give power users Eve-like authoring ergonomics (typed helpers, composition, dataset fan-out, severity on the assertion) while keeping **`evals/evals.json` as the only runtime/discovery contract**.
+**Goal:** provide typed helpers, composition, dataset expansion, and assertion severity while keeping **`evals/evals.json` as the only runtime and discovery contract**.
 
-This is **not** Eve `defineEval`. There is no `async test(t)`, no `t.send`, no live session driver. The builder constructs an `EvalsJsonFile` (same shape as `src/evals/types.ts`); the existing Pi runner stays unchanged.
+This is **not** Eve `defineEval`. There is no `async test(t)`, no `t.send`, and no live session driver. The builder constructs an `EvalsJsonFile` with the shape in `src/evals/types.ts`; the existing Pi runner stays unchanged.
 
 ```mermaid
 flowchart LR

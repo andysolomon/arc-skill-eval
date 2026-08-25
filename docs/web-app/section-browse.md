@@ -2,22 +2,22 @@
 
 ## Status
 
-Draft (2026-07-22) — closes #171. Consumes ADR-0002 (stack), ADR-0004 (hosted
+Draft (2026-07-22). Closes #171. Depends on ADR-0002 (stack), ADR-0004 (hosted
 persistence boundary), ADR-0006 (theme integration), and the decision docs
 [`workspace-picker.md`](./decisions/workspace-picker.md),
 [`hosted-empty-state-gating.md`](./decisions/hosted-empty-state-gating.md), and
 [`persistence-spec.md`](./persistence-spec.md). No runtime code in this ticket;
-this is the dev-handoff contract for the `browse` **App Section**.
+this document specifies the `browse` **App Section**.
 
 ## Overview
 
 `browse` is the read-only artifact browser for completed eval runs. It reads the
 per-case artifact tree the Runtime CLI writes under `<skillDir>/evals-runs/…`
 (`assistant.md`, `grading.json`, `trace.json`, `tool-summary.json`,
-`timing.json`, `context-manifest.json`, and — for `--compare` runs —
+`timing.json`, `context-manifest.json`, and, for `--compare` runs,
 `with_skill/` + `without_skill/` + `benchmark.json`; see
-[`docs/domain-model.md`](../domain-model.md) § Run Artifacts). It answers *"what
-did this run actually do, and did it pass?"* after `run` produces the artifacts
+[`docs/domain-model.md`](../domain-model.md) § Run Artifacts). It shows what the
+run did and whether it passed after `run` produces the artifacts
 and before `review` records **Feedback Notes** against them.
 
 `browse` renders in exactly one **Env Variant** (`localhost` | `hosted`) and one
@@ -29,8 +29,8 @@ filesystem and shows an **Empty State Hero** instead
 ([`hosted-empty-state-gating.md`](./decisions/hosted-empty-state-gating.md) §
 (c/d)).
 
-- **localhost** — the full artifact browser (this spec's Layout section).
-- **hosted** — the `browse reads local run artifacts` **Empty State Hero** (this
+- **localhost:** the full artifact browser described in the Layout section.
+- **hosted:** the `browse reads local run artifacts` **Empty State Hero** described in this
   spec's Hosted variant section). No import path for `browse` in v0.
 
 The env is declared exactly once via the Zustand `env` store and the app-root
@@ -41,7 +41,7 @@ The env is declared exactly once via the Zustand `env` store and the app-root
 
 ## Layout (localhost)
 
-Three content panels in a master → detail arrangement, left to right, filling the
+Three content panels in a master-to-detail arrangement, left to right, filling the
 content area below the global chrome:
 
 ```
@@ -58,11 +58,11 @@ content area below the global chrome:
 
 1. **Runs Rail** (left, ~214px). Vertical list of run ids discovered under the
    active workspace's `evals-runs/` (and `iteration-<N>/` groupings). Each row
-   shows the run id, a compact pass-glyph summary, and — for `--compare` runs —
+   shows the run id, a compact pass-glyph summary and, for `--compare` runs,
    the **Benchmark Delta** `Δ` figure (`CONTEXT.md` **Benchmark Delta**).
    Selection is one run at a time; the active row carries the cyan selection bar.
    The workspace itself arrives from the **Workspace Picker** CLI handshake
-   ([`workspace-picker.md`](./decisions/workspace-picker.md)) — `browse` consumes
+   ([`workspace-picker.md`](./decisions/workspace-picker.md)). `browse` consumes
    `workspace path + runs list`, it does not pick directories.
 
 2. **Case List** (middle, ~280px). The eval cases inside the selected run. Each
@@ -73,14 +73,14 @@ content area below the global chrome:
 
 3. **Detail Pane** (right, fills). Renders the selected case. Two controls stack
    at the top:
-   - **Variant switch** — `with_skill` │ `without_skill` toggle, shown only for
+   - **Variant switch:** `with_skill` │ `without_skill` toggle, shown only for
      `--compare` runs (a single-run case has one variant and hides the switch).
      It re-points every Mode Tab at the chosen variant's artifact directory.
-   - **Mode Tabs** — `Overview` · `Response` · `Diff` · `Trace` · `Raw`. Exactly
+   - **Mode Tabs:** `Overview` · `Response` · `Diff` · `Trace` · `Raw`. Exactly
      one tab is active; each renders its own surface over the same selected
      `(run, case, variant)` artifacts (see Mode tabs below).
 
-> **Panel-count reconciliation.** The gating decision table calls `browse`
+> **Panel count.** The gating decision table calls `browse`
 > localhost a *"Four-panel artifact browser"*
 > ([`hosted-empty-state-gating.md`](./decisions/hosted-empty-state-gating.md) §
 > (d)). That shorthand counts the Detail Pane's **Variant switch** column as its
@@ -164,8 +164,8 @@ Renders the underlying JSON artifact for the active `(run, case, variant)` with
 syntax highlighting — `grading.json` by default (the grading verdict backing
 Overview), with the pane able to switch to the sibling artifacts (`timing.json`,
 `trace.json`, `tool-summary.json`, `context-manifest.json`, `benchmark.json`).
-It is the escape hatch for anything the shaped tabs don't surface: pretty-printed,
-read-only, copyable. Highlighting uses the token roles from the active Theme
+It displays fields that the structured tabs omit. The JSON is pretty-printed,
+read-only, and copyable. Highlighting uses token roles from the active Theme
 Variant so the JSON matches the surrounding chrome across theme swaps
 (ADR-0006).
 
@@ -179,7 +179,7 @@ for `browse` in v0 — artifact-bundle import lives on `review`). The
 **Workspace Picker** is omitted on hosted (`visible = !hosted`); the
 **Install Command Pill** remains in the header.
 
-Drafted hero copy (headline pinned by the gating table; body + commands follow
+Card copy (headline set by the gating table; body and commands follow
 the prototype and `CONTEXT.md` **Empty State Hero**):
 
 - **Badge:** `localhost only`
@@ -195,8 +195,8 @@ the prototype and `CONTEXT.md` **Empty State Hero**):
   ```
   (Install line reuses the **Install Command Pill** surface with `copied ✓`
   click-to-copy feedback.)
-- **Escape hatch:** a link to the `review` section — *"Already have an artifact
-  bundle? Import it in **review** →"* — since `review` is the hosted section that
+- **Artifact import link:** a link to the `review` section: *"Already have an artifact
+  bundle? Import it in **review** ->"*. `review` is the hosted section that
   accepts artifact JSON via its **Import Card**.
 
 **Persistence:** hosted `browse` persists only chrome preferences (Theme/Env)

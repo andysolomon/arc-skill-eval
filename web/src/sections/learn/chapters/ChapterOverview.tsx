@@ -28,10 +28,10 @@ const dimensionCards = [
   {
     accent: 'var(--tt-blue)',
     title: 'process',
-    desc: 'did it trigger the skill and take the intended steps — not a lucky shortcut?',
+    desc: 'did it trigger the skill and take the intended steps. not a lucky shortcut?',
     example: (
       <>
-        e.g. reads SKILL.md, runs commitlint — not a raw{' '}
+        e.g. reads SKILL.md, runs commitlint. not a raw{' '}
         <span style={{ color: 'var(--tt-fg)' }}>npm publish</span>
       </>
     ),
@@ -45,7 +45,7 @@ const dimensionCards = [
   {
     accent: 'var(--tt-magenta)',
     title: 'style',
-    desc: 'does the output read the way the skill promises — the conventions, tone, shape?',
+    desc: 'does the output read the way the skill promises. the conventions, tone, shape?',
     example: (
       <>
         e.g. commit subjects read <span style={{ color: 'var(--tt-fg)' }}>type: summary</span>
@@ -80,7 +80,7 @@ const triggerCards = [
   {
     accent: 'var(--tt-green)',
     title: 'explicit',
-    desc: 'names the skill directly. proves direct usage keeps working as you edit — your smoke test.',
+    desc: 'names the skill directly. proves direct usage keeps working as you edit. your smoke test.',
     example: '"Use arc-conventional-commits to set up releases."',
     passes: (
       <>
@@ -104,7 +104,7 @@ const triggerCards = [
     accent: 'var(--tt-cyan)',
     title: 'contextual',
     desc: 'a realistic, noisy prompt with distractions around the real ask. closest to production.',
-    example: '"Our version bumps are a mess — sort out the release flow."',
+    example: '"Our version bumps are a mess. sort out the release flow."',
     passes: (
       <>
         passes when it fires{' '}
@@ -115,8 +115,8 @@ const triggerCards = [
   {
     accent: 'var(--tt-orange)',
     title: 'adjacent-negative',
-    desc: 'a nearby request it should NOT fire for. catches false positives — the boundary most skills leak at.',
-    example: '"This PR only edits README — do I need a release?"',
+    desc: 'a nearby request it should NOT fire for. catches false positives. the boundary most skills leak at.',
+    example: '"This PR only edits README. do I need a release?"',
     passes: (
       <>
         passes when it <span style={{ color: 'var(--tt-orange)' }}>stays out and writes nothing</span>
@@ -133,12 +133,12 @@ const loopSteps = [
 ];
 
 const loopCommands = [
-  { color: 'var(--tt-green)', label: 'create', desc: 'scaffold a starter suite — deterministic, guided, or interactive.' },
+  { color: 'var(--tt-green)', label: 'create', desc: 'scaffold a starter suite. deterministic, guided, or interactive.' },
   { color: 'var(--tt-blue)', label: 'run', desc: 'execute cases; --compare grades with_skill vs without_skill.' },
-  { color: 'var(--tt-teal)', label: 'audit', desc: 'deterministic skill-quality checks — no model tokens.' },
+  { color: 'var(--tt-teal)', label: 'audit', desc: 'deterministic skill-quality checks. no model tokens.' },
   { color: 'var(--tt-fg)', label: 'browse', desc: 'a four-panel run browser over the artifacts.' },
   { color: 'var(--tt-yellow)', label: 'review', desc: 'a static report; capture human notes in feedback.json.' },
-  { color: 'var(--tt-magenta)', label: 'improve', desc: 'turn feedback + failures into proposed changes — nothing written without --apply.' },
+  { color: 'var(--tt-magenta)', label: 'improve', desc: 'turn feedback + failures into proposed changes. nothing written without --apply.' },
 ];
 
 const runArtifacts = [
@@ -168,13 +168,13 @@ export const ChapterOverview = ({ deepDives, onNavigate }: ChapterOverviewProps)
       style={{ color: 'var(--tt-fg-dark)', lineHeight: 1.7, marginBottom: 36, maxWidth: 820 }}
     >
       when you iterate on a skill, it&apos;s hard to tell whether you improved it or just changed
-      its behavior. one version feels faster, another seems more reliable — then a regression
+      its behavior. one version feels faster, another seems more reliable. then a regression
       slips in: the skill doesn&apos;t trigger, skips a required step, or leaves extra files
       behind.{' '}
       <span style={{ color: 'var(--tt-fg)' }}>
         arc-skill-eval replaces &quot;does this feel better?&quot; with evidence
       </span>{' '}
-      — run the skill, capture what happened, and grade it against a small set of checks you can
+     . run the skill, capture what happened, and grade it against a small set of checks you can
       compare over time.
     </div>
 
@@ -189,13 +189,13 @@ export const ChapterOverview = ({ deepDives, onNavigate }: ChapterOverviewProps)
           minWidth: 330,
         }}
       >
-        a skill is a folder with a <span style={{ color: 'var(--tt-teal)' }}>SKILL.md</span> —
+        a skill is a folder with a <span style={{ color: 'var(--tt-teal)' }}>SKILL.md</span> ,
         yaml frontmatter (<span style={{ color: 'var(--tt-fg)' }}>name</span> +{' '}
         <span style={{ color: 'var(--tt-fg)' }}>description</span>) plus markdown instructions,
-        and optional scripts and resources. the name and description are load-bearing:
+        and optional scripts and resources. the name and description control invocation:
         they&apos;re what the agent matches a request against to decide{' '}
         <span style={{ color: 'var(--tt-fg)' }}>whether</span> to trigger the skill and pull the
-        rest into context. progressive disclosure keeps it cheap — metadata is always loaded,
+        rest into context. progressive disclosure keeps it cheap. metadata is always loaded,
         instructions load on trigger, bundled files only when read.
       </div>
       <div
@@ -282,7 +282,7 @@ export const ChapterOverview = ({ deepDives, onNavigate }: ChapterOverviewProps)
       }}
     >
       before writing the skill, write down what success means in terms you can measure. keep the
-      list small and must-pass — the behaviors you care about most, across four dimensions.
+      list small and must-pass. the behaviors you care about most, across four dimensions.
     </div>
     <div
       style={{
@@ -340,7 +340,7 @@ export const ChapterOverview = ({ deepDives, onNavigate }: ChapterOverviewProps)
         maxWidth: 820,
       }}
     >
-      invocation depends on the name + description. test that the skill fires when it should —
+      invocation depends on the name + description. test that the skill fires when it should ,
       and holds back when it shouldn&apos;t. these become your starter cases.
     </div>
     <div
@@ -406,7 +406,7 @@ export const ChapterOverview = ({ deepDives, onNavigate }: ChapterOverviewProps)
           <div
             style={{ color: 'var(--tt-cyan)', fontSize: 13, fontWeight: 700, marginBottom: 4 }}
           >
-            1 · deterministic — first
+            1 · deterministic. first
           </div>
           <div style={{ color: 'var(--tt-comment)', fontSize: 12.5, lineHeight: 1.55 }}>
             scripts check what actually happened: files written, patterns matched, json parsed.
@@ -429,7 +429,7 @@ export const ChapterOverview = ({ deepDives, onNavigate }: ChapterOverviewProps)
               marginBottom: 4,
             }}
           >
-            2 · llm-judge — where rules fall short
+            2 · llm-judge. where rules fall short
           </div>
           <div style={{ color: 'var(--tt-comment)', fontSize: 12.5, lineHeight: 1.55 }}>
             a rubric grades prose and conventions the scripts can&apos;t. pin --judge-model so a
@@ -465,7 +465,7 @@ export const ChapterOverview = ({ deepDives, onNavigate }: ChapterOverviewProps)
         </div>
       </div>
       <div style={{ flex: 1, minWidth: 360 }}>
-        <SectionKicker>the load-bearing signal</SectionKicker>
+        <SectionKicker>compare with and without the skill</SectionKicker>
         <div style={{ border: '1px solid var(--tt-border)', borderRadius: 8, padding: 16 }}>
           <div
             style={{
@@ -477,7 +477,7 @@ export const ChapterOverview = ({ deepDives, onNavigate }: ChapterOverviewProps)
           >
             run each case <span style={{ color: 'var(--tt-green)' }}>with_skill</span> and again{' '}
             <span style={{ color: 'var(--tt-orange)' }}>without_skill</span>. the delta is the
-            evidence the skill earned its place — not a vibe.
+            evidence the skill earned its place. not a vibe.
           </div>
           <div style={{ fontSize: 13, lineHeight: 1.95 }}>
             <div>
@@ -514,7 +514,7 @@ export const ChapterOverview = ({ deepDives, onNavigate }: ChapterOverviewProps)
       <span style={{ color: 'var(--tt-orange)', fontSize: 13, fontWeight: 700 }}>
         behavior, not wording.
       </span>{' '}
-      assert observable behavior and artifacts, not incidental phrasing — a correct answer that
+      assert observable behavior and artifacts, not incidental phrasing. a correct answer that
       paraphrases shouldn&apos;t fail. reserve exact-wording checks for real contracts: a commit
       message, cli output, a safety disclaimer.
     </Callout>
@@ -532,7 +532,7 @@ export const ChapterOverview = ({ deepDives, onNavigate }: ChapterOverviewProps)
       you don&apos;t need a benchmark.{' '}
       <span style={{ color: 'var(--tt-fg)' }}>10–20 prompts</span> is enough to surface
       regressions and confirm improvements. start tiny; every manual fix you make while building
-      becomes a new case — so the suite turns into a living record of what the skill must keep
+      becomes a new case. so the suite turns into a living record of what the skill must keep
       getting right.
     </div>
 
@@ -613,14 +613,14 @@ export const ChapterOverview = ({ deepDives, onNavigate }: ChapterOverviewProps)
         paddingTop: 16,
       }}
     >
-      the on-disk format follows Anthropic&apos;s published skill-eval standard; the methodology —
+      the on-disk format follows Anthropic&apos;s published skill-eval standard; the methodology ,
       layered grading, small suites that grow from real failures, the with-skill / without-skill
-      comparison as the load-bearing signal — is inspired by OpenAI&apos;s work on testing agent
+      comparison as compare with and without the skill. is inspired by OpenAI&apos;s work on testing agent
       skills. the runtime is <span style={{ color: 'var(--tt-teal)' }}>Pi</span>: an llm, a loop,
       and enough tokens.
     </div>
 
-    <SectionKicker style={{ margin: '34px 0 12px' }}>keep going — deep dives</SectionKicker>
+    <SectionKicker style={{ margin: '34px 0 12px' }}>more detail</SectionKicker>
     <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(2, 1fr)' }}>
       {deepDives.map((card) => (
         <div
@@ -669,7 +669,7 @@ export const ChapterOverview = ({ deepDives, onNavigate }: ChapterOverviewProps)
         paddingTop: 14,
       }}
     >
-      references —{' '}
+      references:{' '}
       {references.map((reference, index) => (
         <span key={reference.href}>
           {index > 0 ? ' · ' : null}
