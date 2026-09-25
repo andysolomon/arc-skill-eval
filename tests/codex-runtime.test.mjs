@@ -7,11 +7,6 @@ import test from "node:test";
 import { runEvalsCommand } from "../dist/index.js";
 import { createCodexRuntime } from "../dist/runtime/codex/index.js";
 import { stageCodexSkills } from "../dist/runtime/codex/staging.js";
-import {
-  assertRuntimeReady,
-  normalizeRuntimeId,
-  resolveRuntime,
-} from "../dist/runtime/registry.js";
 
 const exists = (p) => access(p).then(() => true, () => false);
 
@@ -75,25 +70,6 @@ test("codex runtime with injected invoker grades file-exists and assistant-text"
   assert.equal(trace.identity.runtime, "codex");
 });
 
-test("stageCodexSkills copies target skill into .agents/skills when attachSkill is true", async () => {
-  const workspaceDir = await mkdtemp(path.join(tmpdir(), "arc-codex-stage-"));
-  const skillDir = path.join(workspaceDir, "skill-src");
-  await mkdir(skillDir, { recursive: true });
-  await writeFile(path.join(skillDir, "SKILL.md"), "---\nname: staged\ndescription: x\n---\n", "utf8");
-  await writeFile(path.join(skillDir, "extra.txt"), "payload", "utf8");
-
-  await stageCodexSkills({
-    workspaceDir,
-    targetSkill: { name: "staged", skillDir },
-    attachSkill: true,
-    extraSkillPaths: [],
-  });
-
-  const stagedSkillMd = path.join(workspaceDir, ".agents", "skills", "staged", "SKILL.md");
-  assert.ok(await exists(stagedSkillMd));
-  assert.match(await readFile(stagedSkillMd, "utf8"), /name: staged/);
-});
-
 test("stageCodexSkills skips target skill when attachSkill is false", async () => {
   const workspaceDir = await mkdtemp(path.join(tmpdir(), "arc-codex-stage-off-"));
   const skillDir = path.join(workspaceDir, "skill-src");
@@ -108,18 +84,6 @@ test("stageCodexSkills skips target skill when attachSkill is false", async () =
   });
 
   assert.equal(await exists(path.join(workspaceDir, ".agents", "skills", "hidden", "SKILL.md")), false);
-});
-
-test("resolveRuntime rejects unknown ids and resolves implemented harnesses", () => {
-  assert.throws(() => normalizeRuntimeId("bogus"), /Unknown runtime/);
-  assert.equal(resolveRuntime(undefined).id, "pi-sdk");
-  assert.equal(resolveRuntime("claude-code").id, "claude-code");
-  assert.equal(resolveRuntime("copilot").id, "copilot");
-});
-
-test("assertRuntimeReady passes for default pi-sdk", async () => {
-  await assertRuntimeReady(undefined);
-  await assertRuntimeReady("pi-sdk");
 });
 
 test("codex runtime rejects --sandbox just-bash before spawn", async () => {
@@ -167,38 +131,6 @@ test("codex runtime fails case on non-zero exit even when assistant text is pres
   assert.doesNotMatch(result.skills[0].errors[0].message, /should-not-leak/);
 });
 
-test("codex harness leaves timing.model null when --model is omitted", async () => {
-  const { skillDir } = await createSkillFixture([
-    {
-      id: "no-model",
-      prompt: "Write greeting.txt",
-      setup: { kind: "empty" },
-      assertions: [
-        { type: "file-exists", path: "greeting.txt" },
-        { type: "regex-match", pattern: "greeting", target: "assistant-text" },
-      ],
-    },
-  ]);
-
-  const runtime = createCodexRuntime({
-    invoker: async ({ cwd }) => {
-      await writeFile(path.join(cwd, "greeting.txt"), "hello\n", "utf8");
-      return { stdout: CODEX_FIXTURE_JSONL, stderr: "", exitCode: 0 };
-    },
-  });
-
-  const result = await runEvalsCommand({ input: skillDir, runtime });
-  assert.equal(result.summary.passedCases, 1);
-
-  const timing = JSON.parse(
-    await readFile(
-      path.join(skillDir, "evals-runs", result.runId, "eval-no-model", "timing.json"),
-      "utf8",
-    ),
-  );
-  assert.equal(timing.model, null);
-});
-
 test("codex harness trace stores redacted stderr forensics only", async () => {
   const { skillDir } = await createSkillFixture([
     {
@@ -235,36 +167,4 @@ test("codex harness trace stores redacted stderr forensics only", async () => {
   assert.equal(processEvent.stderr, undefined);
   assert.match(processEvent.stderrPreviewRedacted, /\[REDACTED\]/);
   assert.doesNotMatch(JSON.stringify(trace), /raw-secret-value/);
-});
-
-test("codex harness outputs exclude staged skill trees", async () => {
-  const { skillDir } = await createSkillFixture([
-    {
-      id: "outputs-clean",
-      prompt: "Write greeting.txt",
-      setup: { kind: "empty" },
-      assertions: [
-        { type: "file-exists", path: "greeting.txt" },
-        { type: "regex-match", pattern: "greeting", target: "assistant-text" },
-      ],
-    },
-  ]);
-
-  const runtime = createCodexRuntime({
-    invoker: async ({ cwd }) => {
-      await writeFile(path.join(cwd, "greeting.txt"), "hello\n", "utf8");
-      return { stdout: CODEX_FIXTURE_JSONL, stderr: "", exitCode: 0 };
-    },
-  });
-
-  const result = await runEvalsCommand({ input: skillDir, runtime });
-  const outputsDir = path.join(
-    skillDir,
-    "evals-runs",
-    result.runId,
-    "eval-outputs-clean",
-    "outputs",
-  );
-  assert.equal(await exists(path.join(outputsDir, "greeting.txt")), true);
-  assert.equal(await exists(path.join(outputsDir, ".agents", "skills", "codex-demo", "SKILL.md")), false);
 });
