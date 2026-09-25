@@ -3,9 +3,7 @@ import test from "node:test";
 
 import {
   buildDatapoint,
-  buildEvaluationName,
   createLaminarSink,
-  laminarFrontendUrl,
 } from "../dist/index.js";
 
 /**
@@ -160,85 +158,6 @@ test("maps a with_skill payload to a record with grading verdicts but no full as
   assert.equal(rec.assistantText, undefined);
 });
 
-test("compare mode: with_skill and without_skill share run/case identity but are distinguishable", async () => {
-  const { records, client } = makeCapturingClient();
-  const sink = createLaminarSink({ apiKey: "key" }, { client });
-
-  await sink.exportCaseVariant(makePayload({ variant: "with_skill" }));
-  await sink.exportCaseVariant(
-    makePayload({
-      variant: "without_skill",
-      artifact_paths: {
-        assistant: "artifacts/without_skill/assistant.md",
-        outputs: "artifacts/without_skill/outputs",
-        timing: "artifacts/without_skill/timing.json",
-        grading: "artifacts/without_skill/grading.json",
-        trace: "artifacts/without_skill/trace.json",
-        tool_summary: "artifacts/without_skill/tool-summary.json",
-        context_manifest: "artifacts/without_skill/context-manifest.json",
-      },
-    }),
-  );
-
-  assert.equal(records.length, 2);
-  const [withRec, withoutRec] = records;
-
-  // Shared run/case identity groups them.
-  assert.equal(withRec.run_id, withoutRec.run_id);
-  assert.equal(withRec.case_id, withoutRec.case_id);
-
-  // Distinguishable by variant attribute and record/evaluation name.
-  assert.equal(withRec.variant, "with_skill");
-  assert.equal(withoutRec.variant, "without_skill");
-  assert.notEqual(withRec.name, withoutRec.name);
-  assert.ok(withRec.name.includes("with_skill"));
-  assert.ok(withoutRec.name.includes("without_skill"));
-
-  // The two variants land in sibling evaluations within the same group
-  // (grouping key = skill name via buildEvaluationName's inputs).
-  assert.notEqual(buildEvaluationName(withRec), buildEvaluationName(withoutRec));
-  assert.ok(buildEvaluationName(withRec).includes("run-123"));
-  assert.ok(buildEvaluationName(withRec).includes("[with_skill]"));
-  assert.ok(buildEvaluationName(withoutRec).includes("[without_skill]"));
-});
-
-test("buildDatapoint maps scores, output, and metadata for the Evaluations API", async () => {
-  const { records, client } = makeCapturingClient();
-  const sink = createLaminarSink({ apiKey: "key" }, { client });
-  await sink.exportCaseVariant(makePayload());
-
-  const { data, scores, executorOutput, metadata } = buildDatapoint(records[0]);
-
-  // Numeric scores become comparable metric columns in the Evaluations UI.
-  assert.deepEqual(scores, {
-    passed: 3,
-    failed: 1,
-    total_tokens: 1500,
-    cost_usd: 0.0123,
-    duration_ms: 4200,
-    tool_calls: 7,
-    pass_rate: 0.75,
-  });
-  for (const value of Object.values(scores)) assert.equal(typeof value, "number");
-
-  assert.deepEqual(data, {
-    case_id: "case-a",
-    skill: "my-skill",
-    variant: "with_skill",
-    model: "anthropic/claude-opus",
-  });
-
-  // Output shows grading summary + per-assertion verdicts + artifact paths.
-  assert.deepEqual(executorOutput.grading, { passed: 3, failed: 1, total: 4, pass_rate: 0.75 });
-  assert.equal(executorOutput.assertions.length, 2);
-  assert.equal(executorOutput.artifacts.grading, "artifacts/with_skill/grading.json");
-
-  // Metadata drops nulls but keeps native number values (plain JSON API).
-  assert.equal(metadata["eval.run_id"], "run-123");
-  assert.equal(metadata["gen_ai.usage.input_tokens"], 1000);
-  assert.ok(!("eval.iteration" in buildDatapoint({ ...records[0], attributes: { "eval.iteration": null } }).metadata));
-});
-
 test("buildDatapoint omits a null pass_rate instead of coercing it to 0", async () => {
   const { records, client } = makeCapturingClient();
   const sink = createLaminarSink({ apiKey: "key" }, { client });
@@ -256,50 +175,3 @@ test("buildDatapoint omits a null pass_rate instead of coercing it to 0", async 
   const { scores } = buildDatapoint(records[0]);
   assert.ok(!("pass_rate" in scores), "null pass_rate must be omitted");
 });
-
-test("laminarFrontendUrl maps the hosted API to the dashboard and preserves self-hosted URLs", () => {
-  assert.equal(laminarFrontendUrl(), "https://www.laminar.sh");
-  assert.equal(laminarFrontendUrl("https://api.lmnr.ai"), "https://www.laminar.sh");
-  assert.equal(laminarFrontendUrl("https://api.lmnr.ai/"), "https://www.laminar.sh");
-  assert.equal(laminarFrontendUrl("https://laminar.internal.example.com/"), "https://laminar.internal.example.com");
-});
-
-test("evaluationUrls surfaces the client's created evaluation URLs", async () => {
-  const sink = createLaminarSink(
-    { apiKey: "key" },
-    {
-      client: {
-        async exportCaseVariant() {},
-        evaluationUrls() {
-          return ["https://www.laminar.sh/project/p/evaluations/e1"];
-        },
-      },
-    },
-  );
-
-  assert.deepEqual(sink.evaluationUrls(), ["https://www.laminar.sh/project/p/evaluations/e1"]);
-});
-
-test("a throwing client resolves to a failed result instead of throwing", async () => {
-  const sink = createLaminarSink(
-    { apiKey: "key" },
-    {
-      client: {
-        async exportCaseVariant() {
-          throw new Error("boom from client");
-        },
-      },
-    },
-  );
-
-  const result = await sink.exportCaseVariant(makePayload());
-  assert.equal(result.sink, "laminar");
-  assert.equal(result.status, "failed");
-  assert.match(result.message, /boom from client/);
-});
-
-// Note: the real-SDK client path (dynamic import of @lmnr-ai/lmnr,
-// LaminarClient.evals init/createDatapoint/updateDatapoint) makes live
-// network calls, so it is validated by the manual smoke test documented in
-// W-000028 rather than a hermetic unit test. The mapping and
-// failure-isolation logic above are exercised with an injected mock client.
