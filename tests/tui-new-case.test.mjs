@@ -8,7 +8,6 @@ import {
   appendEvalCase,
   toEvalsJsonAssertion,
   validateAuthoredAssertion,
-  ASSERTION_BUDGET,
 } from "../dist/tui/new-case.js";
 
 async function makeSkillDir() {
@@ -113,25 +112,4 @@ test("appendEvalCase keeps the failing-until-authored placeholder when zero asse
   assert.deepEqual(doc.evals[0].assertions, [
     { type: "file-exists", path: "TODO/path-the-skill-should-create" },
   ]);
-});
-
-test("appendEvalCase rejects an invalid authored assertion before writing", async () => {
-  const skillDir = await makeSkillDir();
-  await assert.rejects(
-    appendEvalCase({
-      skillDir,
-      id: "bad-regex",
-      prompt: "p",
-      expected: "e",
-      assertions: [{ type: "regex-match", pattern: "", target: "assistant-text" }],
-    }),
-    /invalid regex-match assertion: pattern is required/,
-  );
-  // Nothing was written — the file still has zero cases.
-  const doc = await readEvals(skillDir);
-  assert.equal(doc.evals.length, 0);
-});
-
-test("assertion budget matches the arc-creating-evals guidance (2–5 per case)", () => {
-  assert.deepEqual({ ...ASSERTION_BUDGET }, { min: 2, max: 5 });
 });

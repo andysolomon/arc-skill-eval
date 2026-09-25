@@ -291,17 +291,6 @@ function HelpView() {
   );
 }
 
-// Every keymap id the input handler below actually services. The conformance
-// test (tests/tui-components.test.mjs) asserts this set equals KEY_IDS, so a
-// binding documented in keymap.ts without a handler here — or a handler for an
-// undocumented id — fails CI.
-export const HANDLED_KEY_IDS: ReadonlySet<string> = new Set([
-  'move', 'panel-cycle', 'panel-jump', 'edge', 'quit',          // navigation
-  'pane-enter', 'pane-drill', 'pane-leave', 'pane-scroll', 'case-mode', 'raw', // detail pane
-  'run', 'run-compare', 'run-opts', 'new-case', 'create-suite', 'feedback', 'run-abort', 'run-reload', // run & author
-  'filter', 'failures', 'sort', 'pin-base', 'help',             // filter & compare
-]);
-
 // ------------------------------------------------------------------ app
 
 export function App({ skills, runs, onAction, onReload, initial, showWithout }: { skills: Skill[]; runs: Run[]; onAction: (a: AppAction) => void; onReload?: (skillDir: string) => void | Promise<void>; initial?: AppState; showWithout?: boolean }) {

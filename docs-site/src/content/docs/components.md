@@ -3,13 +3,13 @@ title: Components and themes
 description: Browse TUI components and the tokyonight, gruvbox, and nord themes.
 ---
 
-The `browse` TUI uses shared components, color tokens, and glyphs. Use the gallery for a visual reference. [`src/tui/STYLE.md`](https://github.com/andysolomon/arc-skill-eval/blob/main/src/tui/STYLE.md) defines the tokens implemented by `theme.ts` and `caps.ts` and checked by `tests/tui-components.test.mjs`.
+The `browse` TUI uses shared components, color tokens, and glyphs. Use the gallery for a visual reference. [`src/tui/STYLE.md`](https://github.com/andysolomon/arc-skill-eval/blob/main/src/tui/STYLE.md) defines the tokens implemented by `theme.ts` and `caps.ts`.
 
 ## Interactive gallery
 
 [Open the TUI component gallery](/arc-skill-eval/component-gallery.html) to view each component in all three themes.
 
-> The gallery is a generated DC export. `STYLE.md` and the conformance test define the implemented tokens.
+> The gallery is a generated DC export. `STYLE.md` defines the implemented tokens.
 
 ## Components
 

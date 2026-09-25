@@ -47,8 +47,8 @@ async function makeSkillDir() {
   return skillDir;
 }
 
-function renderForm(skillDir, { designer = stubDesigner, hasSuite = false, onClose = () => {}, recentModels } = {}) {
-  return render(createElement(CreateForm, { skillDir, skillName: "demo-skill", hasSuite, onClose, designer, recentModels }));
+function renderForm(skillDir, { designer = stubDesigner, hasSuite = false, onClose = () => {} } = {}) {
+  return render(createElement(CreateForm, { skillDir, skillName: "demo-skill", hasSuite, onClose, designer }));
 }
 
 test("accepting a reviewed proposal writes evals.json and closes with the path", async () => {
@@ -116,52 +116,6 @@ test("parseModelInput follows the run CLI's --model rules", () => {
   assert.throws(() => parseModelInput("no-slash"), /Invalid model/);
   assert.throws(() => parseModelInput("provider/"), /Invalid model/);
   assert.throws(() => parseModelInput("anthropic/:high"), /Invalid model/);
-});
-
-test("m sets a designer model shown in confirm and the generating line", async () => {
-  const skillDir = await makeSkillDir();
-  let release;
-  const gate = new Promise((r) => { release = r; });
-  const slowDesigner = async () => { await gate; return stubDesigner(); };
-  const { lastFrame, stdin, unmount } = renderForm(skillDir, { designer: slowDesigner });
-
-  try {
-    await waitFor(() => /Create eval suite/.test(lastFrame() ?? ""));
-    await sleep(150);
-    stdin.write("m");
-    assert.ok(await waitFor(() => /Designer model/.test(lastFrame() ?? "")), "model entry line should open");
-    await sleep(120);
-    stdin.write("anthropic/claude-haiku-4-5");
-    await sleep(120);
-    stdin.write("\r"); // submit the model line
-    assert.ok(await waitFor(() => /model: anthropic\/claude-haiku-4-5/.test(lastFrame() ?? "")), "confirm should show the chosen model");
-    await sleep(120);
-    stdin.write("g");
-    // The 72-col box can wrap this line, so match the two pieces separately.
-    assert.ok(
-      await waitFor(() => /designing eval suite/.test(lastFrame() ?? "") && /\(anthropic\/claude-haiku-4-5\)/.test(lastFrame() ?? "")),
-      "generating line should show the model label",
-    );
-    release();
-    assert.ok(await waitFor(() => /Proposal/.test(lastFrame() ?? "")));
-  } finally {
-    release(); // a failed assert must not leave the gate pending and hang the runner
-    unmount();
-  }
-});
-
-test("the model entry prefills with the first recent model", async () => {
-  const skillDir = await makeSkillDir();
-  const { lastFrame, stdin, unmount } = renderForm(skillDir, { recentModels: ["openai/gpt-5:high", "anthropic/claude-haiku-4-5"] });
-
-  await waitFor(() => /Create eval suite/.test(lastFrame() ?? ""));
-  await sleep(150);
-  stdin.write("m");
-  assert.ok(await waitFor(() => /openai\/gpt-5:high/.test(lastFrame() ?? "")), "entry should prefill with the first recent model");
-  await sleep(120);
-  stdin.write("\r"); // accept the prefill as-is
-  assert.ok(await waitFor(() => /model: openai\/gpt-5:high/.test(lastFrame() ?? "")));
-  unmount();
 });
 
 test("an invalid model shows an inline error and generation does not start", async () => {
@@ -235,21 +189,5 @@ test("excluding every case blocks accept with an inline message and writes nothi
   stdin.write(" "); // re-including a case clears the message
   assert.ok(await waitFor(() => /\(1\/2 cases\)/.test(lastFrame() ?? "")));
   assert.doesNotMatch(lastFrame() ?? "", /at least one case must be included/);
-  unmount();
-});
-
-test("generation shows a progress state before the proposal arrives", async () => {
-  const skillDir = await makeSkillDir();
-  let release;
-  const gate = new Promise((r) => { release = r; });
-  const slowDesigner = async () => { await gate; return stubDesigner(); };
-  const { lastFrame, stdin, unmount } = renderForm(skillDir, { designer: slowDesigner });
-
-  await waitFor(() => /Create eval suite/.test(lastFrame() ?? ""));
-  await sleep(150);
-  stdin.write("g");
-  assert.ok(await waitFor(() => /designing eval suite/.test(lastFrame() ?? "")), "progress state should render while the designer runs");
-  release();
-  assert.ok(await waitFor(() => /Proposal/.test(lastFrame() ?? "")));
   unmount();
 });

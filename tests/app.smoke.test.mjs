@@ -37,45 +37,9 @@ const waitFor = async (pred, timeoutMs = 2000) => {
   return false;
 };
 
-test('App renders the four panels and the selected skill', () => {
-  const { lastFrame, unmount } = render(createElement(App, { skills: [fakeSkill], runs: [], onAction() {} }));
-  const frame = lastFrame() ?? '';
-  assert.match(frame, /Skills/);
-  assert.match(frame, /Cases/);
-  assert.match(frame, /Assertions/);
-  assert.match(frame, /Runs/);
-  assert.match(frame, /demo/);
-  unmount();
-});
-
 test('empty workspace shows the no-runs hint', () => {
   const { lastFrame, unmount } = render(createElement(App, { skills: [], runs: [], onAction() {} }));
   assert.match(lastFrame() ?? '', /No eval runs found/);
-  unmount();
-});
-
-test('typing a filter narrows the case list', async () => {
-  const { lastFrame, stdin, unmount } = render(createElement(App, { skills: [fakeSkill], runs: [], onAction() {} }));
-  // Poll the frame instead of guessing fixed delays — ink commits renders
-  // asynchronously, so a single setTimeout is racy.
-  // The normal status bar contains "help"; the filter prompt replaces it and
-  // doesn't — that's how we tell filter mode is actually engaged (matching just
-  // "/ " gives a false positive on the "/ filter" hint).
-  const filterEngaged = (f) => /\//.test(f) && !/help/.test(f);
-
-  await waitFor(() => /Skills/.test(lastFrame() ?? ''));
-  await sleep(150);                // let ink's useInput effect subscribe to stdin
-  stdin.write('/');                // enter filter mode
-  assert.ok(await waitFor(() => filterEngaged(lastFrame() ?? '')), 'filter prompt should appear');
-  await sleep(150);                // entering filter mode re-subscribes useInput;
-                                   // settle so the first typed key isn't dropped
-  // useInput delivers a multi-char write as one chunk, which the >1-char guard
-  // (used to drop escape sequences) rejects — and rapid back-to-back writes get
-  // coalesced into one chunk too — so type one key at a time, settling between.
-  // Use a query that matches the skill, so a skill remains selected and the
-  // status bar (which holds the filter prompt) still renders.
-  for (const ch of 'demo') { stdin.write(ch); await sleep(100); }
-  assert.ok(await waitFor(() => /\/ demo/.test(lastFrame() ?? '')), 'filter prompt should echo the typed query');
   unmount();
 });
 

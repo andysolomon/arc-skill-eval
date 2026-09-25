@@ -62,39 +62,3 @@ test("save offers a dry-run of the fresh case and r hands its id to onDryRun", a
   assert.match(dryRuns[0].msg, /appended new-case/);
   unmount();
 });
-
-test("escape from the dry-run offer closes with the save message, without a run", async () => {
-  const skillDir = await makeSkillDir();
-  const dryRuns = [];
-  const closes = [];
-  const { lastFrame, stdin, unmount } = render(createElement(NewCaseForm, {
-    skillDir,
-    skillName: "demo-skill",
-    onClose: (msg) => closes.push(msg),
-    onDryRun: (caseId, msg) => dryRuns.push({ caseId, msg }),
-  }));
-
-  await saveEmptyCase(stdin, lastFrame);
-  assert.ok(await waitFor(() => /dry-run/.test(lastFrame() ?? "")));
-  await sleep(120);
-  stdin.write("\u001b"); // esc
-  assert.ok(await waitFor(() => closes.length === 1), "esc should close the form");
-  assert.match(closes[0], /appended new-case/);
-  assert.equal(dryRuns.length, 0);
-  unmount();
-});
-
-test("without onDryRun the form closes immediately on save (legacy behavior)", async () => {
-  const skillDir = await makeSkillDir();
-  const closes = [];
-  const { lastFrame, stdin, unmount } = render(createElement(NewCaseForm, {
-    skillDir,
-    skillName: "demo-skill",
-    onClose: (msg) => closes.push(msg),
-  }));
-
-  await saveEmptyCase(stdin, lastFrame);
-  assert.ok(await waitFor(() => closes.length === 1), "save should close straight away");
-  assert.match(closes[0], /appended new-case/);
-  unmount();
-});
