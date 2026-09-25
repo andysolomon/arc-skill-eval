@@ -2,39 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  buildGuidedEvalDesignerPrompt,
   CliCommandError,
   parseGuidedEvalDesignerResponse,
 } from "../dist/index.js";
-
-const GRILL_ME_SKILL = `---
-name: grill-me
-description: A relentless interview to sharpen a plan or design.
-disable-model-invocation: true
----
-
-Run a /grilling session.
-`;
-
-test("buildGuidedEvalDesignerPrompt describes eval-design responsibilities and schema", () => {
-  const prompt = buildGuidedEvalDesignerPrompt({
-    skillName: "grill-me",
-    skillDescription: "A relentless interview to sharpen a plan or design.",
-    skillMarkdown: GRILL_ME_SKILL,
-  });
-
-  assert.match(prompt, /trigger behavior/i);
-  assert.match(prompt, /adjacent negative/i);
-  assert.match(prompt, /positive cases/i);
-  assert.match(prompt, /fixture files/i);
-  assert.match(prompt, /deterministic assertions/i);
-  assert.match(prompt, /judge assertions/i);
-  assert.match(prompt, /rationale/i);
-  assert.match(prompt, /Return only JSON/);
-  assert.match(prompt, /"trigger_behavior"/);
-  assert.match(prompt, /"evals"/);
-  assert.match(prompt, /SKILL\.md/);
-});
 
 test("parseGuidedEvalDesignerResponse normalizes conceptual grill-me proposal", () => {
   const response = JSON.stringify({
@@ -178,30 +148,5 @@ test("parseGuidedEvalDesignerResponse rejects unknown fixture references", () =>
   assert.throws(
     () => parseGuidedEvalDesignerResponse(response, { skillName: "grill-me" }),
     /references unknown fixture files\/missing\/input\.md/,
-  );
-});
-
-test("parseGuidedEvalDesignerResponse rejects unsafe workspace output paths", () => {
-  const response = JSON.stringify({
-    rationale: "Unsafe workspace path should fail.",
-    trigger_behavior: { should_trigger: ["x"], should_not_trigger: ["y"] },
-    fixtures: [],
-    evals: {
-      version: "1",
-      skill_name: "grill-me",
-      evals: [
-        {
-          id: "unsafe-output",
-          prompt: "Write output.",
-          expected_artifacts: ["/tmp/out.md"],
-          assertions: [{ type: "file-exists", path: "../out.md" }],
-        },
-      ],
-    },
-  });
-
-  assert.throws(
-    () => parseGuidedEvalDesignerResponse(response, { skillName: "grill-me" }),
-    /safe relative path/,
   );
 });

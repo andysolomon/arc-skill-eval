@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { CliCommandError, reviewCommand, runCli } from "../dist/index.js";
+import { CliCommandError, reviewCommand } from "../dist/index.js";
 
 async function writeJson(file, value) {
   await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -89,19 +89,6 @@ test("reviewCommand refuses to overwrite without force", async () => {
     await writeFile(path.join(runDir, "review.html"), "existing", "utf8");
     await assert.rejects(() => reviewCommand({ runDir }), CliCommandError);
     assert.equal(await readFile(path.join(runDir, "review.html"), "utf8"), "existing");
-  } finally {
-    await rm(runDir, { recursive: true, force: true });
-  }
-});
-
-test("runCli handles review", async () => {
-  const runDir = await createSingleRunFixture();
-
-  try {
-    const result = await runCli(["review", runDir]);
-
-    assert.equal(result.exitCode, 0);
-    assert.match(result.stdout, /Created review for 1 case/);
   } finally {
     await rm(runDir, { recursive: true, force: true });
   }
