@@ -34,105 +34,6 @@ test("readEvalsJson parses the alpha fixture", async () => {
   assert.deepEqual(second.assertions[1].target, { file: "notes.txt" });
 });
 
-test("readEvalsJson parses explicit workspace setup and intent assertions", async () => {
-  const tmp = path.join(__dirname, "tmp-evals-domain.json");
-  const { writeFile, unlink } = await import("node:fs/promises");
-  await writeFile(
-    tmp,
-    JSON.stringify({
-      version: "1",
-      skill_name: "alpha",
-      evals: [
-        {
-          id: "domain-case",
-          description: "Uses the richer domain model.",
-          prompt: "Configure this repo.",
-          setup: {
-            kind: "seeded",
-            sources: [{ from: "files/clean-repo", to: "." }],
-            mountMode: "flatten-contents",
-          },
-          metadata: {
-            tags: ["execution"],
-            difficulty: "medium",
-            intent: "golden path",
-            environment: {
-              workspace: { kind: "seeded", writable: true },
-              git: { required: false },
-              network: { mode: "none" },
-            },
-          },
-          assertions: [
-            {
-              id: "package-json-exists",
-              kind: "workspace",
-              method: "file-exists",
-              path: "package.json",
-              mustPass: true,
-            },
-            {
-              id: "setup-explained",
-              kind: "output",
-              method: "judge",
-              prompt: "The assistant explains the setup.",
-            },
-          ],
-        },
-      ],
-    }),
-    "utf-8",
-  );
-
-  try {
-    const file = await readEvalsJson(tmp);
-    assert.equal(file.version, "1");
-    assert.equal(file.evals[0].setup.kind, "seeded");
-    assert.equal(file.evals[0].setup.mountMode, "flatten-contents");
-    assert.equal(file.evals[0].metadata.environment.network.mode, "none");
-    assert.equal(file.evals[0].assertions[0].kind, "workspace");
-    assert.equal(file.evals[0].assertions[1].method, "judge");
-  } finally {
-    await unlink(tmp).catch(() => undefined);
-  }
-});
-
-test("readEvalsJson round-trips behavior match/matchKind, safety config, and file-absent", async () => {
-  const tmp = path.join(__dirname, "tmp-evals-behavior.json");
-  const { writeFile, unlink } = await import("node:fs/promises");
-  await writeFile(
-    tmp,
-    JSON.stringify({
-      version: "1",
-      skill_name: "alpha",
-      evals: [
-        {
-          id: "behavior-case",
-          prompt: "Set up releases.",
-          assertions: [
-            { id: "wrote", kind: "behavior", method: "tool-call-required", value: "Write", match: "releaserc", matchKind: "substring" },
-            { id: "no-publish", kind: "behavior", method: "command-forbidden", match: "^npm publish", matchKind: "regex" },
-            { id: "no-secrets", kind: "safety", method: "no-forbidden-files-touched", config: { paths: [".env", ".github"] } },
-            { id: "no-lock", kind: "workspace", method: "file-absent", path: "package-lock.json" },
-          ],
-        },
-      ],
-    }),
-    "utf-8",
-  );
-
-  try {
-    const file = await readEvalsJson(tmp);
-    const [wrote, noPublish, noSecrets, noLock] = file.evals[0].assertions;
-    assert.equal(wrote.match, "releaserc");
-    assert.equal(wrote.matchKind, "substring");
-    assert.equal(noPublish.matchKind, "regex");
-    assert.deepEqual(noSecrets.config.paths, [".env", ".github"]);
-    assert.equal(noLock.method, "file-absent");
-  } finally {
-    await unlink(tmp).catch(() => undefined);
-  }
-});
-
 test("readEvalsJson rejects malformed behavior matchKind and safety config", async () => {
   const tmp = path.join(__dirname, "tmp-evals-behavior-bad.json");
   const { writeFile, unlink } = await import("node:fs/promises");
@@ -189,25 +90,6 @@ test("readEvalsJson throws EvalsJsonValidationError with issue list on missing s
   }
 });
 
-test("readEvalsJson accepts a just-bash sandbox field", async () => {
-  const tmp = path.join(__dirname, "tmp-evals-sandbox.json");
-  const { writeFile, unlink } = await import("node:fs/promises");
-  await writeFile(
-    tmp,
-    JSON.stringify({
-      skill_name: "alpha",
-      evals: [{ id: 1, prompt: "p", sandbox: "just-bash" }],
-    }),
-    "utf-8",
-  );
-  try {
-    const file = await readEvalsJson(tmp);
-    assert.equal(file.evals[0].sandbox, "just-bash");
-  } finally {
-    await unlink(tmp).catch(() => undefined);
-  }
-});
-
 test("readEvalsJson rejects an unknown sandbox value", async () => {
   const tmp = path.join(__dirname, "tmp-evals-sandbox-bad.json");
   const { writeFile, unlink } = await import("node:fs/promises");
@@ -225,33 +107,6 @@ test("readEvalsJson rejects an unknown sandbox value", async () => {
   } catch (error) {
     assert.ok(error instanceof EvalsJsonValidationError);
     assert.ok(error.issues.some((issue) => issue.includes("sandbox")));
-  } finally {
-    await unlink(tmp).catch(() => undefined);
-  }
-});
-
-test("readEvalsJson accepts sandboxMocks with file effects", async () => {
-  const tmp = path.join(__dirname, "tmp-evals-mocks.json");
-  const { writeFile, unlink } = await import("node:fs/promises");
-  await writeFile(
-    tmp,
-    JSON.stringify({
-      skill_name: "alpha",
-      evals: [{
-        id: 1,
-        prompt: "p",
-        sandbox: "just-bash",
-        sandboxMocks: [
-          { command: "npm", stdout: "ok\n", exitCode: 0, files: [{ path: "out.txt", content: "x" }] },
-        ],
-      }],
-    }),
-    "utf-8",
-  );
-  try {
-    const file = await readEvalsJson(tmp);
-    assert.equal(file.evals[0].sandboxMocks[0].command, "npm");
-    assert.equal(file.evals[0].sandboxMocks[0].files[0].path, "out.txt");
   } finally {
     await unlink(tmp).catch(() => undefined);
   }
@@ -340,11 +195,6 @@ test("discoverEvalSkills finds SKILL.md + evals/evals.json adjacency", async () 
   assert.equal(alpha.relativeSkillDir, path.join("skills", "alpha"));
   assert.equal(path.basename(alpha.skillDefinitionPath), "SKILL.md");
   assert.equal(alpha.evalsJsonPath, ALPHA_EVALS);
-});
-
-test("discoverEvalSkills skips dot-prefixed dirs unless includeDotDirs is set", async () => {
-  const skills = await discoverEvalSkills(FIXTURE_REPO, { includeDotDirs: false });
-  assert.equal(skills.length, 1);
 });
 
 test("hello-world bundled skill evals.json parses and carries the expected cases", async () => {

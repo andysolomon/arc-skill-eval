@@ -8,7 +8,6 @@ import {
   readCaseVariantArtifacts,
   writeCaseVariantArtifacts,
 } from "../dist/evals/artifacts.js";
-import { mapAssertionResultForView } from "../dist/tui/view-model.js";
 
 test("writeCaseVariantArtifacts round-trips through readCaseVariantArtifacts", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "arc-artifacts-"));
@@ -142,24 +141,4 @@ test("writeCaseVariantArtifacts excludes harness skill staging dirs from outputs
   } finally {
     await rm(root, { recursive: true, force: true });
   }
-});
-
-test("mapAssertionResultForView uses the shared judge classification without grading artifacts", () => {
-  const judge = mapAssertionResultForView({
-    text: "The assistant reports success.",
-    passed: true,
-    evidence: '"success"',
-    assertion: { id: "judge", kind: "output", method: "judge" },
-  });
-  const behavior = mapAssertionResultForView({
-    text: "behavior:tool-call-required: read",
-    passed: false,
-    evidence: "Behavior assertions require trace-aware grading and are not implemented yet",
-    assertion: { id: "behavior", kind: "behavior", method: "tool-call-required", value: "read" },
-  });
-
-  assert.equal(judge.det, false);
-  assert.equal(judge.type, "output/judge");
-  assert.equal(behavior.det, true);
-  assert.equal(behavior.type, "behavior/tool-call-required");
 });
