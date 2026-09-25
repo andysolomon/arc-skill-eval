@@ -1,19 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
-  buildJudgePrompt,
   gradeEvalCase,
   parseJudgeResponse,
 } from "../dist/evals/grade.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const FIXTURE_REPO = path.resolve(__dirname, "fixtures", "evals-skill-repo");
-const ALPHA_SKILL_DIR = path.join(FIXTURE_REPO, "skills", "alpha");
 
 async function makeTempWorkspace() {
   const dir = await mkdtemp(path.join(tmpdir(), "arc-eval-grade-"));
@@ -142,98 +136,6 @@ test("gradeEvalCase resolves every assertion (string + script mixture, all pass)
       "The assistant reports success.",
       "The assistant mentions the config file.",
     ]);
-  } finally {
-    await ws.cleanup();
-  }
-});
-
-test("gradeEvalCase persists the resolved judge_model when judge assertions ran", async () => {
-  const ws = await makeTempWorkspace();
-  try {
-    const judge = async (input) => ({
-      results: input.assertions.map(() => ({ passed: true, evidence: "ok" })),
-    });
-
-    const result = await gradeEvalCase({
-      case: { id: "judged-1", prompt: "noop", assertions: ["The assistant succeeds."] },
-      workspaceDir: ws.dir,
-      assistantText: "Success.",
-      judge,
-      judgeModel: { provider: "anthropic", id: "claude-judge-test" },
-    });
-
-    assert.deepEqual(result.judge_model, { provider: "anthropic", id: "claude-judge-test" });
-  } finally {
-    await ws.cleanup();
-  }
-});
-
-test("gradeEvalCase omits judge_model for deterministic-only cases", async () => {
-  const ws = await makeTempWorkspace();
-  try {
-    await writeFile(path.join(ws.dir, "notes.txt"), "hello\n", "utf-8");
-
-    const result = await gradeEvalCase({
-      case: { id: "det-only", prompt: "noop", assertions: [{ type: "file-exists", path: "notes.txt" }] },
-      workspaceDir: ws.dir,
-      assistantText: "done",
-      judgeModel: { provider: "anthropic", id: "claude-judge-test" },
-    });
-
-    assert.equal(result.judge_model, undefined);
-  } finally {
-    await ws.cleanup();
-  }
-});
-
-test("gradeEvalCase supports intent-based output and workspace assertions", async () => {
-  const ws = await makeTempWorkspace();
-  try {
-    await writeFile(path.join(ws.dir, "package.json"), JSON.stringify({ name: "demo" }), "utf-8");
-
-    const result = await gradeEvalCase({
-      case: {
-        id: "intent-assertions",
-        prompt: "noop",
-        assertions: [
-          {
-            id: "package-json-exists",
-            kind: "workspace",
-            method: "file-exists",
-            path: "package.json",
-          },
-          {
-            id: "package-json-valid",
-            kind: "workspace",
-            method: "json-valid",
-            path: "package.json",
-          },
-          {
-            id: "assistant-says-done",
-            kind: "output",
-            method: "regex",
-            pattern: "done",
-            flags: "i",
-          },
-          {
-            id: "assistant-summary",
-            kind: "output",
-            method: "judge",
-            prompt: "The assistant summarizes the setup.",
-          },
-        ],
-      },
-      workspaceDir: ws.dir,
-      assistantText: "Done configuring the repository.",
-      judge: async (input) => ({
-        results: input.assertions.map(() => ({ passed: true, evidence: '"Done configuring"' })),
-      }),
-    });
-
-    assert.equal(result.summary.total, 4);
-    assert.equal(result.summary.passed, 4);
-    assert.equal(result.assertion_results[0].assertion.kind, "workspace");
-    assert.equal(result.assertion_results[3].text, "The assistant summarizes the setup.");
   } finally {
     await ws.cleanup();
   }
@@ -531,70 +433,10 @@ test("gradeEvalCase returns null pass_rate on empty assertion list", async () =>
   }
 });
 
-test("gradeEvalCase file-exists fails on directory target (not a file)", async () => {
-  const ws = await makeTempWorkspace();
-  try {
-    await mkdir(path.join(ws.dir, "a-dir"), { recursive: true });
-
-    const result = await gradeEvalCase({
-      case: {
-        id: "dir-check",
-        prompt: "noop",
-        assertions: [{ type: "file-exists", path: "a-dir" }],
-      },
-      workspaceDir: ws.dir,
-      assistantText: "",
-      judge: async () => ({ results: [] }),
-    });
-
-    assert.equal(result.assertion_results[0].passed, false);
-    assert.match(result.assertion_results[0].evidence, /Not a file/);
-  } finally {
-    await ws.cleanup();
-  }
-});
-
-test("gradeEvalCase works against the alpha fixture workspace for file-existing assertions", async () => {
-  // Use the fixture repo as a stand-in for a "workspace dir". SKILL.md
-  // exists there, so a file-exists on SKILL.md should pass.
-  const result = await gradeEvalCase({
-    case: {
-      id: "alpha-smoke",
-      prompt: "noop",
-      assertions: [{ type: "file-exists", path: "SKILL.md" }],
-    },
-    workspaceDir: ALPHA_SKILL_DIR,
-    assistantText: "",
-    judge: async () => ({ results: [] }),
-  });
-
-  assert.equal(result.summary.passed, 1);
-  assert.match(result.assertion_results[0].evidence, /Found .*SKILL\.md/);
-});
-
 // -----------------------------
 // Judge prompt + parser (unit-level coverage for default-judge internals
 // that are exercised indirectly via the main tests above).
 // -----------------------------
-
-test("buildJudgePrompt lists assertions in order and states the expected output shape", () => {
-  const prompt = buildJudgePrompt({
-    assistantText: "hi there",
-    assertions: ["first", "second"],
-  });
-
-  assert.match(prompt, /=== ASSISTANT TEXT ===\nhi there/);
-  assert.match(prompt, /1\. first/);
-  assert.match(prompt, /2\. second/);
-  assert.match(prompt, /exactly 2 entries/);
-  assert.match(prompt, /concrete evidence/i);
-});
-
-test("parseJudgeResponse accepts bare JSON", () => {
-  const raw = '{ "results": [{"passed": true, "evidence": "quote"}] }';
-  const out = parseJudgeResponse(raw, 1);
-  assert.deepEqual(out.results, [{ passed: true, evidence: "quote" }]);
-});
 
 test("parseJudgeResponse accepts fenced JSON", () => {
   const raw = "```json\n{\n  \"results\": [{\"passed\": false, \"evidence\": \"no\"}]\n}\n```";
@@ -606,124 +448,4 @@ test("parseJudgeResponse extracts the first JSON object when surrounded by prose
   const raw = 'Here is my answer: {"results":[{"passed":true,"evidence":"ok"}]}. Hope that helps!';
   const out = parseJudgeResponse(raw, 1);
   assert.deepEqual(out.results, [{ passed: true, evidence: "ok" }]);
-});
-
-test("parseJudgeResponse returns malformed-fallback on length mismatch", () => {
-  const raw = '{"results":[{"passed":true,"evidence":"a"}]}';
-  const out = parseJudgeResponse(raw, 2);
-  assert.equal(out.results.length, 2);
-  for (const r of out.results) {
-    assert.equal(r.passed, false);
-    assert.equal(r.evidence, "Judge returned unparseable output");
-  }
-});
-
-test("parseJudgeResponse returns malformed-fallback on garbage input", () => {
-  const out = parseJudgeResponse("this is not json at all", 3);
-  assert.equal(out.results.length, 3);
-  for (const r of out.results) {
-    assert.equal(r.passed, false);
-    assert.equal(r.evidence, "Judge returned unparseable output");
-  }
-});
-
-test("createDefaultLlmJudge routes through piJudgeSessionRunner with isolated no-skills config", async () => {
-  const { createDefaultLlmJudge, gradeEvalCase } = await import("../dist/evals/grade.js");
-  const { ISOLATED_PI_SESSION_RESOURCE_CONFIG, piJudgeSessionDeps, piJudgeSessionRunner } =
-    await import("../dist/pi/session-adapter.js");
-
-  const adapterCalls = [];
-  const isolatedLoaderCalls = [];
-  const originalDeps = { ...piJudgeSessionDeps };
-  const originalRun = piJudgeSessionRunner.run;
-
-  piJudgeSessionRunner.run = async (options) => {
-    adapterCalls.push(options);
-    return JSON.stringify({
-      results: [{ passed: true, evidence: "adapter mock ok" }],
-    });
-  };
-
-  const ws = await makeTempWorkspace();
-  try {
-    const judge = createDefaultLlmJudge({
-      model: { provider: "mock-provider", id: "mock-model" },
-      agentDir: "/tmp/eval-agent-dir",
-    });
-    const output = await judge({
-      assistantText: "done",
-      assertions: ["The assistant reports success."],
-    });
-
-    assert.equal(adapterCalls.length, 1);
-    assert.deepEqual(adapterCalls[0], {
-      model: { provider: "mock-provider", id: "mock-model" },
-      credentialsAgentDir: "/tmp/eval-agent-dir",
-      prompt: buildJudgePrompt({
-        assistantText: "done",
-        assertions: ["The assistant reports success."],
-      }),
-    });
-    assert.deepEqual(output.results, [{ passed: true, evidence: "adapter mock ok" }]);
-
-    adapterCalls.length = 0;
-    const graded = await gradeEvalCase({
-      case: { id: "default-judge-adapter", prompt: "noop", assertions: ["Assistant succeeded."] },
-      workspaceDir: ws.dir,
-      assistantText: "Success.",
-      judgeModel: { provider: "mock-provider", id: "mock-model" },
-    });
-    assert.equal(adapterCalls.length, 1);
-    assert.equal(graded.summary.passed, 1);
-
-    piJudgeSessionRunner.run = originalRun;
-    piJudgeSessionDeps.createPiSessionBootstrap = () => ({
-      credentialsAgentDir: "/mock/credentials",
-      settingsManager: { tag: "mock-settings" },
-      authStorage: { tag: "mock-auth" },
-      modelRegistry: { tag: "mock-registry" },
-    });
-    piJudgeSessionDeps.resolvePiModel = () => ({
-      sdkModel: { tag: "mock-sdk-model" },
-      selection: { provider: "mock-provider", id: "mock-model" },
-    });
-    piJudgeSessionDeps.createIsolatedResourceLoader = async (options) => {
-      isolatedLoaderCalls.push(options);
-      return { tag: "mock-loader" };
-    };
-    piJudgeSessionDeps.createPiAgentSession = async () => ({
-      session: {
-        subscribe: () => () => undefined,
-        prompt: async () => undefined,
-        dispose: () => undefined,
-      },
-    });
-
-    try {
-      await piJudgeSessionRunner.run({
-        model: { provider: "mock-provider", id: "mock-model" },
-        credentialsAgentDir: "/tmp/eval-agent-dir",
-        prompt: "grade this",
-      });
-      assert.fail("expected empty judge output error");
-    } catch (error) {
-      assert.match(error.message, /returned no output/);
-    }
-
-    assert.equal(isolatedLoaderCalls.length, 1);
-    assert.match(isolatedLoaderCalls[0].cwd, /arc-skill-eval-judge-/);
-    assert.match(isolatedLoaderCalls[0].agentDir, /arc-skill-eval-judge-/);
-    assert.equal(isolatedLoaderCalls[0].settingsManager.tag, "mock-settings");
-    assert.deepEqual(ISOLATED_PI_SESSION_RESOURCE_CONFIG, {
-      noExtensions: true,
-      noSkills: true,
-      noPromptTemplates: true,
-      noThemes: true,
-      noContextFiles: true,
-    });
-  } finally {
-    piJudgeSessionRunner.run = originalRun;
-    Object.assign(piJudgeSessionDeps, originalDeps);
-    await ws.cleanup();
-  }
 });

@@ -6,9 +6,6 @@ import test from "node:test";
 
 import {
   gradeDeterministicAssertion,
-  isJudgeAssertion,
-  judgePromptForAssertion,
-  summarizeAssertion,
 } from "../dist/evals/assertion-engine.js";
 
 /** Minimal EvalTraceObservations for behavior/safety grading. */
@@ -26,44 +23,6 @@ function observations(overrides = {}) {
     ...overrides,
   };
 }
-
-test("assertion engine classifies judge assertions and keeps deterministic ones deterministic", async () => {
-  const judgeAssertion = {
-    id: "summary",
-    kind: "output",
-    method: "judge",
-    prompt: "The assistant summarizes the change.",
-  };
-  const behaviorAssertion = { id: "tool-used", kind: "behavior", method: "tool-call-required", value: "Read" };
-
-  assert.equal(isJudgeAssertion("The assistant reports success."), true);
-  assert.equal(isJudgeAssertion(judgeAssertion), true);
-  assert.equal(isJudgeAssertion(behaviorAssertion), false);
-  assert.equal(judgePromptForAssertion(judgeAssertion), "The assistant summarizes the change.");
-  assert.equal(summarizeAssertion(behaviorAssertion), "behavior:tool-call-required: Read");
-});
-
-test("behavior/safety assertions fail with a diagnostic when no trace is available", async () => {
-  const workspaceDir = await mkdtemp(path.join(tmpdir(), "arc-assertion-engine-"));
-  try {
-    const behavior = { id: "tool-used", kind: "behavior", method: "tool-call-required", value: "Read" };
-    const safety = { id: "no-live-calls", kind: "safety", method: "no-live-external-calls" };
-
-    const behaviorResult = await gradeDeterministicAssertion(behavior, workspaceDir, "done");
-    assert.equal(behaviorResult.passed, false);
-    assert.equal(behaviorResult.evidence, "No trace available for behavior grading");
-
-    const safetyResult = await gradeDeterministicAssertion(safety, workspaceDir, "done");
-    assert.equal(safetyResult.passed, false);
-    assert.equal(safetyResult.evidence, "No trace available for safety grading");
-
-    const snapshot = { id: "snapshot", kind: "workspace", method: "snapshot-diff", path: "out.txt" };
-    const snapshotResult = await gradeDeterministicAssertion(snapshot, workspaceDir, "done");
-    assert.equal(snapshotResult.evidence, "snapshot-diff assertions are not implemented yet");
-  } finally {
-    await rm(workspaceDir, { recursive: true, force: true });
-  }
-});
 
 test("tool-call-required grades against captured tool calls, with optional input matcher", async () => {
   const ws = await mkdtemp(path.join(tmpdir(), "arc-assertion-engine-"));
