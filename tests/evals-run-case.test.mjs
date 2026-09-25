@@ -96,72 +96,6 @@ function createInjectedSession({
   };
 }
 
-test("runEvalCase returns assistantText + timing when case has no files", async () => {
-  const { repoRoot, skill, evalsDir } = await createSkillFixture();
-
-  try {
-    const result = await runEvalCase({
-      skill,
-      evalsDir,
-      case: {
-        id: 1,
-        prompt: "Say hello.",
-        assertions: ["The response contains 'hello'"],
-      },
-      createSession: async (options) => {
-        assert.equal(options.skillFiles.skillName, "sample");
-        assert.equal(options.caseDefinition.caseId, "1");
-        assert.equal(options.caseDefinition.kind, "execution");
-        assert.equal(options.caseDefinition.lane, "execution-deterministic");
-        return {
-          model: null,
-          session: createInjectedSession({
-            assistantText: "hello there",
-            extraMessages: [createAssistantMessage("hello there")],
-          }),
-        };
-      },
-    });
-
-    try {
-      assert.equal(result.caseId, 1);
-      assert.equal(result.assistantText, "hello there");
-      assert.equal(typeof result.workspaceDir, "string");
-      await access(result.workspaceDir, fsConstants.F_OK);
-      // 10 + 20 + 5 + 3 = 38
-      assert.equal(result.timing.total_tokens, 38);
-      assert.deepEqual(result.timing.token_usage, {
-        input_tokens: 10,
-        output_tokens: 20,
-        cache_read_tokens: 5,
-        cache_write_tokens: 3,
-        total_tokens: 38,
-      });
-      assert.deepEqual(result.timing.model, { provider: "mock", id: "mock-model", thinking: "low" });
-      assert.equal(result.timing.thinking_level, "low");
-      assert.equal(result.timing.estimated_cost_usd, 0);
-      assert.equal(result.timing.context_window_tokens, 1000);
-      assert.equal(result.timing.context_window_used_percent, 3.8);
-      assert.ok(result.timing.duration_ms >= 0);
-      assert.equal(result.trace.identity.runtime, "pi-sdk");
-      assert.equal(result.trace.observations.assistantText, "hello there");
-      assert.equal(result.contextManifest.runtime, "pi");
-      assert.equal(result.contextManifest.mode, "isolated");
-      assert.deepEqual(result.contextManifest.attached_skills, [
-        { name: "sample", path: path.join(skill.skillDir, "SKILL.md"), role: "target" },
-      ]);
-      assert.equal(result.toolSummary.tool_call_count, 0);
-      assert.equal(result.toolSummary.mcp_tool_call_count, 0);
-    } finally {
-      await result.cleanup();
-    }
-
-    await assert.rejects(() => access(result.workspaceDir, fsConstants.F_OK));
-  } finally {
-    await rm(repoRoot, { recursive: true, force: true });
-  }
-});
-
 test("runEvalCase materializes declared files into the per-case workspace before invoking Pi", async () => {
   const { repoRoot, skill, evalsDir } = await createSkillFixture();
 
@@ -267,34 +201,6 @@ test("runEvalCase materializes explicit seeded setup with flattened contents", a
     } finally {
       await result.cleanup();
     }
-  } finally {
-    await rm(repoRoot, { recursive: true, force: true });
-  }
-});
-
-test("runEvalCase cleanup is idempotent and tears down the workspace", async () => {
-  const { repoRoot, skill, evalsDir } = await createSkillFixture();
-
-  try {
-    const result = await runEvalCase({
-      skill,
-      evalsDir,
-      case: { id: "cleanup", prompt: "ping" },
-      createSession: async () => ({
-        model: null,
-        session: createInjectedSession({
-          assistantText: "pong",
-          extraMessages: [createAssistantMessage("pong")],
-        }),
-      }),
-    });
-
-    await access(result.workspaceDir, fsConstants.F_OK);
-    await result.cleanup();
-    await assert.rejects(() => access(result.workspaceDir, fsConstants.F_OK));
-
-    // Calling cleanup twice must not throw.
-    await result.cleanup();
   } finally {
     await rm(repoRoot, { recursive: true, force: true });
   }

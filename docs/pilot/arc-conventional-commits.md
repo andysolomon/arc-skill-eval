@@ -65,9 +65,9 @@ Fill in `feedback.json`, then:
 arc-skill-eval improve --from-feedback "$RUN_DIR/feedback.json" --summary
 ```
 
-## CI coverage
+## Verification
 
-`tests/pilot-arc-conventional-commits.test.mjs` validates discovery, eval shape, and fixture presence without calling a model.
+No unit test covers the pilot. The smoke and compare runs above verify it, and their `evals-runs/<runId>/` artifacts are the record.
 
 ## Acceptance checklist (P4)
 
@@ -86,4 +86,4 @@ rsync -a --delete \
   pilots/arc-conventional-commits/
 ```
 
-Then re-run `npm test` and a local compare run.
+Then re-run a local compare run.

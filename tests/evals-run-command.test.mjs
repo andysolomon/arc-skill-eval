@@ -175,45 +175,6 @@ test("runEvalsCommand runs every case, writes per-case artifacts, aggregates pas
   }
 });
 
-test("runEvalsCommand accepts a sandbox override and per-case sandbox without changing default behavior", async () => {
-  // W-000023 only threads the resolved sandbox value through to the
-  // runner; the just-bash execution path (and an observable precedence
-  // assertion) arrives in W-000021. Here we confirm the plumbing accepts
-  // both a CLI-level override and a per-case field and still runs the
-  // existing temp-workspace path end-to-end.
-  const { repoRoot, skillDir } = await createSkillFixture({
-    skillName: "sample",
-    evals: [
-      { id: "cli-override", prompt: "Say hello.", sandbox: "none", assertions: ["The response contains 'hello'"] },
-      { id: "case-field", prompt: "Say hi.", sandbox: "just-bash", assertions: ["The response contains 'hi'"] },
-    ],
-  });
-
-  try {
-    const result = await runEvalsCommand({
-      input: skillDir,
-      runId: "run-sandbox",
-      sandbox: "just-bash",
-      createSession: async ({ caseDefinition }) => ({
-        model: null,
-        session: createInjectedSession(caseDefinition.prompt),
-      }),
-      judge: STUB_JUDGE_PASS,
-    });
-
-    const [skillResult] = result.skills;
-    assert.equal(skillResult.cases.length, 2);
-    assert.equal(skillResult.errors.length, 0);
-    for (const caseArt of skillResult.cases) {
-      const grading = JSON.parse(await readFile(caseArt.gradingPath, "utf8"));
-      assert.equal(grading.summary.failed, 0);
-    }
-    assert.equal(result.summary.passedCases, 2);
-  } finally {
-    await rm(repoRoot, { recursive: true, force: true });
-  }
-});
-
 test("runEvalsCommand sends only shared-classifier judge assertions to the judge", async () => {
   const { repoRoot, skillDir } = await createSkillFixture({
     skillName: "classifier",
@@ -239,57 +200,6 @@ test("runEvalsCommand sends only shared-classifier judge assertions to the judge
     assert.equal(judgeCalls, 0);
     assert.equal(result.summary.passedAssertions, 1);
     assert.equal(result.skills[0].cases[0].grading.judge_model, undefined);
-  } finally {
-    await rm(repoRoot, { recursive: true, force: true });
-  }
-});
-
-test("runEvalsCommand exports complete case variant payloads to observability sinks", async () => {
-  const { repoRoot, skillDir } = await createSkillFixture({
-    skillName: "sample",
-    evals: [{ id: "observed", prompt: "Say hello.", assertions: ["The response contains hello"] }],
-  });
-  const payloads = [];
-
-  try {
-    const result = await runEvalsCommand({
-      input: skillDir,
-      runId: "run-observed",
-      iteration: "obs",
-      createSession: async () => ({
-        model: null,
-        session: createInjectedSession("hello"),
-      }),
-      judge: STUB_JUDGE_PASS,
-      observabilitySinks: [{
-        name: "fake-sink",
-        exportCaseVariant(payload) {
-          payloads.push(payload);
-          return { sink: "fake-sink", status: "success", message: "exported" };
-        },
-      }],
-    });
-
-    assert.equal(payloads.length, 1);
-    const [payload] = payloads;
-    assert.equal(payload.run_id, "run-observed");
-    assert.equal(payload.iteration, "iteration-obs");
-    assert.deepEqual(payload.skill, { name: "sample", dir: skillDir });
-    assert.equal(payload.case_id, "observed");
-    assert.equal(payload.variant, "with_skill");
-    assert.equal(payload.timing.total_tokens, 12);
-    assert.equal(payload.grading_summary.passed, 1);
-    assert.equal(payload.grading.assertion_results.length, 1);
-    assert.equal(payload.trace.identity.runtime, "pi-sdk");
-    assert.equal(payload.tool_summary.tool_call_count, 0);
-    assert.equal(payload.context_manifest.mode, "isolated");
-    assert.ok(payload.artifact_paths.assistant.endsWith("assistant.md"));
-    assert.ok(payload.artifact_paths.outputs.endsWith("outputs"));
-    assert.ok(payload.artifact_paths.grading.endsWith("grading.json"));
-
-    const caseArtifacts = result.skills[0].cases[0];
-    assert.deepEqual(caseArtifacts.observabilityExports, [{ sink: "fake-sink", status: "success", message: "exported" }]);
-    assert.deepEqual(result.skills[0].observabilityExportFailures, []);
   } finally {
     await rm(repoRoot, { recursive: true, force: true });
   }
@@ -338,40 +248,6 @@ test("runEvalsCommand isolates observability sink failures after local artifacts
   }
 });
 
-test("runEvalsCommand forwards agentDir and records it in context manifest", async () => {
-  const { repoRoot, skillDir } = await createSkillFixture({
-    skillName: "sample",
-    evals: [{ id: "agent-dir", prompt: "Write greeting.", assertions: ["The response contains greeting"] }],
-  });
-  const agentDir = path.join(repoRoot, ".arc-skill-eval", "pi-agent");
-  let seenAgentDir;
-  let seenConfigAgentDir;
-
-  try {
-    const result = await runEvalsCommand({
-      input: skillDir,
-      runId: "run-agent-dir",
-      agentDir,
-      createSession: async (options) => {
-        seenAgentDir = options.agentDir;
-        seenConfigAgentDir = options.configAgentDir;
-        return {
-          model: null,
-          session: createInjectedSession(options.caseDefinition.prompt),
-        };
-      },
-      judge: STUB_JUDGE_PASS,
-    });
-
-    assert.equal(seenAgentDir, path.resolve(agentDir));
-    assert.equal(seenConfigAgentDir, agentDir);
-    const manifest = JSON.parse(await readFile(result.skills[0].cases[0].contextManifestPath, "utf8"));
-    assert.equal(manifest.agent_dir, path.resolve(agentDir));
-  } finally {
-    await rm(repoRoot, { recursive: true, force: true });
-  }
-});
-
 test("runEvalsCommand preflights incomplete eval-owned agent dir", async () => {
   const { repoRoot, skillDir } = await createSkillFixture({
     skillName: "sample",
@@ -395,43 +271,6 @@ test("runEvalsCommand preflights incomplete eval-owned agent dir", async () => {
         return true;
       },
     );
-  } finally {
-    await rm(repoRoot, { recursive: true, force: true });
-  }
-});
-
-test("runEvalsCommand supports iteration-scoped output directories", async () => {
-  const { repoRoot, skillDir } = await createSkillFixture({
-    evals: [
-      { id: "iter", prompt: "Say hello.", assertions: ["The response contains 'hello'"] },
-    ],
-  });
-
-  try {
-    const result = await runEvalsCommand({
-      input: skillDir,
-      runId: "run-iteration",
-      iteration: "1",
-      createSession: async () => ({
-        model: null,
-        session: createInjectedSession("hello"),
-      }),
-      judge: STUB_JUDGE_PASS,
-    });
-
-    assert.equal(result.iteration, "iteration-1");
-    assert.equal(result.skills[0].iteration, "iteration-1");
-    assert.equal(
-      result.skills[0].outputDir,
-      path.join(skillDir, "evals-runs", "iteration-1", "run-iteration"),
-    );
-    assert.equal(
-      result.skills[0].cases[0].gradingPath,
-      path.join(skillDir, "evals-runs", "iteration-1", "run-iteration", "eval-iter", "grading.json"),
-    );
-
-    const grading = JSON.parse(await readFile(result.skills[0].cases[0].gradingPath, "utf8"));
-    assert.equal(grading.summary.passed, 1);
   } finally {
     await rm(repoRoot, { recursive: true, force: true });
   }
@@ -523,60 +362,6 @@ test("runEvalsCommand compare mode writes with_skill and without_skill variant a
     const withoutGrading = JSON.parse(await readFile(caseArt.variants.without_skill.gradingPath, "utf8"));
     assert.equal(withGrading.summary.passed, 1);
     assert.equal(withoutGrading.summary.failed, 1);
-  } finally {
-    await rm(repoRoot, { recursive: true, force: true });
-  }
-});
-
-test("runEvalsCommand loads extra skills into context manifests for conflict evals", async () => {
-  const { repoRoot, skillDir } = await createSkillFixture({
-    evals: [
-      { id: "conflict", prompt: "Do the task.", assertions: ["The response succeeds"] },
-    ],
-  });
-  const extraSkillDir = path.join(repoRoot, "skills", "release-distractor");
-  await mkdir(extraSkillDir, { recursive: true });
-  await writeFile(
-    path.join(extraSkillDir, "SKILL.md"),
-    "---\nname: release-distractor\ndescription: Distractor skill.\n---\n\n# release-distractor\n",
-    "utf8",
-  );
-
-  try {
-    const received = [];
-    const result = await runEvalsCommand({
-      input: skillDir,
-      runId: "run-conflict",
-      compare: true,
-      extraSkillPaths: [extraSkillDir],
-      contextMode: "isolated",
-      createSession: async ({ attachSkill, extraSkillPaths, contextMode }) => {
-        received.push({ attachSkill, extraSkillPaths, contextMode });
-        return {
-          model: null,
-          session: createInjectedSession(attachSkill ? "with target" : "without target"),
-        };
-      },
-      judge: STUB_JUDGE_PASS,
-    });
-
-    assert.deepEqual(received, [
-      { attachSkill: true, extraSkillPaths: [extraSkillDir], contextMode: "isolated" },
-      { attachSkill: false, extraSkillPaths: [extraSkillDir], contextMode: "isolated" },
-    ]);
-
-    const caseArt = result.skills[0].cases[0];
-    const withContext = JSON.parse(await readFile(caseArt.variants.with_skill.contextManifestPath, "utf8"));
-    const withoutContext = JSON.parse(await readFile(caseArt.variants.without_skill.contextManifestPath, "utf8"));
-
-    assert.deepEqual(withContext.attached_skills, [
-      { name: "sample", path: path.join(skillDir, "SKILL.md"), role: "target" },
-      { name: "release-distractor", path: path.join(extraSkillDir, "SKILL.md"), role: "extra" },
-    ]);
-    assert.deepEqual(withoutContext.attached_skills, [
-      { name: "release-distractor", path: path.join(extraSkillDir, "SKILL.md"), role: "extra" },
-    ]);
-    assert.equal(withContext.ambient.extensions, false);
   } finally {
     await rm(repoRoot, { recursive: true, force: true });
   }

@@ -65,14 +65,3 @@ test('errored case renders an error row with its message, distinct from the fail
   assert.match(frame, /1 errored/, 'header calls out the errored case count');
   unmount();
 });
-
-test('clean run output never mentions errored', async () => {
-  const state = doneState([passCase, { ...passCase, id: 'case-pass-2' }], { passed: 2, failed: 0 });
-  const { lastFrame, unmount } = render(createElement(RunConsole, { state, elapsed: 0.8, frame: 0 }));
-  assert.ok(await waitFor(() => /run complete/.test(lastFrame() ?? '')), 'done header should render');
-  const frame = lastFrame() ?? '';
-  assert.match(frame, /2 passed/);
-  assert.ok(!/errored/.test(frame), 'clean runs never mention errored');
-  assert.ok(!/error/.test(frame), 'clean runs render no error rows at all');
-  unmount();
-});

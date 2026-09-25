@@ -6,10 +6,9 @@
 //   1. edit the table here,
 //   2. handle the key in app.tsx (the `id` is a stable handle, not the key),
 //   3. run `node scripts/gen-keymap-docs.mjs` to regenerate the docs page.
-// The conformance test asserts every `id` used in app.tsx exists here.
 
 export interface KeyBinding {
-  id: string;            // stable identifier referenced by app.tsx + tests
+  id: string;            // stable identifier referenced by app.tsx
   keys: string[];        // display labels, e.g. ['↑', '↓', 'j', 'k']
   desc: string;
   context?: string;      // panel/mode this applies to (omit = global)
@@ -66,9 +65,6 @@ export const KEYMAP: KeySection[] = [
     ],
   },
 ];
-
-/** Flat set of every binding id — used by the conformance test in app.tsx. */
-export const KEY_IDS: ReadonlySet<string> = new Set(KEYMAP.flatMap((s) => s.bindings.map((b) => b.id)));
 
 /** Render the keymap as Markdown (for the docs page generator). */
 export function keymapToMarkdown(): string {

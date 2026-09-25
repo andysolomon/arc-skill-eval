@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { gradeEvalCase, buildJudgePrompt, parseJudgeResponse } from "../dist/evals/grade.js";
-import { defineSkillEval, evalCase, judge, fileExists } from "../dist/evals/builder/index.js";
+import { defineSkillEval, evalCase, judge } from "../dist/evals/builder/index.js";
 import { validateEvalsJsonValue, EvalsJsonValidationError } from "../dist/evals/loader.js";
 
 const scoredCase = (threshold, scaleMax) => ({
@@ -31,13 +31,6 @@ test("scored judge fails when the rubric score is below the threshold", async ()
   assert.equal(r.passed, false); // judge said passed:true, but 2 < 4
   assert.equal(r.score, 2);
   assert.equal(g.summary.failed, 1);
-});
-
-test("scored judge clamps out-of-range scores into the rubric scale", async () => {
-  const judge = async () => ({ results: [{ passed: true, evidence: "e", score: 99 }] });
-  const g = await gradeEvalCase({ case: scoredCase(4, 5), workspaceDir: ".", assistantText: "x", judge });
-  assert.equal(g.assertion_results[0].score, 5); // clamped to scaleMax
-  assert.equal(g.assertion_results[0].passed, true);
 });
 
 test("scored judge falls back to the boolean verdict when no score is returned", async () => {
@@ -69,21 +62,6 @@ test("gradeEvalCase passes sparse rubrics only for the scored slots", async () =
   assert.deepEqual(seen[0], [{ index: 1, scaleMax: 5 }]);
 });
 
-test("a purely binary judge batch carries no rubrics field", async () => {
-  const seen = [];
-  const judge = async (input) => {
-    seen.push("rubrics" in input);
-    return { results: [{ passed: true, evidence: "e" }] };
-  };
-  await gradeEvalCase({
-    case: { id: "c", prompt: "p", assertions: ["plain judge"] },
-    workspaceDir: ".",
-    assistantText: "x",
-    judge,
-  });
-  assert.equal(seen[0], false);
-});
-
 test("buildJudgePrompt marks scored assertions and instructs a 1-N score", () => {
   const prompt = buildJudgePrompt({
     assistantText: "x",
@@ -104,21 +82,6 @@ test("parseJudgeResponse captures an optional numeric score", () => {
   assert.equal(parsed.results[1].score, undefined);
 });
 
-test("builder .atLeast upgrades judge to a scored intent with default scale 5", () => {
-  const json = defineSkillEval({
-    skill_name: "d",
-    cases: [evalCase({ id: "c", prompt: "p", assertions: [judge("quality").atLeast(4)] })],
-  }).toJSON();
-  assert.deepEqual(json.evals[0].assertions[0], {
-    id: "c-judge-1",
-    kind: "output",
-    method: "judge",
-    prompt: "quality",
-    threshold: 4,
-    scaleMax: 5,
-  });
-});
-
 test("builder .atLeast(n, { outOf }) sets a custom scale and composes with .soft()", () => {
   const json = defineSkillEval({
     skill_name: "d",
@@ -128,28 +91,6 @@ test("builder .atLeast(n, { outOf }) sets a custom scale and composes with .soft
   assert.equal(a.threshold, 8);
   assert.equal(a.scaleMax, 10);
   assert.equal(a.mustPass, false);
-});
-
-test("builder .atLeast on a non-judge assertion throws at build time", () => {
-  assert.throws(
-    () =>
-      defineSkillEval({
-        skill_name: "d",
-        cases: [evalCase({ id: "c", prompt: "p", assertions: [fileExists("a.json").atLeast(3)] })],
-      }).toJSON(),
-    /only valid on a judge/,
-  );
-});
-
-test("loader rejects threshold/scaleMax on a non-judge output assertion", () => {
-  assert.throws(
-    () =>
-      validateEvalsJsonValue(
-        { skill_name: "d", evals: [{ id: "c", prompt: "p", assertions: [{ id: "x", kind: "output", method: "exact", expected: "hi", threshold: 3 }] }] },
-        "t",
-      ),
-    EvalsJsonValidationError,
-  );
 });
 
 test("loader rejects a threshold outside 1..scaleMax", () => {

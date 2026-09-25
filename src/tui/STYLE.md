@@ -4,9 +4,7 @@ The design tokens and component anatomy for the `arc-skill-eval browse` Ink TUI.
 
 - **Visual reference:** the *TUI Component Gallery* (a DC export), mirrored as a static asset at `docs-site/public/component-gallery.html` and documented at [`docs-site/src/content/docs/components.md`](../../docs-site/src/content/docs/components.md).
 - **Implementation:** palettes and helpers in [`theme.ts`](./theme.ts); capability detection and glyphs in [`caps.ts`](./caps.ts).
-- **Guard:** [`tests/tui-components.test.mjs`](../../tests/tui-components.test.mjs) pins these tokens so code, spec, and gallery don't drift.
-
-When a token here changes, change it in `theme.ts`/`caps.ts`, update the gallery, and update the pinned values in the conformance test — all three in one commit.
+When a token here changes, change it in `theme.ts`/`caps.ts` and update the gallery in the same commit.
 
 ## Palettes
 

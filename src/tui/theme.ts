@@ -65,8 +65,7 @@ const NORD: Palette = {
   selection: '#434c5e', border: '#3b4252', borderActive: '#88c0d0', dim: '#4c566a',
 };
 
-/** All selectable palettes, keyed by ARC_TUI_THEME value. Exposed so the
- *  component-gallery conformance test and tooling can read the token set. */
+/** All selectable palettes, keyed by ARC_TUI_THEME value. */
 export const PALETTES: Record<string, Palette> = { tokyonight: { ...HEX }, gruvbox: GRUVBOX, nord: NORD };
 const THEME = (process.env.ARC_TUI_THEME || 'tokyonight').toLowerCase();
 const PICKED: Palette = PALETTES[THEME] ?? { ...HEX };

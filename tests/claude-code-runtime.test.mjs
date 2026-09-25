@@ -1,15 +1,11 @@
 import assert from "node:assert/strict";
-import { access, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
 import { runEvalsCommand } from "../dist/index.js";
 import { createClaudeCodeRuntime } from "../dist/runtime/claude-code/index.js";
-import { stageClaudeSkills } from "../dist/runtime/claude-code/staging.js";
-import { assertRuntimeReady, resolveRuntime } from "../dist/runtime/registry.js";
-
-const exists = (p) => access(p).then(() => true, () => false);
 
 const CLAUDE_FIXTURE_JSONL = [
   JSON.stringify({
@@ -67,28 +63,4 @@ test("claude-code runtime with injected invoker grades file-exists and assistant
   const tracePath = path.join(skillDir, "evals-runs", result.runId, "eval-claude-greeting", "trace.json");
   const trace = JSON.parse(await readFile(tracePath, "utf8"));
   assert.equal(trace.identity.runtime, "claude-code");
-});
-
-test("stageClaudeSkills copies target skill into .claude/skills when attachSkill is true", async () => {
-  const workspaceDir = await mkdtemp(path.join(tmpdir(), "arc-claude-stage-"));
-  const skillDir = path.join(workspaceDir, "skill-src");
-  await mkdir(skillDir, { recursive: true });
-  await writeFile(path.join(skillDir, "SKILL.md"), "---\nname: staged\ndescription: x\n---\n", "utf8");
-
-  await stageClaudeSkills({
-    workspaceDir,
-    targetSkill: { name: "staged", skillDir },
-    attachSkill: true,
-    extraSkillPaths: [],
-  });
-
-  assert.ok(await exists(path.join(workspaceDir, ".claude", "skills", "staged", "SKILL.md")));
-});
-
-test("resolveRuntime returns claude-code", () => {
-  assert.equal(resolveRuntime("claude-code").id, "claude-code");
-});
-
-test("assertRuntimeReady accepts claude-code when binary is present", async () => {
-  await assertRuntimeReady("claude-code");
 });

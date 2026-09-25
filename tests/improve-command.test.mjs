@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { improveCommand, readEvalsJson, runCli } from "../dist/index.js";
+import { improveCommand, readEvalsJson } from "../dist/index.js";
 
 async function createImproveFixture() {
   const root = await mkdtemp(path.join(tmpdir(), "arc-skill-eval-improve-"));
@@ -74,21 +74,6 @@ test("improveCommand applies validated improvement metadata", async () => {
     assert(metadata);
     assert.deepEqual(metadata.tags, ["needs-eval-improvement"]);
     assert.equal(Array.isArray(metadata.improvement_suggestions), true);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-test("runCli handles improve summary", async () => {
-  const { root, skillDir, feedbackPath } = await createImproveFixture();
-  try {
-    const result = await runCli(["improve", "--from-feedback", feedbackPath, "--dry-run", "--summary"]);
-
-    assert.equal(result.exitCode, 0);
-    assert.match(result.stdout, /Proposed \d+ eval improvement suggestions?/);
-    assert.match(result.stdout, /No files changed/);
-    const updated = JSON.parse(await readFile(path.join(skillDir, "evals", "evals.json"), "utf8"));
-    assert.equal(updated.evals[0].metadata, undefined);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

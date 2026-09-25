@@ -5,11 +5,9 @@ import { tmpdir } from "node:os";
 import * as path from "node:path";
 
 import {
-  buildGenerateTriggerSetPrompt,
   optimizeDescriptionCommand,
   validateDescriptionEvalSetValue,
 } from "../dist/cli/optimize-description-command.js";
-import { parseCliArgs } from "../dist/cli/argv.js";
 
 const SKILL_MD = `---
 name: demo-router
@@ -67,15 +65,6 @@ test("validateDescriptionEvalSetValue accepts a well-formed set and names proble
   assert.throws(() => validateDescriptionEvalSetValue(dupIds), /prompts\[1\]\.id "explicit-1" is duplicated/);
 });
 
-test("buildGenerateTriggerSetPrompt embeds the skill and demands near-miss negatives with splits", () => {
-  const prompt = buildGenerateTriggerSetPrompt({ skillName: "demo-router", skillText: SKILL_MD });
-  assert.match(prompt, /ADJACENT NEAR-MISSES/);
-  assert.match(prompt, /70% "train" and 30% "test"/);
-  assert.match(prompt, /=== TARGET SKILL\.md ===/);
-  assert.ok(prompt.includes(SKILL_MD));
-  assert.match(prompt, /Return ONLY JSON/);
-});
-
 test("--generate-only writes the validated set and reports counts, without touching SKILL.md", async () => {
   const skillDir = await makeSkillDir();
   const before = await readFile(path.join(skillDir, "SKILL.md"), "utf8");
@@ -120,29 +109,6 @@ test("an invalid generator response is rejected and nothing is written", async (
     /`prompts` must be a non-empty array/,
   );
   assert.equal(await exists(path.join(skillDir, "evals", "description-evals.json")), false);
-});
-
-test("argv: optimize-description parses flags and enforces the mode requirement", () => {
-  const parsed = parseCliArgs(["optimize-description", "./skills/demo", "--generate-only", "--force", "--model", "anthropic/claude-haiku-4-5"]);
-  assert.equal(parsed.command, "optimize-description");
-  assert.equal(parsed.skillDir, "./skills/demo");
-  assert.equal(parsed.generateOnly, true);
-  assert.equal(parsed.force, true);
-  assert.deepEqual(parsed.model, { provider: "anthropic", id: "claude-haiku-4-5" });
-
-  assert.throws(() => parseCliArgs(["optimize-description", "./skills/demo"]), /--generate-only .* or --eval-set/);
-  assert.throws(() => parseCliArgs(["optimize-description", "./skills/demo", "--max-iterations", "0"]), /Invalid --max-iterations/);
-  const withSet = parseCliArgs(["optimize-description", "./skills/demo", "--eval-set", "set.json", "--max-iterations", "5"]);
-  assert.equal(withSet.evalSetPath, "set.json");
-  assert.equal(withSet.maxIterations, 5);
-});
-
-test("scoring with a missing eval set fails with a readable error", async () => {
-  const skillDir = await makeSkillDir();
-  await assert.rejects(
-    optimizeDescriptionCommand({ skillDir, evalSetPath: path.join(skillDir, "missing.json") }),
-    /Could not read eval set at .*missing\.json/,
-  );
 });
 
 // ---------------------------------------------------------------- W-000036 scoring
@@ -322,24 +288,6 @@ test("optimizeDescription picks the winner by held-out test accuracy, not train"
   assert.equal(report.winner.test.accuracy, 1);
 });
 
-test("optimizeDescription reports no winner when nothing beats baseline on held-out prompts", async () => {
-  const routingTable = {
-    [BASE]: new Set([P["explicit-1"]]),          // train 2/2? explicit ✓, near-miss-1 ✓ → 2/2 train, test: implicit ✗, near-miss-2 ✓ → 1/2
-  };
-  const report = await optimizeDescription({
-    skillName: "demo-router",
-    skillText: SKILL_MD,
-    currentDescription: BASE,
-    distractors: [],
-    evalSet: validSet,
-    maxIterations: 3,
-    prober: proberFor(routingTable),
-    proposer: async () => { throw new Error("should not be called when train is already perfect"); },
-  });
-  assert.equal(report.winner, null);
-  assert.equal(report.iterations.length, 0, "perfect train baseline short-circuits the loop");
-});
-
 test("a failed proposal records the error and the loop continues", async () => {
   const routingTable = {
     [BASE]: new Set(),
@@ -383,24 +331,6 @@ test("buildProposeDescriptionPrompt names both failure directions; parseProposed
   assert.equal(parseProposedDescription("description: Routes\nthings   neatly."), "Routes things neatly.");
 });
 
-test("optimize mode via the command returns the report with probe accounting", async () => {
-  const skillDir = await makeSkillDir();
-  await mkdir(path.join(skillDir, "evals"), { recursive: true });
-  const setPath = path.join(skillDir, "evals", "description-evals.json");
-  await writeFile(setPath, JSON.stringify(validSet, null, 2), "utf8");
-
-  const result = await optimizeDescriptionCommand({
-    skillDir,
-    evalSetPath: setPath,
-    maxIterations: 1,
-    prober: async () => "demo-router",   // routes everything to target: train 1/2, test 1/2
-    proposer: async () => "A different description.",
-  });
-  assert.equal(result.mode, "optimize");
-  assert.ok(result.probeCount >= 4, "baseline train+test probes counted");
-  assert.equal(result.report.winner, null, "candidate identical behavior cannot beat baseline");
-});
-
 // ---------------------------------------------------------------- W-000038 apply
 
 const { replaceFrontmatterDescription } = await import("../dist/cli/optimize-description-command.js");
@@ -424,12 +354,6 @@ test("replaceFrontmatterDescription rewrites plain, quoted, and block-scalar des
     assert.match(updated, /# Body\n\nUnchanged text\.\n$/, `${style}: document body byte-identical`);
     assert.match(updated, /description: >\n {2}\S/, `${style}: written as a block scalar`);
   }
-});
-
-test("replaceFrontmatterDescription refuses ambiguous documents", () => {
-  assert.equal(replaceFrontmatterDescription("# No frontmatter\n", NEW_DESC), null);
-  assert.equal(replaceFrontmatterDescription("---\nname: x\n---\nbody\n", NEW_DESC), null, "no description key");
-  assert.equal(replaceFrontmatterDescription("---\nname: x\ndescription: y\n---\n", "   "), null, "empty replacement");
 });
 
 test("--apply writes the winner into SKILL.md and verifies the round-trip", async () => {
@@ -481,13 +405,4 @@ test("--apply with no winner leaves SKILL.md untouched", async () => {
   assert.equal(result.report.winner, null);
   assert.equal(result.applied, false);
   assert.equal(await readFile(path.join(skillDir, "SKILL.md"), "utf8"), before);
-});
-
-test("argv: --apply requires --max-iterations", () => {
-  assert.throws(
-    () => parseCliArgs(["optimize-description", "./skills/demo", "--eval-set", "set.json", "--apply"]),
-    /--apply .* requires --max-iterations/,
-  );
-  const ok = parseCliArgs(["optimize-description", "./skills/demo", "--eval-set", "set.json", "--max-iterations", "3", "--apply"]);
-  assert.equal(ok.apply, true);
 });

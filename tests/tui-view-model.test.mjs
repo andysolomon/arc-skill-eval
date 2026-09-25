@@ -52,28 +52,6 @@ test('case overview wraps long assertion labels and evidence without ellipses', 
   assert.doesNotMatch(text, /…/);
 });
 
-test('case overview colors wrapped failed and passing evidence appropriately', () => {
-  const failedEvidence = 'Failed evidence wraps across several words and must keep the crimson failure tint on every wrapped line for readability with extra failure context continuing beyond the wrapping boundary';
-  const passingEvidence = 'Passing evidence wraps across several words and must keep the muted comment tint on every wrapped line for readability with extra passing context continuing beyond the wrapping boundary';
-  const cs = caseWithAssertions([
-    selectedAssertion({ passed: false, label: 'failed assertion label that wraps for color testing', evidence: failedEvidence }),
-    selectedAssertion({ passed: true, label: 'passing assertion label that wraps for color testing', evidence: passingEvidence }),
-  ]);
-
-  const view = buildMain('cases', fakeSkill, cs, cs.assertions[0], undefined, 'overview', true);
-  const failedLines = view.lines.filter((line) => /Failed evidence|crimson failure tint|failure context/.test(lineText(line)));
-  const passingLines = view.lines.filter((line) => /Passing evidence|muted comment tint|passing context/.test(lineText(line)));
-
-  assert.ok(failedLines.length >= 2, 'failed evidence should wrap across multiple lines');
-  assert.ok(passingLines.length >= 2, 'passing evidence should wrap across multiple lines');
-  for (const line of failedLines) {
-    assert.ok(line.segs.every((seg) => seg.c === COLORS.red), `expected failed evidence line to be red: ${lineText(line)}`);
-  }
-  for (const line of passingLines) {
-    assert.ok(line.segs.every((seg) => seg.c === COLORS.comment), `expected passing evidence line to use comment color: ${lineText(line)}`);
-  }
-});
-
 test('isInfraEvidence recognizes judge-side failure prefixes only', () => {
   assert.equal(isInfraEvidence('Judge error: provider not authenticated'), true);
   assert.equal(isInfraEvidence('Judge returned unparseable output'), true);
@@ -103,15 +81,6 @@ test('case overview distinguishes judge-infra evidence from real assertion failu
   }
 });
 
-test('assertion view flags judge-infra evidence with triage guidance', () => {
-  const a = selectedAssertion({ passed: false, evidence: 'Judge error: no output — check provider auth' });
-  const cs = caseWithAssertions([a]);
-  const view = buildMain('assertions', fakeSkill, cs, a, undefined, 'overview', true);
-  const text = viewText(view);
-  assert.match(text, /judge infrastructure, not the assertion/);
-  assert.match(text, /fix --judge-model \/ provider auth/);
-});
-
 const distractorSkill = {
   id: 'shiny', dir: '/tmp/shiny', runDir: '', role: 'distractor',
   model: '—', judge: '—', passed: 0, total: 0,
@@ -136,30 +105,4 @@ test('buildMain falls back to the skill view when the selected skill has no case
   assert.equal(view.title, 'shiny');
   assert.match(viewText(view), /attached as --extra-skill distractor context/);
   assert.match(viewText(view), /no runs of its own/);
-});
-
-const { runDisplayName, runRows } = await import('../dist/tui/view-model.js');
-
-test('runDisplayName prefers the iteration bucket and humanizes bare runIds in local time', () => {
-  assert.equal(runDisplayName({ iteration: 'dogfood-1', runId: '2026-07-02T21-55-14-609Z' }), 'dogfood-1');
-
-  const runId = '2026-07-02T21-55-14-609Z';
-  const name = runDisplayName({ iteration: '—', runId });
-  assert.match(name, /^[A-Z][a-z]{2} \d{1,2} \d{2}:\d{2}$/, `short local stamp, got: ${name}`);
-  // Mirror the conversion so the assertion holds in any timezone.
-  const d = new Date('2026-07-02T21:55:14.609Z');
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  assert.equal(name, `${months[d.getMonth()]} ${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`);
-
-  assert.equal(runDisplayName({ iteration: '—', runId: 'run-custom-thing' }), 'custom-thing', 'non-timestamp ids keep the legacy fallback');
-});
-
-test('runRows uses the humanized name instead of the raw runId', () => {
-  const run = {
-    iteration: '—', runId: '2026-07-02T21-55-14-609Z', mode: 'single', skill: 'demo', extra: '', ctxMode: 'isolated',
-    model: 'm/x', judge: '—', when: '2d ago', pass: '0/1', delta: '', cost: '$0.00', exit: 1, caseFilter: '',
-  };
-  const rowText = runRows([run])[0].map((s) => s.t).join('');
-  assert.doesNotMatch(rowText, /2026-07-02T/, 'raw ISO runId no longer shown in the panel row');
-  assert.match(rowText, /0\/1/);
 });

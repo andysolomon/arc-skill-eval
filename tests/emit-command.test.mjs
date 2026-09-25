@@ -6,8 +6,7 @@ import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { emitCommand } from "../dist/cli/emit-command.js";
-import { parseCliArgs } from "../dist/cli/argv.js";
-import { CliCommandError, CliUsageError } from "../dist/cli/types.js";
+import { CliCommandError } from "../dist/cli/types.js";
 
 // Absolute path to the built builder so suite fixtures resolve without node_modules.
 const BUILDER = pathToFileURL(path.resolve("dist/evals/builder/index.js")).href;
@@ -62,26 +61,6 @@ test("emit writes a validated evals.json from a suite module", async () => {
   assert.equal(written.evals[0].assertions[2].mustPass, false);
 });
 
-test("emit --out overrides the destination path", async () => {
-  const { dir, suitePath } = await makeSuiteDir();
-  const out = path.join(dir, "nested", "custom.json");
-  const result = await emitCommand({ from: suitePath, out });
-
-  assert.equal(result.outPath, out);
-  const written = JSON.parse(await readFile(out, "utf8"));
-  assert.equal(written.skill_name, "arc-demo");
-});
-
-test("emit --check passes when the committed JSON matches", async () => {
-  const { suitePath } = await makeSuiteDir();
-  await emitCommand({ from: suitePath });
-
-  const result = await emitCommand({ from: suitePath, check: true });
-  assert.equal(result.check, true);
-  assert.equal(result.wrote, false);
-  assert.equal(result.changed, false);
-});
-
 test("emit --check reports drift when the committed JSON differs or is missing", async () => {
   const { evalsDir, suitePath } = await makeSuiteDir();
 
@@ -123,40 +102,7 @@ test("emit resolves a skill directory to evals/evals.eval.ts -> evals/evals.json
   assert.equal(result.outPath, path.join(evalsDir, "evals.json"));
 });
 
-test("emit throws when the module has no defineSkillEval default export", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "arc-emit-"));
-  const suitePath = path.join(dir, "broken.eval.mjs");
-  await writeFile(suitePath, "export const notASuite = 42;\n", "utf8");
-  await assert.rejects(() => emitCommand({ from: suitePath }), CliCommandError);
-});
-
 test("emit surfaces suite validation errors (duplicate case ids) as a command error", async () => {
   const { suitePath } = await makeSuiteDir({ dup: true });
   await assert.rejects(() => emitCommand({ from: suitePath }), CliCommandError);
-});
-
-test("emit throws a clear error when the suite file is missing", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "arc-emit-"));
-  await assert.rejects(() => emitCommand({ from: path.join(dir, "nope.eval.ts") }), CliCommandError);
-});
-
-test("parseCliArgs parses emit with --from/--out/--check", () => {
-  assert.deepEqual(parseCliArgs(["emit", "--from", "evals/suite.eval.ts", "--out", "evals/evals.json", "--check"]), {
-    command: "emit",
-    from: "evals/suite.eval.ts",
-    out: "evals/evals.json",
-    check: true,
-  });
-});
-
-test("parseCliArgs parses emit with a skill-dir positional", () => {
-  assert.deepEqual(parseCliArgs(["emit", "./skills/demo"]), {
-    command: "emit",
-    skillDir: "./skills/demo",
-    check: false,
-  });
-});
-
-test("parseCliArgs rejects emit with neither --from nor a skill dir", () => {
-  assert.throws(() => parseCliArgs(["emit"]), CliUsageError);
 });

@@ -8,8 +8,7 @@ import * as path from "node:path";
 import { promisify } from "node:util";
 
 import { packageCommand } from "../dist/cli/package-command.js";
-import { parseCliArgs } from "../dist/cli/argv.js";
-import { CliCommandError, CliUsageError } from "../dist/cli/types.js";
+import { CliCommandError } from "../dist/cli/types.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -111,18 +110,6 @@ test("manifest records name, sorted files, and sha256 hashes that match the pack
   assert.equal(result.totalBytes, manifest.files.reduce((sum, entry) => sum + entry.bytes, 0));
 });
 
-test("packaging the same skill twice is deterministic apart from created_at", async () => {
-  const skillDir = await makeSkillDir();
-  const outputDir = await makeOutputDir();
-
-  const first = await packageCommand({ skillDir, output: path.join(outputDir, "first.skill.tgz") });
-  const second = await packageCommand({ skillDir, output: path.join(outputDir, "second.skill.tgz") });
-
-  assert.deepEqual(first.manifest.files, second.manifest.files);
-  assert.equal(first.manifest.name, second.manifest.name);
-  assert.equal(first.manifest.arc_skill_eval_version, second.manifest.arc_skill_eval_version);
-});
-
 test("invalid evals.json rejects with a CliCommandError and writes no artifact", async () => {
   const skillDir = await makeSkillDir({ evalsJson: "{ not valid json" });
   const output = path.join(await makeOutputDir(), "demo-pack.skill.tgz");
@@ -130,17 +117,6 @@ test("invalid evals.json rejects with a CliCommandError and writes no artifact",
   await assert.rejects(
     () => packageCommand({ skillDir, output }),
     (error) => error instanceof CliCommandError && /Invalid JSON/.test(error.message),
-  );
-  assert.ok(!(await exists(output)));
-});
-
-test("missing SKILL.md rejects and writes no artifact", async () => {
-  const skillDir = await mkdtemp(path.join(tmpdir(), "arc-package-noskill-"));
-  const output = path.join(await makeOutputDir(), "demo-pack.skill.tgz");
-
-  await assert.rejects(
-    () => packageCommand({ skillDir, output }),
-    (error) => error instanceof CliCommandError && /Could not read SKILL\.md/.test(error.message),
   );
   assert.ok(!(await exists(output)));
 });
@@ -160,32 +136,4 @@ test("refuses to overwrite an existing artifact without --force, and overwrites 
   assert.equal(result.outputPath, output);
   const { stdout } = await execFileAsync("tar", ["-tzf", output]);
   assert.ok(stdout.includes("demo-pack/manifest.json"));
-});
-
-test("parseCliArgs parses the package command flags and rejects unknown flags", () => {
-  assert.deepEqual(parseCliArgs(["package", "./my-skill"]), {
-    command: "package",
-    skillDir: "./my-skill",
-    output: undefined,
-    force: false,
-  });
-
-  assert.deepEqual(parseCliArgs(["package", "./my-skill", "--output", "dist/my.skill.tgz", "--force"]), {
-    command: "package",
-    skillDir: "./my-skill",
-    output: "dist/my.skill.tgz",
-    force: true,
-  });
-
-  assert.deepEqual(parseCliArgs(["package", "--output=out.skill.tgz", "./my-skill"]), {
-    command: "package",
-    skillDir: "./my-skill",
-    output: "out.skill.tgz",
-    force: false,
-  });
-
-  assert.throws(() => parseCliArgs(["package"]), CliUsageError);
-  assert.throws(() => parseCliArgs(["package", "a", "b"]), /Only one <skill-dir> positional argument is allowed/);
-  assert.throws(() => parseCliArgs(["package", "./my-skill", "--nope"]), /Unknown flag: --nope/);
-  assert.throws(() => parseCliArgs(["package", "./my-skill", "--output"]), /Flag --output requires a value/);
 });

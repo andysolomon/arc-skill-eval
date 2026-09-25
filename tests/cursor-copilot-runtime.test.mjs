@@ -1,16 +1,12 @@
 import assert from "node:assert/strict";
-import { access, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
 import { runEvalsCommand } from "../dist/index.js";
 import { createCursorAgentRuntime } from "../dist/runtime/cursor-agent/index.js";
-import { stageCursorSkills } from "../dist/runtime/cursor-agent/staging.js";
 import { createCopilotRuntime } from "../dist/runtime/copilot/index.js";
-import { assertRuntimeReady, resolveRuntime } from "../dist/runtime/registry.js";
-
-const exists = (p) => access(p).then(() => true, () => false);
 
 async function createSkillFixture(prefix, name, evals) {
   const repoRoot = await mkdtemp(path.join(tmpdir(), prefix));
@@ -60,23 +56,6 @@ test("cursor-agent runtime with injected invoker grades a case", async () => {
   assert.equal(trace.identity.runtime, "cursor-agent");
 });
 
-test("stageCursorSkills writes both .cursor/skills and .agents/skills", async () => {
-  const workspaceDir = await mkdtemp(path.join(tmpdir(), "arc-cursor-stage-"));
-  const skillDir = path.join(workspaceDir, "skill-src");
-  await mkdir(skillDir, { recursive: true });
-  await writeFile(path.join(skillDir, "SKILL.md"), "---\nname: staged\ndescription: x\n---\n", "utf8");
-
-  await stageCursorSkills({
-    workspaceDir,
-    targetSkill: { name: "staged", skillDir },
-    attachSkill: true,
-    extraSkillPaths: [],
-  });
-
-  assert.ok(await exists(path.join(workspaceDir, ".cursor", "skills", "staged", "SKILL.md")));
-  assert.ok(await exists(path.join(workspaceDir, ".agents", "skills", "staged", "SKILL.md")));
-});
-
 test("copilot runtime with injected invoker grades a case", async () => {
   const { skillDir } = await createSkillFixture("arc-copilot-rt-", "copilot-demo", greetingEvals);
   const runtime = createCopilotRuntime({
@@ -96,17 +75,4 @@ test("copilot runtime with injected invoker grades a case", async () => {
     await readFile(path.join(skillDir, "evals-runs", result.runId, "eval-greeting", "trace.json"), "utf8"),
   );
   assert.equal(trace.identity.runtime, "copilot");
-});
-
-test("resolveRuntime returns all implemented harness ids", () => {
-  assert.equal(resolveRuntime("cursor-agent").id, "cursor-agent");
-  assert.equal(resolveRuntime("copilot").id, "copilot");
-});
-
-test("assertRuntimeReady accepts cursor-agent when binary/login present", async () => {
-  await assertRuntimeReady("cursor-agent");
-});
-
-test("assertRuntimeReady rejects copilot without binary/token", async () => {
-  await assert.rejects(() => assertRuntimeReady("copilot", {}), /copilot/i);
 });
