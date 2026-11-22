@@ -7,6 +7,10 @@ permissions:
   contents: write
   issues: write
   pull-requests: write
+  # npm trusted publishing (OIDC). @semantic-release/npm exchanges the GitHub
+  # identity token for a short-lived publish token and falls back to NPM_TOKEN
+  # only if the exchange fails — no long-lived npm token needs rotating.
+  id-token: write
 
 jobs:
   release:
