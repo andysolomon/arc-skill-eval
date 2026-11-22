@@ -1,0 +1,35 @@
+name: dependabot-automerge
+
+# Queue Dependabot's Pi SDK bump PRs for auto-merge. GitHub merges them only
+# once the required checks (the `ci` workflow) pass on `main`'s branch
+# protection rule — this workflow never bypasses CI.
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]'
+    steps:
+      - name: fetch metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: enable auto-merge for Pi updates
+        if: steps.meta.outputs.dependency-group == 'pi'
+        # Squash so the merged commit is the PR title (`fix(deps): ...`),
+        # which semantic-release turns into a patch release.
+        #
+        # A merge made with GITHUB_TOKEN does not trigger other workflows, so
+        # the release workflow would not run. Add a Dependabot secret named
+        # DEPENDABOT_AUTOMERGE_TOKEN (fine-grained PAT: contents + pull
+        # requests read/write on this repo) to make the merge kick off release.
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.DEPENDABOT_AUTOMERGE_TOKEN || secrets.GITHUB_TOKEN }}
