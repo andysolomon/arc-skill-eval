@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures/test';
 
 const sectionCases = [
   { name: 'run', tab: 'section-nav-tab-run', screen: 'run-app', kicker: 'Localhost only' },
