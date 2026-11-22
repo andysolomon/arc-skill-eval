@@ -43,6 +43,7 @@ export function normalizePiSdkCaseRunResult(result: PiSdkCaseRunResult, runtime:
       sessionFile: result.session.sessionFile,
       messages: result.session.messages,
       runtimeEvents: result.session.events,
+      runtimeEventsTruncated: result.session.eventsTruncated ?? false,
       telemetryEntries: telemetry.entries,
     },
   };

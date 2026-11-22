@@ -18,6 +18,7 @@ import { formatRunEvalsResult } from "./render.js";
 import { resolveLaminarConfig } from "./laminar-config.js";
 import { createLaminarSink } from "../observability/sinks/laminar.js";
 import { assertRuntimeReady, resolveRuntime } from "../runtime/registry.js";
+import { detectPiCliVersionSkew } from "../pi/model-preflight.js";
 import { CliCommandError, CliUsageError, type CliInvocationResult } from "./types.js";
 
 function formatDescriptionScore(result: ScoreDescriptionResult): string {
@@ -264,6 +265,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
         const observabilitySinks = laminarSink ? [laminarSink] : undefined;
 
         let result;
+        const warnings: string[] = [];
         try {
           try {
             await assertRuntimeReady(parsed.runtime, process.env);
@@ -272,6 +274,10 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
             throw new CliCommandError(message);
           }
           const runtime = resolveRuntime(parsed.runtime);
+          if (runtime.id === "pi-sdk") {
+            const skewWarning = detectPiCliVersionSkew();
+            if (skewWarning) warnings.push(skewWarning);
+          }
           result = await runEvalsCommand({
             input: parsed.input,
             skillNames: parsed.skillNames,
@@ -308,7 +314,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
         return {
           exitCode: failed ? 1 : 0,
           stdout: `${formatRunEvalsResult(result, { json: parsed.json })}${laminarNote}`,
-          stderr: "",
+          stderr: warnings.map((warning) => `${warning}\n`).join(""),
         };
       }
       case "browse": {

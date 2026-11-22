@@ -37,7 +37,7 @@ Assertion grading mirrors OpenAI's layered approach (deterministic checks first,
 }
 ```
 
-Each case may also set `"sandbox": "just-bash"` to run inside an isolated virtual bash environment instead of the default temp-workspace runner (`"none"`). A `--sandbox` CLI flag overrides this per run. In `just-bash` mode the agent's `bash` tool executes in an in-process virtual shell with a filesystem rooted at the case workspace, so command execution needs no host shell and the repository working tree is never touched.
+Each case may also set `"sandbox": "just-bash"` to run inside an isolated virtual bash environment instead of the default temp-workspace runner (`"none"`). A `--sandbox` CLI flag overrides this per run. In `just-bash` mode the agent's `bash`, `read`, `write`, and `edit` tools share one in-process virtual filesystem rooted at the case workspace. Command execution needs no host shell, absolute paths such as `/tmp/x` stay inside the workspace, skills in context are readable but not writable, and the repository working tree is never touched.
 
 `just-bash` ships core unix builtins; `npm`, `npx`, and `git` get deterministic no-op success mocks by default. Override them per case with `sandboxMocks` to return specific output, exit codes, and file effects:
 
@@ -58,8 +58,8 @@ Each case may also set `"sandbox": "just-bash"` to run inside an isolated virtua
 ```
 
 ## Requirements
-- Node.js ≥ 20
-- Pi installed and configured with at least one provider API key (Anthropic, OpenAI, Google/Gemini, Mistral, xAI, etc.). The skill's assistant runs via `@mariozechner/pi-coding-agent`.
+- Node.js ≥ 22.19 (required by the bundled Pi SDK 1.x)
+- Pi installed and configured with at least one provider API key (Anthropic, OpenAI, Google/Gemini, Mistral, xAI, etc.). The skill's assistant runs via `@earendil-works/pi-coding-agent`.
 
 ## Install
 
@@ -107,7 +107,7 @@ arc-skill-eval run ./skills/arc-conventional-commits --case 1
 
 # Pin the skill runner model and LLM-judge model
 arc-skill-eval run ./skills/arc-conventional-commits \
-  --model openai-codex/gpt-5.5:medium \
+  --model openai-codex/gpt-6-luna:medium \
   --judge-model mistral/ministral-8b-latest
 
 # Create a tiny eval-owned Pi config/runtime directory
@@ -160,8 +160,8 @@ The companion [`andysolomon/arc-skills`](https://github.com/andysolomon/arc-skil
 ```bash
 arc-skill-eval run /path/to/arc-skills/arc-creating-evals \
   --case execution-golden-path-file-skill \
-  --model openai-codex/gpt-5.5:medium \
-  --judge-model openai-codex/gpt-5.5:medium
+  --model openai-codex/gpt-6-luna:medium \
+  --judge-model openai-codex/gpt-6-luna:medium
 ```
 
 For the with-skill / without-skill signal:
@@ -171,8 +171,8 @@ arc-skill-eval run /path/to/arc-skills/arc-creating-evals \
   --case execution-golden-path-file-skill \
   --compare \
   --iteration dogfood-1 \
-  --model openai-codex/gpt-5.5:medium \
-  --judge-model openai-codex/gpt-5.5:medium
+  --model openai-codex/gpt-6-luna:medium \
+  --judge-model openai-codex/gpt-6-luna:medium
 ```
 
 A recent dogfood run passed the golden-path case and showed a positive `+16.7%` with-skill delta after tightening the suite to assert behavior unique to `arc-creating-evals`.
@@ -298,7 +298,7 @@ Display options:
 - The TUI is capability-aware: truecolor hex degrades to 16-color ANSI on low-color terminals, and block/box glyphs (bars, status ticks, accent bar) fall back to ASCII off a UTF-8 locale. Force the fallbacks with `NO_COLOR` / `FORCE_COLOR=0` (no color) or `ARC_TUI_ASCII=1` (ASCII glyphs).
 
 Model options:
-- `--model <provider/model[:thinking]>` pins the skill runner model instead of using Pi's configured default. Example: `openai-codex/gpt-5.5:medium`.
+- `--model <provider/model[:thinking]>` pins the skill runner model instead of using Pi's configured default. Example: `openai-codex/gpt-6-luna:medium`.
 - `--judge-model <provider/model[:thinking]>` pins the model used for LLM-judged string assertions. Deterministic assertions do not use the judge.
 - `--agent-dir <path>` points Pi settings, model registry, and auth lookup at an eval-owned agent directory instead of the normal `~/.pi/agent` directory.
 - When no model flags are supplied, `arc-skill-eval` inherits Pi's default provider/model/thinking level from the effective Pi agent settings.
@@ -410,7 +410,7 @@ Context options:
 - `--extra-skill <path>` can be repeated to add explicit skill directories or `SKILL.md` files as distractor/conflict context. In `--compare`, `with_skill` receives the target + extras, while `without_skill` receives extras only.
 - `--context-mode isolated` is the default: no ambient Pi skills, extensions, prompt templates, themes, or context files are loaded.
 - `--context-mode ambient` opts into normal Pi ambient resources so extension tools/MCP-like tools and other configured resources can enter the context. The resolved loadout is recorded in `context-manifest.json`.
-- `--sandbox none|just-bash` selects the execution isolation for every selected case, overriding each case's own `sandbox` field. `none` (default) uses the temp-workspace runner; `just-bash` routes the agent's `bash` tool through an in-process virtual shell (filesystem rooted at the case workspace) so commands run without the host shell and never touch the repo tree. Generated files are still captured under `outputs/`. `npm`/`npx`/`git` resolve to deterministic mocks (no-op success by default, configurable per case via `sandboxMocks`).
+- `--sandbox none|just-bash` selects the execution isolation for every selected case, overriding each case's own `sandbox` field. `none` (default) uses the temp-workspace runner; `just-bash` routes the agent's `bash`, `read`, `write`, and `edit` tools through one in-process virtual filesystem rooted at the case workspace, so commands run without the host shell and no tool can write outside the workspace. Generated files are still captured under `outputs/`. `npm`/`npx`/`git` resolve to deterministic mocks (no-op success by default, configurable per case via `sandboxMocks`).
 
 Exit code: `0` when every case has no failing assertions, `1` otherwise.
 

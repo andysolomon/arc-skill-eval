@@ -112,7 +112,7 @@ export function renderHelp(): string {
     "    <skillDir>/evals-runs/<runId>/eval-<id>/ (overridable via --output-dir).",
     "  - --runtime selects the agent harness (default pi-sdk). Alternatives: codex, claude-code, cursor-agent, copilot — each uses BYOK env vars (see docs/multi-harness-runtimes.md).",
     "  - --model pins the skill runner model; --judge-model pins the LLM assertion judge.",
-    "  - Model values use Pi's provider/model form, optionally with :thinking (for example openai-codex/gpt-5.5:medium).",
+    "  - Model values use Pi's provider/model form, optionally with :thinking (for example openai-codex/gpt-6-luna:medium).",
     "  - --extra-skill loads explicit distractor/conflict skills for every variant.",
     "  - --context-mode ambient opts into normal Pi ambient resources; default is isolated.",
     "  - --sandbox just-bash runs eligible cases in an isolated just-bash environment and overrides each case's `sandbox` field; default is none (the temp-workspace runner).",
