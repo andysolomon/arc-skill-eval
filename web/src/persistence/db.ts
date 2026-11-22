@@ -79,8 +79,8 @@ export const openDatabase = (
     const request = indexedDB.open(name, version);
 
     request.onerror = () => reject(request.error);
-    request.onupgradeneeded = () => {
-      createStores(request.result, request.oldVersion);
+    request.onupgradeneeded = (event) => {
+      createStores(request.result, event.oldVersion);
     };
     request.onsuccess = async () => {
       const db = request.result;

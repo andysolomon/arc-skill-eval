@@ -22,8 +22,11 @@ jobs:
       - name: install
         run: npm ci
 
+      - name: test core
+        run: npm test
+
       - name: typecheck web
-        run: npm --prefix web exec -- tsc --noEmit
+        run: npm --prefix web run typecheck
 
       - name: build web
         run: npm --prefix web run build
