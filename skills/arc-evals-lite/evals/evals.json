@@ -144,8 +144,8 @@
         {
           "id": "no-answer-leak",
           "kind": "behavior",
-          "method": "tool-call-forbidden",
-          "match": "claude[^\\n]*(Hello, World|expected_output|regex-match)",
+          "method": "command-forbidden",
+          "match": "claude\\b[^\\n;&|]*?\\s-p\\s+(?:\"[^\"]*?|'[^']*?)(?:Hello, World|expected_output|regex-match|file-exists)",
           "matchKind": "regex"
         },
         {
@@ -204,7 +204,8 @@
           "id": "checked-for-cli",
           "kind": "behavior",
           "method": "tool-call-required",
-          "match": "arc-skill-eval",
+          "value": "bash",
+          "match": "(?:^\\s*|[;&|(`\\n]\\s*|\\b(?:if|then|else|do|while|until|command -v|which|type|hash|npx)\\s+|!\\s*)arc-skill-eval(?:\\s|$)",
           "matchKind": "regex"
         },
         {
