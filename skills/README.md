@@ -4,7 +4,15 @@ This directory ships alongside the npm package. Each skill is a Claude Code / ag
 
 ## Installing one into your project
 
-Skills are discovered by most agent tools under `.claude/skills/` (project-scoped) or `~/.claude/skills/` (user-scoped). Pick one and either copy or symlink:
+The quickest way is `install-skills`. It copies `arc-creating-evals` and `arc-running-evals` into `.agents/skills/` (Pi, Codex, Cursor Agent, Copilot) and `.claude/skills/` (Claude Code) under the current directory:
+
+```bash
+arc-skill-eval install-skills
+arc-skill-eval install-skills --harness claude-code --target ../my-project
+arc-skill-eval install-skills --force    # replace an earlier install
+```
+
+Installed copies leave out each skill's `evals/` folder. To install by hand instead, copy or symlink a skill folder into your agent's skills directory, such as `.claude/skills/` (project-scoped) or `~/.claude/skills/` (user-scoped):
 
 ```bash
 # project-scoped
@@ -20,6 +28,7 @@ ln -s "$(pwd)/node_modules/arc-skill-eval/skills/arc-creating-evals" ~/.claude/s
 ## Bundled skills
 
 - **`arc-creating-evals`** — interview-style skill that authors an `evals/evals.json` test suite for an existing skill. Follows the Anthropic skill-eval methodology. See `arc-creating-evals/SKILL.md`.
+- **`arc-running-evals`**: runs an existing suite through the CLI's `--json` output, explains each failure (skill bug, eval bug, or environment problem), and drives review → improve → re-run. It asks before full-suite, `--compare`, or nested-harness runs, because each of those costs money. Its own evals run in the `just-bash` sandbox with a mocked `arc-skill-eval` binary, so they only cost the model calls. See `arc-running-evals/SKILL.md`.
 - **`hello-world`** — deterministic reference skill + permanent smoke test. Writes `greeting.txt` in response to any "create a greeting" prompt. Ships with three eval cases demonstrating `file-exists`, file-targeted `regex-match`, assistant-text `regex-match`, and string (LLM-judged) assertions side-by-side. Use this as a worked example when authoring your own `evals/evals.json`, and as a cheap sanity check when debugging the framework:
    ```bash
    arc-skill-eval run "$(arc-skill-eval bundled hello-world)"
