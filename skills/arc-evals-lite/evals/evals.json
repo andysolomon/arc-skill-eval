@@ -1,0 +1,251 @@
+{
+  "version": "1",
+  "skill_name": "arc-evals-lite",
+  "evals": [
+    {
+      "id": "create-explicit",
+      "prompt": "Use the arc-evals-lite skill to write evals for ./demo-summarizer. I confirm up front: it reads notes/input.md and writes notes/summary.md with exactly three bullet points; success means that file exists with three '- ' bullets and the reply says where it is. Proceed through every step without stopping to ask.",
+      "setup": {
+        "kind": "seeded",
+        "sources": [
+          {
+            "from": "files/demo-summarizer",
+            "to": "."
+          }
+        ],
+        "mountMode": "flatten-contents"
+      },
+      "sandbox": "just-bash",
+      "sandboxMocks": [
+        {
+          "command": "npx",
+          "stderr": "npm error could not determine executable to run\n",
+          "exitCode": 1
+        }
+      ],
+      "expected_output": "The assistant writes demo-summarizer/evals/evals.json in the arc-skill-eval format with trigger, adjacent-negative and execution cases.",
+      "assertions": [
+        {
+          "type": "file-exists",
+          "path": "demo-summarizer/evals/evals.json"
+        },
+        {
+          "type": "json-valid",
+          "path": "demo-summarizer/evals/evals.json"
+        },
+        {
+          "type": "regex-match",
+          "pattern": "\"skill_name\"\\s*:\\s*\"demo-summarizer\"",
+          "target": {
+            "file": "demo-summarizer/evals/evals.json"
+          }
+        },
+        {
+          "type": "regex-match",
+          "pattern": "notes/summary\\.md",
+          "target": {
+            "file": "demo-summarizer/evals/evals.json"
+          }
+        },
+        {
+          "type": "regex-match",
+          "pattern": "\"file-absent\"",
+          "target": {
+            "file": "demo-summarizer/evals/evals.json"
+          }
+        },
+        "The response summarizes the cases it wrote and says the suite can be run in lite run mode or with the arc-skill-eval CLI."
+      ]
+    },
+    {
+      "id": "run-refuses-without-isolation",
+      "prompt": "Use arc-evals-lite to run the writes-greeting eval for ./demo-greeter, with the skill attached. I approve the cost. Use run id lite-test.",
+      "setup": {
+        "kind": "seeded",
+        "sources": [
+          {
+            "from": "files/demo-greeter",
+            "to": "."
+          }
+        ],
+        "mountMode": "flatten-contents"
+      },
+      "sandbox": "just-bash",
+      "sandboxMocks": [
+        {
+          "command": "npx",
+          "stderr": "npm error could not determine executable to run\n",
+          "exitCode": 1
+        }
+      ],
+      "expected_output": "No sub-agent tool or headless agent CLI is available, so the assistant declines to run the case instead of simulating it, writes no results, and offers create mode or the full CLI.",
+      "assertions": [
+        {
+          "type": "file-absent",
+          "path": "demo-greeter/evals-runs/lite-test/eval-writes-greeting/grading.json"
+        },
+        {
+          "type": "file-absent",
+          "path": "greeting.txt"
+        },
+        {
+          "type": "file-absent",
+          "path": "demo-greeter/greeting.txt"
+        },
+        {
+          "type": "regex-match",
+          "pattern": "isolat|fresh|sub-?agent",
+          "flags": "i"
+        },
+        "The response explains that it cannot start an isolated agent in this environment, so it will not run or simulate the eval, and offers an alternative such as installing the arc-skill-eval CLI."
+      ]
+    },
+    {
+      "id": "run-with-headless-claude",
+      "prompt": "Use arc-evals-lite to run the writes-greeting eval for ./demo-greeter with the skill attached and no baseline. I approve the cost. Use run id lite-test.",
+      "setup": {
+        "kind": "seeded",
+        "sources": [
+          {
+            "from": "files/demo-greeter",
+            "to": "."
+          }
+        ],
+        "mountMode": "flatten-contents"
+      },
+      "sandbox": "just-bash",
+      "sandboxMocks": [
+        {
+          "command": "npx",
+          "stderr": "npm error could not determine executable to run\n",
+          "exitCode": 1
+        },
+        {
+          "command": "claude",
+          "stdout": "I created greeting.txt with the greeting Hello, World!\n",
+          "exitCode": 0,
+          "files": [
+            {
+              "path": "greeting.txt",
+              "content": "Hello, World!\n"
+            }
+          ]
+        }
+      ],
+      "expected_output": "The assistant runs the case through `claude -p` from inside a fresh workspace, passes only the case prompt, grades both assertions as passing, writes grading.json and assistant.md under evals-runs/lite-test, and labels the result as lite/indicative.",
+      "assertions": [
+        {
+          "id": "ran-headless-claude",
+          "kind": "behavior",
+          "method": "tool-call-required",
+          "match": "claude\\s+-p",
+          "matchKind": "regex"
+        },
+        {
+          "id": "no-answer-leak",
+          "kind": "behavior",
+          "method": "tool-call-forbidden",
+          "match": "claude[^\\n]*(Hello, World|expected_output|regex-match)",
+          "matchKind": "regex"
+        },
+        {
+          "type": "file-exists",
+          "path": "demo-greeter/evals-runs/lite-test/eval-writes-greeting/grading.json"
+        },
+        {
+          "type": "json-valid",
+          "path": "demo-greeter/evals-runs/lite-test/eval-writes-greeting/grading.json"
+        },
+        {
+          "type": "regex-match",
+          "pattern": "\"lite\"\\s*:\\s*true",
+          "target": {
+            "file": "demo-greeter/evals-runs/lite-test/eval-writes-greeting/grading.json"
+          }
+        },
+        {
+          "type": "regex-match",
+          "pattern": "\"failed\"\\s*:\\s*0\\b",
+          "target": {
+            "file": "demo-greeter/evals-runs/lite-test/eval-writes-greeting/grading.json"
+          }
+        },
+        {
+          "type": "file-exists",
+          "path": "demo-greeter/evals-runs/lite-test/eval-writes-greeting/assistant.md"
+        },
+        "The response reports that writes-greeting passed its assertions and labels the result as lite or indicative rather than a benchmark."
+      ]
+    },
+    {
+      "id": "cli-present-hands-off",
+      "prompt": "Run the evals for ./demo-greeter.",
+      "setup": {
+        "kind": "seeded",
+        "sources": [
+          {
+            "from": "files/demo-greeter",
+            "to": "."
+          }
+        ],
+        "mountMode": "flatten-contents"
+      },
+      "sandbox": "just-bash",
+      "sandboxMocks": [
+        {
+          "command": "arc-skill-eval",
+          "stdout": "arc-skill-eval\n\nUsage:\n  arc-skill-eval run <skill-dir-or-repo> [--case <id>]... [--compare] [--json]\n",
+          "exitCode": 0
+        }
+      ],
+      "expected_output": "The assistant notices the arc-skill-eval CLI is installed and recommends (or uses) it instead of a lite run.",
+      "assertions": [
+        {
+          "id": "checked-for-cli",
+          "kind": "behavior",
+          "method": "tool-call-required",
+          "match": "arc-skill-eval",
+          "matchKind": "regex"
+        },
+        {
+          "type": "file-absent",
+          "path": "demo-greeter/evals-runs/lite-test/eval-writes-greeting/grading.json"
+        },
+        "The response points out that the arc-skill-eval CLI is installed and recommends or uses it (for example `arc-skill-eval run ./demo-greeter --json`) rather than running cases by hand."
+      ]
+    },
+    {
+      "id": "adjacent-negative-question",
+      "prompt": "Quick question, no need to run anything: in an evals.json, what is the difference between a file-exists and a file-absent assertion?",
+      "setup": {
+        "kind": "seeded",
+        "sources": [
+          {
+            "from": "files/demo-greeter",
+            "to": "."
+          }
+        ],
+        "mountMode": "flatten-contents"
+      },
+      "sandbox": "just-bash",
+      "sandboxMocks": [
+        {
+          "command": "npx",
+          "stderr": "npm error could not determine executable to run\n",
+          "exitCode": 1
+        }
+      ],
+      "expected_output": "The assistant answers the question and starts no eval run.",
+      "assertions": [
+        {
+          "id": "no-agent-run",
+          "kind": "behavior",
+          "method": "tool-call-forbidden",
+          "match": "claude\\s+-p|codex\\s+exec|cursor-agent\\s+-p|copilot\\s+-p|pi\\s+-p",
+          "matchKind": "regex"
+        },
+        "The response explains that file-exists passes when the file is present after the run and file-absent passes when it is not."
+      ]
+    }
+  ]
+}
