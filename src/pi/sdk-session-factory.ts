@@ -43,7 +43,10 @@ export async function createDefaultPiSdkSession(
     tools: ["read", "bash", "edit", "write"],
     customTools:
       options.sandbox === "just-bash"
-        ? createJustBashCodingTools(options.workspaceDir, options.env, options.sandboxMocks)
+        ? createJustBashCodingTools(options.workspaceDir, options.env, options.sandboxMocks, {
+          // Skills in context stay readable (bundled templates etc.), never writable.
+          readOnlyPaths: resourceLoader.getSkills().skills.map((skill) => skill.baseDir),
+        })
         : createPiSdkCodingTools(options.workspaceDir, options.env),
     resourceLoader,
   });
