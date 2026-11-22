@@ -20,7 +20,7 @@ A **functional, hosted web app** that:
 
 ## Stack (locked)
 
-- **Build**: Vite + React 18 + TypeScript (strict) per ADR-0002.
+- **Build**: Vite + TypeScript (strict) per ADR-0002; UI framework is Foldkit (Effect, Elm architecture) per ADR-0008 — this map predates that switch and still names React components.
 - **Styles**: Tailwind v4 + the generated `@arc-skill-eval/tokens` CSS
   per ADR-0006; `[data-theme]` swap on `<html>`.
 - **State**: small (Zustand-free) React context + reducer pattern,
