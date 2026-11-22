@@ -1,0 +1,66 @@
+{
+  "runs": [
+    {
+      "id": "commits-run-2",
+      "skill": "arc-conventional-commits",
+      "workspaceRoot": "./skills/arc-conventional-commits",
+      "finishedAt": "2026-01-02T10:00:00.000Z",
+      "cost": 1.25,
+      "exitCode": 1,
+      "cases": [
+        {
+          "id": "feat-commit",
+          "prompt": "Write a commit message for a new login form.",
+          "status": "pass",
+          "output": "feat(auth): add login form",
+          "withSkill": { "passed": 2, "total": 2 },
+          "withoutSkill": { "passed": 1, "total": 2 }
+        },
+        {
+          "id": "breaking-change",
+          "prompt": "Write a commit message for removing the v1 API.",
+          "status": "fail",
+          "output": "removed v1 api",
+          "failureEvidence": "missing BREAKING CHANGE footer",
+          "withSkill": { "passed": 0, "total": 2 },
+          "withoutSkill": { "passed": 0, "total": 2 }
+        },
+        {
+          "id": "docs-only",
+          "prompt": "Write a commit message for a README typo fix.",
+          "status": "partial",
+          "withSkill": { "passed": 1, "total": 2 }
+        }
+      ]
+    },
+    {
+      "id": "commits-run-1",
+      "skill": "arc-conventional-commits",
+      "workspaceRoot": "./skills/arc-conventional-commits",
+      "finishedAt": "2026-01-01T10:00:00.000Z",
+      "exitCode": 0,
+      "cases": [
+        {
+          "id": "feat-commit",
+          "prompt": "Write a commit message for a new login form.",
+          "status": "pass"
+        }
+      ]
+    },
+    {
+      "id": "evals-run-1",
+      "skill": "arc-creating-evals",
+      "workspaceRoot": "./skills/arc-creating-evals",
+      "finishedAt": "2026-01-03T10:00:00.000Z",
+      "exitCode": 0,
+      "cases": [
+        {
+          "id": "draft-suite",
+          "prompt": "Draft an eval suite for the release skill.",
+          "status": "pass",
+          "output": "Drafted 3 cases."
+        }
+      ]
+    }
+  ]
+}

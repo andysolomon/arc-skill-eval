@@ -1,6 +1,9 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures/test';
 
 const STALE_WORKSPACE_ROOT = '~/src/skills';
+
+// This spec talks to a real daemon when one is running, so don't mock it.
+test.use({ mockDaemon: false });
 
 test('browse folders stays navigable when workspace root is stale', async ({ page, request }) => {
   // The daemon is localhost-only chrome and is not started in CI. `request.get`
