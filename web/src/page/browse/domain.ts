@@ -7,6 +7,8 @@
 
 import { Array, Option, Schema } from 'effect';
 
+import type { ReviewRun } from '@/page/review/domain';
+
 import { finiteNumber, jsonRecord, maybeString, unknownList, type UnknownRecord } from './json';
 
 // SCHEMA
@@ -87,8 +89,21 @@ const toCaseStatus = (value: unknown): CaseStatus => {
   return 'pass';
 };
 
+/** What a case recorded about its own cost; React fell back to estimates for anything missing. */
+type RecordedMetrics = Readonly<{
+  maybeTokens: Option.Option<number>;
+  maybeLatencyMs: Option.Option<number>;
+  maybeCostUsd: Option.Option<number>;
+}>;
+
+const noRecordedMetrics: RecordedMetrics = {
+  maybeTokens: Option.none(),
+  maybeLatencyMs: Option.none(),
+  maybeCostUsd: Option.none(),
+};
+
 const toMetrics = (
-  record: UnknownRecord,
+  recorded: RecordedMetrics,
   prompt: string,
   maybeOutput: Option.Option<string>,
   maybeRunCost: Option.Option<number>,
@@ -96,14 +111,11 @@ const toMetrics = (
   totalCases: number,
 ): Metrics => {
   const response = Option.getOrElse(maybeOutput, () => '');
-  const tokens = Option.getOrElse(readOptionalNumber(record, ['tokens', 'totalTokens']), () =>
+  const tokens = Option.getOrElse(recorded.maybeTokens, () =>
     Math.max(240, Math.round((prompt.length + response.length) / 3)),
   );
-  const latencyMs = Option.getOrElse(
-    readOptionalNumber(record, ['latencyMs', 'durationMs']),
-    () => 1800 + index * 420,
-  );
-  const costUsd = Option.getOrElse(readOptionalNumber(record, ['cost', 'costUsd']), () =>
+  const latencyMs = Option.getOrElse(recorded.maybeLatencyMs, () => 1800 + index * 420);
+  const costUsd = Option.getOrElse(recorded.maybeCostUsd, () =>
     Option.match(Option.filter(maybeRunCost, (cost) => cost !== 0), {
       onNone: () => tokens * 0.000002,
       onSome: (cost) => cost / Math.max(1, totalCases),
@@ -126,7 +138,18 @@ const toCase =
         maybeFailureEvidence: Option.orElse(maybeString(record.failureEvidence), () =>
           maybeString(record.failureEvidenceBlock),
         ),
-        metrics: toMetrics(record, prompt, maybeOutput, maybeRunCost, index, totalCases),
+        metrics: toMetrics(
+          {
+            maybeTokens: readOptionalNumber(record, ['tokens', 'totalTokens']),
+            maybeLatencyMs: readOptionalNumber(record, ['latencyMs', 'durationMs']),
+            maybeCostUsd: readOptionalNumber(record, ['cost', 'costUsd']),
+          },
+          prompt,
+          maybeOutput,
+          maybeRunCost,
+          index,
+          totalCases,
+        ),
       };
     });
 
@@ -149,8 +172,8 @@ const toRun = (value: unknown): Option.Option<Run> =>
     }),
   );
 
-/** Normalize run results from the daemon or from Review's imports. Entries without a string id are dropped. */
-export const decodeRuns = (values: ReadonlyArray<unknown>): ReadonlyArray<Run> => Array.getSomes(Array.map(values, toRun));
+/** Normalize the daemon's run results. Entries without a string id are dropped. */
+const decodeRuns = (values: ReadonlyArray<unknown>): ReadonlyArray<Run> => Array.getSomes(Array.map(values, toRun));
 
 /** `GET /runs` answers `{ runs: [...] }`; anything else reads as no runs. */
 export const decodeRunsPayload = (payload: unknown): ReadonlyArray<Run> =>
@@ -158,6 +181,28 @@ export const decodeRunsPayload = (payload: unknown): ReadonlyArray<Run> =>
     onNone: () => [],
     onSome: (record) => decodeRuns(unknownList(record.runs)),
   });
+
+/**
+ * A run imported in Review. Imports are normalized by Review and carry no
+ * comparison data or per-case metrics, so Browse shows estimates for those.
+ */
+export const fromReviewRun = (run: ReviewRun): Run => ({
+  id: run.id,
+  skill: run.skill,
+  workspaceRoot: run.workspaceRoot,
+  finishedAt: run.finishedAt,
+  maybeStatus: run.maybeStatus,
+  compare: false,
+  maybeBenchmarkDelta: Option.none(),
+  cases: Array.map(run.cases, (testCase, index) => ({
+    id: testCase.id,
+    prompt: testCase.prompt,
+    status: testCase.status,
+    maybeOutput: testCase.maybeOutput,
+    maybeFailureEvidence: testCase.maybeFailureEvidence,
+    metrics: toMetrics(noRecordedMetrics, testCase.prompt, testCase.maybeOutput, run.maybeCost, index, run.cases.length),
+  })),
+});
 
 // DERIVE
 

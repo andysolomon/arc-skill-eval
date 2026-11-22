@@ -1,11 +1,11 @@
-import { Effect, Option } from 'effect';
+import { Array, Effect, Option } from 'effect';
 import { Command } from 'foldkit';
 
-import { loadImportedRuns } from '@/persistence/importedRuns';
+import { readImportedRuns } from '@/page/review/importedRuns';
 import { DAEMON_URL } from '@/shell/daemon';
 
 import { ArtifactRequest, artifactUrl } from './artifact';
-import { decodeRuns, decodeRunsPayload } from './domain';
+import { decodeRunsPayload, fromReviewRun } from './domain';
 import { Message } from './message';
 import { RunsQuery } from './model';
 
@@ -13,9 +13,8 @@ import { RunsQuery } from './model';
 
 export const LoadImportedRuns = Command.define('LoadImportedRuns', {
   messages: [Message.CompletedLoadImportedRuns],
-  execute: loadImportedRuns.pipe(
-    Effect.map((records) => Message.CompletedLoadImportedRuns({ runs: decodeRuns(records) })),
-    Effect.catch(() => Effect.succeed(Message.CompletedLoadImportedRuns({ runs: [] }))),
+  execute: readImportedRuns.pipe(
+    Effect.map((runs) => Message.CompletedLoadImportedRuns({ runs: Array.map(runs, fromReviewRun) })),
   ),
 });
 

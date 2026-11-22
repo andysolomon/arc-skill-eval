@@ -9,7 +9,7 @@ import { Run, Tab, Variant, type Case } from './domain';
 
 // MODEL
 
-/** Runs imported in Review (hosted). Loaded once per page init from `persistence/importedRuns`. */
+/** Runs imported in Review (hosted). Loaded once per page init from Review's in-memory store. */
 export const HostedRuns = defineTaggedUnion({
   Loading: {},
   Loaded: { runs: Schema.Array(Run) },
