@@ -536,6 +536,17 @@ arc-skill-eval install-skills            # writes .agents/skills/ and .claude/sk
 
 Every command except `browse` accepts `--json` and prints one JSON object with a `schemaVersion`. Failures print `{"schemaVersion":1,"error":{"kind","message"}}` instead. `browse` and `create --interactive` refuse to start without a terminal rather than hanging an agent's shell. See `docs/cli-json-contract.md`.
 
+### No CLI: `arc-evals-lite`
+**`arc-evals-lite`** is a single `SKILL.md` that writes and runs evals in the same `evals/evals.json` format, using whatever agent you already have. Nothing to install:
+
+```bash
+mkdir -p .claude/skills/arc-evals-lite    # or .agents/skills/arc-evals-lite for Pi, Codex, Cursor, Copilot
+curl -fsSL https://raw.githubusercontent.com/andysolomon/arc-skill-eval/main/skills/arc-evals-lite/SKILL.md \
+  -o .claude/skills/arc-evals-lite/SKILL.md
+```
+
+It runs each case in a fresh agent (a sub-agent, or a headless `claude -p` / `codex exec` / `cursor-agent -p` / `copilot -p` / `pi -p`). It refuses to run in a harness that can't start one, so it never grades its own answers. It checks files, regexes, JSON, and judge assertions, and writes results in the CLI's `evals-runs/` layout. Tool-call checks, sandboxing, and CI exit codes still need the CLI, and lite says so in every report. Suites written in lite run unchanged under `arc-skill-eval run`.
+
 ## Docs
 - `docs/skill-eval-authoring-debrief.md` contains the eval-authoring research and playbook.
 - `docs/agent-runtime-strategy.md` covers Pi-backed evals, eval-owned configuration, Ollama Cloud, and custom-runtime options.
