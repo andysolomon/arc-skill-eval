@@ -12,7 +12,7 @@ import {
 export async function createDefaultPiSdkSession(
   options: PiSdkSessionFactoryOptions,
 ): Promise<PiSdkSessionFactoryResult> {
-  const bootstrap = createPiSessionBootstrap({
+  const bootstrap = await createPiSessionBootstrap({
     runtimeDir: options.workspaceDir,
     credentialsAgentDir: options.configAgentDir,
   });
@@ -30,7 +30,7 @@ export async function createDefaultPiSdkSession(
   });
   const resolvedModel = options.requestedModel === undefined
     ? undefined
-    : resolvePiModel(bootstrap.modelRegistry, options.requestedModel);
+    : resolvePiModel(bootstrap.modelRuntime, options.requestedModel);
 
   const { session } = await createPiAgentSession({
     bootstrap,

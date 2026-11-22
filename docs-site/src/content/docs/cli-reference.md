@@ -236,7 +236,7 @@ Pin the model used by the skill-running agent. Without this flag, Skeval inherit
 
 ```bash
 arc-skill-eval run ./skills/arc-conventional-commits \
-  --model openai-codex/gpt-5.5:medium
+  --model openai-codex/gpt-6-luna:medium
 ```
 
 ### `--judge-model <provider/model[:thinking]>`
@@ -247,7 +247,7 @@ When the flag is absent, the judge defaults to the model that ran the case (whic
 
 ```bash
 arc-skill-eval run ./skills/arc-conventional-commits \
-  --model openai-codex/gpt-5.5:medium \
+  --model openai-codex/gpt-6-luna:medium \
   --judge-model mistral/ministral-8b-latest
 ```
 
@@ -388,8 +388,8 @@ arc-skill-eval run ./skills/arc-conventional-commits --case 1
 
 # Pin GPT 5.5 for both runner and judge.
 arc-skill-eval run ./skills/arc-conventional-commits \
-  --model openai-codex/gpt-5.5:medium \
-  --judge-model openai-codex/gpt-5.5:medium
+  --model openai-codex/gpt-6-luna:medium \
+  --judge-model openai-codex/gpt-6-luna:medium
 
 # Use the verified Ollama Cloud smoke-test lane.
 arc-skill-eval run ./skills/hello-world \

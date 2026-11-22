@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { SessionManager } from "@mariozechner/pi-coding-agent";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
 
 import { PI_SESSION_TELEMETRY_CUSTOM_TYPE, loadPiSessionTelemetry } from "../dist/index.js";
 

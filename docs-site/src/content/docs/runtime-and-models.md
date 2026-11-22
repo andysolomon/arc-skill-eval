@@ -20,7 +20,7 @@ Pin them independently:
 
 ```bash
 arc-skill-eval run ./skills/arc-conventional-commits \
-  --model openai-codex/gpt-5.5:medium \
+  --model openai-codex/gpt-6-luna:medium \
   --judge-model mistral/ministral-8b-latest
 ```
 
@@ -38,10 +38,10 @@ Model flags use Pi's provider/model form:
 Examples:
 
 ```bash
-# GPT 5.5 with medium thinking.
+# GPT-6 Luna with medium thinking.
 arc-skill-eval run ./skills/hello-world \
-  --model openai-codex/gpt-5.5:medium \
-  --judge-model openai-codex/gpt-5.5:medium
+  --model openai-codex/gpt-6-luna:medium \
+  --judge-model openai-codex/gpt-6-luna:medium
 
 # Ollama Cloud model ID with a colon tag.
 arc-skill-eval run ./skills/hello-world \
@@ -111,6 +111,52 @@ Then add an `ollama-cloud` provider to Pi's `models.json`:
 ```
 
 The `apiKey` value is the environment variable name. Do not commit literal API keys.
+
+## Bundled Pi SDK and model catalog
+
+Skeval runs cases through the Pi SDK it bundles (`@earendil-works/pi-coding-agent`), not through the `pi` CLI you have installed. Model IDs resolve against the bundled SDK's model catalog, plus any `models.json` in the Pi agent directory.
+
+`run` checks the runner model, and `--judge-model` if you pass one, before any case starts. If the model isn't in the catalog, or its provider has no credentials, the run stops with one error. For an unknown model, that error lists the models Pi knows for the provider. A model that resolves but that the provider rejects at request time, such as `model_not_found` for your account, still fails each case. In that case the summary prints the error once, lists the affected cases, and the run exits non-zero.
+
+If the `pi` CLI on your `PATH` is a different major version than the bundled SDK, `run` prints a warning. Their model catalogs can differ, so a model that works in `pi` may not resolve here.
+
+### Models newer than the bundled catalog
+
+To use a model the bundled catalog doesn't know yet, register it on the built-in provider in an eval-owned `models.json`. Copy the shape of a neighbouring model from the same provider. For example, to add an `openai-codex` model:
+
+```json
+{
+  "providers": {
+    "openai-codex": {
+      "baseUrl": "https://chatgpt.com/backend-api",
+      "api": "openai-codex-responses",
+      "models": [
+        {
+          "id": "gpt-6.3-sol",
+          "reasoning": true,
+          "input": ["text", "image"],
+          "contextWindow": 272000,
+          "maxTokens": 128000
+        }
+      ]
+    }
+  }
+}
+```
+
+Put it in an eval-owned agent directory, and symlink `auth.json` to your normal Pi login so the provider stays authenticated:
+
+```bash
+mkdir -p ./.arc-skill-eval/pi-agent
+# save the JSON above as ./.arc-skill-eval/pi-agent/models.json
+ln -s ~/.pi/agent/auth.json ./.arc-skill-eval/pi-agent/auth.json
+
+arc-skill-eval run ./skills/hello-world \
+  --agent-dir ./.arc-skill-eval/pi-agent \
+  --model openai-codex/gpt-6.3-sol:medium
+```
+
+`gpt-6.3-sol` is a placeholder; use the model ID your provider offers. This is a stopgap. Upgrading arc-skill-eval picks up a newer catalog.
 
 ## Eval-owned Pi runtime
 

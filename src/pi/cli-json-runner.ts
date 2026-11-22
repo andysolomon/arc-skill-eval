@@ -143,7 +143,7 @@ function buildCliJsonArgv(
 }
 
 function resolvePiCliPath(): string {
-  const entryUrl = import.meta.resolve("@mariozechner/pi-coding-agent");
+  const entryUrl = import.meta.resolve("@earendil-works/pi-coding-agent");
   const entryPath = fileURLToPath(entryUrl);
   return path.join(path.dirname(entryPath), "cli.js");
 }

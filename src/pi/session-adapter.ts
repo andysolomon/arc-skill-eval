@@ -3,16 +3,15 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import {
-  AuthStorage,
   createAgentSession,
   DefaultResourceLoader,
   getAgentDir,
-  ModelRegistry,
+  ModelRuntime,
   SessionManager,
   SettingsManager,
   type ResourceLoader,
   type ToolDefinition,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 
 import type { ModelSelection } from "../contracts/types.js";
 
@@ -26,35 +25,53 @@ export interface PiSessionBootstrapOptions {
 export interface PiSessionBootstrap {
   credentialsAgentDir: string;
   settingsManager: SettingsManager;
-  authStorage: AuthStorage;
-  modelRegistry: ModelRegistry;
+  /** Pi model catalog plus credentials (`auth.json`) and `models.json` overrides. */
+  modelRuntime: ModelRuntime;
 }
 
-/** Shared AuthStorage / ModelRegistry / SettingsManager bootstrap for Pi sessions. */
-export function createPiSessionBootstrap(options: PiSessionBootstrapOptions): PiSessionBootstrap {
+export type PiSdkModel = NonNullable<ReturnType<ModelRuntime["getModel"]>>;
+
+/** Shared ModelRuntime / SettingsManager bootstrap for Pi sessions. */
+export async function createPiSessionBootstrap(options: PiSessionBootstrapOptions): Promise<PiSessionBootstrap> {
   const credentialsAgentDir = path.resolve(options.credentialsAgentDir ?? getAgentDir());
   const settingsManager = SettingsManager.create(options.runtimeDir, credentialsAgentDir);
   settingsManager.applyOverrides({ compaction: { enabled: false } });
-  const authStorage = AuthStorage.create(path.join(credentialsAgentDir, "auth.json"));
-  const modelRegistry = ModelRegistry.create(
-    authStorage,
-    path.join(credentialsAgentDir, "models.json"),
-  );
+  const modelRuntime = await ModelRuntime.create({
+    authPath: path.join(credentialsAgentDir, "auth.json"),
+    modelsPath: path.join(credentialsAgentDir, "models.json"),
+  });
 
-  return { credentialsAgentDir, settingsManager, authStorage, modelRegistry };
+  return { credentialsAgentDir, settingsManager, modelRuntime };
 }
 
 export function resolvePiModel(
-  modelRegistry: ModelRegistry,
+  modelRuntime: Pick<ModelRuntime, "getModel" | "getModels">,
   selection: ModelSelection,
-): { sdkModel: NonNullable<ReturnType<ModelRegistry["find"]>>; selection: ModelSelection } {
-  const sdkModel = modelRegistry.find(selection.provider, selection.id);
+): { sdkModel: PiSdkModel; selection: ModelSelection } {
+  const sdkModel = modelRuntime.getModel(selection.provider, selection.id);
 
   if (!sdkModel) {
-    throw new Error(`Unable to resolve Pi model ${selection.provider}/${selection.id}.`);
+    throw new Error(describeUnresolvedModel(modelRuntime, selection));
   }
 
   return { sdkModel, selection };
+}
+
+/** "Unable to resolve" plus the models Pi does know for that provider, so the fix is obvious. */
+export function describeUnresolvedModel(
+  modelRuntime: Pick<ModelRuntime, "getModels">,
+  selection: Pick<ModelSelection, "provider" | "id">,
+): string {
+  const known = modelRuntime.getModels(selection.provider).map((model) => model.id);
+  const base = `Unable to resolve Pi model ${selection.provider}/${selection.id}.`;
+  if (known.length === 0) {
+    return `${base} Pi knows no models for provider "${selection.provider}". ` +
+      "Check the provider name, or register it in models.json (see Runtime and models in the docs).";
+  }
+  const shown = known.slice(0, 12).join(", ");
+  const more = known.length > 12 ? `, … (${known.length - 12} more)` : "";
+  return `${base} Known ${selection.provider} models: ${shown}${more}. ` +
+    "For a model newer than the bundled catalog, register it in models.json (see Runtime and models in the docs).";
 }
 
 export interface CreatePiAgentSessionOptions {
@@ -62,7 +79,7 @@ export interface CreatePiAgentSessionOptions {
   cwd: string;
   agentDir: string;
   sessionDir: string;
-  model?: ReturnType<ModelRegistry["find"]>;
+  model?: PiSdkModel;
   thinkingLevel?: ModelSelection["thinking"];
   resourceLoader: ResourceLoader;
   noTools?: "all";
@@ -75,8 +92,7 @@ export async function createPiAgentSession(options: CreatePiAgentSessionOptions)
   const { session } = await createAgentSession({
     cwd: options.cwd,
     agentDir: options.agentDir,
-    authStorage: bootstrap.authStorage,
-    modelRegistry: bootstrap.modelRegistry,
+    modelRuntime: bootstrap.modelRuntime,
     model: options.model,
     thinkingLevel: options.thinkingLevel,
     noTools: options.noTools,
@@ -123,11 +139,11 @@ async function runPiJudgePromptImpl(options: RunPiJudgePromptOptions): Promise<s
   const agentDir = await mkdtemp(path.join(tmpdir(), "arc-skill-eval-judge-"));
 
   try {
-    const bootstrap = piJudgeSessionDeps.createPiSessionBootstrap({
+    const bootstrap = await piJudgeSessionDeps.createPiSessionBootstrap({
       runtimeDir: agentDir,
       credentialsAgentDir: options.credentialsAgentDir,
     });
-    const { sdkModel } = piJudgeSessionDeps.resolvePiModel(bootstrap.modelRegistry, options.model);
+    const { sdkModel } = piJudgeSessionDeps.resolvePiModel(bootstrap.modelRuntime, options.model);
     const resourceLoader = await piJudgeSessionDeps.createIsolatedResourceLoader({
       cwd: agentDir,
       agentDir,
