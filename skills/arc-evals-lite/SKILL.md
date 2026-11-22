@@ -54,7 +54,11 @@ Read the target `SKILL.md`. Note its `name`, its trigger phrases (from `descript
 - A `regex-match` without `target` checks the agent's final response. Paths are relative to the case workspace.
 - A plain string is a judge assertion. Back it with a deterministic check whenever you can.
 - Prefer checking effects over exact wording. Don't copy the skill's own text into assertions.
-- If the user wants a tool-call check, you may write a `kind: "behavior"` assertion for the CLI to grade later, but tell them lite will skip it.
+- If the user wants a tool-call check, you may write a `kind: "behavior"` assertion for the CLI to grade later, but tell them lite will skip it. It needs an `id`, and the tool name must match the agent's own spelling exactly. Pi's tools are lowercase:
+
+  ```json
+  { "id": "wrote-the-report", "kind": "behavior", "method": "tool-call-required", "value": "write" }
+  ```
 
 ### C4: Write the file
 
@@ -100,7 +104,7 @@ Every case must run in a **fresh agent that has never seen this conversation, th
    | `copilot` | `copilot -p "<prompt>" --allow-all` |
    | `pi` | `pi -p "<prompt>"` |
 
-   Check `<binary> --help` if a flag is rejected. These run with file-write permission, so only run them inside the temporary workspace.
+   Test for each binary with `command -v <binary>`. Don't use `which`: some shells lack it, and it can miss a binary that is there. Check `<binary> --help` if a flag is rejected. These run with file-write permission, so only run them inside the temporary workspace.
 
 **If neither works, don't run anything.** Say that this harness can't start an isolated agent, so lite can't produce a trustworthy result here. Offer create mode, or the full CLI (`npm install --global arc-skill-eval`). Never simulate a run, and never write a `grading.json` for a case that wasn't actually run.
 
@@ -108,9 +112,11 @@ Every case must run in a **fresh agent that has never seen this conversation, th
 
 Each case is one full agent run, plus one more if you add a without-skill baseline, plus a judge call for each plain-English assertion. Start with **one case, with the skill only**. Ask before running the whole suite or adding the baseline. Use the run id the user gives you; otherwise use `lite-<UTC yyyymmdd-hhmmss>`.
 
+**Skip any case that declares `sandbox` or `sandboxMocks`.** Lite has no sandbox, so the commands that case expects to be mocked would run for real. Don't run it and don't write results for it. List it in the report as skipped, with the reason "needs the arc-skill-eval CLI (sandbox)".
+
 ### R3: Run one case
 
-1. **Workspace:** create a fresh empty temporary directory. Copy in the case's `files` and `setup` sources.
+1. **Workspace:** create a fresh empty temporary directory with `mkdir -p`, at a path that doesn't exist yet, such as `${TMPDIR:-/tmp}/<runId>/<caseId>-<variant>`. Don't rely on `mktemp`: some shells lack it. Copy in the case's `files` and `setup` sources.
 2. **Attach the skill** (with-skill variant only): copy the skill folder, without its `evals/` and `evals-runs/`, into `<workspace>/.agents/skills/<name>/` and `<workspace>/.claude/skills/<name>/`. Skip this for the without-skill variant.
 3. **Prompt the fresh agent** with exactly:
    - the case `prompt`, word for word;
@@ -139,19 +145,24 @@ Under `<skillDir>/evals-runs/<runId>/eval-<caseId>/`, or `.../eval-<caseId>/with
   "lite": true,
   "isolation": "subagent | claude | codex | cursor-agent | copilot | pi",
   "assertion_results": [
-    { "text": "file-exists: greeting.txt", "passed": true, "evidence": "greeting.txt exists (14 bytes)" }
+    {
+      "text": "file-exists: greeting.txt",
+      "passed": true,
+      "evidence": "greeting.txt exists (14 bytes)",
+      "assertion": { "type": "file-exists", "path": "greeting.txt" }
+    }
   ],
-  "skipped": [ { "text": "behavior/tool-call-required: Write", "reason": "needs the arc-skill-eval CLI (trace-based)" } ],
+  "skipped": [ { "text": "behavior:tool-call-required: write", "reason": "needs the arc-skill-eval CLI (trace-based)" } ],
   "summary": { "passed": 1, "failed": 0, "soft_failed": 0, "total": 1, "pass_rate": 1 }
 }
 ```
 
-`total` counts graded assertions only, not skipped ones. Delete the temporary workspace when you're done.
+`assertion` is the assertion exactly as `evals.json` has it: the object for a script check, the string for a judge assertion. The CLI's run browser reads it to tell the two apart, so include it in every result. `total` counts graded assertions only, not skipped ones. Delete the temporary workspace when you're done.
 
 ### R5: Report
 
 1. Label the results: **lite results are indicative only; there are few samples and no trace-based checks.**
-2. Per case: pass/fail counts, each failing assertion with its evidence, and skipped assertions.
+2. Per case: pass/fail counts, each failing assertion with its evidence, and skipped assertions. Name each case you skipped because it needs a sandbox.
 3. With a baseline: the pass rate with and without the skill, and the difference.
 4. The results folder.
 5. One next step. For CI gating, tool-call checks, or a real benchmark, that's the full CLI: `arc-skill-eval run <skill-dir> --compare --json`.

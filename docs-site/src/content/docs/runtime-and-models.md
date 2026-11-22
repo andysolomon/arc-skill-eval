@@ -112,6 +112,31 @@ Then add an `ollama-cloud` provider to Pi's `models.json`:
 
 The `apiKey` value is the environment variable name. Do not commit literal API keys.
 
+## Local Ollama and Ollama's Pi integration
+
+Ollama can configure Pi for you:
+
+```bash
+# Install and configure Pi, then start an interactive session
+ollama launch pi
+
+# Configure Pi without starting a session
+ollama launch pi --config
+
+# Start with a cloud model proxied through Ollama
+ollama launch pi --model qwen3.5:cloud
+```
+
+After Pi lists the Ollama models, pin them with the same flags:
+
+```bash
+arc-skill-eval run ./skills/hello-world \
+  --model ollama/qwen3.5:cloud \
+  --judge-model ollama/qwen3.5:cloud
+```
+
+To configure a local Ollama server by hand, add a provider with `baseUrl` set to `http://localhost:11434/v1` to `~/.pi/agent/models.json`, then set `defaultProvider` and `defaultModel` in `~/.pi/agent/settings.json`. Local models do not need `OLLAMA_API_KEY`.
+
 ## Bundled Pi SDK and model catalog
 
 Skeval runs cases through the Pi SDK it bundles (`@earendil-works/pi-coding-agent`), not through the `pi` CLI you have installed. Model IDs resolve against the bundled SDK's model catalog, plus any `models.json` in the Pi agent directory.
