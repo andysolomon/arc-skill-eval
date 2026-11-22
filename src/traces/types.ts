@@ -61,6 +61,8 @@ export interface EvalTraceRawArtifacts {
   sessionFile: string | undefined;
   messages: unknown[];
   runtimeEvents: unknown[];
+  /** True when `runtimeEvents` stops early because capture hit its size budget. */
+  runtimeEventsTruncated?: boolean;
   telemetryEntries: PiSessionTelemetryEntry[];
 }
 
