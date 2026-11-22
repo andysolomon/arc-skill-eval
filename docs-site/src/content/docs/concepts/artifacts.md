@@ -37,6 +37,8 @@ The workspace snapshot after the run. If the skill writes `greeting.txt`, the fi
 
 The per-assertion verdict. Its Anthropic-compatible `assertion_results[]` array contains `text`, `passed`, and `evidence`. The `summary` block contains `passed`, `failed`, `total`, and `pass_rate`. See [Grading](/arc-skill-eval/concepts/grading/).
 
+`judge_model` records the model that graded the plain-string assertions, for example `{ "provider": "mistral", "id": "ministral-8b-latest" }`. A case with only script assertions omits it. The runner picks the judge in this order: `--judge-model` when set, then the model that ran the case, then `mistral/ministral-8b-latest`. When the runner model is also the judge, it grades its own output. Set `--judge-model` to another model when that bias matters.
+
 ### `timing.json`
 
 Runtime measurements:

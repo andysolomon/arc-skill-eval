@@ -194,6 +194,8 @@ See [Browse (TUI)](/arc-skill-eval/browse/) for the full panel reference and key
 
 Run deterministic skill-quality checks without invoking a model: frontmatter validity, content sprawl, eval coverage, local-link integrity, and duplicate skill families.
 
+`audit` reports frontmatter issues, descriptions over 500 characters, long `SKILL.md` files, a missing `evals/evals.json`, broken local markdown links, trigger-heavy descriptions on user-invoked skills, and likely duplicate skill families. It exits `0` even when it reports findings. To fail a CI job, read the finding counts in the `--json` output.
+
 ```bash
 arc-skill-eval audit ./skills/arc-conventional-commits
 arc-skill-eval audit . --json --output ./audit.json
