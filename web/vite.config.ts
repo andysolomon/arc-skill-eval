@@ -1,19 +1,12 @@
-import mdx from '@mdx-js/rollup';
-import react from '@vitejs/plugin-react';
+import { foldkit } from '@foldkit/vite-plugin';
 import { fileURLToPath, URL } from 'node:url';
-import rehypeHighlight from 'rehype-highlight';
-import remarkGfm from 'remark-gfm';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  plugins: [
-    mdx({
-      providerImportSource: '@mdx-js/react',
-      rehypePlugins: [rehypeHighlight],
-      remarkPlugins: [remarkGfm],
-    }),
-    react(),
-  ],
+  plugins: [foldkit()],
+  optimizeDeps: {
+    entries: ['src/entry.ts'],
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
