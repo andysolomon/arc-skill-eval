@@ -20,6 +20,7 @@ export function parseRunCommandArgs(args: string[]) {
   let model: ModelSelection | undefined;
   let judgeModel: ModelSelection | undefined;
   let runtime: string | undefined;
+  let caseTimeoutMs: number | undefined;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
@@ -134,6 +135,17 @@ export function parseRunCommandArgs(args: string[]) {
       continue;
     }
 
+    if (arg === "--case-timeout" || arg.startsWith("--case-timeout=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      const seconds = Number(parsed.value);
+      if (!Number.isFinite(seconds) || seconds <= 0) {
+        throw new CliUsageError(`Invalid --case-timeout: ${parsed.value}. Expected a positive number of seconds.`);
+      }
+      caseTimeoutMs = Math.round(seconds * 1000);
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
     if (arg.startsWith("-")) {
       throw new CliUsageError(`Unknown flag: ${arg}.`);
     }
@@ -162,6 +174,7 @@ export function parseRunCommandArgs(args: string[]) {
     model,
     judgeModel,
     runtime,
+    caseTimeoutMs,
     compare,
     strict,
     laminar,

@@ -123,6 +123,8 @@ export interface RunPiSdkEvalCaseOptions {
   contextMode?: EvalContextMode;
   sandbox?: SandboxMode;
   sandboxMocks?: SandboxCommandMock[];
+  /** Aborting stops the in-flight prompt (`session.abort()`). */
+  signal?: AbortSignal;
 }
 
 export interface RunValidatedSkillViaPiSdkOptions {

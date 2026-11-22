@@ -17,6 +17,7 @@
    | `usage` | Bad flags or arguments. Fix the command line. |
    | `command` | The command ran but couldn't finish: missing file, refused overwrite, runtime not ready (missing API key), invalid `evals.json`. |
    | `internal` | An unexpected exception. Please report it. |
+   | `cancelled` | `run` was cancelled with Ctrl-C (exit 130). The in-flight case was stopped and cleaned up. |
 
 4. Paths in results are absolute.
 
@@ -27,6 +28,7 @@
 | 0 | no | Success. For `run`, every hard assertion passed. |
 | 1 | no | A verdict, not a crash: `run` had a failing case or hard assertion (or a soft miss with `--strict`), or `emit --check` found drift. |
 | 1 | yes | The command did not complete. See `error.kind`. |
+| 130 | yes | `run` was cancelled with Ctrl-C (`error.kind` is `cancelled`). |
 
 ## Payloads
 

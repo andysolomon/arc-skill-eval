@@ -19,6 +19,7 @@ arc-skill-eval run <skill-dir-or-repo>
                    [--extra-skill <path>]...
                    [--context-mode isolated|ambient]
                    [--sandbox none|just-bash]
+                   [--case-timeout <seconds>]
                    [--compare]
                    [--laminar]
                    [--json]
@@ -344,6 +345,16 @@ This flag overrides each case's own `sandbox` field. Per-case `sandbox` selectio
 ```bash
 arc-skill-eval run . --sandbox just-bash
 ```
+
+### `--case-timeout <seconds>`
+
+Stops a case's agent if it runs longer than this many seconds and records the case as an error ("Case `<id>` timed out after `<n>`s; the agent was stopped."). The limit covers the agent run only, not grading. For CLI harness runtimes (`codex`, `claude-code`, `cursor-agent`, `copilot`) the child process gets SIGTERM, then SIGKILL after 5 seconds; for `pi-sdk` the session's prompt is aborted. Staged skills and the case's temporary workspace are removed either way. There is no limit by default.
+
+```bash
+arc-skill-eval run . --runtime claude-code --case-timeout 600
+```
+
+Pressing Ctrl-C during `run` cancels it the same way: the in-flight case is stopped, its temporary resources are cleaned up, and the command exits with code 130. A second Ctrl-C exits immediately without cleanup.
 
 ### `--compare`
 

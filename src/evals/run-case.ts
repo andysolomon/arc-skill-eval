@@ -1,5 +1,7 @@
 import path from "node:path";
 
+import { Data, Effect, type Scope } from "effect";
+
 import type { ModelSelection, SandboxMode } from "../contracts/types.js";
 import type { DiscoveredSkillFiles, RepoSourceDescriptor } from "../load/source-types.js";
 import type { PiSdkSessionFactory } from "../pi/sdk-runner.js";
@@ -16,6 +18,7 @@ import type { EvalTrace } from "../traces/types.js";
 import type { DiscoveredEvalSkill } from "./discover.js";
 import type { EvalCase, TimingJson } from "./types.js";
 import { prepareCaseWorkspace } from "./workspace.js";
+import { releaseQuietly, runScopedHandoff } from "../effect/scope.js";
 
 /**
  * Options accepted by {@link runEvalCase}. Intentionally scoped to the
@@ -59,6 +62,13 @@ export interface RunEvalCaseOptions {
    * alternative runtimes run behind the same eval contract and artifacts.
    */
   runtime?: AgentRuntime;
+  /**
+   * Stop the agent and fail the case with {@link CaseTimeoutError} if it runs
+   * longer than this. Covers the agent run only, not grading.
+   */
+  timeoutMs?: number;
+  /** Cancels the case; every resource acquired so far is released. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -95,39 +105,72 @@ export interface EvalCaseRunResult {
  * back for downstream assertion grading.
  */
 export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCaseRunResult> {
-  const skillFiles = buildSkillFiles(options.skill);
+  const { value, release } = await runScopedHandoff(runEvalCaseScoped(options), { signal: options.signal });
+  return { ...value, cleanup: release };
+}
 
-  const prepared = await prepareCaseWorkspace({
-    evalsDir: options.evalsDir,
-    setup: options.case.setup,
-    files: options.case.files,
-    skillFiles,
-  });
+/**
+ * Scoped form of {@link runEvalCase}. Acquires the case workspace and the
+ * runtime run as resources of the surrounding `Scope`; closing the scope
+ * releases the runtime first, then the workspace. If anything after an
+ * acquisition fails, times out or is interrupted, everything acquired so far
+ * is released before the failure propagates.
+ */
+export function runEvalCaseScoped(
+  options: RunEvalCaseOptions,
+): Effect.Effect<Omit<EvalCaseRunResult, "cleanup">, CaseTimeoutError, Scope.Scope> {
+  return Effect.gen(function* () {
+    const skillFiles = buildSkillFiles(options.skill);
 
-  try {
+    const prepared = yield* Effect.acquireRelease(
+      Effect.promise(() =>
+        prepareCaseWorkspace({
+          evalsDir: options.evalsDir,
+          setup: options.case.setup,
+          files: options.case.files,
+          skillFiles,
+        }),
+      ),
+      (workspace) => releaseQuietly(workspace.cleanup),
+    );
+
     const skillIdentity = toRuntimeSkillIdentity(skillFiles);
-    const source = buildSourceDescriptor(options.skill);
-
     const runtime = options.runtime ?? piSdkRuntime;
-    const runtimeResult = await runtime.runCase({
-      source,
-      skill: skillIdentity,
-      case: {
-        caseId: String(options.case.id),
-        prompt: options.case.prompt,
-        skillName: skillIdentity.name,
-      },
-      workspaceDir: prepared.workspaceDir,
-      workspaceEnv: prepared.materializedFixture?.env,
-      agentDir: options.agentDir,
-      model: options.model,
-      createSession: options.createSession,
-      attachSkill: options.attachSkill,
-      extraSkillPaths: options.extraSkillPaths,
-      contextMode: options.contextMode,
-      sandbox: options.sandbox,
-      sandboxMocks: options.case.sandboxMocks,
-    });
+    const caseId = String(options.case.id);
+
+    const runAgent = Effect.promise((signal) =>
+      runtime.runCase({
+        source: buildSourceDescriptor(options.skill),
+        skill: skillIdentity,
+        case: { caseId, prompt: options.case.prompt, skillName: skillIdentity.name },
+        workspaceDir: prepared.workspaceDir,
+        workspaceEnv: prepared.materializedFixture?.env,
+        agentDir: options.agentDir,
+        model: options.model,
+        createSession: options.createSession,
+        attachSkill: options.attachSkill,
+        extraSkillPaths: options.extraSkillPaths,
+        contextMode: options.contextMode,
+        sandbox: options.sandbox,
+        sandboxMocks: options.case.sandboxMocks,
+        signal,
+      }),
+    );
+
+    // Interruptible acquire: a timeout or cancellation must be able to stop a
+    // hung agent. The runtime releases its own partial resources on abort.
+    const runtimeResult = yield* Effect.acquireRelease(
+      options.timeoutMs === undefined
+        ? runAgent
+        : runAgent.pipe(
+            Effect.timeoutOrElse({
+              duration: options.timeoutMs,
+              orElse: () => Effect.fail(new CaseTimeoutError({ caseId, timeoutMs: options.timeoutMs! })),
+            }),
+          ),
+      (result) => releaseQuietly(result.cleanup),
+      { interruptible: true },
+    );
 
     const timing: TimingJson = {
       total_tokens: runtimeResult.usage.totalTokens,
@@ -149,11 +192,6 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
     const contextManifest = enrichContextManifestWithTrace(runtimeResult.contextManifest, trace);
     const toolSummary = buildToolSummary(trace, contextManifest);
 
-    const cleanup = async () => {
-      await prepared.cleanup();
-      await runtimeResult.cleanup().catch(() => undefined);
-    };
-
     return {
       caseId: options.case.id,
       assistantText: runtimeResult.session.assistantText,
@@ -162,12 +200,22 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
       trace,
       contextManifest,
       toolSummary,
-      cleanup,
     };
-  } catch (error) {
-    await prepared.cleanup().catch(() => undefined);
-    throw error;
+  });
+}
+
+/** The agent did not finish within `--case-timeout`. */
+export class CaseTimeoutError extends Data.TaggedError("CaseTimeoutError")<{
+  readonly caseId: string;
+  readonly timeoutMs: number;
+}> {
+  override get message(): string {
+    return `Case ${this.caseId} timed out after ${formatDuration(this.timeoutMs)}; the agent was stopped.`;
   }
+}
+
+function formatDuration(ms: number): string {
+  return ms % 1000 === 0 ? `${ms / 1000}s` : `${ms}ms`;
 }
 
 function buildSkillFiles(skill: DiscoveredEvalSkill): DiscoveredSkillFiles {

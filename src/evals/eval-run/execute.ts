@@ -2,7 +2,7 @@ import {
   collectObservabilityExportFailures,
   executeCasePipeline,
 } from "../case-pipeline.js";
-import type { EvalRunOptions, EvalRunPlan, SkillRunResult } from "./types.js";
+import { EvalRunCancelledError, type EvalRunOptions, type EvalRunPlan, type SkillRunResult } from "./types.js";
 import { writeSkillBenchmark } from "./aggregate.js";
 
 /** Run every planned case through the case pipeline and optionally write per-skill benchmarks. */
@@ -21,6 +21,7 @@ export async function executeEvalRun(plan: EvalRunPlan, options: EvalRunOptions)
     };
 
     for (const evalCase of planned.cases) {
+      throwIfCancelled(options.signal);
       options.onProgress?.({ phase: "case-start", caseId: String(evalCase.id) });
       try {
         const artifacts = await executeCasePipeline({
@@ -42,6 +43,8 @@ export async function executeEvalRun(plan: EvalRunPlan, options: EvalRunOptions)
             createSession: options.createSession,
             judge: options.judge,
             runtime: options.runtime,
+            caseTimeoutMs: options.caseTimeoutMs,
+            signal: options.signal,
           },
           context: { outputDir: planned.outputDir, runId: plan.runId, iteration: plan.iteration },
         });
@@ -56,6 +59,8 @@ export async function executeEvalRun(plan: EvalRunPlan, options: EvalRunOptions)
           passed: g.failed === 0 && g.total > 0,
         });
       } catch (error) {
+        // An interrupted case is not a case failure: stop the whole run.
+        throwIfCancelled(options.signal);
         const message = error instanceof Error ? error.message : String(error);
         result.errors.push({ caseId: String(evalCase.id), message });
         options.onProgress?.({ phase: "case-done", caseId: String(evalCase.id), passed: false, message });
@@ -78,4 +83,10 @@ export async function executeEvalRun(plan: EvalRunPlan, options: EvalRunOptions)
   }
 
   return skillResults;
+}
+
+function throwIfCancelled(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw new EvalRunCancelledError();
+  }
 }

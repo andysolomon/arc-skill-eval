@@ -26,3 +26,5 @@ wt/
 web/test-results/
 # Playwright output at the repo root (mirrors web/test-results/ above).
 test-results/
+# E2E/lifecycle test records (screenshots, CLI output) — regenerated per run.
+test-artifacts/

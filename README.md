@@ -411,8 +411,10 @@ Context options:
 - `--context-mode isolated` is the default: no ambient Pi skills, extensions, prompt templates, themes, or context files are loaded.
 - `--context-mode ambient` opts into normal Pi ambient resources so extension tools/MCP-like tools and other configured resources can enter the context. The resolved loadout is recorded in `context-manifest.json`.
 - `--sandbox none|just-bash` selects the execution isolation for every selected case, overriding each case's own `sandbox` field. `none` (default) uses the temp-workspace runner; `just-bash` routes the agent's `bash`, `read`, `write`, and `edit` tools through one in-process virtual filesystem rooted at the case workspace, so commands run without the host shell and no tool can write outside the workspace. Generated files are still captured under `outputs/`. `npm`/`npx`/`git` resolve to deterministic mocks (no-op success by default, configurable per case via `sandboxMocks`).
+- `--case-timeout <seconds>` stops a case's agent if it runs longer than that and records the case as an error. CLI harness children get SIGTERM, then SIGKILL after 5s; the Pi SDK prompt is aborted. Staged skills and the temp workspace are removed either way. No limit by default.
+- Ctrl-C cancels the run: the in-flight case is stopped and cleaned up, and the command exits `130`. A second Ctrl-C quits immediately.
 
-Exit code: `0` when every case has no failing assertions, `1` otherwise.
+Exit code: `0` when every case has no failing assertions, `1` otherwise, `130` when cancelled with Ctrl-C.
 
 ## Output layout
 

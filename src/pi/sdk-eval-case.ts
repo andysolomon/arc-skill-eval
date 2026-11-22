@@ -58,6 +58,7 @@ export function toPiSdkEvalCaseOptions(
     sandbox: options.sandbox,
     sandboxMocks: options.sandboxMocks,
     createSession: options.createSession,
+    signal: options.signal,
   };
 }
 

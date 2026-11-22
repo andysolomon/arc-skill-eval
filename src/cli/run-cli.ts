@@ -20,6 +20,7 @@ import { createLaminarSink } from "../observability/sinks/laminar.js";
 import { assertRuntimeReady, resolveRuntime } from "../runtime/registry.js";
 import { detectPiCliVersionSkew } from "../pi/model-preflight.js";
 import { CliCommandError, CliUsageError, type CliInvocationResult } from "./types.js";
+import { EvalRunCancelledError } from "../evals/eval-run/index.js";
 
 function formatDescriptionScore(result: ScoreDescriptionResult): string {
   const pct = (value: number): string => `${Math.round(value * 100)}%`;
@@ -265,6 +266,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
         const observabilitySinks = laminarSink ? [laminarSink] : undefined;
 
         let result;
+        const cancellation = installRunCancellation();
         const warnings: string[] = [];
         try {
           try {
@@ -293,8 +295,19 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
             model: parsed.model,
             judgeModel: parsed.judgeModel,
             runtime,
+            caseTimeoutMs: parsed.caseTimeoutMs,
+            signal: cancellation.signal,
           });
+        } catch (error) {
+          if (error instanceof EvalRunCancelledError) {
+            const message = "Run cancelled. The in-flight case was stopped and its temporary workspace removed.";
+            return jsonMode
+              ? jsonError("cancelled", message, 130)
+              : { exitCode: 130, stdout: "", stderr: `${message}\n` };
+          }
+          throw error;
         } finally {
+          cancellation.dispose();
           // Drain sinks before the process exits so in-flight exports (e.g.
           // Laminar spans) actually reach their backend. A teardown failure
           // must never mask the run result, so errors are swallowed.
@@ -481,4 +494,21 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
       stderr: `${error instanceof Error ? error.stack ?? error.message : String(error)}\n`,
     };
   }
+}
+
+/**
+ * First Ctrl-C cancels the run gracefully (the in-flight case is interrupted
+ * and its resources released); a second Ctrl-C exits immediately.
+ */
+function installRunCancellation(): { signal: AbortSignal; dispose: () => void } {
+  const controller = new AbortController();
+  const onSigint = () => {
+    if (controller.signal.aborted) {
+      process.exit(130);
+    }
+    process.stderr.write("\nCancelling run: stopping the current case and cleaning up (Ctrl-C again to force quit)...\n");
+    controller.abort();
+  };
+  process.on("SIGINT", onSigint);
+  return { signal: controller.signal, dispose: () => process.off("SIGINT", onSigint) };
 }

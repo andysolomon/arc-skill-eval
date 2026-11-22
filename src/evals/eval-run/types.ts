@@ -15,6 +15,14 @@ export class EvalRunError extends Error {
   }
 }
 
+/** The run's `signal` aborted. In-flight case resources were released before this was thrown. */
+export class EvalRunCancelledError extends Error {
+  constructor(message = "Eval run cancelled.") {
+    super(message);
+    this.name = "EvalRunCancelledError";
+  }
+}
+
 /** Options for a multi-skill eval run (CLI, TUI, and programmatic callers). */
 export interface EvalRunOptions {
   input: string;
@@ -34,6 +42,13 @@ export interface EvalRunOptions {
   createSession?: PiSdkSessionFactory;
   judge?: LlmJudgeFn;
   runtime?: AgentRuntime;
+  /** Per-case agent time limit; a case that exceeds it is stopped and recorded as an error. */
+  caseTimeoutMs?: number;
+  /**
+   * Cancels the run: the in-flight case is interrupted (agent stopped,
+   * workspace removed) and the run rejects with {@link EvalRunCancelledError}.
+   */
+  signal?: AbortSignal;
   onProgress?: (ev: {
     phase: "case-start" | "assertion" | "case-done";
     caseId: string;

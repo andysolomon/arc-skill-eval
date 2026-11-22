@@ -1,4 +1,4 @@
-import type { SectionName, ThemeName } from '@/types';
+import type { SectionName, ThemeName } from '@/app/domain';
 import { openDatabase, requestToPromise, transactionDone } from './db';
 import { PREFERENCES_SCHEMA_VERSION } from './migrations';
 

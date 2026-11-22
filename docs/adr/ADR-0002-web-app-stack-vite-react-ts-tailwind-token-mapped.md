@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-07-21)
+Accepted (2026-07-21). The React choice is superseded by [ADR-0008](./ADR-0008-web-app-foldkit-and-effect.md) (Foldkit).
 
 ## Context
 
