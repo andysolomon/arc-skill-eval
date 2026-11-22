@@ -3,6 +3,7 @@ import { CliUsageError } from "../types.js";
 import { parseModelSelectionFlag, readFlagValue } from "./shared.js";
 
 export function parseCreateCommandArgs(args: string[]) {
+  let json = false;
   let skillDir: string | undefined;
   let force = false;
   let dryRun = false;
@@ -15,6 +16,11 @@ export function parseCreateCommandArgs(args: string[]) {
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
 
     if (arg === "--force") {
       force = true;
@@ -79,8 +85,15 @@ export function parseCreateCommandArgs(args: string[]) {
       "--interactive is currently supported with --guided create mode. Use `arc-skill-eval create <skill-dir> --guided --interactive`.",
     );
   }
+  if (json && summary) {
+    throw new CliUsageError("--json and --summary are mutually exclusive; pick one output format.");
+  }
+  if (json && interactive) {
+    throw new CliUsageError("--json cannot be combined with --interactive, which needs a terminal. Drop --interactive to get JSON output.");
+  }
   return {
     skillDir,
+    json,
     force,
     dryRun,
     summary,

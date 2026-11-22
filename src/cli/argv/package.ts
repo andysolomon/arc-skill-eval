@@ -2,12 +2,18 @@ import { CliUsageError } from "../types.js";
 import { readFlagValue } from "./shared.js";
 
 export function parsePackageCommandArgs(args: string[]) {
+  let json = false;
   let skillDir: string | undefined;
   let output: string | undefined;
   let force = false;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
 
     if (arg === "--force") {
       force = true;
@@ -33,5 +39,5 @@ export function parsePackageCommandArgs(args: string[]) {
   }
 
   if (!skillDir) throw new CliUsageError("Missing required <skill-dir> argument.");
-  return { skillDir, output, force };
+  return { skillDir, output, force, json };
 }
