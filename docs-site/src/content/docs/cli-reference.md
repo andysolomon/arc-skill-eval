@@ -205,6 +205,25 @@ Options:
 - `--json`: emit a machine-readable JSON report instead of human-readable lines.
 - `--output <path>`: write the report to a file instead of stdout.
 
+### `install-skills`
+
+Copy the bundled agent-facing skills (`arc-creating-evals`, `arc-running-evals`) into the folders coding agents read skills from, so any harness can drive `arc-skill-eval` from its shell tool.
+
+```bash
+arc-skill-eval install-skills
+arc-skill-eval install-skills --harness codex --harness claude-code --target ../my-project
+```
+
+Options:
+
+- `--target <dir>`: project root to install into (default: current directory). Must already exist.
+- `--harness <id>` *(repeatable)*: `claude-code` → `.claude/skills`; `codex`, `copilot`, `pi` → `.agents/skills`; `cursor-agent` → `.agents/skills` and `.cursor/skills`. Default: `.agents/skills` + `.claude/skills`.
+- `--skill <name>` *(repeatable)*: install specific bundled skills instead of the default two.
+- `--force`: replace an existing install. Without it, existing folders are skipped.
+- `--json`: print `{ target, installed[], skipped[] }`.
+
+Skills are copied without their `evals/` folder.
+
 ### `run <skill-dir-or-repo>`
 
 Discover skills, materialize fixtures, run cases through Pi, grade assertions, and write artifacts. The positional `<skill-dir-or-repo>` is resolved as a skill directory if it contains `evals/evals.json`, otherwise as a repo whose tree is walked for `SKILL.md` + `evals/evals.json` pairs.
@@ -236,7 +255,7 @@ Pin the model used by the skill-running agent. Without this flag, Skeval inherit
 
 ```bash
 arc-skill-eval run ./skills/arc-conventional-commits \
-  --model openai-codex/gpt-5.5:medium
+  --model openai-codex/gpt-6-luna:medium
 ```
 
 ### `--judge-model <provider/model[:thinking]>`
@@ -247,7 +266,7 @@ When the flag is absent, the judge defaults to the model that ran the case (whic
 
 ```bash
 arc-skill-eval run ./skills/arc-conventional-commits \
-  --model openai-codex/gpt-5.5:medium \
+  --model openai-codex/gpt-6-luna:medium \
   --judge-model mistral/ministral-8b-latest
 ```
 
@@ -318,7 +337,7 @@ arc-skill-eval run ./skills/arc-conventional-commits \
 ### `--sandbox none|just-bash`
 
 - `none` *(default)* — run each case through the standard temp-workspace runner with the host shell and real filesystem.
-- `just-bash` — route the agent's `bash` tool through an in-process [`just-bash`](https://www.npmjs.com/package/just-bash) virtual shell whose filesystem is rooted at the case workspace. Commands run without the host shell, the repository working tree is never touched, and generated files are still captured under `outputs/`. `npm`/`npx`/`git` resolve to deterministic mocks (no-op success by default).
+- `just-bash` — route the agent's `bash`, `read`, `write`, and `edit` tools through one in-process [`just-bash`](https://www.npmjs.com/package/just-bash) virtual filesystem rooted at the case workspace. Commands run without the host shell. `/` is the workspace, so an absolute path such as `/tmp/out.html` lands at `<workspace>/tmp/out.html`. The workspace is also visible at its real path, which is where the shell starts. Skills in context are readable at their real paths but can't be changed. Nothing else on the host is visible, the repository working tree is never touched, and generated files are still captured under `outputs/`. `npm`/`npx`/`git` resolve to deterministic mocks (no-op success by default).
 
 This flag overrides each case's own `sandbox` field. Per-case `sandbox` selection and `sandboxMocks` (to return specific stdout/exit codes and file effects) are configured in `evals.json` — see [Eval cases](/arc-skill-eval/concepts/eval-cases/).
 
@@ -338,11 +357,13 @@ See [Dogfooding & Authoring Loop](/arc-skill-eval/dogfooding/) for how to interp
 
 ### `--json`
 
-Emit a machine-readable JSON summary on stdout instead of human-readable lines. Useful for CI scripts that want to gate on the summary.
+Emit a machine-readable JSON summary on stdout instead of human-readable lines. Useful for CI scripts and for coding agents that drive the CLI from a shell tool.
 
 ```bash
 arc-skill-eval run . --json
 ```
+
+Every command except `browse` accepts `--json`. Output always includes `"schemaVersion": 1`. If the command can't complete, stdout holds `{"schemaVersion":1,"error":{"kind":"usage"|"command"|"internal","message":"..."}}` instead, with exit code `1`. An exit code of `1` *without* an `error` object means the run finished and something failed. The full contract, including every payload, is in `docs/cli-json-contract.md` in the repo.
 
 ### `--laminar`
 
@@ -388,8 +409,8 @@ arc-skill-eval run ./skills/arc-conventional-commits --case 1
 
 # Pin GPT 5.5 for both runner and judge.
 arc-skill-eval run ./skills/arc-conventional-commits \
-  --model openai-codex/gpt-5.5:medium \
-  --judge-model openai-codex/gpt-5.5:medium
+  --model openai-codex/gpt-6-luna:medium \
+  --judge-model openai-codex/gpt-6-luna:medium
 
 # Use the verified Ollama Cloud smoke-test lane.
 arc-skill-eval run ./skills/hello-world \

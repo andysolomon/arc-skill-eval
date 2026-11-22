@@ -38,7 +38,7 @@
     "typescript"
   ],
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.19.0"
   },
   "files": [
     "dist",
@@ -77,8 +77,8 @@
     "semantic-release": "^25.0.9"
   },
   "dependencies": {
-    "@mariozechner/pi-ai": "^0.73.1",
-    "@mariozechner/pi-coding-agent": "^0.73.1",
+    "@earendil-works/pi-ai": "^1.6.0",
+    "@earendil-works/pi-coding-agent": "^1.6.0",
     "ink": "^5.2.1",
     "ink-text-input": "^6.0.0",
     "just-bash": "^3.0.2",

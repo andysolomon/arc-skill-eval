@@ -12,7 +12,7 @@ import {
 export async function createDefaultPiSdkSession(
   options: PiSdkSessionFactoryOptions,
 ): Promise<PiSdkSessionFactoryResult> {
-  const bootstrap = createPiSessionBootstrap({
+  const bootstrap = await createPiSessionBootstrap({
     runtimeDir: options.workspaceDir,
     credentialsAgentDir: options.configAgentDir,
   });
@@ -30,7 +30,7 @@ export async function createDefaultPiSdkSession(
   });
   const resolvedModel = options.requestedModel === undefined
     ? undefined
-    : resolvePiModel(bootstrap.modelRegistry, options.requestedModel);
+    : resolvePiModel(bootstrap.modelRuntime, options.requestedModel);
 
   const { session } = await createPiAgentSession({
     bootstrap,
@@ -43,7 +43,10 @@ export async function createDefaultPiSdkSession(
     tools: ["read", "bash", "edit", "write"],
     customTools:
       options.sandbox === "just-bash"
-        ? createJustBashCodingTools(options.workspaceDir, options.env, options.sandboxMocks)
+        ? createJustBashCodingTools(options.workspaceDir, options.env, options.sandboxMocks, {
+          // Skills in context stay readable (bundled templates etc.), never writable.
+          readOnlyPaths: resourceLoader.getSkills().skills.map((skill) => skill.baseDir),
+        })
         : createPiSdkCodingTools(options.workspaceDir, options.env),
     resourceLoader,
   });

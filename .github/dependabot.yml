@@ -1,18 +1,18 @@
 version: 2
 updates:
-  # Keep the Pi SDK current. Pi is pre-1.0, so `^0.x.y` only admits patch
-  # releases; Dependabot raises the range itself when a new minor ships.
+  # Keep the Pi SDK current. `^1.x` admits new minors and patches; Dependabot
+  # raises the range itself when a new major ships.
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: daily
     allow:
-      - dependency-name: "@mariozechner/pi-*"
+      - dependency-name: "@earendil-works/pi-*"
     groups:
       # pi-ai and pi-coding-agent release in lockstep — bump them in one PR.
       pi:
         patterns:
-          - "@mariozechner/pi-*"
+          - "@earendil-works/pi-*"
     # `fix(deps): ...` makes semantic-release cut a patch release on merge,
     # so the published package picks up the new Pi version.
     commit-message:

@@ -2,6 +2,7 @@ import { CliUsageError } from "../types.js";
 import { readFlagValue } from "./shared.js";
 
 export function parseEmitCommandArgs(args: string[]) {
+  let json = false;
   let from: string | undefined;
   let out: string | undefined;
   let skillDir: string | undefined;
@@ -9,6 +10,11 @@ export function parseEmitCommandArgs(args: string[]) {
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
 
     if (arg === "--check") {
       check = true;
@@ -49,5 +55,6 @@ export function parseEmitCommandArgs(args: string[]) {
     ...(out !== undefined ? { out } : {}),
     ...(skillDir !== undefined ? { skillDir } : {}),
     check,
+    json,
   };
 }

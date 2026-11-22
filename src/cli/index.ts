@@ -6,6 +6,8 @@ export * from "./guided-eval-designer.js";
 export * from "./init-runtime-command.js";
 export * from "./review-command.js";
 export * from "./improve-command.js";
+export * from "./install-skills-command.js";
+export * from "./json-output.js";
 export * from "./argv.js";
 export * from "./laminar-config.js";
 export * from "./render.js";

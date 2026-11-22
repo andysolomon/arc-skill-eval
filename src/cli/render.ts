@@ -1,9 +1,10 @@
+import { CLI_JSON_SCHEMA_VERSION } from "./json-output.js";
 import type { RunEvalsCommandResult } from "./run-evals-command.js";
 import type { CliRenderOptions } from "./types.js";
 
 export function formatRunEvalsResult(result: RunEvalsCommandResult, options: CliRenderOptions = {}): string {
   if (options.json) {
-    return `${JSON.stringify(result, null, 2)}\n`;
+    return `${JSON.stringify({ schemaVersion: CLI_JSON_SCHEMA_VERSION, ...result }, null, 2)}\n`;
   }
 
   const lines = [
@@ -37,12 +38,44 @@ export function formatRunEvalsResult(result: RunEvalsCommandResult, options: Cli
         : "";
       lines.push(`  [${verdict}] ${caseArt.caseId}: ${s.passed}/${s.total} assertions (${formatTimingSummary(caseArt.timing)}, ${formatToolSummary(caseArt.toolSummary)}, ${formatContextSummary(caseArt.contextManifest)}${comparison})`);
     }
-    for (const err of skill.errors) {
-      lines.push(`  [ERROR] ${err.caseId}: ${err.message}`);
+    for (const group of groupErrorsByMessage(skill.errors)) {
+      lines.push(`  [ERROR] ${group.caseIds.join(", ")}: ${group.message}`);
     }
   }
 
+  lines.push(...formatAllCasesErroredDiagnosis(result));
+
   return `${lines.join("\n")}\n`;
+}
+
+/** Identical errors (e.g. a rejected model) print once, listing every case they hit. */
+function groupErrorsByMessage(errors: Array<{ caseId: string; message: string }>) {
+  const groups = new Map<string, string[]>();
+  for (const error of errors) {
+    // Runner errors start with "Case <id>: "; drop it so identical causes group.
+    const prefix = `Case ${error.caseId}: `;
+    const message = error.message.startsWith(prefix) ? error.message.slice(prefix.length) : error.message;
+    const caseIds = groups.get(message) ?? [];
+    caseIds.push(error.caseId);
+    groups.set(message, caseIds);
+  }
+  return Array.from(groups, ([message, caseIds]) => ({ message, caseIds }));
+}
+
+/** When nothing ran far enough to be graded, say so plainly instead of leaving "Assertions: 0". */
+function formatAllCasesErroredDiagnosis(result: RunEvalsCommandResult): string[] {
+  const errors = result.skills.flatMap((skill) => skill.errors);
+  const gradedCases = result.skills.reduce((count, skill) => count + skill.cases.length, 0);
+  if (errors.length === 0 || gradedCases > 0) return [];
+
+  const lines = [
+    "",
+    `All ${errors.length} case${errors.length === 1 ? "" : "s"} errored before producing output, so nothing was graded.`,
+  ];
+  if (errors.every((error) => /\bmodel\b/iu.test(error.message))) {
+    lines.push("If the model is unavailable to your account, pick another with --model (`pi --list-models` shows what Pi offers).");
+  }
+  return lines;
 }
 
 function formatTimingSummary(timing: { duration_ms: number; total_tokens: number; estimated_cost_usd?: number; context_window_used_percent?: number | null; model?: { provider: string; id: string } | null; thinking_level?: string | null }): string {
