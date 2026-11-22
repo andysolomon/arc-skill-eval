@@ -6,6 +6,7 @@ import { parseCreateCommandArgs } from "./create.js";
 import { parseEmitCommandArgs } from "./emit.js";
 import { parseImproveCommandArgs } from "./improve.js";
 import { parseInitRuntimeCommandArgs } from "./init-runtime.js";
+import { parseInstallSkillsCommandArgs } from "./install-skills.js";
 import { parseOptimizeDescriptionCommandArgs } from "./optimize-description.js";
 import { parsePackageCommandArgs } from "./package.js";
 import { parseReviewCommandArgs } from "./review.js";
@@ -74,6 +75,11 @@ export function parseCliArgs(argv: string[]): ParsedCliCommand {
         command: "emit",
         ...parseEmitCommandArgs(rest),
       };
+    case "install-skills":
+      return {
+        command: "install-skills",
+        ...parseInstallSkillsCommandArgs(rest),
+      };
     default:
       throw new CliUsageError(`Unknown command: ${commandName}. Run \`arc-skill-eval --help\` for usage.`);
   }
@@ -85,18 +91,21 @@ export function renderHelp(): string {
     "",
     "Usage:",
     "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--runtime pi-sdk|codex|claude-code|cursor-agent|copilot] [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--agent-dir <path>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--sandbox none|just-bash] [--compare] [--strict] [--laminar] [--json]",
-    "  arc-skill-eval init-runtime <agent-dir> --provider <provider> --model <model> [--force]",
-    "  arc-skill-eval review <run-dir> [--output <dir>] [--force]",
-    "  arc-skill-eval improve --from-feedback <feedback.json> [--dry-run] [--summary] [--apply]",
-    "  arc-skill-eval create <skill-dir> [--guided] [--interactive] [--model <provider/model[:thinking]>] [--agent-dir <path>] [--authoring-skill <path>] [--dry-run] [--summary] [--force]",
+    "  arc-skill-eval init-runtime <agent-dir> --provider <provider> --model <model> [--force] [--json]",
+    "  arc-skill-eval review <run-dir> [--output <dir>] [--force] [--json]",
+    "  arc-skill-eval improve --from-feedback <feedback.json> [--dry-run] [--summary | --json] [--apply]",
+    "  arc-skill-eval create <skill-dir> [--guided] [--interactive] [--model <provider/model[:thinking]>] [--agent-dir <path>] [--authoring-skill <path>] [--dry-run] [--summary | --json] [--force]",
     "  arc-skill-eval browse [<skill-dir-or-repo>] [--no-baseline]",
     "  arc-skill-eval audit <skill-dir-or-repo> [--json] [--output <path>]",
-    "  arc-skill-eval optimize-description <skill-dir> (--generate-only [--output <path>] [--force] | --eval-set <path> [--distractor <skill-dir>]... [--max-iterations <n> [--apply]]) [--model <provider/model[:thinking]>] [--agent-dir <path>]",
-    "  arc-skill-eval package <skill-dir> [--output <path>] [--force]",
+    "  arc-skill-eval optimize-description <skill-dir> (--generate-only [--output <path>] [--force] | --eval-set <path> [--distractor <skill-dir>]... [--max-iterations <n> [--apply]]) [--model <provider/model[:thinking]>] [--agent-dir <path>] [--json]",
+    "  arc-skill-eval package <skill-dir> [--output <path>] [--force] [--json]",
     "  arc-skill-eval bundled [<skill-name>] [--json]",
-    "  arc-skill-eval emit (<skill-dir> | --from <suite.eval.ts>) [--out <evals/evals.json>] [--check]",
+    "  arc-skill-eval emit (<skill-dir> | --from <suite.eval.ts>) [--out <evals/evals.json>] [--check] [--json]",
+    "  arc-skill-eval install-skills [--target <project-root>] [--harness claude-code|codex|cursor-agent|copilot|pi]... [--skill <name>]... [--force] [--json]",
     "",
     "Notes:",
+    "  - --json (every command except browse) prints one JSON object on stdout with schemaVersion; failures print {\"schemaVersion\":1,\"error\":{\"kind\",\"message\"}} instead. Exit code 1 means the run failed or the command errored. See docs/cli-json-contract.md.",
+    "  - browse and create --interactive need a terminal and refuse to start without one.",
     "  - <skill-dir-or-repo> is either a skill directory containing evals/evals.json,",
     "    or a repo root; in the repo case the CLI discovers every SKILL.md + evals/evals.json pair.",
     "  - run writes per-case assistant.md + outputs/ + timing.json + grading.json + observability artifacts under",
@@ -122,6 +131,7 @@ export function renderHelp(): string {
     "  - package validates SKILL.md and evals/evals.json first, then bundles the skill directory plus a sha256 manifest.json into <name>.skill.tgz (excluding evals-runs/, node_modules/, dot-files, and prior *.skill.tgz artifacts); --output overrides the artifact path and --force overwrites an existing artifact.",
     "  - bundled prints absolute paths to skills shipped with the npm package; use in shell substitution, e.g. arc-skill-eval run \"$(arc-skill-eval bundled hello-world)\".",
     "  - emit compiles a typed `defineSkillEval` suite (a .eval.ts that default-exports the suite; imported from arc-skill-eval/evals) into evals/evals.json, validating it through the same loader the runner uses. TypeScript suites are transpiled in-process. With <skill-dir> it resolves evals/evals.eval.ts → evals/evals.json; --check verifies the committed JSON matches the suite and exits 1 on drift (writes nothing) — ideal for CI.",
+    "  - install-skills copies the bundled agent-facing skills (arc-creating-evals, arc-running-evals) into .agents/skills and .claude/skills under --target (default: cwd) so any harness can drive arc-skill-eval. --harness narrows the folders; existing installs are skipped unless --force.",
     "  - Format reference: https://platform.claude.com/docs/en/agents-and-tools/agent-skills",
   ].join("\n");
 }

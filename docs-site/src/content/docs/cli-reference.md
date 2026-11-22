@@ -205,6 +205,25 @@ Options:
 - `--json`: emit a machine-readable JSON report instead of human-readable lines.
 - `--output <path>`: write the report to a file instead of stdout.
 
+### `install-skills`
+
+Copy the bundled agent-facing skills (`arc-creating-evals`, `arc-running-evals`) into the folders coding agents read skills from, so any harness can drive `arc-skill-eval` from its shell tool.
+
+```bash
+arc-skill-eval install-skills
+arc-skill-eval install-skills --harness codex --harness claude-code --target ../my-project
+```
+
+Options:
+
+- `--target <dir>`: project root to install into (default: current directory). Must already exist.
+- `--harness <id>` *(repeatable)*: `claude-code` → `.claude/skills`; `codex`, `copilot`, `pi` → `.agents/skills`; `cursor-agent` → `.agents/skills` and `.cursor/skills`. Default: `.agents/skills` + `.claude/skills`.
+- `--skill <name>` *(repeatable)*: install specific bundled skills instead of the default two.
+- `--force`: replace an existing install. Without it, existing folders are skipped.
+- `--json`: print `{ target, installed[], skipped[] }`.
+
+Skills are copied without their `evals/` folder.
+
 ### `run <skill-dir-or-repo>`
 
 Discover skills, materialize fixtures, run cases through Pi, grade assertions, and write artifacts. The positional `<skill-dir-or-repo>` is resolved as a skill directory if it contains `evals/evals.json`, otherwise as a repo whose tree is walked for `SKILL.md` + `evals/evals.json` pairs.
@@ -338,11 +357,13 @@ See [Dogfooding & Authoring Loop](/arc-skill-eval/dogfooding/) for how to interp
 
 ### `--json`
 
-Emit a machine-readable JSON summary on stdout instead of human-readable lines. Useful for CI scripts that want to gate on the summary.
+Emit a machine-readable JSON summary on stdout instead of human-readable lines. Useful for CI scripts and for coding agents that drive the CLI from a shell tool.
 
 ```bash
 arc-skill-eval run . --json
 ```
+
+Every command except `browse` accepts `--json`. Output always includes `"schemaVersion": 1`. If the command can't complete, stdout holds `{"schemaVersion":1,"error":{"kind":"usage"|"command"|"internal","message":"..."}}` instead, with exit code `1`. An exit code of `1` *without* an `error` object means the run finished and something failed. The full contract, including every payload, is in `docs/cli-json-contract.md` in the repo.
 
 ### `--laminar`
 

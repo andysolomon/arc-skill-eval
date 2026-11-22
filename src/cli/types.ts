@@ -24,6 +24,8 @@ export interface RunEvalsCliOptions extends CommandSelectionOptions {
 }
 
 export interface InitRuntimeCliOptions {
+  /** Print a machine-readable JSON result on stdout (see docs/cli-json-contract.md). */
+  json?: boolean;
   targetDir: string;
   provider: string;
   model: string;
@@ -31,12 +33,16 @@ export interface InitRuntimeCliOptions {
 }
 
 export interface ReviewCliOptions {
+  /** Print a machine-readable JSON result on stdout (see docs/cli-json-contract.md). */
+  json?: boolean;
   runDir: string;
   output?: string;
   force?: boolean;
 }
 
 export interface ImproveCliOptions {
+  /** Print a machine-readable JSON result on stdout (see docs/cli-json-contract.md). */
+  json?: boolean;
   feedbackPath: string;
   dryRun?: boolean;
   summary?: boolean;
@@ -44,6 +50,8 @@ export interface ImproveCliOptions {
 }
 
 export interface CreateCliOptions {
+  /** Print a machine-readable JSON result on stdout (see docs/cli-json-contract.md). */
+  json?: boolean;
   skillDir: string;
   force?: boolean;
   dryRun?: boolean;
@@ -61,6 +69,8 @@ export interface BrowseCliOptions {
 }
 
 export interface OptimizeDescriptionCliOptions {
+  /** Print a machine-readable JSON result on stdout (see docs/cli-json-contract.md). */
+  json?: boolean;
   skillDir: string;
   generateOnly?: boolean;
   evalSetPath?: string;
@@ -80,6 +90,8 @@ export interface AuditCliOptions {
 }
 
 export interface PackageCliOptions {
+  /** Print a machine-readable JSON result on stdout (see docs/cli-json-contract.md). */
+  json?: boolean;
   skillDir: string;
   output?: string;
   force?: boolean;
@@ -91,10 +103,20 @@ export interface BundledCliOptions {
 }
 
 export interface EmitCliOptions {
+  /** Print a machine-readable JSON result on stdout (see docs/cli-json-contract.md). */
+  json?: boolean;
   from?: string;
   out?: string;
   skillDir?: string;
   check?: boolean;
+}
+
+export interface InstallSkillsCliOptions {
+  target?: string;
+  harnesses: import("./install-skills-command.js").InstallHarnessId[];
+  skills: string[];
+  force?: boolean;
+  json?: boolean;
 }
 
 export interface CliRenderOptions {
@@ -123,7 +145,8 @@ export type ParsedCliCommand =
   | ({ command: "optimize-description" } & OptimizeDescriptionCliOptions)
   | ({ command: "package" } & PackageCliOptions)
   | ({ command: "bundled" } & BundledCliOptions)
-  | ({ command: "emit" } & EmitCliOptions);
+  | ({ command: "emit" } & EmitCliOptions)
+  | ({ command: "install-skills" } & InstallSkillsCliOptions);
 
 export class CliUsageError extends Error {
   constructor(message: string) {

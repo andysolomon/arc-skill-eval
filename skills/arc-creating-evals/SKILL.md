@@ -128,6 +128,7 @@ Apply assertions in priority order. Weaker signals should always be backed by st
    ```bash
    arc-skill-eval emit <skillDir>            # compiles evals/evals.eval.ts → evals/evals.json
    arc-skill-eval emit <skillDir> --check    # CI drift guard: exit 1 if evals.json is out of date
+   arc-skill-eval emit <skillDir> --json     # same, as a JSON result (an error object on failure)
    ```
    Helpers mirror the assertion ladder from Phase 4: script (`fileExists`, `fileAbsent`, `jsonValid`, `regexMatch`, `exact`), behavior/safety (`toolRequired`, `toolForbidden`, `skillReadRequired`, `noForbiddenFilesTouched`), and `judge` for LLM-graded claims. Chain `.soft()` / `.severity("warn")` / `.id("<slug>")` to make a miss soft or pin an id, or `.atLeast(n)` to turn a judge into a **scored** check — the judge rates the output on a `1..5` rubric (or `.atLeast(8, { outOf: 10 })` for a custom ceiling) and the assertion passes iff the score is at least `n` (recorded as `score`/`scoreScale` in `grading.json`). Use a scored judge for graded quality signals where a hard pass/fail is too blunt; keep it `.soft()` unless you really want to gate on it. `emit` validates through the same loader as `run`, so authoring errors (duplicate ids, bad shapes, `.atLeast` on a non-judge) fail at compile time. Commit **both** the `.eval.ts` and the generated `evals/evals.json`, and wire `emit --check` into CI so they can never drift.
 2. **Create any referenced fixtures** under `<skillDir>/evals/files/<fixture>/`. Keep each fixture minimal — just enough files for the case to have something real to touch. Never commit node_modules, build outputs, or live credentials.
@@ -135,8 +136,9 @@ Apply assertions in priority order. Weaker signals should always be backed by st
 4. **Validate.** There is no separate validate command: `evals.json` is validated on load every time `run` (or the browse TUI) reads it, with errors that name the offending case or assertion. A JSON-parse check before saving plus a dry-run (next step) is the validation loop.
 5. **Dry-run one case** against the cheapest model the author has auth for:
    ```bash
-   arc-skill-eval run <skillDir> --case <first-routing-case-id>
+   arc-skill-eval run <skillDir> --case <first-routing-case-id> --json
    ```
+   Parse stdout as one JSON object (don't merge stderr into it). If it has an `error` key, the run didn't complete: fix `error.message` (usually a missing key or bad model id) before judging any assertion. Otherwise read `summary` and `skills[0].cases[0].grading.assertion_results[]`. See `docs/cli-json-contract.md`.
    Confirm it completes end-to-end and that at least one assertion grades honestly, then triage the evidence on any failure:
    - **`Judge error: ...`** — infrastructure, not your assertion. The judge model itself failed (usually an unauthenticated provider or bad model id). Fix the judge selection (`--judge-model`, provider auth); do not touch the assertion.
    - **`Judge returned unparseable output`** — the judge responded, but not in the expected JSON shape. Retry once; if it persists, the judge model is too weak for the rubric — pick a stronger `--judge-model`.
@@ -147,6 +149,7 @@ Apply assertions in priority order. Weaker signals should always be backed by st
    - how many cases per class, how many total assertions
    - the dry-run result (pass/fail + assertion summary)
    - the command to run the full suite
+   - that the `arc-running-evals` skill can take over from here to run the suite, explain failures, and iterate
    - a reminder: *"Every manual fix is a signal — add a new case whenever you debug a real regression."*
 
 ---

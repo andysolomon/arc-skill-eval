@@ -1,0 +1,21 @@
+{
+  "case_id": "writes-greeting",
+  "assertion_results": [
+    {
+      "text": "file-exists: greeting.txt",
+      "passed": true,
+      "evidence": "Found greeting.txt"
+    },
+    {
+      "text": "regex-match /Hello, World!/ in greeting.txt",
+      "passed": false,
+      "evidence": "Pattern /Hello, World!/ not found in greeting.txt. File content: \"Hello, world!\\n\""
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "failed": 1,
+    "total": 2,
+    "pass_rate": 0.5
+  }
+}

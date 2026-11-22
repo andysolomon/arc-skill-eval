@@ -2,12 +2,18 @@ import { CliUsageError } from "../types.js";
 import { readFlagValue } from "./shared.js";
 
 export function parseReviewCommandArgs(args: string[]) {
+  let json = false;
   let runDir: string | undefined;
   let output: string | undefined;
   let force = false;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
 
     if (arg === "--force") {
       force = true;
@@ -33,5 +39,5 @@ export function parseReviewCommandArgs(args: string[]) {
   }
 
   if (!runDir) throw new CliUsageError("Missing required <run-dir> argument.");
-  return { runDir, output, force };
+  return { runDir, output, force, json };
 }

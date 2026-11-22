@@ -525,6 +525,15 @@ With `--compare`, each case writes isolated variant artifacts and the skill run 
 ## Authoring an eval suite for a skill
 Use the bundled **`arc-creating-evals`** skill in `skills/arc-creating-evals/`. It asks what the skill must accomplish, how it should work, how the output should read, and what limits it should respect. It then writes `evals/evals.json` and fixtures. Install it in your agent's skills directory, such as `.claude/skills/`. See `skills/README.md` for instructions.
 
+## Driving arc-skill-eval from any agent
+Two bundled skills let a coding agent use `arc-skill-eval` from its shell tool, in any harness: **`arc-creating-evals`** writes a suite, and **`arc-running-evals`** runs one, explains the result, and drives the review → improve → re-run loop. Install both with:
+
+```bash
+arc-skill-eval install-skills            # writes .agents/skills/ and .claude/skills/ in the current project
+```
+
+Every command except `browse` accepts `--json` and prints one JSON object with a `schemaVersion`. Failures print `{"schemaVersion":1,"error":{"kind","message"}}` instead. `browse` and `create --interactive` refuse to start without a terminal rather than hanging an agent's shell. See `docs/cli-json-contract.md`.
+
 ## Docs
 - `docs/skill-eval-authoring-debrief.md` contains the eval-authoring research and playbook.
 - `docs/agent-runtime-strategy.md` covers Pi-backed evals, eval-owned configuration, Ollama Cloud, and custom-runtime options.
@@ -533,6 +542,7 @@ Use the bundled **`arc-creating-evals`** skill in `skills/arc-creating-evals/`. 
 - `docs/create-dogfood-report.md` records findings from dry-running `create` against real `arc-skills`.
 - `docs/evals-json-pivot.md` records the move to `evals.json`, milestones, and deprecated paths.
 - `docs/domain-model.md` defines the runtime and grading entities.
+- `docs/cli-json-contract.md` defines the `--json` output, error objects, and exit codes that agents rely on.
 
 ## Shipped since the MVP
 Two planned follow-ups now ship:

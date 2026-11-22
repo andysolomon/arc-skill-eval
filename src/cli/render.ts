@@ -1,9 +1,10 @@
+import { CLI_JSON_SCHEMA_VERSION } from "./json-output.js";
 import type { RunEvalsCommandResult } from "./run-evals-command.js";
 import type { CliRenderOptions } from "./types.js";
 
 export function formatRunEvalsResult(result: RunEvalsCommandResult, options: CliRenderOptions = {}): string {
   if (options.json) {
-    return `${JSON.stringify(result, null, 2)}\n`;
+    return `${JSON.stringify({ schemaVersion: CLI_JSON_SCHEMA_VERSION, ...result }, null, 2)}\n`;
   }
 
   const lines = [

@@ -6,6 +6,8 @@ import { browseCommand } from "./browse-command.js";
 import { createCommand, type CreateCommandResult } from "./create-command.js";
 import { emitCommand } from "./emit-command.js";
 import { improveCommand, type ImproveCommandResult } from "./improve-command.js";
+import { installSkillsCommand, type InstallSkillsCommandResult } from "./install-skills-command.js";
+import { jsonError, jsonResult } from "./json-output.js";
 import { initRuntimeCommand } from "./init-runtime-command.js";
 import { optimizeDescriptionCommand, type OptimizeDescriptionRunResult, type ScoreDescriptionResult } from "./optimize-description-command.js";
 import { packageCommand } from "./package-command.js";
@@ -155,7 +157,33 @@ function formatCreateSummary(result: CreateCommandResult): string {
   return `${lines.join("\n")}\n`;
 }
 
+function formatInstallSkillsSummary(result: InstallSkillsCommandResult): string {
+  const lines = [`Installed ${result.installed.length} skill folder${result.installed.length === 1 ? "" : "s"} under ${result.target}`];
+  for (const entry of result.installed) lines.push(`- ${entry.path}`);
+  if (result.skipped.length > 0) {
+    lines.push("", "Skipped:");
+    for (const entry of result.skipped) lines.push(`- ${entry.path} (${entry.reason})`);
+  }
+  lines.push("", "Restart or reload your agent so it picks up the new skills.", "");
+  return lines.join("\n");
+}
+
+/**
+ * Interactive commands render to a terminal and wait for keypresses. Agent
+ * shell tools never provide one, so fail fast instead of hanging or crashing
+ * with a raw-mode stack trace.
+ */
+function assertInteractiveTerminal(what: string): void {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    throw new CliCommandError(
+      `${what} needs an interactive terminal (TTY) and none is attached. Run it in a terminal, or use the non-interactive form (add --json for machine-readable output).`,
+    );
+  }
+}
+
 export async function runCli(argv: string[]): Promise<CliInvocationResult> {
+  // Decided before parsing so usage errors can be reported in JSON too.
+  const jsonMode = argv.includes("--json");
   try {
     const parsed = parseCliArgs(argv);
 
@@ -173,6 +201,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
           model: parsed.model,
           force: parsed.force,
         });
+        if (parsed.json) return jsonResult(result);
         const action = result.overwritten ? "Updated" : "Created";
         return {
           exitCode: 0,
@@ -182,6 +211,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
       }
       case "review": {
         const result = await reviewCommand({ runDir: parsed.runDir, output: parsed.output, force: parsed.force });
+        if (parsed.json) return jsonResult(result);
         return {
           exitCode: 0,
           stdout: `Created review for ${result.caseCount} case(s) at ${result.reviewPath}\nFeedback template: ${result.feedbackPath}\n`,
@@ -195,6 +225,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
           summary: parsed.summary,
           apply: parsed.apply,
         });
+        if (parsed.json) return jsonResult(result);
         if (!parsed.summary) {
           return { exitCode: 0, stdout: `${JSON.stringify(result, null, 2)}\n`, stderr: "" };
         }
@@ -205,6 +236,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
         };
       }
       case "create": {
+        if (parsed.interactive) assertInteractiveTerminal("create --interactive");
         const result = await createCommand({
           skillDir: parsed.skillDir,
           force: parsed.force,
@@ -215,6 +247,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
           agentDir: parsed.agentDir,
           authoringSkillPath: parsed.authoringSkillPath,
         });
+        if (parsed.json) return jsonResult(result);
         if (result.dryRun && !parsed.summary) {
           return { exitCode: 0, stdout: `${JSON.stringify(result.evals, null, 2)}\n`, stderr: "" };
         }
@@ -287,6 +320,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
       case "browse": {
         // Interactive: the Ink TUI renders directly to the terminal and owns
         // stdout for its lifetime, so it bypasses the buffered stdout/stderr path.
+        assertInteractiveTerminal("browse");
         const code = await browseCommand({ input: parsed.input, showWithout: !parsed.noBaseline });
         return {
           exitCode: code === 0 ? 0 : 1,
@@ -296,7 +330,8 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
       }
       case "audit": {
         const result = await auditCommand({ input: parsed.input, json: parsed.json, output: parsed.output });
-        const stdout = parsed.json ? `${JSON.stringify(result, null, 2)}\n` : renderAuditMarkdown(result);
+        if (parsed.json) return jsonResult(result);
+        const stdout = renderAuditMarkdown(result);
         const outputNote = result.outputPath ? `\nWrote audit report: ${result.outputPath}\n` : "";
         return {
           exitCode: 0,
@@ -317,6 +352,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
           apply: parsed.apply,
           distractorDirs: parsed.distractorDirs,
         });
+        if (parsed.json) return jsonResult(result);
         if (result.mode === "generate-only") {
           return {
             exitCode: 0,
@@ -344,6 +380,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
           output: parsed.output,
           force: parsed.force,
         });
+        if (parsed.json) return jsonResult(result);
         return {
           exitCode: 0,
           stdout: [
@@ -363,6 +400,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
           skillDir: parsed.skillDir,
           check: parsed.check,
         });
+        if (parsed.json) return jsonResult(result, result.check && result.changed ? 1 : 0);
         const relFrom = path.relative(process.cwd(), result.fromPath) || result.fromPath;
         const relOut = path.relative(process.cwd(), result.outPath) || result.outPath;
         const cases = `${result.caseCount} case${result.caseCount === 1 ? "" : "s"}`;
@@ -387,6 +425,16 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
           stdout: `${verb} ${relOut} from ${relFrom} — ${result.skillName}, ${cases}${suffix}.\n`,
           stderr: "",
         };
+      }
+      case "install-skills": {
+        const result = await installSkillsCommand({
+          target: parsed.target,
+          harnesses: parsed.harnesses,
+          skills: parsed.skills,
+          force: parsed.force,
+        });
+        if (parsed.json) return jsonResult(result);
+        return { exitCode: 0, stdout: formatInstallSkillsSummary(result), stderr: "" };
       }
       case "bundled": {
         const result = await bundledCommand({
@@ -415,6 +463,10 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
       }
     }
   } catch (error) {
+    if (jsonMode) {
+      const kind = error instanceof CliUsageError ? "usage" : error instanceof CliCommandError ? "command" : "internal";
+      return jsonError(kind, error instanceof Error ? error.message : String(error));
+    }
     if (error instanceof CliUsageError || error instanceof CliCommandError) {
       return {
         exitCode: 1,

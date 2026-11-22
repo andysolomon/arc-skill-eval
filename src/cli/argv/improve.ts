@@ -2,6 +2,7 @@ import { CliUsageError } from "../types.js";
 import { readFlagValue } from "./shared.js";
 
 export function parseImproveCommandArgs(args: string[]) {
+  let json = false;
   let feedbackPath: string | undefined;
   let dryRun = false;
   let summary = false;
@@ -9,6 +10,11 @@ export function parseImproveCommandArgs(args: string[]) {
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
 
     if (arg === "--dry-run") {
       dryRun = true;
@@ -40,5 +46,6 @@ export function parseImproveCommandArgs(args: string[]) {
   }
 
   if (!feedbackPath) throw new CliUsageError("Missing required --from-feedback flag.");
-  return { feedbackPath, dryRun, summary, apply };
+  if (json && summary) throw new CliUsageError("--json and --summary are mutually exclusive; pick one output format.");
+  return { feedbackPath, dryRun, summary, apply, json };
 }
