@@ -1,27 +1,3 @@
-## [0.27.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.26.1...v0.27.0) (2026-11-22)
-
-### Features
-
-* **cli:** add --json to every command and an install-skills command ([f92d844](https://github.com/andysolomon/arc-skill-eval/commit/f92d844a5407a66f1ca82e774a190cc43fd12659))
-* **run:** stop hung cases, cancel with Ctrl-C, and stop leaking temp dirs ([c7ed3f9](https://github.com/andysolomon/arc-skill-eval/commit/c7ed3f9880ae29529937ca77e8449982cd511456))
-* **skills:** add arc-evals-lite, a CLI-free skill for creating and running evals ([e43857e](https://github.com/andysolomon/arc-skill-eval/commit/e43857e498ba58bdf09b8d5cb8ac006e02bc1e2f))
-* **skills:** add arc-running-evals skill for running suites from any harness ([fced620](https://github.com/andysolomon/arc-skill-eval/commit/fced6205979f7421f6e51701298f4c62f29cc06c))
-* **web:** port browse section to Foldkit ([0de2916](https://github.com/andysolomon/arc-skill-eval/commit/0de2916701380671b8d954eb9705fd3222d40bce))
-* **web:** port create section to Foldkit ([53ce222](https://github.com/andysolomon/arc-skill-eval/commit/53ce222f85a16b25ce00e5381f816765de48861c))
-* **web:** port learn section to Foldkit ([5c51a6f](https://github.com/andysolomon/arc-skill-eval/commit/5c51a6f4f37cac2f20b272517791fd91bcba4aa6))
-* **web:** port review section to Foldkit ([03327a1](https://github.com/andysolomon/arc-skill-eval/commit/03327a1f86514770be143603b31b1c512b496e9b))
-* **web:** port run section to Foldkit ([40bb831](https://github.com/andysolomon/arc-skill-eval/commit/40bb831ccb08296221475dcc5f466a30ab5eca59))
-* **web:** rewrite the web app in Foldkit ([3a0a84b](https://github.com/andysolomon/arc-skill-eval/commit/3a0a84b970d6d589491ef16cc0957e0c0540ff9a))
-
-### Bug Fixes
-
-* build dist on git installs so consumers can install from GitHub ([e1185ac](https://github.com/andysolomon/arc-skill-eval/commit/e1185ac3eb0d276da7ec971b6576d087edf6313b))
-* **runtime:** capture streamed runtime events in linear space ([e5d5585](https://github.com/andysolomon/arc-skill-eval/commit/e5d55856c84d5111686d31429b940520e6c2dc1e)), closes [#237](https://github.com/andysolomon/arc-skill-eval/issues/237)
-* **runtime:** move to Pi SDK 1.x and diagnose model failures once ([3756679](https://github.com/andysolomon/arc-skill-eval/commit/37566799cb72ba652a012ca72d3c8cdf60a76d46)), closes [#238](https://github.com/andysolomon/arc-skill-eval/issues/238)
-* **sandbox:** route read/write/edit through the just-bash filesystem ([cd33946](https://github.com/andysolomon/arc-skill-eval/commit/cd339464997b46c6813264170f33a62c9a4c2519)), closes [#236](https://github.com/andysolomon/arc-skill-eval/issues/236)
-* **skills:** repair arc-evals-lite checks and fill gaps in its instructions ([9532776](https://github.com/andysolomon/arc-skill-eval/commit/95327765fb53f89d255df7ee3b4ba8ad89acb79d))
-* **web:** handle database upgrades and enforce test and type checks in CI ([7bc173e](https://github.com/andysolomon/arc-skill-eval/commit/7bc173e32c75940a74099f46246105178e647a81))
-
 ## [0.26.1](https://github.com/andysolomon/arc-skill-eval/compare/v0.26.0...v0.26.1) (2026-07-26)
 
 ### Bug Fixes
