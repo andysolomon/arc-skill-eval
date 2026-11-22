@@ -1,7 +1,7 @@
-import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { runProcessPromise } from "../effect/process.js";
 import { materializeFixture, type MaterializedFixture } from "../fixtures/index.js";
 import type { ValidatedSkillDiscovery } from "../load/source-types.js";
 import {
@@ -153,32 +153,7 @@ async function invokeDefaultPiCliJson(options: {
   argv: string[];
   env: NodeJS.ProcessEnv;
 }): Promise<PiCliJsonInvocationResult> {
-  return await new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, options.argv, {
-      cwd: options.cwd,
-      env: options.env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout?.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
-
-    child.stderr?.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-
-    child.on("error", reject);
-    child.on("close", (exitCode) => {
-      resolve({
-        stdout,
-        stderr,
-        exitCode,
-      });
-    });
-  });
+  return await runProcessPromise(process.execPath, options.argv, { cwd: options.cwd, env: options.env });
 }
 
 function parseCliJsonOutput(options: {

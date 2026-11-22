@@ -21,6 +21,8 @@ export interface RunEvalsCliOptions extends CommandSelectionOptions {
   judgeModel?: ModelSelection;
   /** Harness runtime id (default pi-sdk). */
   runtime?: string;
+  /** `--case-timeout <seconds>`, converted to milliseconds. */
+  caseTimeoutMs?: number;
 }
 
 export interface InitRuntimeCliOptions {
@@ -102,7 +104,8 @@ export interface CliRenderOptions {
 }
 
 export interface CliInvocationResult {
-  exitCode: 0 | 1;
+  /** 130 = cancelled with Ctrl-C (128 + SIGINT). */
+  exitCode: 0 | 1 | 130;
   stdout: string;
   stderr: string;
 }

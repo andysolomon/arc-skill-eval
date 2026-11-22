@@ -68,6 +68,12 @@ export interface RuntimeCaseOptions {
   sandboxMocks?: SandboxCommandMock[];
   /** Test-injection hook honored by the Pi runtime; others may ignore it. */
   createSession?: PiSdkSessionFactory;
+  /**
+   * Aborted when the case times out or the run is cancelled. Runtimes stop
+   * their agent (kill the CLI child / abort the Pi session) and release any
+   * resources acquired so far.
+   */
+  signal?: AbortSignal;
 }
 
 /** Compatible with existing timing/trace/manifest/tool-summary assembly. */

@@ -52,6 +52,8 @@ export interface PiSdkSessionLike {
   getContextUsage?: () => unknown;
   subscribe(listener: (event: unknown) => void): () => void;
   prompt(text: string): Promise<void>;
+  /** Stops an in-flight prompt. Optional so lightweight test sessions need not implement it. */
+  abort?(): Promise<void>;
   dispose(): void;
 }
 
@@ -124,6 +126,7 @@ interface PiSdkCaseRunCoreOptions {
   sandbox?: SandboxMode;
   sandboxMocks?: SandboxCommandMock[];
   createSession?: PiSdkSessionFactory;
+  signal?: AbortSignal;
 }
 
 /**
@@ -133,6 +136,7 @@ interface PiSdkCaseRunCoreOptions {
 export async function runPiSdkEvalCase(
   options: RunPiSdkEvalCaseOptions & { createSession?: PiSdkSessionFactory },
 ): Promise<PiSdkCaseRunResult> {
+  const ownsEnvironment = options.environment === undefined;
   const environment =
     options.environment ??
     (await createPiSdkRunEnvironment({
@@ -142,34 +146,44 @@ export async function runPiSdkEvalCase(
     }));
   const caseDefinition = buildEvalCompatibilityCaseDefinition(options.evalCase);
 
-  return runPiSdkCaseCore({
-    source: options.source,
-    skillFiles: options.skill.files,
-    skillResult: {
-      name: options.skill.files.skillName,
-      relativeSkillDir: options.skill.files.relativeSkillDir,
-      profile: "repo-mutation",
-      targetTier: 1,
-    },
-    caseDefinition,
-    telemetryContext: {
-      skillName: options.evalCase.skillName,
-      caseId: options.evalCase.caseId,
-    },
-    environment,
-    workspaceDir: options.workspaceDir,
-    materializedFixture: null,
-    workspaceEnv: options.workspaceEnv,
-    requestedModel: options.model,
-    configAgentDir: options.agentDir,
-    appendSystemPrompt: options.appendSystemPrompt,
-    attachSkill: options.attachSkill,
-    extraSkillPaths: options.extraSkillPaths,
-    contextMode: options.contextMode,
-    sandbox: options.sandbox,
-    sandboxMocks: options.sandboxMocks,
-    createSession: options.createSession,
-  });
+  try {
+    return await runPiSdkCaseCore({
+      source: options.source,
+      skillFiles: options.skill.files,
+      skillResult: {
+        name: options.skill.files.skillName,
+        relativeSkillDir: options.skill.files.relativeSkillDir,
+        profile: "repo-mutation",
+        targetTier: 1,
+      },
+      caseDefinition,
+      telemetryContext: {
+        skillName: options.evalCase.skillName,
+        caseId: options.evalCase.caseId,
+      },
+      environment,
+      workspaceDir: options.workspaceDir,
+      materializedFixture: null,
+      workspaceEnv: options.workspaceEnv,
+      requestedModel: options.model,
+      configAgentDir: options.agentDir,
+      appendSystemPrompt: options.appendSystemPrompt,
+      attachSkill: options.attachSkill,
+      extraSkillPaths: options.extraSkillPaths,
+      contextMode: options.contextMode,
+      sandbox: options.sandbox,
+      sandboxMocks: options.sandboxMocks,
+      createSession: options.createSession,
+      signal: options.signal,
+    });
+  } catch (error) {
+    // A failed run (prompt/provider error, abort) never reaches the caller's
+    // `result.cleanup()`, so release the per-case environment we created here.
+    if (ownsEnvironment) {
+      await environment.cleanup().catch(() => undefined);
+    }
+    throw error;
+  }
 }
 
 /**
@@ -257,11 +271,36 @@ async function runPiSdkCaseCore(options: PiSdkCaseRunCoreOptions): Promise<PiSdk
   }
 
   const { session } = sessionResult;
+  const abortPrompt = () => {
+    void session.abort?.().catch(() => undefined);
+  };
+  options.signal?.addEventListener("abort", abortPrompt, { once: true });
+
+  try {
+    return await finishPiSdkCaseRun(options, sessionResult, cleanup);
+  } finally {
+    options.signal?.removeEventListener("abort", abortPrompt);
+    session.dispose();
+  }
+}
+
+async function finishPiSdkCaseRun(
+  options: PiSdkCaseRunCoreOptions,
+  sessionResult: PiSdkSessionFactoryResult,
+  cleanup: PiSdkCaseRunResult["cleanup"],
+): Promise<PiSdkCaseRunResult> {
+  const { session } = sessionResult;
+  const attachSkill = options.attachSkill ?? true;
+  const extraSkillPaths = [...(options.extraSkillPaths ?? [])];
+  const contextMode = options.contextMode ?? "isolated";
   const observation = observePiSdkSession(session);
   const startedAt = new Date();
   let promptError: unknown;
 
   try {
+    if (options.signal?.aborted) {
+      throw options.signal.reason ?? new Error("Case cancelled before the prompt was sent.");
+    }
     await session.prompt(options.caseDefinition.prompt);
   } catch (error) {
     promptError = error;
@@ -303,8 +342,6 @@ async function runPiSdkCaseCore(options: PiSdkCaseRunCoreOptions): Promise<PiSdk
     telemetry,
     cleanup,
   };
-
-  session.dispose();
 
   if (promptError !== undefined) {
     throw new PiSdkCaseRunError(buildPromptFailureMessage(options.caseDefinition.caseId, promptError), result, {

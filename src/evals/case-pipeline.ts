@@ -73,6 +73,10 @@ export interface CasePipelineExecutionConfig {
   createSession?: PiSdkSessionFactory;
   judge?: LlmJudgeFn;
   runtime?: AgentRuntime;
+  /** Per-variant agent time limit (see {@link runEvalCase}). */
+  caseTimeoutMs?: number;
+  /** Cancels the in-flight variant and releases its resources. */
+  signal?: AbortSignal;
 }
 
 /** Output identity and artifact root for one case execution. */
@@ -177,6 +181,8 @@ async function executeCaseVariant(args: {
     extraSkillPaths: execution.extraSkillPaths,
     contextMode: execution.contextMode,
     sandbox: execution.sandbox,
+    timeoutMs: execution.caseTimeoutMs,
+    signal: execution.signal,
   });
 
   try {

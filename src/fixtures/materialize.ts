@@ -1,7 +1,8 @@
 import { cp, lstat, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
-import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
+
+import { runProcessPromise } from "../effect/process.js";
 
 import { applyGitFixtureState } from "./git-state.js";
 import { captureWorkspaceSnapshot } from "./workspace-snapshot.js";
@@ -119,28 +120,7 @@ export async function runFixtureHook(options: RunFixtureHookOptions): Promise<Ho
   const args = process.platform === "win32" ? ["/d", "/s", "/c", options.command] : ["-lc", options.command];
   const startedAt = new Date();
 
-  const result = await new Promise<{ exitCode: number | null; stdout: string; stderr: string }>((resolve, reject) => {
-    const child = spawn(shell, args, {
-      cwd: options.workspaceDir,
-      env: options.env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout?.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
-
-    child.stderr?.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-
-    child.on("error", reject);
-    child.on("close", (exitCode) => {
-      resolve({ exitCode, stdout, stderr });
-    });
-  });
+  const result = await runProcessPromise(shell, args, { cwd: options.workspaceDir, env: options.env });
 
   const finishedAt = new Date();
 
