@@ -8,6 +8,7 @@ import { DEFAULT_JUDGE_MODEL, type LlmJudgeFn } from "../grade.js";
 import { readEvalsJson } from "../loader.js";
 import type { EvalCase, EvalsJsonFile } from "../types.js";
 import type { PiSdkSessionFactory } from "../../pi/sdk-runner.js";
+import { preflightPiModels } from "../../pi/model-preflight.js";
 import { EvalRunError, type EvalRunOptions, type EvalRunPlan, type PlannedSkillRun } from "./types.js";
 
 export async function planEvalRun(options: EvalRunOptions): Promise<EvalRunPlan> {
@@ -32,6 +33,16 @@ export async function planEvalRun(options: EvalRunOptions): Promise<EvalRunPlan>
     evalsFiles: loadedSkills.map((item) => item.evalsFile),
     caseIds: options.caseIds,
   });
+
+  // Resolve the Pi model(s) once, up front, so an unknown model or missing
+  // credentials is one clear error instead of the same failure per case.
+  if (!options.createSession && (options.runtime === undefined || options.runtime.id === "pi-sdk")) {
+    const judgeModel = !options.judge && selectedCasesNeedJudge(loadedSkills.map((item) => item.evalsFile), options.caseIds)
+      ? options.judgeModel
+      : undefined;
+    const issues = await preflightPiModels({ agentDir: options.agentDir, model: options.model, judgeModel });
+    if (issues.length > 0) throw new EvalRunError(issues.join("\n"));
+  }
 
   const skills: PlannedSkillRun[] = loadedSkills.map(({ skill, evalsFile }) => ({
     skill,

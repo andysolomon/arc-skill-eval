@@ -30,18 +30,21 @@ export async function invokePiCompletion(options: PiCompletionOptions): Promise<
 }
 
 export async function invokePiCompletionDetailed(options: PiCompletionOptions): Promise<PiCompletionResult> {
-  const pi = await import("@mariozechner/pi-coding-agent");
-  const { completeSimple } = await import("@mariozechner/pi-ai");
+  const pi = await import("@earendil-works/pi-coding-agent");
 
   const credentialsAgentDir = options.agentDir ? path.resolve(options.agentDir) : pi.getAgentDir();
   const settingsManager = pi.SettingsManager.create(process.cwd(), credentialsAgentDir);
-  const authStorage = pi.AuthStorage.create(path.join(credentialsAgentDir, "auth.json"));
-  const modelRegistry = pi.ModelRegistry.create(authStorage, path.join(credentialsAgentDir, "models.json"));
+  const modelRuntime = await pi.ModelRuntime.create({
+    authPath: path.join(credentialsAgentDir, "auth.json"),
+    modelsPath: path.join(credentialsAgentDir, "models.json"),
+  });
+  const defaultProvider = settingsManager.getDefaultProvider();
+  const defaultModel = settingsManager.getDefaultModel();
   const configuredModel = options.model
-    ? modelRegistry.find(options.model.provider, options.model.id)
-    : settingsManager.getDefaultProvider() && settingsManager.getDefaultModel()
-      ? modelRegistry.find(settingsManager.getDefaultProvider()!, settingsManager.getDefaultModel()!)
-      : modelRegistry.getAvailable()[0];
+    ? modelRuntime.getModel(options.model.provider, options.model.id)
+    : defaultProvider && defaultModel
+      ? modelRuntime.getModel(defaultProvider, defaultModel)
+      : (await modelRuntime.getAvailable())[0];
 
   if (!configuredModel) {
     throw new CliCommandError(options.model
@@ -49,9 +52,11 @@ export async function invokePiCompletionDetailed(options: PiCompletionOptions): 
       : `Unable to resolve a configured model for ${options.purpose}. Pass --model or configure Pi defaults.`);
   }
 
-  const requestAuth = await modelRegistry.getApiKeyAndHeaders(configuredModel);
-  if (!requestAuth.ok) {
-    throw new CliCommandError(`Unable to authenticate ${options.purpose} model ${configuredModel.provider}/${configuredModel.id}: ${requestAuth.error}`);
+  if (!(await modelRuntime.getAuth(configuredModel))) {
+    throw new CliCommandError(
+      `Unable to authenticate ${options.purpose} model ${configuredModel.provider}/${configuredModel.id}: ` +
+        `no credentials configured for ${configuredModel.provider}. Run \`pi\` and /login, or set the provider's API key.`,
+    );
   }
 
   const thinking = options.model?.thinking ?? settingsManager.getDefaultThinkingLevel();
@@ -60,14 +65,12 @@ export async function invokePiCompletionDetailed(options: PiCompletionOptions): 
 
   try {
     process.chdir(isolatedCwd);
-    const response = await completeSimple(
+    const response = await modelRuntime.completeSimple(
       configuredModel,
       {
         messages: [{ role: "user", content: options.prompt, timestamp: Date.now() }],
       },
       {
-        apiKey: requestAuth.apiKey,
-        headers: requestAuth.headers,
         reasoning: thinking && thinking !== "off" ? thinking as never : undefined,
       },
     );

@@ -23,7 +23,7 @@ export const ChapterPi = () => {
       >
         every case executes through the <span style={{ color: 'var(--tt-teal)' }}>Pi</span>{' '}
         coding agent (
-        <span style={{ color: 'var(--tt-fg)' }}>@mariozechner/pi-coding-agent</span>). the choice
+        <span style={{ color: 'var(--tt-fg)' }}>@earendil-works/pi-coding-agent</span>). the choice
         is philosophical as much as technical: an agent is{' '}
         <span style={{ color: 'var(--tt-fg)' }}>an llm, a loop, and enough tokens</span>. a tool
         registry, an inner loop, and a parser. production complexity is engineering, not

@@ -1,7 +1,7 @@
 import path, { posix } from "node:path";
 
 import { Bash, defineCommand, MountableFs, OverlayFs, ReadWriteFs } from "just-bash";
-import { createCodingTools } from "@mariozechner/pi-coding-agent";
+import { createCodingTools } from "@earendil-works/pi-coding-agent";
 
 import type { SandboxCommandMock } from "../contracts/types.js";
 
