@@ -297,6 +297,7 @@ async function runPiSdkCaseCore(options: PiSdkCaseRunCoreOptions): Promise<PiSdk
       assistantText: observation.getAssistantText(),
       messages: snapshotValue([...session.messages]),
       events: observation.events,
+      eventsTruncated: observation.isTruncated(),
     },
     usage,
     contextManifest,

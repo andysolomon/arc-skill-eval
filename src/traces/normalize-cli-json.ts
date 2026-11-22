@@ -46,6 +46,7 @@ export function normalizePiCliJsonCaseRunResult(result: PiCliJsonCaseRunResult):
       sessionFile: result.session.sessionFile,
       messages: result.session.messages,
       runtimeEvents: result.session.events,
+      runtimeEventsTruncated: result.session.eventsTruncated,
       telemetryEntries: [],
     },
   };
