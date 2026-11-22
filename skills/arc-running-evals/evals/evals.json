@@ -1,0 +1,257 @@
+{
+  "version": "1",
+  "skill_name": "arc-running-evals",
+  "evals": [
+    {
+      "id": "explicit-smoke-one-case-first",
+      "prompt": "Use the arc-running-evals skill to check whether ./demo-greeter passes its evals. Use the default runtime and model.",
+      "setup": {
+        "kind": "seeded",
+        "sources": [
+          {
+            "from": "files/demo-greeter",
+            "to": "."
+          }
+        ],
+        "mountMode": "flatten-contents"
+      },
+      "sandbox": "just-bash",
+      "sandboxMocks": [
+        {
+          "command": "arc-skill-eval",
+          "stdout": "{\n  \"schemaVersion\": 1,\n  \"runId\": \"run-2\",\n  \"skills\": [\n    {\n      \"skillName\": \"demo-greeter\",\n      \"skillDir\": \"/demo-greeter\",\n      \"outputDir\": \"/demo-greeter/evals-runs/run-2\",\n      \"cases\": [\n        {\n          \"caseId\": \"writes-greeting\",\n          \"grading\": {\n            \"case_id\": \"writes-greeting\",\n            \"assertion_results\": [\n              {\n                \"text\": \"file-exists: greeting.txt\",\n                \"passed\": true,\n                \"evidence\": \"Found greeting.txt\"\n              },\n              {\n                \"text\": \"regex-match /Hello, World!/ in greeting.txt\",\n                \"passed\": false,\n                \"evidence\": \"Pattern /Hello, World!/ not found in greeting.txt. File content: \\\"Hello, world!\\\\n\\\"\"\n              }\n            ],\n            \"summary\": {\n              \"passed\": 1,\n              \"failed\": 1,\n              \"total\": 2,\n              \"pass_rate\": 0.5\n            }\n          }\n        }\n      ],\n      \"errors\": [],\n      \"observabilityExportFailures\": []\n    }\n  ],\n  \"summary\": {\n    \"totalCases\": 1,\n    \"passedCases\": 0,\n    \"failedCases\": 1,\n    \"caseFailureRate\": 1,\n    \"totalAssertions\": 2,\n    \"passedAssertions\": 1,\n    \"failedAssertions\": 1,\n    \"softFailedAssertions\": 0,\n    \"assertionPassRate\": 0.5\n  }\n}\n",
+          "exitCode": 1
+        },
+        {
+          "command": "npx",
+          "stdout": "{\n  \"schemaVersion\": 1,\n  \"runId\": \"run-2\",\n  \"skills\": [\n    {\n      \"skillName\": \"demo-greeter\",\n      \"skillDir\": \"/demo-greeter\",\n      \"outputDir\": \"/demo-greeter/evals-runs/run-2\",\n      \"cases\": [\n        {\n          \"caseId\": \"writes-greeting\",\n          \"grading\": {\n            \"case_id\": \"writes-greeting\",\n            \"assertion_results\": [\n              {\n                \"text\": \"file-exists: greeting.txt\",\n                \"passed\": true,\n                \"evidence\": \"Found greeting.txt\"\n              },\n              {\n                \"text\": \"regex-match /Hello, World!/ in greeting.txt\",\n                \"passed\": false,\n                \"evidence\": \"Pattern /Hello, World!/ not found in greeting.txt. File content: \\\"Hello, world!\\\\n\\\"\"\n              }\n            ],\n            \"summary\": {\n              \"passed\": 1,\n              \"failed\": 1,\n              \"total\": 2,\n              \"pass_rate\": 0.5\n            }\n          }\n        }\n      ],\n      \"errors\": [],\n      \"observabilityExportFailures\": []\n    }\n  ],\n  \"summary\": {\n    \"totalCases\": 1,\n    \"passedCases\": 0,\n    \"failedCases\": 1,\n    \"caseFailureRate\": 1,\n    \"totalAssertions\": 2,\n    \"passedAssertions\": 1,\n    \"failedAssertions\": 1,\n    \"softFailedAssertions\": 0,\n    \"assertionPassRate\": 0.5\n  }\n}\n",
+          "exitCode": 1
+        }
+      ],
+      "expected_output": "The assistant runs a single case with --json first (not the full suite, not --compare), reports that writes-greeting failed on the regex assertion with the evidence, and asks before running the rest of the suite.",
+      "assertions": [
+        {
+          "id": "ran-run-with-json",
+          "kind": "behavior",
+          "method": "tool-call-required",
+          "match": "arc-skill-eval[^\\n]*\\brun\\b[^\\n]*--json",
+          "matchKind": "regex"
+        },
+        {
+          "id": "smoke-used-case",
+          "kind": "behavior",
+          "method": "tool-call-required",
+          "match": "arc-skill-eval[^\\n]*\\brun\\b[^\\n]*--case",
+          "matchKind": "regex"
+        },
+        {
+          "id": "no-unapproved-compare",
+          "kind": "behavior",
+          "method": "tool-call-forbidden",
+          "match": "arc-skill-eval[^\\n]*--compare",
+          "matchKind": "regex"
+        },
+        {
+          "id": "no-interactive-commands",
+          "kind": "behavior",
+          "method": "tool-call-forbidden",
+          "match": "arc-skill-eval[^\\n]*(\\bbrowse\\b|--interactive)",
+          "matchKind": "regex"
+        },
+        {
+          "type": "regex-match",
+          "pattern": "writes-greeting"
+        },
+        "The response says the writes-greeting case failed because the regex assertion expected 'Hello, World!' but greeting.txt contained 'Hello, world!'.",
+        "The response asks for the user's go-ahead before running the remaining cases or the full suite."
+      ]
+    },
+    {
+      "id": "implicit-why-did-it-fail",
+      "prompt": "The writes-greeting eval for ./demo-greeter failed in run demo-greeter/evals-runs/run-1. Why did it fail, and is the problem in the skill or in the eval?",
+      "setup": {
+        "kind": "seeded",
+        "mountMode": "flatten-contents",
+        "sources": [
+          {
+            "from": "files/demo-greeter",
+            "to": "."
+          },
+          {
+            "from": "files/prior-run",
+            "to": "demo-greeter/evals-runs/run-1"
+          }
+        ]
+      },
+      "sandbox": "just-bash",
+      "sandboxMocks": [
+        {
+          "command": "arc-skill-eval",
+          "stdout": "{\n  \"schemaVersion\": 1,\n  \"runId\": \"run-2\",\n  \"skills\": [\n    {\n      \"skillName\": \"demo-greeter\",\n      \"skillDir\": \"/demo-greeter\",\n      \"outputDir\": \"/demo-greeter/evals-runs/run-2\",\n      \"cases\": [\n        {\n          \"caseId\": \"writes-greeting\",\n          \"grading\": {\n            \"case_id\": \"writes-greeting\",\n            \"assertion_results\": [\n              {\n                \"text\": \"file-exists: greeting.txt\",\n                \"passed\": true,\n                \"evidence\": \"Found greeting.txt\"\n              },\n              {\n                \"text\": \"regex-match /Hello, World!/ in greeting.txt\",\n                \"passed\": false,\n                \"evidence\": \"Pattern /Hello, World!/ not found in greeting.txt. File content: \\\"Hello, world!\\\\n\\\"\"\n              }\n            ],\n            \"summary\": {\n              \"passed\": 1,\n              \"failed\": 1,\n              \"total\": 2,\n              \"pass_rate\": 0.5\n            }\n          }\n        }\n      ],\n      \"errors\": [],\n      \"observabilityExportFailures\": []\n    }\n  ],\n  \"summary\": {\n    \"totalCases\": 1,\n    \"passedCases\": 0,\n    \"failedCases\": 1,\n    \"caseFailureRate\": 1,\n    \"totalAssertions\": 2,\n    \"passedAssertions\": 1,\n    \"failedAssertions\": 1,\n    \"softFailedAssertions\": 0,\n    \"assertionPassRate\": 0.5\n  }\n}\n",
+          "exitCode": 1
+        },
+        {
+          "command": "npx",
+          "stdout": "{\n  \"schemaVersion\": 1,\n  \"runId\": \"run-2\",\n  \"skills\": [\n    {\n      \"skillName\": \"demo-greeter\",\n      \"skillDir\": \"/demo-greeter\",\n      \"outputDir\": \"/demo-greeter/evals-runs/run-2\",\n      \"cases\": [\n        {\n          \"caseId\": \"writes-greeting\",\n          \"grading\": {\n            \"case_id\": \"writes-greeting\",\n            \"assertion_results\": [\n              {\n                \"text\": \"file-exists: greeting.txt\",\n                \"passed\": true,\n                \"evidence\": \"Found greeting.txt\"\n              },\n              {\n                \"text\": \"regex-match /Hello, World!/ in greeting.txt\",\n                \"passed\": false,\n                \"evidence\": \"Pattern /Hello, World!/ not found in greeting.txt. File content: \\\"Hello, world!\\\\n\\\"\"\n              }\n            ],\n            \"summary\": {\n              \"passed\": 1,\n              \"failed\": 1,\n              \"total\": 2,\n              \"pass_rate\": 0.5\n            }\n          }\n        }\n      ],\n      \"errors\": [],\n      \"observabilityExportFailures\": []\n    }\n  ],\n  \"summary\": {\n    \"totalCases\": 1,\n    \"passedCases\": 0,\n    \"failedCases\": 1,\n    \"caseFailureRate\": 1,\n    \"totalAssertions\": 2,\n    \"passedAssertions\": 1,\n    \"failedAssertions\": 1,\n    \"softFailedAssertions\": 0,\n    \"assertionPassRate\": 0.5\n  }\n}\n",
+          "exitCode": 1
+        }
+      ],
+      "expected_output": "The assistant reads the run artifacts (grading.json, outputs), sees the only difference is capitalisation, classifies it as an eval bug (brittle exact-case regex), and does not silently edit evals.json.",
+      "assertions": [
+        {
+          "id": "read-grading",
+          "kind": "behavior",
+          "method": "tool-call-required",
+          "match": "grading\\.json",
+          "matchKind": "regex"
+        },
+        {
+          "id": "no-unapproved-compare",
+          "kind": "behavior",
+          "method": "tool-call-forbidden",
+          "match": "arc-skill-eval[^\\n]*--compare",
+          "matchKind": "regex"
+        },
+        {
+          "type": "regex-match",
+          "pattern": "\"pattern\": \"Hello, World!\"",
+          "target": {
+            "file": "demo-greeter/evals/evals.json"
+          }
+        },
+        "The response identifies a capitalisation mismatch ('World' vs 'world') as the cause of the failure.",
+        "The response classifies the failure as a brittle eval assertion (or as a mismatch between the skill's spec and the assertion) rather than claiming the skill failed to write the file, and proposes a concrete fix such as a case-insensitive regex."
+      ]
+    },
+    {
+      "id": "error-is-not-a-failure",
+      "prompt": "Run the writes-greeting case for ./demo-greeter with --runtime claude-code. I approve the cost.",
+      "setup": {
+        "kind": "seeded",
+        "sources": [
+          {
+            "from": "files/demo-greeter",
+            "to": "."
+          }
+        ],
+        "mountMode": "flatten-contents"
+      },
+      "sandbox": "just-bash",
+      "sandboxMocks": [
+        {
+          "command": "arc-skill-eval",
+          "stdout": "{\n  \"schemaVersion\": 1,\n  \"error\": {\n    \"kind\": \"command\",\n    \"message\": \"Runtime claude-code is not ready: ANTHROPIC_API_KEY is not set and no Claude login was found.\"\n  }\n}\n",
+          "exitCode": 1
+        },
+        {
+          "command": "npx",
+          "stdout": "{\n  \"schemaVersion\": 1,\n  \"error\": {\n    \"kind\": \"command\",\n    \"message\": \"Runtime claude-code is not ready: ANTHROPIC_API_KEY is not set and no Claude login was found.\"\n  }\n}\n",
+          "exitCode": 1
+        }
+      ],
+      "expected_output": "The assistant runs the case with --json, sees an error object (kind command) about a missing ANTHROPIC_API_KEY, and reports a setup problem rather than an eval failure.",
+      "assertions": [
+        {
+          "id": "ran-run-with-json",
+          "kind": "behavior",
+          "method": "tool-call-required",
+          "match": "arc-skill-eval[^\\n]*\\brun\\b[^\\n]*--json",
+          "matchKind": "regex"
+        },
+        {
+          "type": "regex-match",
+          "pattern": "ANTHROPIC_API_KEY"
+        },
+        "The response explains that the run did not complete because the claude-code runtime is missing credentials (ANTHROPIC_API_KEY), and does not say the skill or its evals failed."
+      ]
+    },
+    {
+      "id": "approved-compare-without-browse",
+      "prompt": "Run the full eval suite for ./demo-greeter with --compare so I can see if the skill helps. I approve the cost. Afterwards open the results in the browse TUI for me.",
+      "setup": {
+        "kind": "seeded",
+        "sources": [
+          {
+            "from": "files/demo-greeter",
+            "to": "."
+          }
+        ],
+        "mountMode": "flatten-contents"
+      },
+      "sandbox": "just-bash",
+      "sandboxMocks": [
+        {
+          "command": "arc-skill-eval",
+          "stdout": "{\n  \"schemaVersion\": 1,\n  \"runId\": \"run-3\",\n  \"skills\": [\n    {\n      \"skillName\": \"demo-greeter\",\n      \"skillDir\": \"/demo-greeter\",\n      \"outputDir\": \"/demo-greeter/evals-runs/run-3\",\n      \"benchmarkPath\": \"/demo-greeter/evals-runs/run-3/benchmark.json\",\n      \"benchmark\": {\n        \"summary\": {\n          \"with_skill_pass_rate\": 1,\n          \"without_skill_pass_rate\": 0.4,\n          \"delta\": 0.6\n        }\n      },\n      \"cases\": [\n        {\n          \"caseId\": \"writes-greeting\",\n          \"grading\": {\n            \"case_id\": \"writes-greeting\",\n            \"assertion_results\": [\n              {\n                \"text\": \"file-exists: greeting.txt\",\n                \"passed\": true,\n                \"evidence\": \"Found greeting.txt\"\n              }\n            ],\n            \"summary\": {\n              \"passed\": 1,\n              \"failed\": 0,\n              \"total\": 1,\n              \"pass_rate\": 1.0\n            }\n          }\n        },\n        {\n          \"caseId\": \"greets-by-name\",\n          \"grading\": {\n            \"case_id\": \"greets-by-name\",\n            \"assertion_results\": [\n              {\n                \"text\": \"regex-match /Hello, Ada!/\",\n                \"passed\": true,\n                \"evidence\": \"matched\"\n              }\n            ],\n            \"summary\": {\n              \"passed\": 1,\n              \"failed\": 0,\n              \"total\": 1,\n              \"pass_rate\": 1.0\n            }\n          }\n        },\n        {\n          \"caseId\": \"adjacent-negative-weather\",\n          \"grading\": {\n            \"case_id\": \"adjacent-negative-weather\",\n            \"assertion_results\": [\n              {\n                \"text\": \"file-absent: greeting.txt\",\n                \"passed\": true,\n                \"evidence\": \"absent\"\n              }\n            ],\n            \"summary\": {\n              \"passed\": 1,\n              \"failed\": 0,\n              \"total\": 1,\n              \"pass_rate\": 1.0\n            }\n          }\n        }\n      ],\n      \"errors\": [],\n      \"observabilityExportFailures\": []\n    }\n  ],\n  \"summary\": {\n    \"totalCases\": 3,\n    \"passedCases\": 3,\n    \"failedCases\": 0,\n    \"caseFailureRate\": 0,\n    \"totalAssertions\": 3,\n    \"passedAssertions\": 3,\n    \"failedAssertions\": 0,\n    \"softFailedAssertions\": 0,\n    \"assertionPassRate\": 1\n  }\n}\n",
+          "exitCode": 0
+        },
+        {
+          "command": "npx",
+          "stdout": "{\n  \"schemaVersion\": 1,\n  \"runId\": \"run-3\",\n  \"skills\": [\n    {\n      \"skillName\": \"demo-greeter\",\n      \"skillDir\": \"/demo-greeter\",\n      \"outputDir\": \"/demo-greeter/evals-runs/run-3\",\n      \"benchmarkPath\": \"/demo-greeter/evals-runs/run-3/benchmark.json\",\n      \"benchmark\": {\n        \"summary\": {\n          \"with_skill_pass_rate\": 1,\n          \"without_skill_pass_rate\": 0.4,\n          \"delta\": 0.6\n        }\n      },\n      \"cases\": [\n        {\n          \"caseId\": \"writes-greeting\",\n          \"grading\": {\n            \"case_id\": \"writes-greeting\",\n            \"assertion_results\": [\n              {\n                \"text\": \"file-exists: greeting.txt\",\n                \"passed\": true,\n                \"evidence\": \"Found greeting.txt\"\n              }\n            ],\n            \"summary\": {\n              \"passed\": 1,\n              \"failed\": 0,\n              \"total\": 1,\n              \"pass_rate\": 1.0\n            }\n          }\n        },\n        {\n          \"caseId\": \"greets-by-name\",\n          \"grading\": {\n            \"case_id\": \"greets-by-name\",\n            \"assertion_results\": [\n              {\n                \"text\": \"regex-match /Hello, Ada!/\",\n                \"passed\": true,\n                \"evidence\": \"matched\"\n              }\n            ],\n            \"summary\": {\n              \"passed\": 1,\n              \"failed\": 0,\n              \"total\": 1,\n              \"pass_rate\": 1.0\n            }\n          }\n        },\n        {\n          \"caseId\": \"adjacent-negative-weather\",\n          \"grading\": {\n            \"case_id\": \"adjacent-negative-weather\",\n            \"assertion_results\": [\n              {\n                \"text\": \"file-absent: greeting.txt\",\n                \"passed\": true,\n                \"evidence\": \"absent\"\n              }\n            ],\n            \"summary\": {\n              \"passed\": 1,\n              \"failed\": 0,\n              \"total\": 1,\n              \"pass_rate\": 1.0\n            }\n          }\n        }\n      ],\n      \"errors\": [],\n      \"observabilityExportFailures\": []\n    }\n  ],\n  \"summary\": {\n    \"totalCases\": 3,\n    \"passedCases\": 3,\n    \"failedCases\": 0,\n    \"caseFailureRate\": 0,\n    \"totalAssertions\": 3,\n    \"passedAssertions\": 3,\n    \"failedAssertions\": 0,\n    \"softFailedAssertions\": 0,\n    \"assertionPassRate\": 1\n  }\n}\n",
+          "exitCode": 0
+        }
+      ],
+      "expected_output": "The assistant runs run --compare --json, reports 3/3 passing and a +60 point with-vs-without delta, and does not launch browse itself; it gives the user the browse command to run in their own terminal.",
+      "assertions": [
+        {
+          "id": "ran-compare-with-json",
+          "kind": "behavior",
+          "method": "tool-call-required",
+          "match": "arc-skill-eval[^\\n]*\\brun\\b[^\\n]*--compare[^\\n]*--json|arc-skill-eval[^\\n]*\\brun\\b[^\\n]*--json[^\\n]*--compare",
+          "matchKind": "regex"
+        },
+        {
+          "id": "did-not-launch-browse",
+          "kind": "behavior",
+          "method": "tool-call-forbidden",
+          "match": "arc-skill-eval[^\\n]*\\bbrowse\\b",
+          "matchKind": "regex"
+        },
+        {
+          "type": "regex-match",
+          "pattern": "60\\s*(%|percent|percentage points|pp|points)",
+          "flags": "i"
+        },
+        "The response explains that browse needs an interactive terminal and gives the user the command to run it themselves."
+      ]
+    },
+    {
+      "id": "adjacent-negative-explain-assertion",
+      "prompt": "In an evals.json file, what does a regex-match assertion with a target file do? Just explain it; don't run anything.",
+      "setup": {
+        "kind": "seeded",
+        "sources": [
+          {
+            "from": "files/demo-greeter",
+            "to": "."
+          }
+        ],
+        "mountMode": "flatten-contents"
+      },
+      "sandbox": "just-bash",
+      "sandboxMocks": [
+        {
+          "command": "arc-skill-eval",
+          "stdout": "{\n  \"schemaVersion\": 1,\n  \"runId\": \"run-2\",\n  \"skills\": [\n    {\n      \"skillName\": \"demo-greeter\",\n      \"skillDir\": \"/demo-greeter\",\n      \"outputDir\": \"/demo-greeter/evals-runs/run-2\",\n      \"cases\": [\n        {\n          \"caseId\": \"writes-greeting\",\n          \"grading\": {\n            \"case_id\": \"writes-greeting\",\n            \"assertion_results\": [\n              {\n                \"text\": \"file-exists: greeting.txt\",\n                \"passed\": true,\n                \"evidence\": \"Found greeting.txt\"\n              },\n              {\n                \"text\": \"regex-match /Hello, World!/ in greeting.txt\",\n                \"passed\": false,\n                \"evidence\": \"Pattern /Hello, World!/ not found in greeting.txt. File content: \\\"Hello, world!\\\\n\\\"\"\n              }\n            ],\n            \"summary\": {\n              \"passed\": 1,\n              \"failed\": 1,\n              \"total\": 2,\n              \"pass_rate\": 0.5\n            }\n          }\n        }\n      ],\n      \"errors\": [],\n      \"observabilityExportFailures\": []\n    }\n  ],\n  \"summary\": {\n    \"totalCases\": 1,\n    \"passedCases\": 0,\n    \"failedCases\": 1,\n    \"caseFailureRate\": 1,\n    \"totalAssertions\": 2,\n    \"passedAssertions\": 1,\n    \"failedAssertions\": 1,\n    \"softFailedAssertions\": 0,\n    \"assertionPassRate\": 0.5\n  }\n}\n",
+          "exitCode": 1
+        },
+        {
+          "command": "npx",
+          "stdout": "{\n  \"schemaVersion\": 1,\n  \"runId\": \"run-2\",\n  \"skills\": [\n    {\n      \"skillName\": \"demo-greeter\",\n      \"skillDir\": \"/demo-greeter\",\n      \"outputDir\": \"/demo-greeter/evals-runs/run-2\",\n      \"cases\": [\n        {\n          \"caseId\": \"writes-greeting\",\n          \"grading\": {\n            \"case_id\": \"writes-greeting\",\n            \"assertion_results\": [\n              {\n                \"text\": \"file-exists: greeting.txt\",\n                \"passed\": true,\n                \"evidence\": \"Found greeting.txt\"\n              },\n              {\n                \"text\": \"regex-match /Hello, World!/ in greeting.txt\",\n                \"passed\": false,\n                \"evidence\": \"Pattern /Hello, World!/ not found in greeting.txt. File content: \\\"Hello, world!\\\\n\\\"\"\n              }\n            ],\n            \"summary\": {\n              \"passed\": 1,\n              \"failed\": 1,\n              \"total\": 2,\n              \"pass_rate\": 0.5\n            }\n          }\n        }\n      ],\n      \"errors\": [],\n      \"observabilityExportFailures\": []\n    }\n  ],\n  \"summary\": {\n    \"totalCases\": 1,\n    \"passedCases\": 0,\n    \"failedCases\": 1,\n    \"caseFailureRate\": 1,\n    \"totalAssertions\": 2,\n    \"passedAssertions\": 1,\n    \"failedAssertions\": 1,\n    \"softFailedAssertions\": 0,\n    \"assertionPassRate\": 0.5\n  }\n}\n",
+          "exitCode": 1
+        }
+      ],
+      "expected_output": "The assistant answers the question about regex-match assertions and runs no arc-skill-eval command.",
+      "assertions": [
+        {
+          "id": "ran-no-cli",
+          "kind": "behavior",
+          "method": "tool-call-forbidden",
+          "match": "arc-skill-eval|npx",
+          "matchKind": "regex"
+        },
+        "The response explains that a regex-match assertion with a target file checks the file's contents against the regular expression after the run."
+      ]
+    }
+  ]
+}

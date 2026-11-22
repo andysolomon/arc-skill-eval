@@ -183,7 +183,9 @@ test("Ctrl-C cancels the run with exit 130, kills the harness, and cleans up", a
   await saveArtifact("ctrl-c", result);
 
   assert.equal(result.code, 130, result.stderr);
-  assert.match(result.stderr, /Run cancelled/);
+  const { error } = JSON.parse(result.stdout);
+  assert.equal(error.kind, "cancelled");
+  assert.match(error.message, /Run cancelled/);
   assert.ok(await waitForExit(pid, 8_000), "fake claude child was killed");
   assert.deepEqual(await leftoverCaseDirs(ctx), []);
 });

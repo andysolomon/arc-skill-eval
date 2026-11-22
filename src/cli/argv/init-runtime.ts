@@ -2,6 +2,7 @@ import { CliUsageError } from "../types.js";
 import { readFlagValue } from "./shared.js";
 
 export function parseInitRuntimeCommandArgs(args: string[]) {
+  let json = false;
   let targetDir: string | undefined;
   let provider: string | undefined;
   let model: string | undefined;
@@ -9,6 +10,11 @@ export function parseInitRuntimeCommandArgs(args: string[]) {
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
 
     if (arg === "--force") {
       force = true;
@@ -44,5 +50,5 @@ export function parseInitRuntimeCommandArgs(args: string[]) {
   if (!provider) throw new CliUsageError("Missing required --provider flag.");
   if (!model) throw new CliUsageError("Missing required --model flag.");
 
-  return { targetDir, provider, model, force };
+  return { targetDir, provider, model, force, json };
 }

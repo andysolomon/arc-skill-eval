@@ -8,7 +8,7 @@ import {
   type SettingsManager,
   type Skill,
   type ToolDefinition,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 
 import { PI_BUILTIN_TOOLS, PI_DEFAULT_ACTIVE_TOOLS } from "../observability/artifacts.js";
 import type {
@@ -86,10 +86,12 @@ export async function createPiSdkResourceLoader(options: {
       getThemes: () => baseLoader.getThemes(),
       getAgentsFiles: () => ambientEnabled ? baseLoader.getAgentsFiles() : { agentsFiles: [] },
       getSystemPrompt: () => baseLoader.getSystemPrompt(),
+      getSystemPromptSource: () => baseLoader.getSystemPromptSource(),
       getAppendSystemPrompt: () => [
         ...(ambientEnabled ? baseLoader.getAppendSystemPrompt() : []),
         ...options.appendSystemPrompt,
       ],
+      getAppendSystemPromptSources: () => ambientEnabled ? baseLoader.getAppendSystemPromptSources() : [],
       extendResources: (paths) => baseLoader.extendResources(paths),
       reload: async () => { await baseLoader.reload(); },
     },

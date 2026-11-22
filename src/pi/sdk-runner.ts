@@ -336,6 +336,7 @@ async function finishPiSdkCaseRun(
       assistantText: observation.getAssistantText(),
       messages: snapshotValue([...session.messages]),
       events: observation.events,
+      eventsTruncated: observation.isTruncated(),
     },
     usage,
     contextManifest,

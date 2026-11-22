@@ -3,6 +3,7 @@ import { CliUsageError } from "../types.js";
 import { parseModelSelectionFlag, readFlagValue } from "./shared.js";
 
 export function parseOptimizeDescriptionCommandArgs(args: string[]) {
+  let json = false;
   let skillDir: string | undefined;
   let generateOnly = false;
   let evalSetPath: string | undefined;
@@ -16,6 +17,11 @@ export function parseOptimizeDescriptionCommandArgs(args: string[]) {
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
 
     if (arg === "--generate-only") {
       generateOnly = true;
@@ -108,6 +114,7 @@ export function parseOptimizeDescriptionCommandArgs(args: string[]) {
     maxIterations,
     apply,
     distractorDirs,
+    json,
     ...(model ? { model } : {}),
     ...(agentDir ? { agentDir } : {}),
   };

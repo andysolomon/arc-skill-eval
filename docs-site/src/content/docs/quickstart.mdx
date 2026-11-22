@@ -7,7 +7,7 @@ This page gets you from zero to a green eval run on the bundled `hello-world` sk
 
 ## Requirements
 
-- Node.js ≥ 20.
+- Node.js ≥ 22.19 (required by the bundled Pi SDK 1.x).
 - [Pi](https://github.com/mariozechner/pi) installed and configured with at least one provider API key (Anthropic, OpenAI, Google/Gemini, Mistral, xAI, etc.). The skill's assistant runs via [`@mariozechner/pi-coding-agent`](https://www.npmjs.com/package/@mariozechner/pi-coding-agent).
 
 ## Install
@@ -84,8 +84,8 @@ By default, Skeval inherits Pi's configured provider/model from your Pi settings
 
 ```bash
 arc-skill-eval run ./skills/hello-world \
-  --model openai-codex/gpt-5.5:medium \
-  --judge-model openai-codex/gpt-5.5:medium
+  --model openai-codex/gpt-6-luna:medium \
+  --judge-model openai-codex/gpt-6-luna:medium
 ```
 
 For a low-cost Ollama Cloud smoke test:

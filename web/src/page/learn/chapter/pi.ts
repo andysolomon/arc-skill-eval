@@ -25,7 +25,7 @@ export const view = (demo: PiDemo, h: HtmlBuilder<Message>): Html => {
           'every case executes through the ',
           h.span([h.Style(sx({ color: 'var(--tt-teal)' }))], ['Pi']),
           ' coding agent (',
-          h.span([h.Style(sx({ color: 'var(--tt-fg)' }))], ['@mariozechner/pi-coding-agent']),
+          h.span([h.Style(sx({ color: 'var(--tt-fg)' }))], ['@earendil-works/pi-coding-agent']),
           '). the choice is philosophical as much as technical: an agent is ',
           h.span([h.Style(sx({ color: 'var(--tt-fg)' }))], ['an llm, a loop, and enough tokens']),
           '. a tool registry, an inner loop, and a parser. production complexity is engineering, not architecture.',

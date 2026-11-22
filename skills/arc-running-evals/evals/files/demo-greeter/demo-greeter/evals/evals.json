@@ -1,0 +1,49 @@
+{
+  "version": "1",
+  "skill_name": "demo-greeter",
+  "evals": [
+    {
+      "id": "writes-greeting",
+      "prompt": "Create a greeting.",
+      "expected_output": "greeting.txt contains Hello, World!",
+      "assertions": [
+        {
+          "type": "file-exists",
+          "path": "greeting.txt"
+        },
+        {
+          "type": "regex-match",
+          "pattern": "Hello, World!",
+          "target": {
+            "file": "greeting.txt"
+          }
+        }
+      ]
+    },
+    {
+      "id": "greets-by-name",
+      "prompt": "Greet Ada.",
+      "expected_output": "greeting.txt contains Hello, Ada!",
+      "assertions": [
+        {
+          "type": "regex-match",
+          "pattern": "Hello, Ada!",
+          "target": {
+            "file": "greeting.txt"
+          }
+        }
+      ]
+    },
+    {
+      "id": "adjacent-negative-weather",
+      "prompt": "What's the weather like?",
+      "expected_output": "No greeting file is written.",
+      "assertions": [
+        {
+          "type": "file-absent",
+          "path": "greeting.txt"
+        }
+      ]
+    }
+  ]
+}

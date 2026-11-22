@@ -2,24 +2,31 @@ import type { ModelSelection } from "../contracts/types.js";
 import type { PiSdkUsageMetrics } from "./types.js";
 import { loadPiSessionTelemetry } from "./session-telemetry.js";
 import type { PiSdkSessionLike } from "./sdk-runner.js";
+import { createRuntimeEventRecorder } from "./runtime-event-capture.js";
 
 /** Internal owner for Pi event capture, usage normalization, telemetry, and terminal errors. */
 export function observePiSdkSession(session: PiSdkSessionLike): {
   events: unknown[];
+  isTruncated: () => boolean;
   getAssistantText: () => string;
   unsubscribe: () => void;
 } {
-  const events: unknown[] = [];
+  const recorder = createRuntimeEventRecorder();
   let assistantText = "";
   const unsubscribe = session.subscribe((event) => {
-    events.push(snapshotValue(event));
+    recorder.record(event);
 
     if (isTextDeltaEvent(event)) {
       assistantText += event.assistantMessageEvent.delta;
     }
   });
 
-  return { events, getAssistantText: () => assistantText, unsubscribe };
+  return {
+    events: recorder.events,
+    isTruncated: () => recorder.truncated,
+    getAssistantText: () => assistantText,
+    unsubscribe,
+  };
 }
 
 export function collectPiSdkUsageMetrics(

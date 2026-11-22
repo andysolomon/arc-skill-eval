@@ -261,6 +261,8 @@ export interface PiSdkSessionArtifact {
   assistantText: string;
   messages: unknown[];
   events: unknown[];
+  /** True when raw event capture hit its size budget and dropped later events. */
+  eventsTruncated?: boolean;
 }
 
 export interface PiSdkCaseCleanupResult {
@@ -361,6 +363,7 @@ export interface PiCliJsonCaseRunResult {
     assistantText: string;
     messages: unknown[];
     events: unknown[];
+    eventsTruncated: boolean;
     stderr: string;
     exitCode: number | null;
   };
