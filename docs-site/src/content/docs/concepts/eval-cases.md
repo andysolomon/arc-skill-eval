@@ -52,7 +52,7 @@ The legacy `files: ["..."]` shorthand still works and compiles to a `seeded` set
 
 ## Sandbox
 
-- **`sandbox`** — `"none"` *(default)* runs the case with the host shell and real filesystem; `"just-bash"` runs it inside an in-process [`just-bash`](https://www.npmjs.com/package/just-bash) virtual shell rooted at the case workspace (no host shell, repo tree untouched, generated files still captured under `outputs/`). The [`--sandbox`](/arc-skill-eval/cli-reference/#--sandbox-nonejust-bash) CLI flag overrides this per run.
+- **`sandbox`** — `"none"` *(default)* runs the case with the host shell and real filesystem; `"just-bash"` runs it inside an in-process [`just-bash`](https://www.npmjs.com/package/just-bash) virtual shell rooted at the case workspace. The `read`, `write`, and `edit` tools share that filesystem, so absolute paths such as `/tmp/x` stay inside the workspace. Skills in context are readable but not writable. There's no host shell, the repo tree is untouched, and generated files are still captured under `outputs/`. The [`--sandbox`](/arc-skill-eval/cli-reference/#--sandbox-nonejust-bash) CLI flag overrides this per run.
 - **`sandboxMocks`** — deterministic stand-ins for external commands under the `just-bash` sandbox. `npm`/`npx`/`git` default to no-op success; override any command with specific output and file effects:
 
 ```json
