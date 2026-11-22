@@ -151,3 +151,9 @@ This setup provides:
 - provider setup that can live with the repo while secrets stay in environment variables
 
 See the full design note in [`docs/agent-runtime-strategy.md`](https://github.com/andysolomon/arc-skill-eval/blob/main/docs/agent-runtime-strategy.md).
+
+## Raw runtime events in traces
+
+Each case's `trace.json` keeps the Pi runtime events under `raw.runtimeEvents`. Streaming `message_update` events are stored compactly: each one keeps its stream event type, content index, and delta, plus the finished block on `text_end`, `thinking_end`, and `toolcall_end`. The cumulative partial message that Pi attaches to every update is dropped. The complete assistant message is still recorded once, by `message_end` and in `raw.messages`. This keeps trace size linear in the model's output, even for long streamed tool calls.
+
+Capture stops at 32 MB of event JSON per case. When that happens, `raw.runtimeEventsTruncated` is `true` and the run continues as normal. Set `ARC_SKILL_EVAL_MAX_RUNTIME_EVENT_BYTES` to change the limit.
