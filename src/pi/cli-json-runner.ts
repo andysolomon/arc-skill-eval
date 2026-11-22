@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { materializeFixture, type MaterializedFixture } from "../fixtures/index.js";
 import type { ValidatedSkillDiscovery } from "../load/source-types.js";
+import { createRuntimeEventRecorder } from "./runtime-event-capture.js";
 import {
   summarizeExternalCalls,
   summarizeToolInput,
@@ -85,6 +86,7 @@ export async function runPiCliJsonCase(
       assistantText: parsed.assistantText,
       messages: parsed.messages,
       events: parsed.events,
+      eventsTruncated: parsed.eventsTruncated,
       stderr: invocation.stderr,
       exitCode: invocation.exitCode,
     },
@@ -192,6 +194,7 @@ function parseCliJsonOutput(options: {
   assistantText: string;
   messages: unknown[];
   events: unknown[];
+  eventsTruncated: boolean;
   parseErrors: string[];
 } {
   const lines = options.stdout
@@ -199,7 +202,7 @@ function parseCliJsonOutput(options: {
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
   const parseErrors: string[] = [];
-  const events: unknown[] = [];
+  const recorder = createRuntimeEventRecorder();
   const messages: unknown[] = [];
   let assistantText = "";
   let sessionId = `cli-${options.skill.contract.skill}-${options.caseDefinition.caseId}`;
@@ -221,7 +224,7 @@ function parseCliJsonOutput(options: {
       continue;
     }
 
-    events.push(snapshotValue(parsed));
+    recorder.record(parsed);
 
     if (isTextDeltaEvent(parsed)) {
       assistantText += parsed.assistantMessageEvent.delta;
@@ -241,7 +244,8 @@ function parseCliJsonOutput(options: {
     sessionFile,
     assistantText,
     messages,
-    events,
+    events: recorder.events,
+    eventsTruncated: recorder.truncated,
     parseErrors,
   };
 }
