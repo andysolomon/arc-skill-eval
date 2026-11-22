@@ -1,50 +1,28 @@
 /**
- * PLACEHOLDER — replaced by the Review section port. Implements the page
- * contract documented in web/AGENTS.md.
+ * Review section: import run JSON (hosted) or read runs from disk through
+ * the daemon (localhost), inspect cases, record feedback notes, and turn
+ * them into a change plan (downloaded on hosted, staged and applied on
+ * localhost). Implements the page contract in web/AGENTS.md.
  */
 
-import { Schema, Stream } from 'effect';
-import { Submodel, Subscription, type Update } from 'foldkit';
-import { defineMessageUnion } from 'foldkit/message';
+import { Stream } from 'effect';
+import { Subscription } from 'foldkit';
 
-import type { AppContext, PageOutMessage } from '@/app/context';
+import type { Message } from './message';
+import type { Model } from './model';
 
-// MODEL
-
-export const Model = Schema.Struct({});
-export type Model = typeof Model.Type;
-
-// MESSAGE
-
-export const Message = defineMessageUnion({
-  ClickedPlaceholder: {},
-});
-export type Message = typeof Message.Type;
-
-// INIT
-
-export const init = (_context: AppContext): Update.Return<Model, Message> => ({ model: {} });
-
-// UPDATE
-
-export const update = (model: Model, message: Message, _context: AppContext) =>
-  Message.match<Update.ReturnWithOutMessage<Model, Message, PageOutMessage>>(message, {
-    ClickedPlaceholder: () => ({ model }),
-  });
-
-export const contextChanged = (model: Model, _context: AppContext): Update.Return<Model, Message> => ({ model });
+export { Model } from './model';
+export { Message } from './message';
+export { contextChanged, init, update } from './update';
+export { view } from './view';
 
 // SUBSCRIPTION
 
+// NOTE: Review listens to nothing outside its own events. The inert entry
+// keeps the Model and Message types inferable where the root lifts it.
 export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
   reviewInert: entry(
     {},
     { modelToDependencies: () => ({}), dependenciesToStream: (): Stream.Stream<Message> => Stream.empty },
   ),
 }));
-
-// VIEW
-
-export const view = Submodel.defineView<Model, Message, AppContext>((_model, _context, h) =>
-  h.main([h.DataAttribute('testid', 'review-empty-state')], [h.p([], ['Import run JSON'])]),
-);
