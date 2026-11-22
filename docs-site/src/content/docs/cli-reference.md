@@ -318,7 +318,7 @@ arc-skill-eval run ./skills/arc-conventional-commits \
 ### `--sandbox none|just-bash`
 
 - `none` *(default)* — run each case through the standard temp-workspace runner with the host shell and real filesystem.
-- `just-bash` — route the agent's `bash` tool through an in-process [`just-bash`](https://www.npmjs.com/package/just-bash) virtual shell whose filesystem is rooted at the case workspace. Commands run without the host shell, the repository working tree is never touched, and generated files are still captured under `outputs/`. `npm`/`npx`/`git` resolve to deterministic mocks (no-op success by default).
+- `just-bash` — route the agent's `bash`, `read`, `write`, and `edit` tools through one in-process [`just-bash`](https://www.npmjs.com/package/just-bash) virtual filesystem rooted at the case workspace. Commands run without the host shell. `/` is the workspace, so an absolute path such as `/tmp/out.html` lands at `<workspace>/tmp/out.html`. The workspace is also visible at its real path, which is where the shell starts. Skills in context are readable at their real paths but can't be changed. Nothing else on the host is visible, the repository working tree is never touched, and generated files are still captured under `outputs/`. `npm`/`npx`/`git` resolve to deterministic mocks (no-op success by default).
 
 This flag overrides each case's own `sandbox` field. Per-case `sandbox` selection and `sandboxMocks` (to return specific stdout/exit codes and file effects) are configured in `evals.json` — see [Eval cases](/arc-skill-eval/concepts/eval-cases/).
 
