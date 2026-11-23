@@ -2,17 +2,25 @@
 
 ## Current direction
 
-`arc-skill-eval` has pivoted to the Anthropic skill-eval shape: skills ship `SKILL.md` plus adjacent `evals/evals.json`, cases run through Pi with the skill attached, and assertions produce per-case `grading.json` + `timing.json` + observability artifacts.
+`arc-skill-eval` has pivoted to the Anthropic skill-eval shape: skills ship `SKILL.md` plus adjacent `evals/evals.json`, cases run through an agent runtime (Pi by default) with the skill attached, and assertions produce per-case `grading.json` + `timing.json` + observability artifacts.
 
 The slim MVP is complete: discovery, loading/validation, workspace setup, Pi execution, grading, CLI run command, and the bundled `arc-creating-evals` authoring skill are in place.
+
+As of 0.27.0 the CLI also ships these commands and features:
+
+- `--json` on every command except `browse`, defined in `docs/cli-json-contract.md`.
+- `install-skills`, which copies the bundled `arc-creating-evals` and `arc-running-evals` skills into a project.
+- The `codex`, `claude-code`, `cursor-agent` and `copilot` runtimes, selected with `run --runtime`.
+- `package`, which bundles a validated skill into a `.skill.tgz` file.
+- `emit`, `audit`, `optimize-description`, `review`, `improve`, the `browse` TUI and the web app.
 
 ## Planning assumptions
 
 - Keep `evals/evals.json` as the author-facing contract.
-- Keep Pi as the v1 runtime.
+- Keep Pi (`pi-sdk`) as the default runtime. The other runtimes stay opt-in through `--runtime`.
 - Add capability in vertical slices, each behind tests and docs.
 - Prefer additive schema extensions over breaking changes.
-- Do not reintroduce the deprecated TypeScript `skill.eval.ts` authoring surface.
+- Do not bring back the retired `skill.eval.ts` contract format. Typed `defineSkillEval` suites are fine because `emit` compiles them to `evals/evals.json`, which is the only file the runner reads.
 
 ## Next priorities
 
@@ -93,7 +101,7 @@ The slim MVP is complete: discovery, loading/validation, workspace setup, Pi exe
 **Acceptance criteria**
 - [x] Multiple explicit iterations can coexist for the same skill.
 - [x] `benchmark.json` can summarize one selected iteration.
-- [ ] Cross-iteration benchmark comparison remains deferred.
+- [ ] Cross-iteration comparison in `benchmark.json` remains deferred. The `browse` TUI can already pin one run as a baseline and compare other iterations with it.
 - [x] Prior artifacts are not overwritten by later runs unless the same explicit run id is reused.
 
 ---
@@ -102,7 +110,7 @@ The slim MVP is complete: discovery, loading/validation, workspace setup, Pi exe
 
 **Goal:** prove the framework against representative real skills.
 
-**Status:** `arc-conventional-commits` pilot vendored at `pilots/arc-conventional-commits/` with runbook in `docs/pilot/arc-conventional-commits.md`. Loader tests pass in CI; first live `--compare` run pending.
+**Status:** `arc-conventional-commits` pilot vendored at `pilots/arc-conventional-commits/` with runbook in `docs/pilot/arc-conventional-commits.md`. No automated test covers the pilot. Commit fd964d1 deleted `tests/pilot-arc-conventional-commits.test.mjs` in September 2026. The first live `--compare` run is still pending.
 
 **Initial pilot cohort**
 1. `arc-conventional-commits` — first pilot; lowest external dependency risk and strong fixture/workspace assertion coverage.
@@ -114,7 +122,7 @@ The slim MVP is complete: discovery, loading/validation, workspace setup, Pi exe
 - Use `assistant.md`, `trace.json`, `tool-summary.json`, `context-manifest.json`, explicit `--extra-skill` conflict loadouts, optional `--context-mode ambient`, and model/token/cost/context timing metadata to explain pilot pass/fail deltas.
 - Add or tighten fixtures for repo-mutation cases.
 - Identify any live API requirements and gate them explicitly.
-- Run the pilot cohort with dual-run + benchmark aggregation once P1/P2 are available.
+- Run the pilot cohort with `--compare`, which writes `benchmark.json`.
 
 **Acceptance criteria**
 - Each pilot skill has at least one passing eval case.
@@ -123,15 +131,15 @@ The slim MVP is complete: discovery, loading/validation, workspace setup, Pi exe
 
 ---
 
-### P5 — Release hardening
+### P5 — Release hardening 🚧
 
 **Goal:** make the package reliable for external installation and CI use.
 
 **Work items**
-- Verify semantic-release dry run.
-- Add CI checks for typecheck/test.
-- Confirm package contents before publish.
-- Document install and usage against published versions.
+- [x] Run semantic-release on every push to `main` (`.github/workflows/release.yml`). It publishes to npm through trusted publishing. The first 0.27.0 attempt failed on an npm 2FA error and was re-cut.
+- [x] Add CI checks for typecheck/test. `.github/workflows/ci.yml` runs `npm test`, which builds with `tsc`, plus the web typecheck, the web build and the Playwright smoke tests.
+- [ ] Confirm package contents before publish. Commit fd964d1 removed the `npm pack` test, so nothing checks the tarball now.
+- [x] Document install and usage against published versions in `README.md` and the docs site.
 
 **Acceptance criteria**
 - Release automation can run without manual local steps.
@@ -140,12 +148,11 @@ The slim MVP is complete: discovery, loading/validation, workspace setup, Pi exe
 
 ## Suggested sequence
 
-1. Finish P0 immediately.
-2. Implement P1 in the smallest vertical slice: one case, two variants, two grading files, one delta.
-3. Add P2 once the dual-run artifact shape stabilizes.
-4. Add P3 only after P1/P2 are useful in practice.
-5. Use P4 pilots to validate and reprioritize.
-6. Run P5 release hardening before wider adoption.
+P0, P1 and P2 are done. P3 is done except the `SKILL.md` snapshot and automatic iteration naming.
+
+1. Run the P4 pilot cohort live with `--compare` and record the gaps it finds.
+2. Finish P5 by adding a package contents check before publish.
+3. Revisit the open P3 items after pilot usage.
 
 ## Open design questions
 
