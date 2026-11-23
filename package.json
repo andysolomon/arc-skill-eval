@@ -45,6 +45,7 @@
     "skills",
     "README.md",
     "CHANGELOG.md",
+    "docs/cli-json-contract.md",
     "!**/evals-runs/**"
   ],
   "bin": {
