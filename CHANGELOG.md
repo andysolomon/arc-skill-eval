@@ -1,3 +1,10 @@
+## [0.29.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.28.0...v0.29.0) (2026-11-23)
+
+### Features
+
+* check the eval suite itself, not only the skill ([0d90f58](https://github.com/andysolomon/arc-skill-eval/commit/0d90f582f17d2e912f2610991ee36e534bb3c495))
+* **skills:** add arc-maintaining-evals and teach the bundled skills the suite checks ([5684ed3](https://github.com/andysolomon/arc-skill-eval/commit/5684ed39f05f6074b78baba1d4d23f2948e2af17))
+
 ## [0.28.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.27.1...v0.28.0) (2026-11-23)
 
 ### Features
