@@ -49,3 +49,4 @@ description: Every keystroke in the arc-skill-eval browse TUI. Generated from sr
 | `s` | Cycle skill sort: name · pass · delta · cost |
 | `c` | Pin a run as the cross-iteration baseline _(Runs)_ |
 | `?` | Toggle this help overlay |
+| `↑ ↓ PgUp PgDn` | Scroll the help overlay; any other key closes it _(help)_ |

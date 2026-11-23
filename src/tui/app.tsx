@@ -3,8 +3,8 @@ import { Box, Text, useInput, useStdout } from 'ink';
 import type { Key } from 'ink';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
-import { COLORS, segLen } from './theme.js';
-import { GLYPHS } from './caps.js';
+import { COLORS, segLen, pad, trunc } from './theme.js';
+import { GLYPHS, BORDER } from './caps.js';
 import { seg } from './theme.js';
 import type { Seg } from './theme.js';
 import type { Skill, Run, Case, Focus, Sel, CaseMode } from './types.js';
@@ -210,7 +210,7 @@ function MainPane(props: {
   return (
     <Box flexDirection="column" flexGrow={1} flexBasis={0} borderStyle="round" borderColor={paneFocused ? COLORS.borderActive : COLORS.border} overflowY="hidden">
       <Box justifyContent="space-between" paddingX={1}>
-        <Text bold color={COLORS.blue}>{title}</Text>
+        <Text bold color={COLORS.blue}>{trunc(title, Math.max(4, innerWidth - 3 - segLen(sub)))}</Text>
         <Text>{sub.map((s, i) => (<Text key={i} color={s.c} bold={s.b}>{s.t}</Text>))}</Text>
       </Box>
       <Box flexDirection="column" flexGrow={1} paddingX={1}>
@@ -304,26 +304,51 @@ function StatusBar({ focused, caseMode, pane, sk, filter, filtering, failOnly, s
   );
 }
 
-// Rendered from the canonical KEYMAP (src/tui/keymap.ts) — the same source the
+// Rendered from the canonical KEYMAP (src/tui/keymap.ts), the same source the
 // docs page is generated from, so the overlay and the docs cannot drift.
-function HelpView() {
+type HelpLine = { kind: 'title' | 'section' | 'blank' } & { text: string } | { kind: 'binding'; keys: string; desc: string; context?: string };
+
+const HELP_LINES: HelpLine[] = [
+  { kind: 'title', text: 'Keybindings' },
+  ...KEYMAP.flatMap((section): HelpLine[] => [
+    { kind: 'blank', text: '' },
+    { kind: 'section', text: section.title },
+    ...section.bindings.map((b): HelpLine => ({ kind: 'binding', keys: b.keys.join(' '), desc: b.desc, context: b.context })),
+  ]),
+];
+
+/** Rows of help text that fit: the screen minus border (2), padding (2), and the footer (2). */
+const helpWindow = (rows: number): number => Math.max(3, rows - 6);
+/** Largest useful scroll offset for the help overlay at this height. */
+const helpScrollMax = (rows: number): number => Math.max(0, HELP_LINES.length - helpWindow(rows));
+
+function HelpView({ rows, cols, scroll }: { rows: number; cols: number; scroll: number }) {
+  const windowRows = helpWindow(rows);
+  const start = Math.min(scroll, helpScrollMax(rows));
+  const shown = HELP_LINES.slice(start, start + windowRows);
+  const more = HELP_LINES.length > windowRows;
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor={COLORS.borderActive} paddingX={2} paddingY={1}>
-      <Text bold color={COLORS.blue}>Keybindings — arc-skill-eval</Text>
-      {KEYMAP.map((section) => (
-        <Box key={section.title} flexDirection="column" marginTop={1}>
-          <Text bold color={COLORS.comment}>{section.title}</Text>
-          {section.bindings.map((b) => (
-            <Box key={b.id}>
-              <Box width={18}><Text color={COLORS.yellow} bold>{b.keys.join(' ')}</Text></Box>
-              <Text color={COLORS.fgDark}>{b.desc}</Text>
-              {b.context ? <Text color={COLORS.comment}>{' (' + b.context + ')'}</Text> : null}
-            </Box>
-          ))}
-        </Box>
-      ))}
+    <Box flexDirection="column" borderStyle={BORDER} borderColor={COLORS.borderActive} paddingX={2} paddingY={1} width={cols} height={rows}>
+      <Box flexDirection="column" flexGrow={1}>
+        {shown.map((line, i) => {
+          if (line.kind === 'binding') {
+            return (
+              <Text key={i} wrap="truncate">
+                <Text color={COLORS.yellow} bold>{pad(line.keys, 18)}</Text>
+                <Text color={COLORS.fgDark}>{line.desc}</Text>
+                {line.context ? <Text color={COLORS.comment}>{' (' + line.context + ')'}</Text> : null}
+              </Text>
+            );
+          }
+          if (line.kind === 'title') return <Text key={i} bold color={COLORS.blue}>{line.text}</Text>;
+          if (line.kind === 'section') return <Text key={i} bold color={COLORS.comment}>{line.text}</Text>;
+          return <Text key={i}> </Text>;
+        })}
+      </Box>
       <Box height={1} />
-      <Text color={COLORS.comment}>press any key to close</Text>
+      <Text color={COLORS.comment} wrap="truncate">
+        {more ? `${start + 1}-${start + shown.length} of ${HELP_LINES.length}   ${GLYPHS.up}${GLYPHS.down} PgUp PgDn scroll   any other key closes` : 'press any key to close'}
+      </Text>
     </Box>
   );
 }
@@ -337,6 +362,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
   const [sel, setSel] = useState<Sel>(initial?.sel ?? { skills: 0, cases: 0, assertions: 0, runs: 0 });
   const [caseMode, setCaseMode] = useState<CaseMode>(initial?.caseMode ?? 'overview');
   const [showHelp, setShowHelp] = useState(false);
+  const [helpScroll, setHelpScroll] = useState(0);
   const [scroll, setScroll] = useState(0);
   const [pane, setPane] = useState(false);   // in-pane cursor active
   const [cursor, setCursor] = useState(0);   // index into the current view's anchors
@@ -427,9 +453,18 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
     }
     if (flash) setFlash('');
     if (skills.length === 0) { if (input === 'q') onAction({ type: 'quit' }); return; }
-    if (showHelp) { setShowHelp(false); return; }
+    if (showHelp) {
+      const page = helpWindow(rowsT);
+      const max = helpScrollMax(rowsT);
+      const to = (n: number) => setHelpScroll(Math.max(0, Math.min(max, n)));
+      if (key.downArrow || input === 'j') { to(helpScroll + 1); return; }
+      if (key.upArrow || input === 'k') { to(helpScroll - 1); return; }
+      if (key.pageDown || input === ' ') { to(helpScroll + page); return; }
+      if (key.pageUp) { to(helpScroll - page); return; }
+      setShowHelp(false); return;
+    }
     if (input === 'q') { onAction({ type: 'quit', state: { focused, sel, caseMode } }); return; }
-    if (input === '?') { setShowHelp(true); return; }
+    if (input === '?') { setHelpScroll(0); setShowHelp(true); return; }
     if (input === '/') { setFiltering(true); return; }
     if (input === 'F') { setFailOnly((v) => !v); setSel((s) => ({ ...s, skills: 0, cases: 0, assertions: 0 })); return; }
     if (input === 's') { setSortMode((m) => (m === 'name' ? 'pass' : m === 'pass' ? 'delta' : m === 'delta' ? 'cost' : 'name')); setSel((s) => ({ ...s, skills: 0 })); return; }
@@ -524,7 +559,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
       </Box>
     );
   }
-  if (showHelp) return <HelpView />;
+  if (showHelp) return <HelpView rows={rowsT} cols={cols} scroll={helpScroll} />;
   // Overlays render in place of the layout (mirrors the help overlay) — Ink
   // stays mounted, so no terminal handoff. Run console takes priority.
   if (runCtl.state.active) return <RunConsole state={runCtl.state} elapsed={runCtl.elapsed} frame={runCtl.frame} />;

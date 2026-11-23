@@ -62,6 +62,7 @@ export const KEYMAP: KeySection[] = [
       { id: 'sort',        keys: ['s'],                 desc: 'Cycle skill sort: name · pass · delta · cost' },
       { id: 'pin-base',    keys: ['c'],                 desc: 'Pin a run as the cross-iteration baseline', context: 'Runs' },
       { id: 'help',        keys: ['?'],                 desc: 'Toggle this help overlay' },
+      { id: 'help-scroll', keys: ['↑', '↓', 'PgUp', 'PgDn'], desc: 'Scroll the help overlay; any other key closes it', context: 'help' },
     ],
   },
 ];

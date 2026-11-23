@@ -8,7 +8,7 @@
 
 import { isJudgeAssertion } from '../evals/assertion-engine.js';
 import {
-  COLORS, seg, pad, trunc, num, bar, wrap, statusGlyph, rateColor, deltaColor, passFrac,
+  COLORS, seg, pad, trunc, num, bar, wrap, statusGlyph, rateColor, deltaColor, passFrac, segLen,
 } from './theme.js';
 import type { Seg, Line } from './theme.js';
 import { GLYPHS } from './caps.js';
@@ -191,7 +191,7 @@ export function buildMain(
       : caseMode === 'context' ? contextView(cs)
       : caseMode === 'raw' ? caseRawView(cs)
       : caseView(cs, showWithout, wrapWidth);
-    return { title: v.title, sub: caseTabs(cs, caseMode), lines: v.lines, anchors: v.anchors };
+    return { title: v.title, sub: caseTabs(cs, caseMode, wrapWidth), lines: v.lines, anchors: v.anchors };
   }
   if (focus === 'assertions') return assertionView(asrt, wrapWidth);
   return runView(run, compareBase);
@@ -206,7 +206,10 @@ export function modesFor(cs: Case): CaseMode[] {
     : ['overview', 'response', 'trace', 'context', 'raw'];
 }
 
-function caseTabs(cs: Case, mode: CaseMode): Seg[] {
+/** Room the pane header keeps for the title next to the mode tabs. */
+const MIN_TITLE = 14;
+
+function caseTabs(cs: Case, mode: CaseMode, paneWidth: number): Seg[] {
   const modes = modesFor(cs);
   const segs: Seg[] = [];
   modes.forEach((m, i) => {
@@ -214,6 +217,12 @@ function caseTabs(cs: Case, mode: CaseMode): Seg[] {
     segs.push(seg(MODE_LABEL[m], active ? COLORS.blue : COLORS.comment, active));
     if (i < modes.length - 1) segs.push(seg(' \u00b7 ', COLORS.dim));
   });
+  // A narrow pane cannot fit every tab beside the title: show the active
+  // mode, its position, and the keys that switch it.
+  if (segLen(segs) + MIN_TITLE + 3 > paneWidth) {
+    const i = Math.max(0, modes.indexOf(mode));
+    return [seg(MODE_LABEL[modes[i]!], COLORS.blue, true), seg(` ${i + 1}/${modes.length}`, COLORS.comment), seg('  [ ]', COLORS.dim)];
+  }
   return segs;
 }
 
