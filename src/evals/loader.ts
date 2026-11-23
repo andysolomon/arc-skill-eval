@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
+import { Result, Schema, SchemaIssue } from "effect";
+
 import {
   FIXTURE_KIND_VALUES,
   NETWORK_MODE_VALUES,
@@ -19,29 +21,6 @@ import type {
   ScriptAssertion,
 } from "./types.js";
 
-const SCRIPT_ASSERTION_TYPES = new Set(["file-exists", "file-absent", "regex-match", "json-valid"]);
-const INTENT_ASSERTION_KINDS = new Set(["output", "workspace", "behavior", "safety"]);
-const OUTPUT_ASSERTION_METHODS = new Set(["judge", "regex", "exact"]);
-const WORKSPACE_ASSERTION_METHODS = new Set([
-  "file-exists",
-  "file-absent",
-  "file-contains",
-  "json-valid",
-  "snapshot-diff",
-]);
-const BEHAVIOR_ASSERTION_METHODS = new Set([
-  "skill-read-required",
-  "tool-call-required",
-  "tool-call-forbidden",
-  "external-call-forbidden",
-  "command-forbidden",
-]);
-const SAFETY_ASSERTION_METHODS = new Set([
-  "no-forbidden-files-touched",
-  "no-live-external-calls",
-  "custom",
-]);
-
 export class EvalsJsonValidationError extends Error {
   readonly issues: string[];
 
@@ -51,6 +30,389 @@ export class EvalsJsonValidationError extends Error {
     this.issues = issues;
   }
 }
+
+// SCHEMA BUILDING BLOCKS
+//
+// Every schema carries its own message, and the formatter puts the field path
+// in front of it, so an issue reads like
+// "evals[2]: `assertions[0].pattern` must be a non-empty string".
+
+const NON_EMPTY = "must be a non-empty string";
+const STRING = "must be a string";
+const BOOLEAN = "must be a boolean";
+
+/** A required field: the same message whether the key is missing or the value is wrong. */
+const required = <S extends Schema.Top>(schema: S, message: string) =>
+  schema.annotate({ message }).pipe(Schema.annotateKey({ messageMissingKey: message }));
+
+/**
+ * An optional field. `undefined` counts as absent: builder code passes JS
+ * objects, where `{ files: undefined }` is common, and the old validator
+ * accepted it.
+ */
+const optional = <S extends Schema.Top>(schema: S, message: string) =>
+  // The `| undefined` wrapper is itself a union, which reports its own error
+  // for a wrong-typed value, so it carries the message too.
+  Schema.optionalKey(Schema.UndefinedOr(schema.annotate({ message })).annotate({ message }));
+
+const oneOfMessage = (values: ReadonlyArray<string>) => `must be one of [${values.join(", ")}]`;
+
+const oneOf = <const L extends ReadonlyArray<string>>(values: L) =>
+  Schema.Literals(values).annotate({ message: oneOfMessage(values) });
+
+const optionalOneOf = <const L extends ReadonlyArray<string>>(values: L) => optional(oneOf(values), oneOfMessage(values));
+
+/** Arrays decode as mutable so the decoded type lines up with the interfaces in `types.ts`. */
+const list = <S extends Schema.Top>(item: S, message: string) =>
+  Schema.mutable(Schema.Array(item)).annotate({ message });
+
+// A refined schema reports the base type's error for wrong-typed input, so the
+// message goes on both the base and the refinement.
+const nonEmpty = Schema.String.annotate({ message: NON_EMPTY }).check(Schema.isNonEmpty({ message: NON_EMPTY }));
+const finite = (message: string) => Schema.Number.annotate({ message }).check(Schema.isFinite({ message }));
+
+/** A key that must be absent or `undefined`. */
+const forbidden = (message: string) => optional(Schema.Never, message);
+
+const isValidRegex = (pattern: string, flags: string | undefined): boolean => {
+  try {
+    new RegExp(pattern, flags);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Cross-field check: the regex in `field` must compile, with the struct's
+ * `flags` when it has them. `when` limits the check to some values.
+ */
+const compilesAsRegex = <A extends object>(field: keyof A & string, when?: (value: A) => boolean) =>
+  Schema.makeFilter<A>((value) => {
+    if (when && !when(value)) return undefined;
+    const pattern: unknown = value[field];
+    const flags: unknown = (value as { readonly flags?: unknown }).flags;
+    if (typeof pattern !== "string" || isValidRegex(pattern, typeof flags === "string" ? flags : undefined)) {
+      return undefined;
+    }
+    return { path: [field], issue: "is not a valid regular expression" };
+  });
+
+// WORKSPACE SETUP
+
+const SETUP_MESSAGE = `must be an object with \`kind\` from [${WORKSPACE_KIND_VALUES.join(", ")}]`;
+
+const WorkspaceSource = Schema.Struct({
+  from: required(nonEmpty, NON_EMPTY),
+  to: optional(Schema.String, STRING),
+}).annotate({ message: "must be an object" });
+
+const WorkspaceSetupSchema = Schema.Union([
+  Schema.Struct({ kind: Schema.Literal("empty") }),
+  Schema.Struct({
+    kind: Schema.Literal("seeded"),
+    sources: required(list(WorkspaceSource, "must be an array"), "must be an array"),
+    mountMode: optionalOneOf(WORKSPACE_MOUNT_MODE_VALUES),
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("fixture"),
+    fixture: required(
+      Schema.Struct({
+        kind: required(oneOf(FIXTURE_KIND_VALUES), oneOfMessage(FIXTURE_KIND_VALUES)),
+        source: required(nonEmpty, NON_EMPTY),
+        initGit: optional(Schema.Boolean, BOOLEAN),
+      }),
+      "must be an object",
+    ),
+  }),
+]).annotate({ message: SETUP_MESSAGE });
+
+// SANDBOX MOCKS + METADATA
+
+const SandboxMockFile = Schema.Struct({
+  path: required(nonEmpty, NON_EMPTY),
+  content: required(Schema.String, STRING),
+}).annotate({ message: "must be an object" });
+
+const SandboxMock = Schema.Struct({
+  command: required(nonEmpty, NON_EMPTY),
+  stdout: optional(Schema.String, STRING),
+  stderr: optional(Schema.String, STRING),
+  exitCode: optional(Schema.Number.check(Schema.isInt({ message: "must be an integer" })), "must be an integer"),
+  files: optional(list(SandboxMockFile, "must be an array"), "must be an array"),
+}).annotate({ message: "must be an object" });
+
+const EnvironmentRequirementsSchema = Schema.Struct({
+  workspace: required(
+    Schema.Struct({
+      kind: required(oneOf(WORKSPACE_KIND_VALUES), oneOfMessage(WORKSPACE_KIND_VALUES)),
+      writable: required(Schema.Boolean, BOOLEAN),
+    }),
+    "must be an object",
+  ),
+  git: optional(Schema.Struct({ required: required(Schema.Boolean, BOOLEAN) }), "must be an object"),
+  network: optional(
+    Schema.Struct({
+      mode: required(oneOf(NETWORK_MODE_VALUES), oneOfMessage(NETWORK_MODE_VALUES)),
+    }),
+    "must be an object",
+  ),
+  tools: optional(
+    list(
+      Schema.Struct({
+        name: required(nonEmpty, NON_EMPTY),
+        required: required(Schema.Boolean, BOOLEAN),
+        mode: optionalOneOf(TOOL_REQUIREMENT_MODE_VALUES),
+      }).annotate({ message: "must be an object" }),
+      "must be an array",
+    ),
+    "must be an array",
+  ),
+  envVars: optional(
+    list(
+      Schema.Struct({
+        name: required(nonEmpty, NON_EMPTY),
+        required: required(Schema.Boolean, BOOLEAN),
+        secret: optional(Schema.Boolean, BOOLEAN),
+      }).annotate({ message: "must be an object" }),
+      "must be an array",
+    ),
+    "must be an array",
+  ),
+}).annotate({ message: "must be an object" });
+
+const Metadata = Schema.Struct({
+  tags: optional(list(Schema.String.annotate({ message: STRING }), "must be an array of strings"), "must be an array of strings"),
+  difficulty: optionalOneOf(["easy", "medium", "hard"]),
+  intent: optional(Schema.String, STRING),
+  environment: optional(EnvironmentRequirementsSchema, "must be an object"),
+}).annotate({ message: "must be an object" });
+
+// SCRIPT ASSERTIONS (discriminated by `type`)
+
+const SCRIPT_ASSERTION_TYPES = ["file-exists", "file-absent", "regex-match", "json-valid"] as const;
+
+// Union members are told apart by single-literal fields; a member keyed on
+// several literals isn't, and its errors would leak into unrelated
+// assertions. So there is one struct per `type` (and per `method` below).
+const pathScriptAssertion = <T extends "file-exists" | "file-absent" | "json-valid">(type: T) =>
+  Schema.Struct({ type: Schema.Literal(type), path: required(nonEmpty, NON_EMPTY) });
+
+const RegexMatchAssertion = Schema.Struct({
+  type: Schema.Literal("regex-match"),
+  pattern: required(nonEmpty, NON_EMPTY),
+  flags: optional(Schema.String, STRING),
+  target: optional(
+    Schema.Union([Schema.Literal("assistant-text"), Schema.Struct({ file: required(Schema.String, STRING) })]),
+    'must be "assistant-text" or { file: string }',
+  ),
+}).check(compilesAsRegex("pattern"));
+
+// INTENT ASSERTIONS (discriminated by `kind`, then `method`)
+
+const INTENT_ASSERTION_KINDS = ["output", "workspace", "behavior", "safety"] as const;
+
+const intentBase = {
+  id: required(nonEmpty, NON_EMPTY),
+  mustPass: optional(Schema.Boolean, BOOLEAN),
+  severity: optionalOneOf(["info", "warn", "error"]),
+  // An object with a `type` key is a script assertion, even when it also has
+  // `kind`, and even when `type` is `undefined` (the old `"type" in value`).
+  type: Schema.optionalKey(Schema.Never.annotate({ message: oneOfMessage(SCRIPT_ASSERTION_TYPES) })),
+};
+
+const methodMessage = (label: string, methods: ReadonlyArray<string>) =>
+  `must declare \`method\` from [${methods.join(", ")}] (${label})`;
+
+const OUTPUT_METHODS = ["judge", "regex", "exact"] as const;
+const WORKSPACE_METHODS = ["file-exists", "file-absent", "file-contains", "json-valid", "snapshot-diff"] as const;
+const SAFETY_METHODS = ["no-forbidden-files-touched", "no-live-external-calls", "custom"] as const;
+const BEHAVIOR_METHODS = [
+  "skill-read-required",
+  "tool-call-required",
+  "tool-call-forbidden",
+  "external-call-forbidden",
+  "command-forbidden",
+] as const;
+
+/** The discriminating `method` of one union member; a missing key names every allowed method. */
+const method = <M extends string>(value: M, all: ReadonlyArray<string>) =>
+  required(Schema.Literal(value), oneOfMessage(all));
+
+const JUDGE_ONLY = 'is only valid on an output assertion with `method: "judge"`';
+
+const OutputJudge = Schema.Struct({
+  ...intentBase,
+  kind: Schema.Literal("output"),
+  method: method("judge", OUTPUT_METHODS),
+  prompt: optional(Schema.String, STRING),
+  threshold: optional(finite("must be a finite number"), "must be a finite number"),
+  scaleMax: optional(
+    finite("must be a number >= 2").check(Schema.isGreaterThanOrEqualTo(2, { message: "must be a number >= 2" })),
+    "must be a number >= 2",
+  ),
+}).check(
+  Schema.makeFilter((value) => {
+    if (value.threshold === undefined) {
+      return value.scaleMax === undefined ? undefined : { path: ["threshold"], issue: "is required when `scaleMax` is set" };
+    }
+    const ceiling = value.scaleMax ?? 5;
+    return value.threshold >= 1 && value.threshold <= ceiling
+      ? undefined
+      : { path: ["threshold"], issue: `must be between 1 and ${ceiling} (the scaleMax)` };
+  }),
+);
+
+const OutputRegex = Schema.Struct({
+  ...intentBase,
+  kind: Schema.Literal("output"),
+  method: method("regex", OUTPUT_METHODS),
+  pattern: required(nonEmpty, NON_EMPTY),
+  flags: optional(Schema.String, STRING),
+  threshold: forbidden(JUDGE_ONLY),
+  scaleMax: forbidden(JUDGE_ONLY),
+}).check(compilesAsRegex("pattern"));
+
+const OutputExact = Schema.Struct({
+  ...intentBase,
+  kind: Schema.Literal("output"),
+  method: method("exact", OUTPUT_METHODS),
+  expected: required(Schema.String, STRING),
+  threshold: forbidden(JUDGE_ONLY),
+  scaleMax: forbidden(JUDGE_ONLY),
+});
+
+const OutputAssertion = Schema.Union([OutputJudge, OutputRegex, OutputExact]).annotate({
+  message: methodMessage("output assertion", OUTPUT_METHODS),
+});
+
+const workspacePathAssertion = <M extends "file-exists" | "file-absent" | "json-valid">(methodName: M) =>
+  Schema.Struct({
+    ...intentBase,
+    kind: Schema.Literal("workspace"),
+    method: method(methodName, WORKSPACE_METHODS),
+    path: required(nonEmpty, NON_EMPTY),
+  });
+
+const WorkspaceAssertion = Schema.Union([
+  workspacePathAssertion("file-exists"),
+  workspacePathAssertion("file-absent"),
+  workspacePathAssertion("json-valid"),
+  Schema.Struct({
+    ...intentBase,
+    kind: Schema.Literal("workspace"),
+    method: method("file-contains", WORKSPACE_METHODS),
+    path: required(nonEmpty, NON_EMPTY),
+    pattern: required(nonEmpty, NON_EMPTY),
+    flags: optional(Schema.String, STRING),
+  }).check(compilesAsRegex("pattern")),
+  Schema.Struct({
+    ...intentBase,
+    kind: Schema.Literal("workspace"),
+    method: method("snapshot-diff", WORKSPACE_METHODS),
+  }),
+]).annotate({
+  message: methodMessage("workspace assertion", WORKSPACE_METHODS),
+});
+
+const BehaviorAssertion = Schema.Struct({
+  ...intentBase,
+  kind: Schema.Literal("behavior"),
+  method: required(oneOf(BEHAVIOR_METHODS), oneOfMessage(BEHAVIOR_METHODS)),
+  value: optional(Schema.String, STRING),
+  match: optional(Schema.String, STRING),
+  matchKind: optionalOneOf(["substring", "regex"]),
+}).check(compilesAsRegex("match", (value) => value.matchKind === "regex"));
+
+const SafetyAssertion = Schema.Union([
+  Schema.Struct({
+    ...intentBase,
+    kind: Schema.Literal("safety"),
+    method: method("no-forbidden-files-touched", SAFETY_METHODS),
+    config: required(
+      Schema.Struct({
+        paths: required(
+          list(Schema.String.annotate({ message: STRING }), "must be an array of strings"),
+          "must be an array of strings",
+        ),
+      }),
+      "must be an object with `paths` (an array of strings)",
+    ),
+  }),
+  ...(["no-live-external-calls", "custom"] as const).map((methodName) =>
+    Schema.Struct({
+      ...intentBase,
+      kind: Schema.Literal("safety"),
+      method: method(methodName, SAFETY_METHODS),
+      config: Schema.optional(Schema.Unknown), // free-form; never fails
+    }),
+  ),
+]).annotate({
+  message: methodMessage("safety assertion", SAFETY_METHODS),
+});
+
+const Assertion = Schema.Union([
+  Schema.String.check(Schema.isNonEmpty({ message: "string assertion must be non-empty" })),
+  pathScriptAssertion("file-exists"),
+  pathScriptAssertion("file-absent"),
+  pathScriptAssertion("json-valid"),
+  RegexMatchAssertion,
+  OutputAssertion,
+  WorkspaceAssertion,
+  BehaviorAssertion,
+  SafetyAssertion,
+]).annotate({
+  message:
+    `must be a non-empty string, a script assertion with \`type\` from [${SCRIPT_ASSERTION_TYPES.join(", ")}], ` +
+    `or an intent assertion with \`kind\` from [${INTENT_ASSERTION_KINDS.join(", ")}]`,
+});
+
+// CASE + FILE
+
+const EvalCaseSchema = Schema.Struct({
+  id: required(Schema.Union([Schema.String, Schema.Number]), "must be a string or number"),
+  description: optional(Schema.String, STRING),
+  prompt: required(nonEmpty, NON_EMPTY),
+  expected_output: optional(Schema.String, STRING),
+  setup: optional(WorkspaceSetupSchema, SETUP_MESSAGE),
+  files: optional(list(Schema.String.annotate({ message: STRING }), "must be an array of strings"), "must be an array of strings"),
+  assertions: optional(list(Assertion, "must be an array"), "must be an array"),
+  sandbox: optionalOneOf(SANDBOX_MODE_VALUES),
+  sandboxMocks: optional(list(SandboxMock, "must be an array"), "must be an array"),
+  metadata: optional(Metadata, "must be an object"),
+}).annotate({ message: "case must be a JSON object" });
+
+/** The `evals/evals.json` schema. The decoded type is checked against `EvalsJsonFile` below. */
+export const EvalsJsonFileSchema = Schema.Struct({
+  version: optional(Schema.String, STRING),
+  skill_name: required(nonEmpty, NON_EMPTY),
+  evals: required(list(EvalCaseSchema, "must be an array"), "must be an array"),
+})
+  .annotate({ message: "Top-level value must be a JSON object." })
+  .check(
+    Schema.makeFilter((file) => {
+      const seen = new Set<string>();
+      const duplicates: Array<{ path: Array<PropertyKey>; issue: string }> = [];
+      file.evals.forEach((evalCase, index) => {
+        const key = String(evalCase.id);
+        if (seen.has(key)) duplicates.push({ path: ["evals", index], issue: `duplicate id ${key}` });
+        seen.add(key);
+      });
+      return duplicates;
+    }),
+  );
+
+/**
+ * Compile-time guard: anything the schema accepts must fit the hand-written
+ * types in `types.ts`. If a field changes in one place but not the other,
+ * this stops compiling.
+ */
+type AssertTrue<T extends true> = T;
+export type EvalsJsonSchemaMatchesTypes = AssertTrue<
+  typeof EvalsJsonFileSchema.Type extends EvalsJsonFile ? true : false
+>;
+
+// PUBLIC API
 
 /**
  * Read and validate an `evals/evals.json` file. Returns the parsed
@@ -81,11 +443,15 @@ export async function readEvalsJson(absolutePath: string): Promise<EvalsJsonFile
   return validateEvalsJsonValue(parsed, absolutePath);
 }
 
-export function validateEvalsJsonValue(value: unknown, sourceDescription = "evals.json"): EvalsJsonFile {
-  const issues: string[] = [];
-  const file = validateEvalsJsonFile(value, issues);
+const decodeEvalsJson = Schema.decodeUnknownResult(EvalsJsonFileSchema, { errors: "all" });
+const toIssueList = SchemaIssue.makeFormatterStandardSchemaV1();
 
-  if (issues.length > 0 || !file) {
+export function validateEvalsJsonValue(value: unknown, sourceDescription = "evals.json"): EvalsJsonFile {
+  const result = decodeEvalsJson(value);
+
+  if (Result.isFailure(result)) {
+    // Several union candidates can report the same problem; list it once.
+    const issues = [...new Set(toIssueList(result.failure.issue).issues.map(formatIssue))];
     throw new EvalsJsonValidationError(
       `evals.json at ${sourceDescription} failed validation (${issues.length} issue${
         issues.length === 1 ? "" : "s"
@@ -94,566 +460,49 @@ export function validateEvalsJsonValue(value: unknown, sourceDescription = "eval
     );
   }
 
-  return file;
-}
-
-function validateEvalsJsonFile(value: unknown, issues: string[]): EvalsJsonFile | null {
-  if (!isRecord(value)) {
-    issues.push("Top-level value must be a JSON object.");
-    return null;
-  }
-
-  if (value.version !== undefined && typeof value.version !== "string") {
-    issues.push("`version`, if present, must be a string.");
-  }
-
-  if (typeof value.skill_name !== "string" || value.skill_name.length === 0) {
-    issues.push("`skill_name` must be a non-empty string.");
-  }
-
-  if (!Array.isArray(value.evals)) {
-    issues.push("`evals` must be an array.");
-    return null;
-  }
-
-  const seenIds = new Set<string>();
-  const cases: EvalCase[] = [];
-
-  for (let i = 0; i < value.evals.length; i++) {
-    const scopedIssues: string[] = [];
-    const parsedCase = validateCase(value.evals[i], i, scopedIssues);
-    for (const issue of scopedIssues) {
-      issues.push(`evals[${i}]: ${issue}`);
-    }
-    if (parsedCase) {
-      const key = String(parsedCase.id);
-      if (seenIds.has(key)) {
-        issues.push(`evals[${i}]: duplicate id ${key}`);
-      } else {
-        seenIds.add(key);
-        cases.push(parsedCase);
-      }
-    }
-  }
-
-  if (issues.length > 0) return null;
-
+  // The schema drops keys it doesn't know. Build the result from the
+  // original value instead, so nested objects (assertions, setup, metadata)
+  // keep any extra keys exactly as written, the same as before Schema.
+  const file = value as EvalsJsonFile;
   return Object.freeze({
-    version: value.version as string | undefined,
-    skill_name: value.skill_name as string,
-    evals: cases,
+    version: file.version,
+    skill_name: file.skill_name,
+    evals: file.evals.map(freezeCase),
   });
 }
 
-function validateCase(value: unknown, index: number, issues: string[]): EvalCase | null {
-  if (!isRecord(value)) {
-    issues.push("case must be a JSON object");
-    return null;
-  }
-
-  if (typeof value.id !== "string" && typeof value.id !== "number") {
-    issues.push("`id` must be a string or number");
-  }
-
-  if (value.description !== undefined && typeof value.description !== "string") {
-    issues.push("`description`, if present, must be a string");
-  }
-
-  if (typeof value.prompt !== "string" || value.prompt.length === 0) {
-    issues.push("`prompt` must be a non-empty string");
-  }
-
-  if (value.expected_output !== undefined && typeof value.expected_output !== "string") {
-    issues.push("`expected_output`, if present, must be a string");
-  }
-
-  if (value.setup !== undefined) {
-    validateWorkspaceSetup(value.setup, "setup", issues);
-  }
-
-  if (value.files !== undefined) {
-    if (!Array.isArray(value.files)) {
-      issues.push("`files`, if present, must be an array of strings");
-    } else {
-      for (let f = 0; f < value.files.length; f++) {
-        if (typeof value.files[f] !== "string") {
-          issues.push(`files[${f}] must be a string`);
-        }
-      }
-    }
-  }
-
-  if (value.assertions !== undefined) {
-    if (!Array.isArray(value.assertions)) {
-      issues.push("`assertions`, if present, must be an array");
-    } else {
-      for (let a = 0; a < value.assertions.length; a++) {
-        const assertionIssues: string[] = [];
-        validateAssertion(value.assertions[a], assertionIssues);
-        for (const issue of assertionIssues) {
-          issues.push(`assertions[${a}]: ${issue}`);
-        }
-      }
-    }
-  }
-
-  if (
-    value.sandbox !== undefined &&
-    (typeof value.sandbox !== "string" || !includesReadonly(SANDBOX_MODE_VALUES, value.sandbox))
-  ) {
-    issues.push(`\`sandbox\`, if present, must be one of [${SANDBOX_MODE_VALUES.join(", ")}]`);
-  }
-
-  if (value.sandboxMocks !== undefined) {
-    validateSandboxMocks(value.sandboxMocks, issues);
-  }
-
-  if (value.metadata !== undefined) {
-    validateMetadata(value.metadata, issues);
-  }
-
-  if (issues.length > 0) return null;
-
+function freezeCase(value: EvalCase): EvalCase {
   return Object.freeze({
-    id: value.id as string | number,
-    description: value.description as string | undefined,
-    prompt: value.prompt as string,
-    expected_output: value.expected_output as string | undefined,
+    id: value.id,
+    description: value.description,
+    prompt: value.prompt,
+    expected_output: value.expected_output,
     setup: value.setup as WorkspaceSetup | undefined,
-    files: value.files as string[] | undefined,
-    assertions: value.assertions as EvalAssertion[] | undefined,
+    files: value.files,
+    assertions: value.assertions,
     sandbox: value.sandbox as SandboxMode | undefined,
     sandboxMocks: value.sandboxMocks as SandboxCommandMock[] | undefined,
-    metadata: value.metadata as EvalCase["metadata"],
+    metadata: value.metadata,
   });
 }
 
-function validateAssertion(value: unknown, issues: string[]): void {
-  if (typeof value === "string") {
-    if (value.length === 0) issues.push("string assertion must be non-empty");
-    return;
+/** `evals[2]: \`assertions[0].pattern\` must be a non-empty string` */
+function formatIssue(issue: { readonly path?: ReadonlyArray<PropertyKey | { key: PropertyKey }> | undefined; readonly message: string }): string {
+  const keys = (issue.path ?? []).map((segment) => (typeof segment === "object" ? segment.key : segment));
+  const [head, index, ...rest] = keys;
+  if (head === "evals" && typeof index === "number") {
+    return `evals[${index}]: ${atPath(rest, issue.message)}`;
   }
-
-  if (!isRecord(value)) {
-    issues.push("assertion must be a string or an object");
-    return;
-  }
-
-  if ("type" in value) {
-    validateScriptAssertion(value, issues);
-    return;
-  }
-
-  validateIntentAssertion(value, issues);
+  return atPath(keys, issue.message);
 }
 
-function validateScriptAssertion(value: Record<string, unknown>, issues: string[]): void {
-  if (typeof value.type !== "string" || !SCRIPT_ASSERTION_TYPES.has(value.type)) {
-    issues.push(
-      `script assertion must declare \`type\` from [${Array.from(SCRIPT_ASSERTION_TYPES).join(", ")}]`,
-    );
-    return;
-  }
-
-  switch (value.type) {
-    case "file-exists":
-    case "file-absent":
-    case "json-valid":
-      if (typeof value.path !== "string" || value.path.length === 0) {
-        issues.push(`\`${value.type}\` requires a non-empty \`path\` string`);
-      }
-      break;
-    case "regex-match": {
-      if (typeof value.pattern !== "string" || value.pattern.length === 0) {
-        issues.push("`regex-match` requires a non-empty `pattern` string");
-      } else {
-        try {
-          new RegExp(value.pattern, typeof value.flags === "string" ? value.flags : undefined);
-        } catch {
-          issues.push("`regex-match` pattern is not a valid regular expression");
-        }
-      }
-      if (value.flags !== undefined && typeof value.flags !== "string") {
-        issues.push("`regex-match.flags`, if present, must be a string");
-      }
-      if (value.target !== undefined) {
-        if (value.target === "assistant-text") break;
-        if (!isRecord(value.target) || typeof value.target.file !== "string") {
-          issues.push(`\`regex-match.target\` must be "assistant-text" or { file: string }`);
-        }
-      }
-      break;
-    }
-  }
-}
-
-function validateIntentAssertion(value: Record<string, unknown>, issues: string[]): void {
-  if (typeof value.kind !== "string" || !INTENT_ASSERTION_KINDS.has(value.kind)) {
-    issues.push(
-      `intent assertion must declare \`kind\` from [${Array.from(INTENT_ASSERTION_KINDS).join(", ")}]`,
-    );
-    return;
-  }
-
-  if (typeof value.id !== "string" || value.id.length === 0) {
-    issues.push("intent assertion requires a non-empty `id` string");
-  }
-
-  if (value.mustPass !== undefined && typeof value.mustPass !== "boolean") {
-    issues.push("intent assertion `mustPass`, if present, must be a boolean");
-  }
-
-  if (
-    value.severity !== undefined &&
-    value.severity !== "info" &&
-    value.severity !== "warn" &&
-    value.severity !== "error"
-  ) {
-    issues.push('intent assertion `severity`, if present, must be "info", "warn", or "error"');
-  }
-
-  switch (value.kind) {
-    case "output":
-      validateEnumField(value, "method", OUTPUT_ASSERTION_METHODS, "output assertion", issues);
-      if (value.method === "judge" && value.prompt !== undefined && typeof value.prompt !== "string") {
-        issues.push("output judge assertion `prompt`, if present, must be a string");
-      }
-      validateScoredJudgeFields(value, issues);
-      if (value.method === "regex") {
-        validateRegexFields(value, "output regex assertion", issues);
-      }
-      if (value.method === "exact" && typeof value.expected !== "string") {
-        issues.push("output exact assertion requires an `expected` string");
-      }
-      break;
-    case "workspace":
-      validateEnumField(value, "method", WORKSPACE_ASSERTION_METHODS, "workspace assertion", issues);
-      if (value.method !== "snapshot-diff" && (typeof value.path !== "string" || value.path.length === 0)) {
-        issues.push("workspace assertion requires a non-empty `path` string");
-      }
-      if (value.method === "file-contains") {
-        validateRegexFields(value, "workspace file-contains assertion", issues);
-      }
-      break;
-    case "behavior":
-      validateEnumField(value, "method", BEHAVIOR_ASSERTION_METHODS, "behavior assertion", issues);
-      if (value.value !== undefined && typeof value.value !== "string") {
-        issues.push("behavior assertion `value`, if present, must be a string");
-      }
-      if (value.match !== undefined && typeof value.match !== "string") {
-        issues.push("behavior assertion `match`, if present, must be a string");
-      }
-      if (
-        value.matchKind !== undefined &&
-        value.matchKind !== "substring" &&
-        value.matchKind !== "regex"
-      ) {
-        issues.push('behavior assertion `matchKind`, if present, must be "substring" or "regex"');
-      }
-      if (value.matchKind === "regex" && typeof value.match === "string") {
-        try {
-          new RegExp(value.match);
-        } catch {
-          issues.push("behavior assertion `match` is not a valid regular expression");
-        }
-      }
-      break;
-    case "safety":
-      validateEnumField(value, "method", SAFETY_ASSERTION_METHODS, "safety assertion", issues);
-      if (value.method === "no-forbidden-files-touched") {
-        const config = value.config;
-        const paths = isRecord(config) ? (config as { paths?: unknown }).paths : undefined;
-        if (
-          !isRecord(config) ||
-          !Array.isArray(paths) ||
-          !paths.every((entry) => typeof entry === "string")
-        ) {
-          issues.push("`no-forbidden-files-touched` requires `config.paths` to be an array of strings");
-        }
-      }
-      break;
-  }
-}
-
-function validateEnumField(
-  value: Record<string, unknown>,
-  field: string,
-  allowed: Set<string>,
-  label: string,
-  issues: string[],
-): void {
-  if (typeof value[field] !== "string" || !allowed.has(value[field] as string)) {
-    issues.push(`${label} must declare \`${field}\` from [${Array.from(allowed).join(", ")}]`);
-  }
-}
-
-function validateRegexFields(value: Record<string, unknown>, label: string, issues: string[]): void {
-  if (typeof value.pattern !== "string" || value.pattern.length === 0) {
-    issues.push(`${label} requires a non-empty \`pattern\` string`);
-  } else {
-    try {
-      new RegExp(value.pattern, typeof value.flags === "string" ? value.flags : undefined);
-    } catch {
-      issues.push(`${label} pattern is not a valid regular expression`);
-    }
-  }
-  if (value.flags !== undefined && typeof value.flags !== "string") {
-    issues.push(`${label} \`flags\`, if present, must be a string`);
-  }
-}
-
-/**
- * Validate the optional scored-judge fields (`threshold` / `scaleMax`) on an
- * output assertion. Scoring is judge-only; `threshold` must sit within
- * `1..scaleMax` (default ceiling 5).
- */
-function validateScoredJudgeFields(value: Record<string, unknown>, issues: string[]): void {
-  const hasThreshold = value.threshold !== undefined;
-  const hasScaleMax = value.scaleMax !== undefined;
-  if (!hasThreshold && !hasScaleMax) return;
-
-  if (value.method !== "judge") {
-    issues.push("`threshold`/`scaleMax` are only valid on an output assertion with `method: \"judge\"`");
-    return;
-  }
-  if (hasScaleMax && (typeof value.scaleMax !== "number" || !Number.isFinite(value.scaleMax) || value.scaleMax < 2)) {
-    issues.push("scored judge `scaleMax`, if present, must be a number >= 2");
-  }
-  if (!hasThreshold) {
-    issues.push("scored judge `scaleMax` requires a `threshold`");
-    return;
-  }
-  if (typeof value.threshold !== "number" || !Number.isFinite(value.threshold)) {
-    issues.push("scored judge `threshold` must be a finite number");
-    return;
-  }
-  const ceiling = hasScaleMax && typeof value.scaleMax === "number" ? value.scaleMax : 5;
-  if (value.threshold < 1 || value.threshold > ceiling) {
-    issues.push(`scored judge \`threshold\` must be between 1 and ${ceiling} (the scaleMax)`);
-  }
-}
-
-function validateWorkspaceSetup(value: unknown, label: string, issues: string[]): void {
-  if (!isRecord(value)) {
-    issues.push(`\`${label}\` must be an object`);
-    return;
-  }
-
-  if (typeof value.kind !== "string" || !includesReadonly(WORKSPACE_KIND_VALUES, value.kind)) {
-    issues.push(
-      `\`${label}.kind\` must be one of [${WORKSPACE_KIND_VALUES.join(", ")}]`,
-    );
-    return;
-  }
-
-  switch (value.kind) {
-    case "empty":
-      return;
-    case "seeded":
-      if (!Array.isArray(value.sources)) {
-        issues.push(`\`${label}.sources\` must be an array`);
-      } else {
-        for (let i = 0; i < value.sources.length; i++) {
-          const source = value.sources[i];
-          if (!isRecord(source)) {
-            issues.push(`\`${label}.sources[${i}]\` must be an object`);
-            continue;
-          }
-          if (typeof source.from !== "string" || source.from.length === 0) {
-            issues.push(`\`${label}.sources[${i}].from\` must be a non-empty string`);
-          }
-          if (source.to !== undefined && typeof source.to !== "string") {
-            issues.push(`\`${label}.sources[${i}].to\`, if present, must be a string`);
-          }
-        }
-      }
-      if (
-        value.mountMode !== undefined &&
-        (typeof value.mountMode !== "string" || !includesReadonly(WORKSPACE_MOUNT_MODE_VALUES, value.mountMode))
-      ) {
-        issues.push(
-          `\`${label}.mountMode\`, if present, must be one of [${WORKSPACE_MOUNT_MODE_VALUES.join(", ")}]`,
-        );
-      }
-      return;
-    case "fixture":
-      validateFixtureRef(value.fixture, `${label}.fixture`, issues);
-      return;
-  }
-}
-
-function validateFixtureRef(value: unknown, label: string, issues: string[]): void {
-  if (!isRecord(value)) {
-    issues.push(`\`${label}\` must be an object`);
-    return;
-  }
-  if (typeof value.kind !== "string" || !includesReadonly(FIXTURE_KIND_VALUES, value.kind)) {
-    issues.push(`\`${label}.kind\` must be one of [${FIXTURE_KIND_VALUES.join(", ")}]`);
-  }
-  if (typeof value.source !== "string" || value.source.length === 0) {
-    issues.push(`\`${label}.source\` must be a non-empty string`);
-  }
-  if (value.initGit !== undefined && typeof value.initGit !== "boolean") {
-    issues.push(`\`${label}.initGit\`, if present, must be a boolean`);
-  }
-}
-
-function validateSandboxMocks(value: unknown, issues: string[]): void {
-  if (!Array.isArray(value)) {
-    issues.push("`sandboxMocks`, if present, must be an array");
-    return;
-  }
-
-  for (let i = 0; i < value.length; i++) {
-    const mock = value[i];
-    const label = `sandboxMocks[${i}]`;
-    if (!isRecord(mock)) {
-      issues.push(`\`${label}\` must be an object`);
-      continue;
-    }
-    if (typeof mock.command !== "string" || mock.command.length === 0) {
-      issues.push(`\`${label}.command\` must be a non-empty string`);
-    }
-    if (mock.stdout !== undefined && typeof mock.stdout !== "string") {
-      issues.push(`\`${label}.stdout\`, if present, must be a string`);
-    }
-    if (mock.stderr !== undefined && typeof mock.stderr !== "string") {
-      issues.push(`\`${label}.stderr\`, if present, must be a string`);
-    }
-    if (mock.exitCode !== undefined && !Number.isInteger(mock.exitCode)) {
-      issues.push(`\`${label}.exitCode\`, if present, must be an integer`);
-    }
-    if (mock.files !== undefined) {
-      if (!Array.isArray(mock.files)) {
-        issues.push(`\`${label}.files\`, if present, must be an array`);
-      } else {
-        for (let f = 0; f < mock.files.length; f++) {
-          const file = mock.files[f];
-          const fileLabel = `${label}.files[${f}]`;
-          if (!isRecord(file)) {
-            issues.push(`\`${fileLabel}\` must be an object`);
-            continue;
-          }
-          if (typeof file.path !== "string" || file.path.length === 0) {
-            issues.push(`\`${fileLabel}.path\` must be a non-empty string`);
-          }
-          if (typeof file.content !== "string") {
-            issues.push(`\`${fileLabel}.content\` must be a string`);
-          }
-        }
-      }
-    }
-  }
-}
-
-function validateMetadata(value: unknown, issues: string[]): void {
-  if (!isRecord(value)) {
-    issues.push("`metadata`, if present, must be an object");
-    return;
-  }
-  if (value.tags !== undefined) {
-    if (!Array.isArray(value.tags) || value.tags.some((tag) => typeof tag !== "string")) {
-      issues.push("`metadata.tags`, if present, must be an array of strings");
-    }
-  }
-  if (
-    value.difficulty !== undefined &&
-    value.difficulty !== "easy" &&
-    value.difficulty !== "medium" &&
-    value.difficulty !== "hard"
-  ) {
-    issues.push('`metadata.difficulty`, if present, must be "easy", "medium", or "hard"');
-  }
-  if (value.intent !== undefined && typeof value.intent !== "string") {
-    issues.push("`metadata.intent`, if present, must be a string");
-  }
-  if (value.environment !== undefined) {
-    validateEnvironmentRequirements(value.environment, "metadata.environment", issues);
-  }
-}
-
-function validateEnvironmentRequirements(value: unknown, label: string, issues: string[]): void {
-  if (!isRecord(value)) {
-    issues.push(`\`${label}\` must be an object`);
-    return;
-  }
-  if (!isRecord(value.workspace)) {
-    issues.push(`\`${label}.workspace\` must be an object`);
-  } else {
-    if (typeof value.workspace.kind !== "string" || !includesReadonly(WORKSPACE_KIND_VALUES, value.workspace.kind)) {
-      issues.push(`\`${label}.workspace.kind\` must be one of [${WORKSPACE_KIND_VALUES.join(", ")}]`);
-    }
-    if (typeof value.workspace.writable !== "boolean") {
-      issues.push(`\`${label}.workspace.writable\` must be a boolean`);
-    }
-  }
-  if (value.git !== undefined) {
-    if (!isRecord(value.git)) {
-      issues.push(`\`${label}.git\` must be an object`);
-    } else if (typeof value.git.required !== "boolean") {
-      issues.push(`\`${label}.git.required\` must be a boolean`);
-    }
-  }
-  if (value.network !== undefined) {
-    if (!isRecord(value.network)) {
-      issues.push(`\`${label}.network\` must be an object`);
-    } else if (typeof value.network.mode !== "string" || !includesReadonly(NETWORK_MODE_VALUES, value.network.mode)) {
-      issues.push(`\`${label}.network.mode\` must be one of [${NETWORK_MODE_VALUES.join(", ")}]`);
-    }
-  }
-  if (value.tools !== undefined) {
-    validateArrayOfRecords(value.tools, `${label}.tools`, issues, (tool, toolLabel) => {
-      if (typeof tool.name !== "string" || tool.name.length === 0) {
-        issues.push(`\`${toolLabel}.name\` must be a non-empty string`);
-      }
-      if (typeof tool.required !== "boolean") {
-        issues.push(`\`${toolLabel}.required\` must be a boolean`);
-      }
-      if (tool.mode !== undefined && (typeof tool.mode !== "string" || !includesReadonly(TOOL_REQUIREMENT_MODE_VALUES, tool.mode))) {
-        issues.push(`\`${toolLabel}.mode\`, if present, must be one of [${TOOL_REQUIREMENT_MODE_VALUES.join(", ")}]`);
-      }
-    });
-  }
-  if (value.envVars !== undefined) {
-    validateArrayOfRecords(value.envVars, `${label}.envVars`, issues, (envVar, envVarLabel) => {
-      if (typeof envVar.name !== "string" || envVar.name.length === 0) {
-        issues.push(`\`${envVarLabel}.name\` must be a non-empty string`);
-      }
-      if (typeof envVar.required !== "boolean") {
-        issues.push(`\`${envVarLabel}.required\` must be a boolean`);
-      }
-      if (envVar.secret !== undefined && typeof envVar.secret !== "boolean") {
-        issues.push(`\`${envVarLabel}.secret\`, if present, must be a boolean`);
-      }
-    });
-  }
-}
-
-function validateArrayOfRecords(
-  value: unknown,
-  label: string,
-  issues: string[],
-  validateEntry: (entry: Record<string, unknown>, entryLabel: string) => void,
-): void {
-  if (!Array.isArray(value)) {
-    issues.push(`\`${label}\` must be an array`);
-    return;
-  }
-  for (let i = 0; i < value.length; i++) {
-    if (!isRecord(value[i])) {
-      issues.push(`\`${label}[${i}]\` must be an object`);
-      continue;
-    }
-    validateEntry(value[i], `${label}[${i}]`);
-  }
-}
-
-function includesReadonly(values: readonly string[], value: string): boolean {
-  return values.includes(value);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+function atPath(keys: ReadonlyArray<PropertyKey>, message: string): string {
+  if (keys.length === 0) return message;
+  const rendered = keys.reduce<string>(
+    (acc, key) => (typeof key === "number" ? `${acc}[${key}]` : acc === "" ? String(key) : `${acc}.${String(key)}`),
+    "",
+  );
+  return `\`${rendered}\` ${message}`;
 }
 
 /**
