@@ -4,6 +4,7 @@ import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { COLORS, segLen } from './theme.js';
 import { GLYPHS } from './caps.js';
+import { seg } from './theme.js';
 import type { Seg } from './theme.js';
 import type { Skill, Run, Case, Focus, Sel, CaseMode } from './types.js';
 import { skillRows, caseRows, assertionRows, runRows, buildMain, modesFor } from './view-model.js';
@@ -221,11 +222,29 @@ function MainPane(props: {
   );
 }
 
+/** Main pane for a filter that hides every skill: what hides them and how to clear it. */
+function emptyFilterView(filter: string, failOnly: boolean): { title: string; sub: Seg[]; lines: DisplayLine[]; anchors: number[] } {
+  const line = (t: string, c: string): DisplayLine => ({ segs: [seg(t, c)] });
+  const lines: DisplayLine[] = [line('No skill matches the current view.', COLORS.orange), line(' ', COLORS.fg)];
+  if (failOnly) {
+    lines.push(line('Failures-only is on, and no skill has a failing case.', COLORS.fgDark));
+    lines.push(line('Press F to show all skills.', COLORS.comment));
+  }
+  if (filter) {
+    if (failOnly) lines.push(line(' ', COLORS.fg));
+    lines.push(line(`No skill or case id contains "${filter}".`, COLORS.fgDark));
+    lines.push(line('Press / and then esc to clear the filter.', COLORS.comment));
+  }
+  return { title: 'No matches', sub: [], lines, anchors: [] };
+}
+
 // ------------------------------------------------------------------ status bar
 
-function StatusBar({ focused, caseMode, pane, sk, filter, filtering, failOnly, sortMode, noting, note, flash }: { focused: Focus; caseMode: CaseMode; pane: boolean; sk: Skill; filter: string; filtering: boolean; failOnly: boolean; sortMode: SortMode; noting: boolean; note: string; flash: string }) {
+function StatusBar({ focused, caseMode, pane, sk, filter, filtering, failOnly, sortMode, noting, note, flash }: { focused: Focus; caseMode: CaseMode; pane: boolean; sk: Skill | undefined; filter: string; filtering: boolean; failOnly: boolean; sortMode: SortMode; noting: boolean; note: string; flash: string }) {
   const ud = `${GLYPHS.up}${GLYPHS.down}`;
-  const hints: [string, string][] = pane
+  const hints: [string, string][] = !sk
+    ? [['F', 'failures-only'], ['/', 'filter'], ['?', 'help'], ['q', 'quit']]
+    : pane
     ? [[ud, 'line'], [GLYPHS.enter, 'open'], [GLYPHS.arrowL, 'back'], ['?', 'help']]
     : focused === 'skills'
       ? [[ud, 'skill'], [GLYPHS.arrowR, 'inspect'], ['/', 'filter'], ['r', 'run'], ['o', 'opts'], ['C', 'create'], ['?', 'help']]
@@ -257,12 +276,14 @@ function StatusBar({ focused, caseMode, pane, sk, filter, filtering, failOnly, s
           </Box>
         )}
       </Box>
-      <Box>
-        <Text color={COLORS.green}>{GLYPHS.play + ' '}</Text>
-        <Text color={COLORS.blue}>{sk.model}</Text>
-        <Text color={COLORS.comment}>{'  ' + GLYPHS.sigma + ' '}</Text>
-        <Text color={COLORS.green}>{sk.totalCost}</Text>
-      </Box>
+      {sk ? (
+        <Box>
+          <Text color={COLORS.green}>{GLYPHS.play + ' '}</Text>
+          <Text color={COLORS.blue}>{sk.model}</Text>
+          <Text color={COLORS.comment}>{'  ' + GLYPHS.sigma + ' '}</Text>
+          <Text color={COLORS.green}>{sk.totalCost}</Text>
+        </Box>
+      ) : null}
     </Box>
   );
 }
@@ -347,7 +368,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
   const railWidth = Math.max(34, Math.min(48, Math.floor(cols * 0.4)));
   const innerRail = railWidth - 2;
   const mainInner = Math.max(10, cols - railWidth - 2);
-  const main = sk ? buildMain(focused, sk, cs, asrt!, run, caseMode, showWithout ?? true, compareBase ?? undefined, mainInner) : { title: '', sub: [] as Seg[], lines: [] as DisplayLine[], anchors: [] as number[] };
+  const main = sk ? buildMain(focused, sk, cs, asrt!, run, caseMode, showWithout ?? true, compareBase ?? undefined, mainInner) : emptyFilterView(filter, failOnly);
   const anchors = main.anchors;
   const scrollMax = Math.max(0, main.lines.length - maxRows);
   const cursorLine = pane && anchors.length ? (anchors[clampIdx(cursor, anchors.length)] ?? -1) : -1;
@@ -385,14 +406,20 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
       return;
     }
     if (flash) setFlash('');
-    if (!sk) { if (input === 'q') onAction({ type: 'quit' }); if (input === '/') setFiltering(true); return; }
+    if (skills.length === 0) { if (input === 'q') onAction({ type: 'quit' }); return; }
     if (showHelp) { setShowHelp(false); return; }
     if (input === 'q') { onAction({ type: 'quit', state: { focused, sel, caseMode } }); return; }
     if (input === '?') { setShowHelp(true); return; }
     if (input === '/') { setFiltering(true); return; }
-    if (input === 'f' && focused === 'cases') { setNote(''); setNoting(true); return; }
     if (input === 'F') { setFailOnly((v) => !v); setSel((s) => ({ ...s, skills: 0, cases: 0, assertions: 0 })); return; }
     if (input === 's') { setSortMode((m) => (m === 'name' ? 'pass' : m === 'pass' ? 'delta' : m === 'delta' ? 'cost' : 'name')); setSel((s) => ({ ...s, skills: 0 })); return; }
+    if (!sk) {
+      // The filter hides every skill: only filter, sort, help, and panel keys apply.
+      if (key.tab) { const i = ORDER.indexOf(focused); const d = key.shift ? -1 : 1; setFocused(ORDER[(i + d + ORDER.length) % ORDER.length]!); return; }
+      if (input >= '1' && input <= '4') { setFocused(ORDER[Number(input) - 1]!); return; }
+      return;
+    }
+    if (input === 'f' && focused === 'cases') { setNote(''); setNoting(true); return; }
     if (input === 'c' && focused === 'runs') { setCompareBase((b) => (b && run && b.runId === run.runId ? null : run ?? null)); return; }
     if (input === 'r') { runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' && cs ? cs.id : null, compare: false }); return; }
     if (input === 'R') { runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' && cs ? cs.id : null, compare: true }); return; }
@@ -465,7 +492,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
   // help visibility is declared with the other state above; the input handler
   // re-registers each render, so it always reads the current value.
 
-  if (!sk) {
+  if (skills.length === 0) {
     return (
       <Box padding={1} flexDirection="column">
         <Text color={COLORS.orange}>No eval runs found.</Text>
@@ -477,7 +504,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
   // Overlays render in place of the layout (mirrors the help overlay) — Ink
   // stays mounted, so no terminal handoff. Run console takes priority.
   if (runCtl.state.active) return <RunConsole state={runCtl.state} elapsed={runCtl.elapsed} frame={runCtl.frame} />;
-  if (runOptions) return (
+  if (runOptions && sk) return (
     <Box padding={1}>
       <RunOptionsForm
         skillName={sk.id}
@@ -489,7 +516,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
       />
     </Box>
   );
-  if (creating) return (
+  if (creating && sk) return (
     <NewCaseForm
       skillDir={sk.dir}
       skillName={sk.id}
@@ -502,7 +529,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
       }}
     />
   );
-  if (creatingSuite) return (
+  if (creatingSuite && sk) return (
     <CreateForm
       skillDir={sk.dir}
       skillName={sk.id}
