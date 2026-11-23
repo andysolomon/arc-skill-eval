@@ -69,6 +69,7 @@ export function useRunController() {
     const ac = new AbortController();
     controller.current = ac;
     const gen = ++generation.current;
+    setElapsed(0);
     dispatch({ type: 'reset' });
     void runInProcess(req, (ev) => { if (generation.current === gen) dispatch(ev); }, ac.signal);
   };
@@ -173,7 +174,7 @@ export function RunConsole({ state, elapsed, frame }: { state: RunState; elapsed
             <Text color={gc} bold={c.phase !== 'queued'}>{' ' + g + '  '}</Text>
             <Text color={c.phase === 'queued' ? COLORS.comment : COLORS.fg}>{c.id.padEnd(28)}</Text>
             <Text color={c.phase === 'fail' ? COLORS.red : COLORS.green}>{bar(c.assertPass, c.assertTotal)}</Text>
-            <Text color={COLORS.comment}>{c.phase === 'queued' ? (state.cancelled ? '  not run' : '  queued') : '  ' + c.assertPass + '/' + c.assertTotal}</Text>
+            <Text color={COLORS.comment}>{c.phase === 'queued' ? (state.done ? '  not run' : '  queued') : '  ' + c.assertPass + '/' + c.assertTotal}</Text>
           </Text>
         );
       })}
