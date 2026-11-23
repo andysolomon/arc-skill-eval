@@ -37,7 +37,7 @@ description: Every keystroke in the arc-skill-eval browse TUI. Generated from sr
 | `n` | Author a new eval case (id, prompt, typed assertions) → evals.json _(Skills/Cases)_ |
 | `C` | Guided create: propose, review & write an eval suite for the skill _(Skills)_ |
 | `f` | Write a feedback.json note for the case (feeds improve) _(Cases)_ |
-| `esc` | Abort an in-flight run _(running)_ |
+| `esc` | Stop the in-flight run; press again to close without waiting _(running)_ |
 | `↵` | Reload artifacts & close the run console _(run complete)_ |
 
 ### Filter & compare

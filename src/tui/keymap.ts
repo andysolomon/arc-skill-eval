@@ -50,7 +50,7 @@ export const KEYMAP: KeySection[] = [
       { id: 'new-case',    keys: ['n'],                 desc: 'Author a new eval case (id, prompt, typed assertions) → evals.json', context: 'Skills/Cases' },
       { id: 'create-suite', keys: ['C'],                desc: 'Guided create: propose, review & write an eval suite for the skill', context: 'Skills' },
       { id: 'feedback',    keys: ['f'],                 desc: 'Write a feedback.json note for the case (feeds improve)', context: 'Cases' },
-      { id: 'run-abort',   keys: ['esc'],               desc: 'Abort an in-flight run', context: 'running' },
+      { id: 'run-abort',   keys: ['esc'],               desc: 'Stop the in-flight run; press again to close without waiting', context: 'running' },
       { id: 'run-reload',  keys: ['↵'],                 desc: 'Reload artifacts & close the run console', context: 'run complete' },
     ],
   },
