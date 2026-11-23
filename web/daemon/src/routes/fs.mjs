@@ -1,59 +1,78 @@
 import { existsSync } from "node:fs";
-import { readdir, stat } from "node:fs/promises";
+import { readdir, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
+import { expandPath, isBrowsable } from "../workspaces.mjs";
+
+const OUTSIDE_ERROR = "outside your home folder and the workspaces you opened";
 
 function resolveFsPath(pathParam) {
   if (!pathParam || pathParam.trim() === "") {
     return homedir();
   }
 
-  const ref = pathParam.trim();
-  return ref === "~" || ref.startsWith("~/")
-    ? path.join(homedir(), ref.slice(1))
-    : path.resolve(ref);
+  return expandPath(pathParam.trim());
 }
 
-function parentOf(resolved) {
+/**
+ * The parent directory, when the folder picker may list it too. A parent that
+ * no longer exists still counts when its nearest existing ancestor may be
+ * listed, so the picker can walk up from a stale workspace path.
+ */
+async function browsableParent(resolved) {
   const parentDir = path.dirname(resolved);
-  return parentDir === resolved ? null : parentDir;
+  if (parentDir === resolved) {
+    return null;
+  }
+
+  for (let candidate = parentDir; ; candidate = path.dirname(candidate)) {
+    const real = await realpath(candidate).catch(() => null);
+    if (real !== null) {
+      return (await isBrowsable(real)) ? parentDir : null;
+    }
+    if (path.dirname(candidate) === candidate) {
+      return null;
+    }
+  }
 }
 
+/**
+ * Lists one directory for the folder picker. Only the home folder, the
+ * workspaces the user opened, and their subfolders can be listed.
+ */
 export async function handleFs(request, response, context) {
   if (request.method !== "GET" || context.url.pathname !== "/fs") {
     return false;
   }
 
   const resolved = resolveFsPath(context.url.searchParams.get("path"));
+  const failure = async (error) => {
+    context.sendJson(response, 200, {
+      ok: false,
+      path: resolved,
+      parent: await browsableParent(resolved),
+      error,
+      entries: [],
+    });
+    return true;
+  };
+
+  const real = await realpath(resolved).catch(() => null);
+  if (real === null) {
+    return failure("directory not found");
+  }
+
+  if (!(await isBrowsable(real))) {
+    return failure(OUTSIDE_ERROR);
+  }
 
   try {
-    const stats = await stat(resolved).catch(() => null);
-
-    const parent = parentOf(resolved);
-
-    if (!stats) {
-      context.sendJson(response, 200, {
-        ok: false,
-        path: resolved,
-        parent,
-        error: "directory not found",
-        entries: [],
-      });
-      return true;
-    }
-
+    const stats = await stat(real);
     if (!stats.isDirectory()) {
-      context.sendJson(response, 200, {
-        ok: false,
-        path: resolved,
-        parent,
-        error: "not a directory",
-        entries: [],
-      });
-      return true;
+      return failure("not a directory");
     }
 
-    const entries = (await readdir(resolved, { withFileTypes: true }))
+    const entries = (await readdir(real, { withFileTypes: true }))
       .filter((entry) => !entry.name.startsWith("."))
       .map((entry) => {
         const childPath = path.join(resolved, entry.name);
@@ -79,18 +98,11 @@ export async function handleFs(request, response, context) {
     context.sendJson(response, 200, {
       ok: true,
       path: resolved,
-      parent,
+      parent: await browsableParent(resolved),
       entries,
     });
     return true;
   } catch (error) {
-    context.sendJson(response, 200, {
-      ok: false,
-      path: resolved,
-      parent: parentOf(resolved),
-      error: error.message,
-      entries: [],
-    });
-    return true;
+    return failure(error.message);
   }
 }

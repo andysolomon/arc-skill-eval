@@ -9,7 +9,7 @@ import type { WorkspaceSkill } from '@/app/context';
 
 // FLAGS
 
-export const CompareMode = Schema.Literals(['off', 'with', 'on']);
+export const CompareMode = Schema.Literals(['off', 'on']);
 export type CompareMode = typeof CompareMode.Type;
 
 export const ContextMode = Schema.Literals(['isolated', 'ambient']);
@@ -47,24 +47,30 @@ export type FieldName = typeof FieldName.Type;
 
 // OPTIONS
 
+/** "default" leaves the flag off: the daemon uses Pi's default model (shown in the status bar). */
+export const DEFAULT_MODEL = 'default';
+
 export const models: ReadonlyArray<string> = [
-  'anthropic/claude-sonnet-4',
-  'anthropic/claude-opus-4',
+  DEFAULT_MODEL,
+  'anthropic/claude-sonnet-4-5',
+  'anthropic/claude-opus-4-5',
   'openai/gpt-5',
-  'openai/gpt-5-mini',
+  'openai/gpt-5.4-mini',
 ];
 
-export const caseOptions: ReadonlyArray<string> = ['*', 'all', 'case-pass', 'case-fail'];
-export const compareOptions: ReadonlyArray<CompareMode> = ['off', 'with', 'on'];
+/** "*" runs every case; the rest are the case ids in the selected skill's evals.json. */
+export const ALL_CASES = '*';
+
+export const compareOptions: ReadonlyArray<CompareMode> = ['off', 'on'];
 export const contextModeOptions: ReadonlyArray<ContextMode> = ['isolated', 'ambient'];
 export const sandboxOptions: ReadonlyArray<SandboxMode> = ['none', 'just-bash'];
 export const iterationOptions: ReadonlyArray<number> = [1, 2, 3, 4, 5];
 
 export const defaultComposer: Composer = {
   workspaceRoot: '',
-  case: '*',
-  model: 'anthropic/claude-sonnet-4',
-  judgeModel: 'anthropic/claude-sonnet-4',
+  case: ALL_CASES,
+  model: DEFAULT_MODEL,
+  judgeModel: DEFAULT_MODEL,
   compare: 'off',
   extraSkill: [],
   iteration: 1,
@@ -91,9 +97,9 @@ export const hasNoEvals = (maybeSelectedSkill: Option.Option<WorkspaceSkill>): b
 // COMMAND PREVIEW
 
 export const commandFlags = (composer: Composer): ReadonlyArray<string> => [
-  ...(composer.case === '*' ? [] : [`--case ${composer.case}`]),
-  `--model ${composer.model}`,
-  `--judge-model ${composer.judgeModel}`,
+  ...(composer.case === ALL_CASES ? [] : [`--case ${composer.case}`]),
+  ...(composer.model === DEFAULT_MODEL ? [] : [`--model ${composer.model}`]),
+  ...(composer.judgeModel === DEFAULT_MODEL ? [] : [`--judge-model ${composer.judgeModel}`]),
   ...(composer.compare === 'off' ? [] : ['--compare']),
   ...Array.map(composer.extraSkill, (extraSkill) => `--extra-skill ${extraSkill}`),
   ...(composer.iteration === 1 ? [] : [`--iteration ${composer.iteration}`]),

@@ -1,35 +1,39 @@
-import { expect, test } from './fixtures/test';
+import path from 'node:path';
+import { createWorkspace, recordArtifact, usesDeployedApp } from './fixtures/local';
+import { chooseWorkspace, expect, openApp, switchEnv, test } from './fixtures/test';
 
-const STALE_WORKSPACE_ROOT = '~/src/skills';
-
-// This spec talks to a real daemon when one is running, so don't mock it.
+// The real daemon lists the folders; nothing is mocked.
 test.use({ mockDaemon: false });
+test.skip(usesDeployedApp, 'needs the local daemon the suite starts');
 
-test('browse folders stays navigable when workspace root is stale', async ({ page, request }) => {
-  // The daemon is localhost-only chrome and is not started in CI. `request.get`
-  // throws on ECONNREFUSED rather than returning a non-ok response, so the probe
-  // has to be guarded — otherwise an absent daemon fails the run instead of skipping.
-  const daemonUp = await request
-    .get('http://127.0.0.1:7357/fs')
-    .then((probe) => probe.ok())
-    .catch(() => false);
+test('browse folders falls back to an existing ancestor when the workspace path is stale', async ({
+  page,
+}, testInfo) => {
+  const workspace = await createWorkspace(testInfo);
+  const stale = path.join(workspace, 'moved', 'away');
 
-  test.skip(!daemonUp, 'daemon not running on port 7357');
-
-  await page.goto('/');
-  await page.getByTestId('env-option-localhost').click();
-  await page.getByTestId('workspace-chip').click();
-  await expect(page.getByTestId('workspace-dropdown')).toBeVisible();
-
-  const reference = page.getByRole('textbox', { name: 'Enter a folder path or GitHub repository URL' });
-  await reference.fill(STALE_WORKSPACE_ROOT);
-  await reference.press('Enter');
+  await openApp(page);
+  await switchEnv(page, 'localhost');
+  await chooseWorkspace(page, stale);
 
   await page.getByTestId('workspace-chip').click();
   await expect(page.getByTestId('workspace-dropdown')).toBeVisible();
   await page.getByRole('button', { name: 'Choose a folder' }).click();
-  await expect(page.getByTestId('folder-picker')).toBeVisible();
+  const picker = page.getByTestId('folder-picker');
+  await expect(picker).toBeVisible();
 
+  // The daemon reports the stale path as missing and the picker shows the
+  // nearest folder that exists.
+  await expect(picker).toContainText(`directory not found. Showing ${workspace}`);
+  await expect(picker.locator('.folder-picker-row').filter({ hasText: 'skills' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'parent directory' })).toBeEnabled();
-  await expect(page.locator('.folder-picker-row').first()).toBeVisible();
+
+  // Open skills/ and pick it: the workspace chip resolves it and lists the skills.
+  await picker.locator('.folder-picker-row').filter({ hasText: 'skills' }).click();
+  await expect(picker.locator('.folder-picker-row').filter({ hasText: 'alpha' })).toBeVisible();
+  await recordArtifact(testInfo, {
+    stale: path.relative(workspace, stale),
+    fellBackTo: '<workspace>',
+    listed: ['alpha', 'beta', 'gamma'],
+  });
 });

@@ -4,6 +4,7 @@ import { mkdir, readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { expandPath, registerWorkspace } from "../workspaces.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -21,12 +22,6 @@ function parseGithubRef(ref) {
     ?? /^github:([\w.-]+)\/([\w.-]+)$/.exec(ref);
 
   return match ? { owner: match[1], repo: match[2] } : null;
-}
-
-export function expandPath(ref) {
-  return ref === "~" || ref.startsWith("~/")
-    ? path.join(homedir(), ref.slice(1))
-    : path.resolve(ref);
 }
 
 async function resolveGithubRepo({ owner, repo }) {
@@ -230,6 +225,9 @@ export async function handleWorkspace(request, response, context) {
     });
     return true;
   }
+
+  // The user chose this directory, so later requests may read and write inside it.
+  await registerWorkspace(resolution.resolvedPath);
 
   context.sendJson(response, 200, {
     ok: true,

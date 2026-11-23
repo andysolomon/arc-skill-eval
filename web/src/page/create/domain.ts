@@ -46,9 +46,29 @@ export const assertionKinds = [
 export const AssertionKind = Schema.Literals(assertionKinds);
 export type AssertionKind = typeof AssertionKind.Type;
 
-export const BehaviorAssertion = Schema.Struct({ kind: AssertionKind, val: Schema.String });
+/**
+ * One assertion as the wizard edits it: a kind and a single value. An
+ * assertion loaded from an existing evals.json keeps its original JSON in
+ * `source`, so fields the wizard does not edit (flags, target, id,
+ * mustPass, severity, ...) are written back unchanged.
+ */
+export const BehaviorAssertion = Schema.Struct({
+  kind: AssertionKind,
+  val: Schema.String,
+  source: Schema.optional(Schema.Unknown),
+});
 export type BehaviorAssertion = typeof BehaviorAssertion.Type;
 
+/** An assertion the wizard cannot edit, kept as loaded at its original position. */
+export const KeptAssertion = Schema.Struct({ index: Schema.Number, value: Schema.Unknown });
+export type KeptAssertion = typeof KeptAssertion.Type;
+
+/**
+ * One eval case. A case loaded from an existing evals.json keeps its
+ * original JSON in `source` (id, expected_output, files, metadata, ...) and
+ * the assertions the wizard cannot edit in `kept`, so writing the suite back
+ * loses nothing.
+ */
 export const BehaviorRow = Schema.Struct({
   id: Schema.String,
   text: Schema.String,
@@ -56,10 +76,17 @@ export const BehaviorRow = Schema.Struct({
   prompt: Schema.String,
   flavor: Flavor,
   asserts: Schema.Array(BehaviorAssertion),
+  source: Schema.optional(Schema.Unknown),
+  kept: Schema.optional(Schema.Array(KeptAssertion)),
 });
 export type BehaviorRow = typeof BehaviorRow.Type;
 
-export const Draft = Schema.Struct({ skill: Schema.String, behaviors: Schema.Array(BehaviorRow) });
+/** `source` holds the top-level fields of a loaded evals.json (version and any others). */
+export const Draft = Schema.Struct({
+  skill: Schema.String,
+  behaviors: Schema.Array(BehaviorRow),
+  source: Schema.optional(Schema.Unknown),
+});
 export type Draft = typeof Draft.Type;
 
 export const defaultDraft: Draft = { skill: 'my-skill', behaviors: [] };
@@ -73,6 +100,8 @@ export const makeBehaviorRow = (id: string, seed: BehaviorSeed = {}): BehaviorRo
   prompt: seed.prompt ?? '',
   flavor: seed.flavor ?? 'explicit',
   asserts: seed.asserts ?? [],
+  ...(seed.source === undefined ? {} : { source: seed.source }),
+  ...(seed.kept === undefined ? {} : { kept: seed.kept }),
 });
 
 export const isBehaviorKind = (kind: string): kind is BehaviorAssertionKind =>
@@ -165,11 +194,26 @@ export const suggestPromptTemplate = (skill: string, behavior: BehaviorRow): str
 
 // EVALS.JSON
 
-export type EvalsAssertion = string | Readonly<Record<string, string>>;
+type JsonRecord = Readonly<Record<string, unknown>>;
 
-export type EvalsCase = Readonly<{ id: string; prompt: string; assertions: ReadonlyArray<EvalsAssertion> }>;
+export type EvalsAssertion = string | JsonRecord;
 
-export type EvalsJson = Readonly<{ version: string; skill_name: string; evals: ReadonlyArray<EvalsCase> }>;
+export type EvalsCase = Readonly<{
+  id: string | number;
+  prompt: string;
+  assertions?: ReadonlyArray<unknown>;
+  [field: string]: unknown;
+}>;
+
+export type EvalsJson = Readonly<{
+  version?: unknown;
+  skill_name: string;
+  evals: ReadonlyArray<EvalsCase>;
+  [field: string]: unknown;
+}>;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !globalThis.Array.isArray(value);
 
 export const slugifyBehavior = (text: string, index: number): string => {
   const slug = text
@@ -182,7 +226,29 @@ export const slugifyBehavior = (text: string, index: number): string => {
   return slug || `case-${index + 1}`;
 };
 
-const toEvalsAssertion = (slug: string, assertion: BehaviorAssertion, index: number): EvalsAssertion => {
+/** The kind and value the wizard shows for an evals.json assertion, if it can edit it. */
+const toEditable = (assertion: unknown): Option.Option<Readonly<{ kind: AssertionKind; val: string }>> => {
+  if (typeof assertion === 'string') {
+    return Option.some({ kind: 'judge', val: assertion });
+  }
+  if (!isRecord(assertion)) {
+    return Option.none();
+  }
+  if (assertion.kind === 'behavior') {
+    const method = assertion.method;
+    return typeof method === 'string' && isBehaviorKind(method)
+      ? Option.some({ kind: method, val: String(assertion.value ?? '') })
+      : Option.none();
+  }
+  const type = assertion.type;
+  if (typeof type !== 'string' || !isAssertionKind(type) || type === 'judge' || isBehaviorKind(type)) {
+    return Option.none();
+  }
+  const value = assertion[assertionField(type)];
+  return typeof value === 'string' ? Option.some({ kind: type, val: value }) : Option.none();
+};
+
+const freshAssertion = (slug: string, assertion: BehaviorAssertion, index: number): EvalsAssertion => {
   if (assertion.kind === 'judge') {
     return assertion.val;
   }
@@ -197,20 +263,60 @@ const toEvalsAssertion = (slug: string, assertion: BehaviorAssertion, index: num
   return { type: assertion.kind, [assertionField(assertion.kind)]: assertion.val };
 };
 
-export const assembleEvalsJson = (draft: Draft): EvalsJson => ({
-  version: '1',
-  skill_name: draft.skill || 'my-skill',
-  evals: Array.map(draft.behaviors, (behavior, index) => {
-    const slug = slugifyBehavior(behavior.text, index);
-    return {
-      id: slug,
-      prompt: behavior.prompt,
-      assertions: Array.map(behavior.asserts, (assertion, assertionIndex) =>
-        toEvalsAssertion(slug, assertion, assertionIndex),
-      ),
-    };
-  }),
-});
+/**
+ * A loaded assertion is written back as loaded when its kind and value are
+ * unchanged, and with only its value replaced when the kind is unchanged.
+ */
+const toEvalsAssertion = (slug: string, assertion: BehaviorAssertion, index: number): EvalsAssertion => {
+  const { source } = assertion;
+  const maybeOriginal = toEditable(source);
+  if (Option.isNone(maybeOriginal) || maybeOriginal.value.kind !== assertion.kind) {
+    return freshAssertion(slug, assertion, index);
+  }
+  if (maybeOriginal.value.val === assertion.val) {
+    return source as EvalsAssertion;
+  }
+  if (assertion.kind === 'judge' || !isRecord(source)) {
+    return assertion.val;
+  }
+  return { ...source, [isBehaviorKind(assertion.kind) ? 'value' : assertionField(assertion.kind)]: assertion.val };
+};
+
+/** Edited assertions, with the ones the wizard cannot edit put back at their original positions. */
+const caseAssertions = (slug: string, behavior: BehaviorRow): ReadonlyArray<unknown> => {
+  const edited: Array<unknown> = Array.map(behavior.asserts, (assertion, index) =>
+    toEvalsAssertion(slug, assertion, index),
+  );
+  for (const kept of behavior.kept ?? []) {
+    edited.splice(Math.min(kept.index, edited.length), 0, kept.value);
+  }
+  return edited;
+};
+
+const toEvalsCase = (behavior: BehaviorRow, index: number): EvalsCase => {
+  const slug = slugifyBehavior(behavior.text, index);
+  const assertions = caseAssertions(slug, behavior);
+  const { source } = behavior;
+  if (!isRecord(source)) {
+    return { id: slug, prompt: behavior.prompt, assertions };
+  }
+  // Spreading the loaded case keeps its fields and their order.
+  const id = typeof source.id === 'string' || typeof source.id === 'number' ? source.id : slug;
+  return {
+    ...source,
+    id,
+    prompt: behavior.prompt,
+    ...(assertions.length > 0 || 'assertions' in source ? { assertions } : {}),
+  };
+};
+
+export const assembleEvalsJson = (draft: Draft): EvalsJson => {
+  const evals = Array.map(draft.behaviors, toEvalsCase);
+  const skillName = draft.skill || 'my-skill';
+  return isRecord(draft.source)
+    ? { ...draft.source, skill_name: skillName, evals }
+    : { version: '1', skill_name: skillName, evals };
+};
 
 export const serializeEvalsJson = (evalsJson: EvalsJson): string => `${JSON.stringify(evalsJson, null, 2)}\n`;
 
@@ -229,53 +335,45 @@ export const countDraft = (draft: Draft): DraftCounts => {
 
 // IMPORT
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !globalThis.Array.isArray(value);
-
-const toBehaviorAssertion = (assertion: unknown): Option.Option<BehaviorAssertion> => {
-  if (typeof assertion === 'string') {
-    return Option.some({ kind: 'judge', val: assertion });
-  }
-  if (!isRecord(assertion)) {
-    return Option.none();
-  }
-  if (assertion.kind === 'behavior') {
-    const method = assertion.method;
-    return typeof method === 'string' && isBehaviorKind(method)
-      ? Option.some({ kind: method, val: String(assertion.value ?? '') })
-      : Option.none();
-  }
-  const type = assertion.type;
-  if (typeof type !== 'string' || !isAssertionKind(type)) {
-    return Option.none();
-  }
-  return Option.some({
-    kind: type,
-    val: String(assertion[assertionField(type)] ?? assertion.path ?? assertion.pattern ?? ''),
+const toCaseSeed = (entry: Record<string, unknown>): BehaviorSeed => {
+  const rawAssertions: ReadonlyArray<unknown> = globalThis.Array.isArray(entry.assertions) ? entry.assertions : [];
+  const asserts: Array<BehaviorAssertion> = [];
+  const kept: Array<KeptAssertion> = [];
+  rawAssertions.forEach((assertion, index) => {
+    Option.match(toEditable(assertion), {
+      onNone: () => {
+        kept.push({ index, value: assertion });
+      },
+      onSome: (editable) => {
+        asserts.push({ ...editable, source: assertion });
+      },
+    });
   });
+  const id = entry.id;
+  return {
+    text: typeof id === 'string' ? id.replace(/-/g, ' ') : typeof id === 'number' ? String(id) : '',
+    prompt: typeof entry.prompt === 'string' ? entry.prompt : '',
+    asserts,
+    source: entry,
+    ...(kept.length > 0 ? { kept } : {}),
+  };
 };
 
-/** Rows (without ids) for an evals.json loaded from disk. */
-export const behaviorsFromEvalsJson = (evals: unknown): Readonly<{ skill: string; seeds: ReadonlyArray<BehaviorSeed> }> => {
+/** Rows (without ids) for an evals.json loaded from disk, and its top-level fields. */
+export const behaviorsFromEvalsJson = (
+  evals: unknown,
+): Readonly<{ skill: string; seeds: ReadonlyArray<BehaviorSeed>; source: unknown }> => {
   if (!isRecord(evals) || !globalThis.Array.isArray(evals.evals)) {
-    return { skill: '', seeds: [] };
+    return { skill: '', seeds: [], source: undefined };
   }
   const skill = typeof evals.skill_name === 'string' && evals.skill_name.trim() !== '' ? evals.skill_name : '';
   const seeds = Array.getSomes(
-    Array.map(evals.evals as ReadonlyArray<unknown>, (entry): Option.Option<BehaviorSeed> => {
-      if (!isRecord(entry)) {
-        return Option.none();
-      }
-      return Option.some({
-        text: typeof entry.id === 'string' ? entry.id.replace(/-/g, ' ') : '',
-        prompt: typeof entry.prompt === 'string' ? entry.prompt : '',
-        asserts: globalThis.Array.isArray(entry.assertions)
-          ? Array.getSomes(Array.map(entry.assertions as ReadonlyArray<unknown>, toBehaviorAssertion))
-          : [],
-      });
-    }),
+    Array.map(evals.evals as ReadonlyArray<unknown>, (entry): Option.Option<BehaviorSeed> =>
+      isRecord(entry) ? Option.some(toCaseSeed(entry)) : Option.none(),
+    ),
   );
-  return { skill, seeds };
+  const { evals: _cases, ...topLevel } = evals;
+  return { skill, seeds, source: { ...topLevel, evals: [] } };
 };
 
 const pushText = (values: ReadonlyArray<string>, value: unknown): ReadonlyArray<string> =>

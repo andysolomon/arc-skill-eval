@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { expandPath } from "./workspace.mjs";
+import { resolveInWorkspace } from "../workspaces.mjs";
 
 export async function handleSkillEvals(request, response, context) {
   if (request.method !== "GET" || context.url.pathname !== "/skill-evals") {
@@ -14,7 +14,7 @@ export async function handleSkillEvals(request, response, context) {
     return true;
   }
 
-  const evalsPath = path.join(expandPath(root), "evals", "evals.json");
+  const evalsPath = path.join(await resolveInWorkspace(root), "evals", "evals.json");
   if (!existsSync(evalsPath)) {
     context.sendJson(response, 200, {
       ok: false,

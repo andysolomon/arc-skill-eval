@@ -9,9 +9,9 @@ import type { Page, Route } from '@playwright/test';
  * never depend on a real daemon or a real model call.
  */
 
-export const DAEMON_ORIGIN = 'http://localhost:7357';
-
-const DAEMON_URL = /^http:\/\/(localhost|127\.0\.0\.1):7357\//;
+// The app built for the suite talks to port 7358 (see playwright.config.ts);
+// a deployed app (PLAYWRIGHT_BASE_URL) talks to the default port 7357.
+const DAEMON_URL = /^http:\/\/(localhost|127\.0\.0\.1):(7357|7358)\//;
 
 const corsHeaders = {
   'access-control-allow-origin': '*',

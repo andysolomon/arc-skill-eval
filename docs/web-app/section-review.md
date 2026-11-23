@@ -159,7 +159,7 @@ is a daemon error (`409 Conflict`, surfaced in the status bar as
 ## Cross-references
 
 - [ADR-0002](../adr/ADR-0002-web-app-stack-vite-react-ts-tailwind-token-mapped.md):
-  Vite + React + TS; the three-column layout pattern shared with
+  Vite + TS (Foldkit since ADR-0008); the three-column layout pattern shared with
   `run` and `browse`.
 - [ADR-0004](../adr/ADR-0004-no-auth-single-user-indexeddb-hosted.md):
   the no-silent-write rule that the `--apply` contract codifies.

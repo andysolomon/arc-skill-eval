@@ -76,7 +76,7 @@ export const flags: Effect.Effect<Flags> = Effect.gen(function* () {
 // INIT
 
 export const init: Runtime.ApplicationInit<Model, Message, Flags> = (flags): Update.Return<Model, Message> => {
-  const workspaceInit = Workspace.init(flags.workspaceRoot, flags.workspaceFavorites);
+  const workspaceInit = Workspace.init(flags.workspaceRoot, flags.workspaceFavorites, flags.env === 'localhost');
   const shell = {
     theme: flags.theme,
     env: flags.env,

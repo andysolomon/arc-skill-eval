@@ -190,9 +190,12 @@ test.describe('status bar', () => {
       }
     }
 
-    await expect(statusBar).toContainText('anthropic/claude-opus-4-5');
-    await expect(statusBar).toContainText('judge ministral-8b-latest');
+    // Hosted mode runs no model, so the status bar names none. Localhost
+    // shows the daemon's models (run.spec.ts) or that the daemon is offline.
+    await expect(statusBar).not.toContainText('judge');
     await expect(page.getByTestId('status-reset-hosted-data')).toHaveText('Reset hosted data');
+    await switchEnv(page, 'localhost');
+    await expect(statusBar).toContainText('daemon offline');
   });
 
   test('dismissing the reset confirmation keeps state', async ({ page }) => {

@@ -1,0 +1,64 @@
+{
+  "version": "2",
+  "skill_name": "gamma",
+  "evals": [
+    {
+      "id": "keeps-every-field-of-this-case",
+      "description": "A case that uses the optional fields.",
+      "prompt": "Summarize input.txt into out.txt.",
+      "expected_output": "out.txt holds a one-line summary of input.txt.",
+      "files": [
+        "files/input.txt"
+      ],
+      "sandbox": "none",
+      "metadata": {
+        "tags": [
+          "round-trip"
+        ],
+        "difficulty": "easy"
+      },
+      "assertions": [
+        {
+          "type": "regex-match",
+          "pattern": "summary",
+          "flags": "i",
+          "target": {
+            "file": "out.txt"
+          }
+        },
+        "The summary is one line long.",
+        {
+          "id": "reads-gamma",
+          "kind": "behavior",
+          "method": "skill-read-required",
+          "value": "gamma",
+          "mustPass": false
+        },
+        {
+          "id": "judged-tone",
+          "kind": "output",
+          "method": "judge",
+          "prompt": "The reply is polite.",
+          "threshold": 4
+        },
+        {
+          "id": "out-mentions-input",
+          "kind": "workspace",
+          "method": "file-contains",
+          "path": "out.txt",
+          "pattern": "input"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Count the lines in input.txt.",
+      "assertions": [
+        {
+          "type": "file-absent",
+          "path": "error.log"
+        }
+      ]
+    }
+  ]
+}

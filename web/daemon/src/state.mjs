@@ -1,113 +1,110 @@
+/**
+ * Runs the daemon started, kept in memory, and the frames it streams over
+ * `ws://…/runs/<runId>`:
+ *
+ * - `run.snapshot`  { run: { runId, status, progress: [row] }, ...summary }
+ *                   sent first on every connection; carries the summary
+ *                   fields of `run.completed` once the run has completed.
+ * - `case.progress` { caseId, phase, assertionsPassed, assertionsFailed,
+ *                   totalAssertions, error? } one per case state change.
+ * - `run.completed` { passed, total, cost, exitCode, artifactPath,
+ *                   withSkill?, withoutSkill?, delta? }
+ * - `run.cancelled` { message }
+ * - `run.failed`    { message }
+ */
+
 import { randomUUID } from "node:crypto";
 
 const runs = new Map();
 const listeners = new Map();
 
-function cloneRun(run) {
+function emit(runId, frame) {
+  for (const listener of listeners.get(runId) ?? []) {
+    listener(frame);
+  }
+}
+
+function publicRun(run) {
   return {
-    ...run,
-    cases: [...run.cases],
-    progress: [...run.progress],
+    runId: run.runId,
+    startedAt: run.startedAt,
+    status: run.status,
+    workspaceRoot: run.workspaceRoot,
+    options: run.options,
+    progress: [...run.rows.values()],
+    ...(run.summary ? { summary: run.summary } : {}),
+    ...(run.error ? { error: run.error } : {}),
   };
 }
 
-function emit(runId, event) {
-  const runListeners = listeners.get(runId);
-  if (!runListeners) {
-    return;
-  }
-
-  for (const listener of runListeners) {
-    listener(event);
-  }
-}
-
-export function createRun(input = {}) {
-  const runId = randomUUID();
-  const startedAt = new Date().toISOString();
+export function createRun({ workspaceRoot, options }) {
   const run = {
-    runId,
-    startedAt,
+    runId: randomUUID(),
+    startedAt: new Date().toISOString(),
     status: "running",
-    cases: input.case ? [input.case] : [],
-    workspaceRoot: input.workspaceRoot,
-    options: {
-      case: input.case ?? null,
-      model: input.model ?? null,
-      judgeModel: input.judgeModel ?? null,
-      compare: Boolean(input.compare),
-      extraSkill: input.extraSkill ?? null,
-      iteration: input.iteration ?? null,
-      contextMode: input.contextMode ?? null,
-      sandbox: input.sandbox ?? null,
-    },
-    progress: [],
+    workspaceRoot,
+    options,
+    rows: new Map(),
+    summary: null,
+    error: null,
+    terminalFrame: null,
   };
-
-  runs.set(runId, run);
-  appendProgress(runId, {
-    type: "run.started",
-    message: "Run accepted by daemon",
-    at: startedAt,
-  });
-
-  return cloneRun(run);
+  runs.set(run.runId, run);
+  return run.runId;
 }
 
 export function getRun(runId) {
   const run = runs.get(runId);
-  return run ? cloneRun(run) : null;
+  return run ? { ...publicRun(run), terminalFrame: run.terminalFrame } : null;
 }
 
-export function appendProgress(runId, progress) {
-  const run = runs.get(runId);
-  if (!run) {
-    return null;
-  }
-
-  const event = {
-    runId,
-    at: new Date().toISOString(),
-    ...progress,
+export function snapshotFrame(run) {
+  return {
+    type: "run.snapshot",
+    run: {
+      runId: run.runId,
+      status: run.status,
+      startedAt: run.startedAt,
+      progress: run.progress,
+    },
+    ...(run.summary ?? {}),
   };
-
-  run.progress.push(event);
-  emit(runId, event);
-  return event;
 }
 
-export function completeRun(runId, progress = {}) {
+export function updateCase(runId, row) {
   const run = runs.get(runId);
-  if (!run) {
-    return null;
+  if (!run || run.status !== "running") {
+    return;
   }
 
-  run.status = "completed";
-  run.completedAt = new Date().toISOString();
-  appendProgress(runId, {
-    type: "run.completed",
-    message: "Run completed",
-    ...progress,
-  });
-
-  return cloneRun(run);
+  const frame = { type: "case.progress", runId, at: new Date().toISOString(), ...row };
+  run.rows.set(row.caseId, frame);
+  emit(runId, frame);
 }
 
-export function cancelRun(runId, progress = {}) {
+function finish(runId, status, frame, fields = {}) {
   const run = runs.get(runId);
-  if (!run) {
-    return null;
+  if (!run || run.status !== "running") {
+    return;
   }
 
-  run.status = "cancelled";
-  run.cancelledAt = new Date().toISOString();
-  appendProgress(runId, {
-    type: "run.cancelled",
-    message: "Run cancelled",
-    ...progress,
-  });
+  run.status = status;
+  run.finishedAt = new Date().toISOString();
+  Object.assign(run, fields);
+  run.terminalFrame = { runId, at: run.finishedAt, ...frame };
+  emit(runId, run.terminalFrame);
+}
 
-  return cloneRun(run);
+export function completeRun(runId, summary) {
+  finish(runId, "completed", { type: "run.completed", ...summary }, { summary });
+}
+
+export function cancelRun(runId, message = "Run cancelled. The in-flight case was stopped.") {
+  finish(runId, "cancelled", { type: "run.cancelled", message });
+}
+
+export function failRun(runId, message) {
+  finish(runId, "failed", { type: "run.failed", message }, { error: message });
 }
 
 export function subscribeToRun(runId, listener) {

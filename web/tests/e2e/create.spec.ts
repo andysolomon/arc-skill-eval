@@ -1,7 +1,9 @@
 import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import type { Page } from '@playwright/test';
 import { RESOLVED_ROOT, WORKSPACE_ROOT, workspaceResponse } from './fixtures/data';
 import type { DaemonMock } from './fixtures/daemon';
+import { createWorkspace, readText, recordArtifact, relativeTo, sha256, usesDeployedApp } from './fixtures/local';
 import {
   chooseWorkspace,
   expect,
@@ -168,7 +170,7 @@ test.describe('hosted wizard', () => {
     );
 
     const write = page.getByTestId('write-evals-json');
-    await expect(write).toHaveText('write evals/evals.json');
+    await expect(write).toHaveText('download evals.json');
     const downloadEvent = page.waitForEvent('download');
     await write.click();
     const download = await downloadEvent;
@@ -199,7 +201,7 @@ test.describe('hosted wizard', () => {
         },
       ],
     });
-    await expect(write).toHaveText('✓ wrote evals/evals.json');
+    await expect(write).toHaveText('✓ downloaded evals.json');
 
     await stepPane(page).getByRole('link', { name: /Open the run console/ }).click();
     await expect(page.getByTestId('run-app')).toBeVisible();
@@ -212,7 +214,7 @@ test.describe('hosted wizard', () => {
     await railStep(page, 'Review & run').click();
     await expectStep(page, 3);
     await page.getByTestId('write-evals-json').click();
-    await expect(page.getByTestId('write-evals-json')).toHaveText('✓ wrote evals/evals.json');
+    await expect(page.getByTestId('write-evals-json')).toHaveText('✓ downloaded evals.json');
 
     await backButton(page).click();
     await expectStep(page, 2);
@@ -221,7 +223,7 @@ test.describe('hosted wizard', () => {
     await behaviorInputs(page).nth(0).fill('Configures release please changed');
 
     await railStep(page, 'Review & run').click();
-    await expect(page.getByTestId('write-evals-json')).toHaveText('write evals/evals.json');
+    await expect(page.getByTestId('write-evals-json')).toHaveText('download evals.json');
   });
 
   test('the draft and current step persist across reload', async ({ page }) => {
@@ -244,7 +246,7 @@ test.describe('hosted wizard', () => {
   });
 });
 
-test.describe('localhost assist', () => {
+test.describe('localhost assist (model calls mocked)', () => {
   const openLocalCreate = async (page: Page, daemon: DaemonMock) => {
     daemon.on('GET', '/workspace', { json: workspaceResponse });
     await openApp(page);
@@ -353,92 +355,156 @@ test.describe('localhost assist', () => {
     });
   });
 
-  test('loads existing evals, stages the write and applies it', async ({ page, daemon }) => {
-    const skillPath = `${RESOLVED_ROOT}/arc-conventional-commits`;
-    daemon.on('GET', '/skill-evals', {
-      json: {
-        ok: true,
-        evals: {
-          skill_name: 'arc-conventional-commits',
-          evals: [
-            {
-              id: 'feat-commit',
-              prompt: 'Write a commit message for a new login form.',
-              assertions: ['Uses the feat type', { type: 'regex-match', pattern: '^feat' }],
-            },
-          ],
-        },
-      },
-    });
-    daemon.on('POST', '/apply-plan', {
-      json: { planId: 'write-1', stagingPath: '/tmp/staging/write-1', diff: { changed: 1 } },
-    });
-    daemon.on('POST', '/apply-plan/write-1/commit', {
-      json: { committed: true, path: `${skillPath}/evals/evals.json` },
-    });
-    await openLocalCreate(page, daemon);
+});
 
-    const edit = stepPane(page).getByRole('button', { name: '✎ Edit existing evals' });
-    await skillChip(page, 'arc-conventional-commits').click();
-    await expect(edit).toBeEnabled();
-    await edit.click();
+test.describe('localhost with the real daemon', () => {
+  test.use({ mockDaemon: false });
+  test.skip(usesDeployedApp, 'needs the local daemon the suite starts');
 
-    await expect(stepPane(page)).toContainText(
-      "Loaded 1 cases from arc-conventional-commits's evals.json",
-    );
-    expect(daemon.requestsTo('GET', '/skill-evals')[0].query.get('root')).toBe(skillPath);
-    await expect(behaviorInputs(page)).toHaveValue('feat commit');
-    await expect(preview(page)).toContainText('"skill_name": "arc-conventional-commits"');
-    await expect(preview(page)).toContainText('"Uses the feat type"');
+  let workspace = '';
+
+  test.beforeEach(async ({ page }, testInfo) => {
+    workspace = await createWorkspace(testInfo);
+    await openApp(page);
+    await switchEnv(page, 'localhost');
+    await chooseWorkspace(page, workspace);
+    await goToSection(page, 'create');
+    await expect(stepPane(page)).toHaveAttribute('data-env', 'localhost');
+  });
+
+  const skillChip = (page: Page, skillId: string) =>
+    stepPane(page).getByRole('button', { name: new RegExp(`${skillId}$`) });
+
+  const loadExisting = async (page: Page, skillId: string, cases: number) => {
+    await skillChip(page, skillId).click();
+    await stepPane(page).getByRole('button', { name: '✎ Edit existing evals' }).click();
+    await expect(stepPane(page)).toContainText(`Loaded ${cases} cases from ${skillId}'s evals.json`);
+  };
+
+  const stageAndApply = async (page: Page) => {
+    await railStep(page, 'Review & run').click();
+    await page.getByTestId('write-evals-json').click();
+    const staging = stepPane(page).getByRole('region', { name: 'staging diff' });
+    await expect(staging).toBeVisible();
+    await staging.getByRole('button', { name: 'Apply changes' }).click();
+    await expect(staging).toHaveCount(0);
+    return staging;
+  };
+
+  test('loads a suite and writes it back without losing a field', async ({ page }, testInfo) => {
+    const evalsPath = path.join(workspace, 'skills', 'gamma', 'evals', 'evals.json');
+    const before = await readText(evalsPath);
+    await loadExisting(page, 'gamma', 2);
+    await expect(behaviorInputs(page).nth(0)).toHaveValue('keeps every field of this case');
+    // Assertions the wizard cannot edit still show in the preview.
+    await expect(preview(page)).toContainText('"kind": "output"');
 
     await railStep(page, 'Review & run').click();
     await page.getByTestId('write-evals-json').click();
-
     const staging = stepPane(page).getByRole('region', { name: 'staging diff' });
-    await expect(staging).toContainText('staged write-1 at /tmp/staging/write-1');
-    await expect(staging).toContainText('"changed": 1');
-    const [stageRequest] = daemon.requestsTo('POST', '/apply-plan');
-    expect(stageRequest.body).toMatchObject({
-      workspaceRoot: skillPath,
-      plan: { skill_name: 'arc-conventional-commits', evals: [{ id: 'feat-commit' }] },
-    });
+    await expect(staging).toContainText(evalsPath);
+    await expect(staging).toContainText('"changed": false');
 
     await staging.getByRole('button', { name: 'Apply changes' }).click();
-    await expect(stepPane(page).getByRole('status')).toContainText(
-      `wrote evals.json to ${skillPath}/evals/evals.json`,
-    );
-    await expect(staging).toHaveCount(0);
+    await expect(stepPane(page).getByRole('status')).toContainText(`✓ wrote ${evalsPath}`);
     await expect(page.getByTestId('write-evals-json')).toHaveText('✓ wrote evals/evals.json');
+
+    const after = await readText(evalsPath);
+    expect(after).toBe(before);
+    await recordArtifact(testInfo, {
+      file: relativeTo(workspace, evalsPath),
+      sha256Before: sha256(before),
+      sha256After: sha256(after),
+      identical: after === before,
+    });
   });
 
-  test('a staged write can be discarded', async ({ page, daemon }) => {
-    daemon.on('POST', '/apply-plan', {
-      json: { planId: 'write-2', stagingPath: '/tmp/staging/write-2', diff: {} },
+  test('editing a loaded suite changes only the edited values', async ({ page }, testInfo) => {
+    const evalsPath = path.join(workspace, 'skills', 'gamma', 'evals', 'evals.json');
+    const before = JSON.parse(await readText(evalsPath)) as { evals: Array<Record<string, unknown>> };
+    await loadExisting(page, 'gamma', 2);
+
+    await railStep(page, 'Write prompts').click();
+    await stepPane(page)
+      .getByRole('textbox', { name: 'prompt for keeps every field of this case' })
+      .fill('Summarize input.txt into out.txt in one line.');
+    await railStep(page, 'Attach assertions').click();
+    await stepPane(page).getByRole('textbox', { name: 'regex-match assertion' }).fill('one line');
+
+    await stageAndApply(page);
+    await expect(stepPane(page).getByRole('status')).toContainText(`✓ wrote ${evalsPath}`);
+
+    const after = JSON.parse(await readText(evalsPath)) as { evals: Array<Record<string, unknown>> };
+    const [firstBefore, secondBefore] = before.evals;
+    const [firstAfter, secondAfter] = after.evals;
+    const assertionsBefore = firstBefore!.assertions as Array<unknown>;
+    expect(firstAfter).toEqual({
+      ...firstBefore,
+      prompt: 'Summarize input.txt into out.txt in one line.',
+      assertions: [
+        { type: 'regex-match', pattern: 'one line', flags: 'i', target: { file: 'out.txt' } },
+        ...assertionsBefore.slice(1),
+      ],
     });
-    daemon.on('POST', '/apply-plan/write-2/cancel', { json: { cancelled: true } });
-    await openLocalCreate(page, daemon);
+    expect(secondAfter).toEqual(secondBefore);
+    await recordArtifact(testInfo, {
+      file: relativeTo(workspace, evalsPath),
+      prompt: firstAfter!.prompt,
+      regexAssertion: (firstAfter!.assertions as Array<unknown>)[0],
+      keptFields: Object.keys(firstAfter!),
+    });
+  });
+
+  test("a suite for a skill without one goes into that skill's evals folder", async ({ page }, testInfo) => {
+    await skillChip(page, 'beta').click();
+    await stepPane(page).getByRole('textbox', { name: 'skill name' }).fill('beta');
+    await stepPane(page).getByRole('button', { name: /Add behavior/ }).click();
+    await behaviorInputs(page).nth(0).fill('Greets the user');
+    await railStep(page, 'Write prompts').click();
+    await stepPane(page).getByRole('textbox', { name: 'prompt for Greets the user' }).fill('Say hello.');
+    await railStep(page, 'Attach assertions').click();
+    await stepPane(page).getByRole('button', { name: '＋ regex-match' }).nth(0).click();
+    await stepPane(page).getByRole('textbox', { name: 'regex-match assertion' }).fill('hello');
+
+    await stageAndApply(page);
+    const evalsPath = path.join(workspace, 'skills', 'beta', 'evals', 'evals.json');
+    await expect(stepPane(page).getByRole('status')).toContainText(`✓ wrote ${evalsPath}`);
+
+    const written = JSON.parse(await readText(evalsPath)) as unknown;
+    expect(written).toEqual({
+      version: '1',
+      skill_name: 'beta',
+      evals: [{ id: 'greets-the-user', prompt: 'Say hello.', assertions: [{ type: 'regex-match', pattern: 'hello' }] }],
+    });
+    // Nothing lands at the workspace root.
+    await expect(readText(path.join(workspace, 'evals.json'))).rejects.toThrow();
+    await recordArtifact(testInfo, { file: relativeTo(workspace, evalsPath), written });
+  });
+
+  test('a staged write can be discarded', async ({ page }) => {
+    const evalsPath = path.join(workspace, 'skills', 'gamma', 'evals', 'evals.json');
+    const before = await readText(evalsPath);
+    await loadExisting(page, 'gamma', 2);
+    await behaviorInputs(page).nth(1).fill('a renamed case');
 
     await railStep(page, 'Review & run').click();
     await page.getByTestId('write-evals-json').click();
     const staging = stepPane(page).getByRole('region', { name: 'staging diff' });
     await expect(staging).toBeVisible();
-    expect(daemon.requestsTo('POST', '/apply-plan')[0].body).toMatchObject({
-      workspaceRoot: WORKSPACE_ROOT,
-    });
 
     await staging.getByRole('button', { name: 'Discard changes' }).click();
     await expect(staging).toHaveCount(0);
-    expect(daemon.requestsTo('POST', '/apply-plan/write-2/cancel')).toHaveLength(1);
     await expect(page.getByTestId('write-evals-json')).toHaveText('write evals/evals.json');
+    expect(await readText(evalsPath)).toBe(before);
   });
 
-  test('a staging failure is shown as an error', async ({ page, daemon }) => {
-    daemon.on('POST', '/apply-plan', { status: 409, json: { error: 'conflict' } });
-    await openLocalCreate(page, daemon);
-
+  test('a write with no skill to go to is refused with the reason', async ({ page }) => {
+    // No skill picked and the suite is named after no skill: the target is the
+    // workspace root, which is not a skill folder.
+    await stepPane(page).getByRole('textbox', { name: 'skill name' }).fill('nowhere');
     await railStep(page, 'Review & run').click();
     await page.getByTestId('write-evals-json').click();
-    await expect(stepPane(page).getByRole('alert')).toContainText('apply plan failed with 409');
+    await expect(stepPane(page).getByRole('alert')).toContainText('has no SKILL.md');
     await expect(page.getByTestId('write-evals-json')).toHaveText('write evals/evals.json');
   });
 });

@@ -16,7 +16,8 @@
     "@arc-skill-eval/tokens": "0.1.0",
     "@effect/platform-browser": "4.1.5",
     "effect": "4.1.5",
-    "foldkit": "0.171.0"
+    "foldkit": "0.171.0",
+    "ws": "8.23.0"
   },
   "devDependencies": {
     "@foldkit/vite-plugin": "0.29.1",

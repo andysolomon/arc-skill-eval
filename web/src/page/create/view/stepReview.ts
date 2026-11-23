@@ -1,6 +1,7 @@
 import { Array, Option } from 'effect';
 import type { Html, HtmlBuilder } from 'foldkit/html';
 
+import type { EnvName } from '@/app/domain';
 import { sx } from '@/ui/sx';
 
 import { countDraft } from '../domain';
@@ -67,14 +68,19 @@ const runCommand = (model: Model, h: HtmlBuilder<Message>): Html =>
     ],
   );
 
-const writeLabel = (model: Model): string =>
-  model.stage._tag === 'Staging'
+/** Hosted mode downloads the file; localhost mode writes <skill>/evals/evals.json through the daemon. */
+const writeLabel = (model: Model, env: EnvName): string => {
+  if (env !== 'localhost') {
+    return model.write._tag === 'Written' ? '✓ downloaded evals.json' : 'download evals.json';
+  }
+  return model.stage._tag === 'Staging'
     ? 'staging evals/evals.json…'
     : model.write._tag === 'Written'
       ? '✓ wrote evals/evals.json'
       : 'write evals/evals.json';
+};
 
-const writeRow = (model: Model, h: HtmlBuilder<Message>): Html => {
+const writeRow = (model: Model, env: EnvName, h: HtmlBuilder<Message>): Html => {
   const isInFlight = isWriteInFlight(model.stage);
   return h.div(
     [h.Style(sx({ alignItems: 'center', display: 'flex', gap: 12 }))],
@@ -102,7 +108,7 @@ const writeRow = (model: Model, h: HtmlBuilder<Message>): Html => {
             }),
           ),
         ],
-        [writeLabel(model)],
+        [writeLabel(model, env)],
       ),
       model.write._tag === 'Written'
         ? h.a(
@@ -206,10 +212,9 @@ const stageNotices = (model: Model, h: HtmlBuilder<Message>): ReadonlyArray<Html
     ? h.div(
         [h.Role('status'), h.Style(sx({ color: 'var(--tt-green)', fontSize: 12.5, marginTop: 12 }))],
         [
-          '✓ wrote evals.json',
           ...Option.match(Option.filter(model.stage.maybePath, (path) => path !== ''), {
-            onNone: () => [],
-            onSome: (path) => [` to ${path}`],
+            onNone: () => ['✓ wrote evals/evals.json'],
+            onSome: (path) => [`✓ wrote ${path}`],
           }),
         ],
       )
@@ -222,7 +227,7 @@ const stageNotices = (model: Model, h: HtmlBuilder<Message>): ReadonlyArray<Html
     : h.empty,
 ];
 
-export const stepReview = (model: Model, h: HtmlBuilder<Message>): Html =>
+export const stepReview = (model: Model, env: EnvName, h: HtmlBuilder<Message>): Html =>
   h.div(
     [],
     [
@@ -242,7 +247,7 @@ export const stepReview = (model: Model, h: HtmlBuilder<Message>): Html =>
       ),
       stats(model, h),
       runCommand(model, h),
-      writeRow(model, h),
+      writeRow(model, env, h),
       Option.match(maybeStagedPlan(model.stage), {
         onNone: () => h.empty,
         onSome: (plan) => stagingDiff(plan, isWriteInFlight(model.stage), h),

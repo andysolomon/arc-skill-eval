@@ -1,6 +1,7 @@
-import type { Page, WebSocketRoute } from '@playwright/test';
-import { WORKSPACE_ROOT, workspaceResponse } from './fixtures/data';
-import type { DaemonMock } from './fixtures/daemon';
+import { readdir, readFile, rm } from 'node:fs/promises';
+import path from 'node:path';
+import type { Page } from '@playwright/test';
+import { createWorkspace, E2E_DAEMON_URL, recordArtifact, relativeTo, usesDeployedApp } from './fixtures/local';
 import {
   acceptNextDialog,
   chooseWorkspace,
@@ -11,12 +12,11 @@ import {
   test,
 } from './fixtures/test';
 
-const RUN_ID = 'run-e2e-123';
-const WS_URL = `ws://localhost:7357/runs/${RUN_ID}`;
-
 const composer = (page: Page) => page.getByRole('complementary', { name: 'Configure local run' });
 const runConsole = (page: Page) => page.getByRole('region', { name: 'Run console localhost' });
 const progress = (page: Page) => page.getByLabel('run progress');
+const progressRow = (page: Page, caseId: string) =>
+  progress(page).getByTestId('run-progress-row').filter({ hasText: caseId });
 
 /** The composer's flag row toggle, e.g. "Run model (--model)". */
 const flagRow = (page: Page, label: string) =>
@@ -35,14 +35,6 @@ const pickOption = async (page: Page, row: string, option: string) => {
   await expect(flagRow(page, row)).toContainText(option);
 };
 
-const openLocalRun = async (page: Page, daemon: DaemonMock) => {
-  daemon.on('GET', '/workspace', { json: workspaceResponse });
-  await openApp(page);
-  await switchEnv(page, 'localhost');
-  await chooseWorkspace(page, WORKSPACE_ROOT);
-  await expect(composer(page)).toBeVisible();
-};
-
 const selectSkill = async (page: Page, skillId: string) => {
   const skillRow = flagRow(page, 'Skill');
   if ((await skillRow.getAttribute('aria-expanded')) !== 'true') {
@@ -51,6 +43,19 @@ const selectSkill = async (page: Page, skillId: string) => {
   await composer(page).getByRole('button', { name: new RegExp(`^${skillId}`) }).click();
   await expect(skillRow).toContainText(skillId);
 };
+
+/** The run id the console header shows once the daemon accepted the run. */
+const consoleRunId = async (page: Page): Promise<string> => {
+  await expect(runConsole(page)).toContainText(/console: [0-9a-f-]{36}/);
+  const text = (await runConsole(page).textContent()) ?? '';
+  return /console: ([0-9a-f-]{36})/.exec(text)?.[1] ?? '';
+};
+
+const runDirs = async (skillDir: string) =>
+  (await readdir(path.join(skillDir, 'evals-runs')).catch(() => [] as string[])).sort();
+
+const readGrading = async (file: string) =>
+  JSON.parse(await readFile(file, 'utf8')) as { case_id: string; summary: { passed: number; failed: number; total: number } };
 
 test.describe('hosted', () => {
   test('shows the localhost-only empty state with links to review and learn', async ({ page }) => {
@@ -62,6 +67,8 @@ test.describe('hosted', () => {
     await expect(app).toContainText('npm i -g arc-skill-eval');
     await expect(app).toContainText('arc-skill-eval run ./skills/my-skill --compare');
     await expect(composer(page)).toHaveCount(0);
+    // Hosted mode runs no model, so the status bar names none.
+    await expect(page.getByTestId('status-bar')).not.toContainText('judge');
 
     await app.getByRole('link', { name: 'import and review run JSON' }).click();
     await expect(page.getByTestId('section-nav-tab-review')).toHaveAttribute('aria-current', 'page');
@@ -72,18 +79,16 @@ test.describe('hosted', () => {
   });
 });
 
-test.describe('localhost composer', () => {
-  test('with no workspace, shows the idle console and refuses to run without a skill', async ({
-    page,
-  }) => {
+test.describe('localhost composer, daemon offline', () => {
+  test('with no workspace, shows the idle console and refuses to run without a skill', async ({ page }) => {
     await openApp(page);
     await switchEnv(page, 'localhost');
 
     await expect(runConsole(page)).toContainText('no run yet');
     await expect(runConsole(page)).toContainText('arc-skill-eval run ./skills/<pick a workspace>');
-    await expect(runConsole(page)).toContainText(
-      '--model anthropic/claude-sonnet-4  --judge-model anthropic/claude-sonnet-4',
-    );
+    // Model and judge stay on "default", so the command carries no model flags.
+    await expect(runConsole(page)).not.toContainText('--model');
+    await expect(page.getByTestId('status-bar')).toContainText('daemon offline');
     await expect(flagRow(page, 'Skill')).toHaveAttribute('aria-expanded', 'true');
     await expect(composer(page)).toContainText('No skills found in this workspace');
     await expect(composer(page)).toContainText('Last run: None');
@@ -97,32 +102,52 @@ test.describe('localhost composer', () => {
     expect(await alertMessage).toBe('Choose a skill before starting the run.');
     await expect(flagRow(page, 'Skill')).toHaveAttribute('aria-expanded', 'true');
   });
+});
 
-  test('lists workspace skills and blocks skills without evals', async ({ page, daemon }) => {
-    await openLocalRun(page, daemon);
+test.describe('localhost with the real daemon', () => {
+  test.use({ mockDaemon: false });
+  test.skip(usesDeployedApp, 'needs the local daemon the suite starts');
 
-    expect(daemon.requestsTo('GET', '/workspace')[0]?.query.get('root')).toBe(WORKSPACE_ROOT);
-    await expect(composer(page)).toContainText(`Skills in ${WORKSPACE_ROOT}`);
-    const commitsSkill = composer(page).getByRole('button', { name: /^arc-conventional-commits/ });
-    const releaseSkill = composer(page).getByRole('button', { name: /^release-please/ });
-    await expect(commitsSkill).toContainText('evals');
-    await expect(releaseSkill).toContainText('no evals');
+  let workspace = '';
+  let alpha = '';
 
-    await selectSkill(page, 'release-please');
+  test.beforeEach(async ({ page }, testInfo) => {
+    workspace = await createWorkspace(testInfo);
+    alpha = path.join(workspace, 'skills', 'alpha');
+    await openApp(page);
+    await switchEnv(page, 'localhost');
+    await chooseWorkspace(page, workspace);
+    await expect(composer(page)).toBeVisible();
+  });
+
+  test('lists workspace skills, their cases and the default models', async ({ page }) => {
+    await expect(composer(page)).toContainText(`Skills in ${workspace}`);
+    await expect(composer(page).getByRole('button', { name: /^alpha/ })).toContainText('evals');
+    await expect(composer(page).getByRole('button', { name: /^beta/ })).toContainText('no evals');
+
+    // The status bar shows what the daemon runs with: the replay runtime here.
+    await expect(page.getByTestId('status-bar')).toContainText('replay/scripted');
+    await expect(page.getByTestId('status-bar')).toContainText('judge replay/scripted');
+
+    await selectSkill(page, 'beta');
     await expect(runButton(page)).toHaveText('▶ Create evals first');
     await expect(runButton(page)).toBeDisabled();
 
-    await selectSkill(page, 'arc-conventional-commits');
+    await selectSkill(page, 'alpha');
     await expect(runButton(page)).toHaveText('▶ Run');
-    await expect(runButton(page)).toBeEnabled();
-    await expect(runConsole(page)).toContainText(
-      'arc-skill-eval run /home/tester/src/skills/arc-conventional-commits',
-    );
+    await expect(runConsole(page)).toContainText(`arc-skill-eval run ${alpha}`);
+    await expect(flagRow(page, 'Run model (--model)')).toContainText('default (replay/scripted)');
+
+    // The Cases row lists the case ids in alpha's evals.json.
+    await flagRow(page, 'Cases (--case)').click();
+    for (const option of ['* (all cases)', 'greets-the-user', 'writes-a-report']) {
+      await expect(composer(page).getByRole('button', { name: option, exact: true })).toBeVisible();
+    }
+    await flagRow(page, 'Cases (--case)').click();
   });
 
-  test('flag rows update the assembled CLI command', async ({ page, daemon }) => {
-    await openLocalRun(page, daemon);
-    await selectSkill(page, 'arc-conventional-commits');
+  test('flag rows update the assembled CLI command', async ({ page }) => {
+    await selectSkill(page, 'alpha');
     const command = runConsole(page);
 
     // Only one flag row is open at a time.
@@ -132,14 +157,16 @@ test.describe('localhost composer', () => {
     await expect(flagRow(page, 'Cases (--case)')).toHaveAttribute('aria-expanded', 'false');
     await flagRow(page, 'Run model (--model)').click();
 
-    await pickOption(page, 'Cases (--case)', 'case-fail');
-    await expect(command).toContainText('--case case-fail');
+    await pickOption(page, 'Cases (--case)', 'writes-a-report');
+    await expect(command).toContainText('--case writes-a-report');
 
     await pickOption(page, 'Run model (--model)', 'openai/gpt-5');
     await expect(command).toContainText('--model openai/gpt-5');
+    // With the judge on default, the judge is the run model.
+    await expect(flagRow(page, 'Judge model (--judge-model)')).toContainText('default (openai/gpt-5)');
 
-    await pickOption(page, 'Judge model (--judge-model)', 'anthropic/claude-opus-4');
-    await expect(command).toContainText('--judge-model anthropic/claude-opus-4');
+    await pickOption(page, 'Judge model (--judge-model)', 'anthropic/claude-opus-4-5');
+    await expect(command).toContainText('--judge-model anthropic/claude-opus-4-5');
 
     await expect(command).not.toContainText('--compare');
     await pickOption(page, 'Comparison (--compare)', 'on');
@@ -158,197 +185,145 @@ test.describe('localhost composer', () => {
     // Extra skills: add two (Enter and button), ignore a duplicate, remove one.
     await flagRow(page, 'Additional skills (--extra-skill)').click();
     const extraInput = composer(page).getByRole('textbox', { name: 'Extra skill path' });
-    await extraInput.fill('./skills/extra-one');
+    await extraInput.fill('../beta');
     await extraInput.press('Enter');
-    await extraInput.fill('./skills/extra-two');
+    await extraInput.fill('../gamma');
     await composer(page).getByRole('button', { name: /Add comparison skill/ }).click();
-    await extraInput.fill('./skills/extra-one');
+    await extraInput.fill('../beta');
     await extraInput.press('Enter');
-    await expect(flagRow(page, 'Additional skills (--extra-skill)')).toContainText(
-      './skills/extra-one, ./skills/extra-two',
-    );
-    await expect(command).toContainText('--extra-skill ./skills/extra-one');
-    await expect(command).toContainText('--extra-skill ./skills/extra-two');
+    await expect(flagRow(page, 'Additional skills (--extra-skill)')).toContainText('../beta, ../gamma');
+    await expect(command).toContainText('--extra-skill ../beta');
+    await expect(command).toContainText('--extra-skill ../gamma');
 
-    await composer(page).getByTitle('Remove comparison skill').filter({ hasText: 'extra-one' }).click();
-    await expect(command).not.toContainText('--extra-skill ./skills/extra-one');
-    await expect(command).toContainText('--extra-skill ./skills/extra-two');
+    await composer(page).getByTitle('Remove comparison skill').filter({ hasText: 'beta' }).click();
+    await expect(command).not.toContainText('--extra-skill ../beta');
+    await expect(command).toContainText('--extra-skill ../gamma');
   });
-});
 
-test.describe('localhost run console', () => {
-  test('streams progress over the daemon WebSocket and shows the benchmark', async ({
-    page,
-    daemon,
-  }) => {
-    let server: WebSocketRoute | undefined;
-    await page.routeWebSocket(WS_URL, (ws) => {
-      server = ws;
-    });
-    daemon.on('POST', '/runs', { json: { runId: RUN_ID, wsUrl: WS_URL } });
-
-    await openLocalRun(page, daemon);
-    await selectSkill(page, 'arc-conventional-commits');
-    await pickOption(page, 'Comparison (--compare)', 'on');
+  test('runs the suite, streams case progress and writes artifacts', async ({ page }, testInfo) => {
+    await selectSkill(page, 'alpha');
     await runButton(page).click();
 
-    // The run is accepted and the socket opens.
-    await expect.poll(() => server !== undefined).toBe(true);
-    await expect(runConsole(page)).toContainText(`console: ${RUN_ID}`);
-    await expect(runButton(page)).toContainText('Running…');
-    await expect(runConsole(page)).toContainText('running with_skill · without_skill');
-    await expect(progress(page)).toContainText('all cases');
+    const runId = await consoleRunId(page);
+    await expect(runButton(page)).toContainText('select to cancel');
 
-    const [postRun] = daemon.requestsTo('POST', '/runs');
-    expect(postRun.body).toMatchObject({
-      workspaceRoot: '/home/tester/src/skills/arc-conventional-commits',
-      case: '*',
-      model: 'anthropic/claude-sonnet-4',
-      judgeModel: 'anthropic/claude-sonnet-4',
-      compare: 'on',
-      extraSkill: [],
-      iteration: 1,
-      contextMode: 'isolated',
-      sandbox: 'none',
-    });
-
-    server!.send(
-      JSON.stringify({ type: 'case.progress', caseId: 'case-pass', passed: 1, failed: 0, total: 3 }),
-    );
-    await expect(progress(page)).toContainText('case-pass');
-    await expect(progress(page)).toContainText('1/3 assert');
-
-    // A later event for the same case updates its row instead of adding one.
-    server!.send(
-      JSON.stringify({ type: 'case.progress', caseId: 'case-pass', passed: 3, failed: 0, total: 3 }),
-    );
-    server!.send(
-      JSON.stringify({ type: 'case.progress', caseId: 'case-fail', passed: 0, failed: 1, total: 1 }),
-    );
-    await expect(progress(page)).toContainText('3/3 assert');
-    await expect(progress(page)).toContainText('0/1 assert');
-    await expect(progress(page).getByText('case-pass', { exact: true })).toHaveCount(1);
-
-    server!.send(
-      JSON.stringify({
-        type: 'run.completed',
-        runId: RUN_ID,
-        passed: 1,
-        total: 2,
-        cost: 0.41,
-        exitCode: 1,
-        withSkill: 1,
-        withoutSkill: 0,
-        artifactPath: `evals-runs/${RUN_ID}`,
-      }),
-    );
+    // Both cases appear (queued or running), then settle as the replay runtime grades them.
+    await expect(progressRow(page, 'writes-a-report')).toBeVisible();
+    await expect(progressRow(page, 'greets-the-user')).toHaveAttribute('data-phase', 'pass');
+    await expect(progressRow(page, 'greets-the-user')).toContainText('1/1 assert');
+    await expect(progressRow(page, 'writes-a-report')).toHaveAttribute('data-phase', 'fail');
+    await expect(progressRow(page, 'writes-a-report')).toContainText('1/2 assert');
+    await expect(progress(page).getByText('all cases')).toHaveCount(0);
 
     const consoleRegion = runConsole(page);
     await expect(consoleRegion).toContainText('run complete');
     await expect(consoleRegion).toContainText('1/2 passed');
-    await expect(consoleRegion).toContainText('BENCHMARK');
-    await expect(consoleRegion).toContainText('with_skill');
-    await expect(consoleRegion).toContainText('without_skill');
-    await expect(consoleRegion).toContainText('Δ +50.0%');
-    await expect(consoleRegion).toContainText('exit code');
     await expect(consoleRegion).toContainText('≥1 assertion failed');
-    await expect(consoleRegion).toContainText(`wrote evals-runs/${RUN_ID}`);
+    // A run without comparison has no without_skill side to chart.
+    await expect(consoleRegion).not.toContainText('BENCHMARK');
     await expect(runButton(page)).toHaveText('↻ Reset run');
+
+    // The daemon wrote the run under alpha/evals-runs, and the console names that folder.
+    const [runDir] = await runDirs(alpha);
+    expect(runDir).toBeTruthy();
+    await expect(consoleRegion).toContainText(`wrote ${path.join(alpha, 'evals-runs', runDir!)}`);
+    const greets = await readGrading(path.join(alpha, 'evals-runs', runDir!, 'eval-greets-the-user', 'grading.json'));
+    const report = await readGrading(path.join(alpha, 'evals-runs', runDir!, 'eval-writes-a-report', 'grading.json'));
+    expect(greets.summary).toMatchObject({ passed: 1, failed: 0, total: 1 });
+    expect(report.summary).toMatchObject({ passed: 1, failed: 1, total: 2 });
 
     // The finished run id is remembered as the last run.
     await flagRow(page, 'Skill').click();
-    await expect(composer(page)).toContainText(`Last run: ${RUN_ID}`);
+    await expect(composer(page)).toContainText(`Last run: ${runId}`);
     await flagRow(page, 'Skill').click();
-  });
 
-  const replayCompletedSnapshot = async (page: Page) => {
-    // A socket that opens on an already-finished run gets a completed snapshot.
-    await page.routeWebSocket(WS_URL, (ws) => {
-      ws.send(
-        JSON.stringify({
-          type: 'run.snapshot',
-          run: {
-            runId: RUN_ID,
-            status: 'completed',
-            progress: [{ caseId: 'case-pass', passed: 2, failed: 0, total: 2 }],
-          },
-          passed: 1,
-          total: 1,
-          exitCode: 0,
-        }),
-      );
-    });
-  };
-
-  test('a completed snapshot finishes the run; reset returns to idle', async ({ page, daemon }) => {
-    await replayCompletedSnapshot(page);
-    daemon.on('POST', '/runs', { json: { runId: RUN_ID, wsUrl: WS_URL } });
-
-    await openLocalRun(page, daemon);
-    await selectSkill(page, 'arc-conventional-commits');
-    await runButton(page).click();
-
-    await expect(runConsole(page)).toContainText('run complete');
-    await expect(runConsole(page)).toContainText('1/1 passed');
-    await expect(progress(page)).toContainText('case-pass');
-    await expect(progress(page)).toContainText('2/2 assert');
-    await expect(runConsole(page)).toContainText('all assertions passed');
-    await expect(runConsole(page)).toContainText(`evals-runs/${RUN_ID}`);
-    await expect(runButton(page)).toHaveText('↻ Reset run');
-
+    // Reset returns the console to idle.
     await runButton(page).click();
     await expect(runConsole(page)).toContainText('no run yet');
-    await expect(runConsole(page)).not.toContainText('BENCHMARK');
     await expect(progress(page)).toBeEmpty();
-    await expect(runButton(page)).toHaveText('▶ Run');
+
+    await recordArtifact(testInfo, {
+      skill: 'alpha',
+      runDir: relativeTo(workspace, path.join(alpha, 'evals-runs', runDir!)).replace(runDir!, '<run>'),
+      cases: { [greets.case_id]: greets.summary, [report.case_id]: report.summary },
+    });
   });
 
-  test('a completed run links to browse', async ({ page, daemon }) => {
-    await replayCompletedSnapshot(page);
-    daemon.on('POST', '/runs', { json: { runId: RUN_ID, wsUrl: WS_URL } });
-
-    await openLocalRun(page, daemon);
-    await selectSkill(page, 'arc-conventional-commits');
+  test('a comparison run reports both sides and the delta', async ({ page }, testInfo) => {
+    await selectSkill(page, 'alpha');
+    await pickOption(page, 'Comparison (--compare)', 'on');
     await runButton(page).click();
+    await expect(runConsole(page)).toContainText('running with_skill and without_skill');
+
+    const consoleRegion = runConsole(page);
+    await expect(consoleRegion).toContainText('run complete', { timeout: 15_000 });
+    await expect(consoleRegion).toContainText('BENCHMARK');
+    // The replay runtime answers the same with and without the skill.
+    await expect(consoleRegion).toContainText('Δ +0.0%');
+
+    const [runDir] = await runDirs(alpha);
+    const variants = await readdir(path.join(alpha, 'evals-runs', runDir!, 'eval-greets-the-user'));
+    expect(variants).toEqual(expect.arrayContaining(['with_skill', 'without_skill']));
+    await recordArtifact(testInfo, { skill: 'alpha', compare: true, greetsVariants: variants.sort() });
+  });
+
+  test('a single case runs alone', async ({ page }) => {
+    await selectSkill(page, 'alpha');
+    await pickOption(page, 'Cases (--case)', 'writes-a-report');
+    await runButton(page).click();
+
     await expect(runConsole(page)).toContainText('run complete');
-
-    await runConsole(page).getByRole('link', { name: /inspect in browse/ }).click();
-    await expect(page.getByTestId('section-nav-tab-browse')).toHaveAttribute('aria-current', 'page');
+    await expect(runConsole(page)).toContainText('0/1 passed');
+    await expect(progress(page).getByTestId('run-progress-row')).toHaveCount(1);
+    await expect(progressRow(page, 'writes-a-report')).toHaveAttribute('data-phase', 'fail');
   });
 
-  test('cancelling a running run deletes it on the daemon and resets', async ({
-    page,
-    daemon,
-  }) => {
-    await page.routeWebSocket(WS_URL, () => {});
-    daemon.on('POST', '/runs', { json: { runId: RUN_ID, wsUrl: WS_URL } });
-    daemon.on('DELETE', `/runs/${RUN_ID}`, { json: { ok: true } });
-
-    await openLocalRun(page, daemon);
-    await selectSkill(page, 'arc-conventional-commits');
+  test('cancel stops the run on the daemon', async ({ page, request }, testInfo) => {
+    await selectSkill(page, 'alpha');
     await runButton(page).click();
-    await expect(runButton(page)).toContainText('Running…');
+    const runId = await consoleRunId(page);
+    await expect(progressRow(page, 'greets-the-user')).toHaveAttribute('data-phase', 'running');
 
     await runButton(page).click();
-    await expect.poll(() => daemon.requestsTo('DELETE', `/runs/${RUN_ID}`).length).toBe(1);
     await expect(runConsole(page)).toContainText('no run yet');
     await expect(runButton(page)).toHaveText('▶ Run');
+
+    // The daemon aborted the library run: it ends as cancelled, not completed.
+    await expect
+      .poll(async () => ((await (await request.get(`${E2E_DAEMON_URL}/runs/${runId}`)).json()) as { status: string }).status)
+      .toBe('cancelled');
+    const state = (await (await request.get(`${E2E_DAEMON_URL}/runs/${runId}`)).json()) as {
+      progress: Array<{ caseId: string; phase: string }>;
+    };
+    expect(state.progress.find((row) => row.caseId === 'writes-a-report')?.phase).not.toBe('fail');
+
+    await recordArtifact(testInfo, {
+      status: 'cancelled',
+      phases: Object.fromEntries(state.progress.map((row) => [row.caseId, row.phase])),
+    });
   });
 
-  test('a daemon rejection is surfaced and the console returns to idle', async ({
-    page,
-    daemon,
-  }) => {
-    daemon.on('POST', '/runs', { status: 400, json: { error: 'evals/evals.json not found' } });
-
-    await openLocalRun(page, daemon);
-    await selectSkill(page, 'arc-conventional-commits');
+  test('a daemon rejection is surfaced and the console returns to idle', async ({ page }) => {
+    await selectSkill(page, 'alpha');
+    // The suite disappears after the workspace was read: the daemon refuses the run.
+    await rm(path.join(alpha, 'evals', 'evals.json'));
 
     const alertMessage = acceptNextDialog(page);
     await runButton(page).click();
-    expect(await alertMessage).toBe('evals/evals.json not found');
+    expect(await alertMessage).toBe('This skill has no evals/evals.json to run. Author an eval suite first.');
 
     await expect(runConsole(page)).toContainText('no run yet');
     await expect(runButton(page)).toHaveText('▶ Run');
+  });
+
+  test('a completed run links to browse', async ({ page }) => {
+    await selectSkill(page, 'alpha');
+    await pickOption(page, 'Cases (--case)', 'greets-the-user');
+    await runButton(page).click();
+    await expect(runConsole(page)).toContainText('run complete');
+    await expect(runConsole(page)).toContainText('all assertions passed');
+
+    await runConsole(page).getByRole('link', { name: /inspect in browse/ }).click();
+    await expect(page.getByTestId('section-nav-tab-browse')).toHaveAttribute('aria-current', 'page');
   });
 });

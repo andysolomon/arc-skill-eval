@@ -1,9 +1,10 @@
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import type { Page } from '@playwright/test';
-import { localhostRuns, runsForQuery } from './fixtures/data';
+import { createWorkspace, readText, recordArtifact, relativeTo, runSuite, sha256, usesDeployedApp } from './fixtures/local';
 import {
   acceptNextDialog,
+  chooseWorkspace,
   expect,
   goToSection,
   openApp,
@@ -210,12 +211,17 @@ test.describe('hosted import', () => {
     await expect(page.getByTestId('review-empty-state')).toBeVisible();
   });
 
-  test('imported runs survive switching sections', async ({ page }) => {
+  test('imported runs survive switching sections and a reload', async ({ page }) => {
     await openReview(page);
     await loadSample(page);
 
     await goToSection(page, 'learn');
     await goToSection(page, 'review');
+    await expect(page.getByTestId('review-app')).toBeVisible();
+    await expect(summary(page)).toContainText('1/2 passed');
+
+    // Imported runs live in IndexedDB next to the notes written about them.
+    await reloadApp(page);
     await expect(page.getByTestId('review-app')).toBeVisible();
     await expect(summary(page)).toContainText('1/2 passed');
   });
@@ -249,10 +255,9 @@ test.describe('feedback', () => {
     // Newest first.
     await expect(notes.first()).toContainText('case-pass');
 
-    // Imported runs live in memory, notes are persisted: re-import after reload.
+    // The imported run and its notes are both persisted, so both survive a reload.
     await reloadApp(page);
-    await expect(page.getByTestId('review-empty-state')).toBeVisible();
-    await loadSample(page);
+    await expect(page.getByTestId('review-app')).toBeVisible();
     await expect(notes).toHaveCount(2);
 
     // Removing asks for confirmation; dismissing keeps the note.
@@ -308,118 +313,123 @@ test.describe('feedback', () => {
   });
 });
 
-test.describe('localhost', () => {
-  const openLocalReview = async (page: Page, daemon: import('./fixtures/daemon').DaemonMock) => {
-    daemon.on('GET', '/runs', ({ query }) => ({ json: runsForQuery(query) }));
+test.describe('localhost with the real daemon', () => {
+  test.use({ mockDaemon: false });
+  test.skip(usesDeployedApp, 'needs the local daemon the suite starts');
+
+  let workspace = '';
+  let alpha = '';
+  let runDir = '';
+
+  test.beforeEach(async ({ page, request }, testInfo) => {
+    workspace = await createWorkspace(testInfo);
+    alpha = path.join(workspace, 'skills', 'alpha');
+    await runSuite(request, workspace, alpha);
+    const [runName] = await readdir(path.join(alpha, 'evals-runs'));
+    runDir = path.join(alpha, 'evals-runs', runName!);
+
     await openApp(page);
     await switchEnv(page, 'localhost');
+    await chooseWorkspace(page, workspace);
     await goToSection(page, 'review');
     await expect(page.getByTestId('review-app')).toBeVisible();
-  };
-
-  test('reviews runs read from disk by the daemon', async ({ page, daemon }) => {
-    await openLocalReview(page, daemon);
-
-    // No import panel: the daemon supplies runs.
-    await expect(page.getByTestId('review-empty-state-kicker')).toHaveCount(0);
-    await expect(page.getByRole('main')).toContainText('./evals-runs');
-    await expect(page.getByTestId('reviewing-skill-arc-conventional-commits')).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-    await expect(
-      runsRail(page).getByRole('button', { name: 'select run disk-run-compare' }),
-    ).toHaveAttribute('aria-pressed', 'true');
-    await expect(summary(page)).toContainText('1/2 passed');
-
-    await page.getByTestId('reviewing-skill-release-please').click();
-    await expect(
-      runsRail(page).getByRole('button', { name: 'select run disk-run-release' }),
-    ).toHaveAttribute('aria-pressed', 'true');
-    await expect(summary(page)).toContainText('1/1 passed');
-    expect(daemon.requestsTo('GET', '/runs').some((r) => r.query.get('skill') === 'release-please')).toBe(
-      true,
-    );
   });
 
-  test('proposes changes, stages them on the daemon and applies them', async ({
-    page,
-    daemon,
-  }) => {
-    daemon.on('POST', '/apply-plan', ({ body }) => ({
-      json: {
-        planId: 'plan-1',
-        stagingPath: '/tmp/staging/plan-1',
-        diff: { file: 'evals/evals.json', received: (body as { runId: string }).runId },
-      },
-    }));
-    daemon.on('POST', '/apply-plan/plan-1/commit', {
-      json: { planId: 'plan-1', committed: true, path: '/home/tester/evals/evals.json' },
-    });
-    await openLocalReview(page, daemon);
+  const panel = (page: Page) => page.getByRole('region', { name: 'Propose changes from local feedback' });
 
-    const panel = page.getByRole('region', { name: 'Propose changes from local feedback' });
-    const propose = panel.getByRole('button', { name: 'Propose changes' });
+  const noteOnFailingCase = async (page: Page, note: string) => {
+    await summary(page).getByRole('button', { name: 'select case eval-writes-a-report' }).click();
+    await noteBox(page).fill(note);
+    await recordButton(page).click();
+  };
+
+  test('reviews the runs the daemon reads from disk', async ({ page }) => {
+    // No import panel: the daemon supplies the run written by the beforeEach run.
+    await expect(page.getByTestId('review-empty-state-kicker')).toHaveCount(0);
+    await expect(page.getByTestId('reviewing-skill-alpha')).toHaveAttribute('aria-pressed', 'true');
+    await expect(
+      runsRail(page).getByRole('button', { name: `select run ${path.basename(runDir)}` }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await expect(summary(page)).toContainText('1/2 passed');
+  });
+
+  test('applies feedback with improve --apply', async ({ page }, testInfo) => {
+    const evalsPath = path.join(alpha, 'evals', 'evals.json');
+    const untouched = await readText(evalsPath);
+    const propose = panel(page).getByRole('button', { name: 'Propose changes' });
     await expect(propose).toBeDisabled();
 
-    await noteBox(page).fill('Assert the BREAKING CHANGE footer.');
-    await recordButton(page).click();
+    await noteOnFailingCase(page, 'The prompt is ambiguous about the file name.');
     await expect(propose).toBeEnabled();
     await propose.click();
 
-    await expect(panel.getByLabel('Proposed change plan')).toContainText(
-      '+ Assert the BREAKING CHANGE footer.',
-    );
-    const staged = panel.getByRole('region', { name: 'Staged change plan' });
-    await expect(staged).toContainText('staged plan-1 at /tmp/staging/plan-1');
-    await expect(staged).toContainText('"received": "disk-run-compare"');
-
-    const [stageRequest] = daemon.requestsTo('POST', '/apply-plan');
-    expect(stageRequest.body).toMatchObject({
-      runId: 'disk-run-compare',
-      workspaceRoot: localhostRuns.runs[0].workspaceRoot,
-    });
+    const plan = panel(page).getByLabel('Proposed change plan');
+    await expect(plan).toContainText('+ The prompt is ambiguous about the file name.');
+    // The plan shows the case the note is about, read from the suite on disk.
+    await expect(plan).toContainText('- eval-writes-a-report: Write the weekly report to report.md.');
+    // Staging dry-runs improve on a copy; the suggestions show before anything is written.
+    const staged = panel(page).getByRole('region', { name: 'Staged change plan' });
+    await expect(staged).toContainText('arc-skill-eval improve --apply');
+    await expect(staged).toContainText('"kind": "prompt"');
+    await expect(staged).toContainText('"changed": true');
+    expect(await readText(evalsPath)).toBe(untouched);
 
     await staged.getByRole('button', { name: 'Apply changes' }).click();
-    await expect(panel.getByRole('status')).toContainText(
-      'Applied changes to /home/tester/evals/evals.json',
+    await expect(panel(page).getByRole('status')).toContainText(`Applied changes to ${evalsPath}`);
+    await expect(staged).toHaveCount(0);
+
+    // improve --apply tagged the case and recorded its suggestions; the feedback file stays in the run folder.
+    const suite = JSON.parse(await readText(evalsPath)) as {
+      evals: Array<{ id: string; metadata?: { tags?: string[]; improvement_suggestions?: Array<{ kind: string }> } }>;
+    };
+    const report = suite.evals.find((evalCase) => evalCase.id === 'writes-a-report');
+    const greets = suite.evals.find((evalCase) => evalCase.id === 'greets-the-user');
+    expect(report?.metadata?.tags).toContain('needs-eval-improvement');
+    expect(report?.metadata?.improvement_suggestions?.map((item) => item.kind)).toEqual(
+      expect.arrayContaining(['prompt', 'assertions']),
     );
-    await expect(staged).toHaveCount(0);
-  });
+    expect(greets?.metadata).toBeUndefined();
+    const feedback = JSON.parse(await readText(path.join(runDir, 'web-feedback.json'))) as {
+      cases: Array<{ case_id: string; notes: string }>;
+    };
+    expect(feedback.cases).toEqual([
+      expect.objectContaining({ case_id: 'writes-a-report', notes: 'The prompt is ambiguous about the file name.' }),
+    ]);
 
-  test('a staged plan can be discarded', async ({ page, daemon }) => {
-    daemon.on('POST', '/apply-plan', {
-      json: { planId: 'plan-2', stagingPath: '/tmp/staging/plan-2', diff: {} },
+    await recordArtifact(testInfo, {
+      file: relativeTo(workspace, evalsPath),
+      sha256Before: sha256(untouched),
+      sha256After: sha256(await readText(evalsPath)),
+      writesAReport: report?.metadata,
+      feedbackFile: relativeTo(workspace, path.join(runDir, 'web-feedback.json')).replace(path.basename(runDir), '<run>'),
     });
-    daemon.on('POST', '/apply-plan/plan-2/cancel', { json: { planId: 'plan-2', cancelled: true } });
-    await openLocalReview(page, daemon);
+  });
 
-    const panel = page.getByRole('region', { name: 'Propose changes from local feedback' });
-    await noteBox(page).fill('Drop this case.');
-    await recordButton(page).click();
-    await panel.getByRole('button', { name: 'Propose changes' }).click();
+  test('a staged plan can be discarded', async ({ page }) => {
+    const evalsPath = path.join(alpha, 'evals', 'evals.json');
+    const before = await readText(evalsPath);
+    await noteOnFailingCase(page, 'The prompt is unclear.');
+    await panel(page).getByRole('button', { name: 'Propose changes' }).click();
 
-    const staged = panel.getByRole('region', { name: 'Staged change plan' });
+    const staged = panel(page).getByRole('region', { name: 'Staged change plan' });
     await staged.getByRole('button', { name: 'Discard plan' }).click();
-    await expect(panel.getByRole('status')).toContainText('Discarded change plan');
+    await expect(panel(page).getByRole('status')).toContainText('Discarded change plan');
     await expect(staged).toHaveCount(0);
-    expect(daemon.requestsTo('POST', '/apply-plan/plan-2/cancel')).toHaveLength(1);
+    expect(await readText(evalsPath)).toBe(before);
   });
 
-  test('a staging failure is shown as an error', async ({ page, daemon }) => {
-    daemon.on('POST', '/apply-plan', { status: 500, json: { error: 'boom' } });
-    await openLocalReview(page, daemon);
+  test('a staging failure shows the daemon reason', async ({ page }) => {
+    await noteOnFailingCase(page, 'Anything.');
+    await rm(path.join(alpha, 'evals', 'evals.json'));
+    await panel(page).getByRole('button', { name: 'Propose changes' }).click();
 
-    const panel = page.getByRole('region', { name: 'Propose changes from local feedback' });
-    await noteBox(page).fill('Anything.');
-    await recordButton(page).click();
-    await panel.getByRole('button', { name: 'Propose changes' }).click();
-
-    await expect(panel.getByRole('alert')).toContainText('apply plan failed with 500');
-    await expect(panel.getByRole('region', { name: 'Staged change plan' })).toHaveCount(0);
+    await expect(panel(page).getByRole('alert')).toContainText('This skill has no evals/evals.json to improve.');
+    await expect(panel(page).getByRole('region', { name: 'Staged change plan' })).toHaveCount(0);
   });
+});
 
-  test('with the daemon offline, localhost falls back to the import panel', async ({ page }) => {
+test.describe('localhost, daemon offline', () => {
+  test('falls back to the import panel', async ({ page }) => {
     await openApp(page);
     await switchEnv(page, 'localhost');
     await goToSection(page, 'review');

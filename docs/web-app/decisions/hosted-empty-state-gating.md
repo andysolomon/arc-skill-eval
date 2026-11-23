@@ -32,7 +32,7 @@ per-component one-offs.**
 
 ### (a) Declaring the localhost vs hosted variant
 
-1. Zustand (ADR-0002) owns top-level `env: "localhost" | "hosted"` (persisted per
+1. The root Model (ADR-0008) owns top-level `env: "localhost" | "hosted"` (persisted per
    ADR-0004 `preferences`).
 2. A single `<AppRoot>` reads `env`, derives `const hosted = env === "hosted"`, and
    sets `data-env="localhost|hosted"` on the app root (alongside existing
@@ -118,14 +118,14 @@ Primary surface per App Section × Env Variant:
 - #167 (picker mechanism) can close independently; it must not reintroduce a picker
   on hosted.
 - Implementers must not invent a second env signal (URL param, build-time
-  `IMPORT.META.ENV` flag, etc.) that disagrees with the Zustand `env` store.
+  `IMPORT.META.ENV` flag, etc.) that disagrees with the root Model `env`.
 
 ## References
 
 - [#168 — Pin the hosted-empty-state gating convention](https://github.com/andysolomon/arc-skill-eval/issues/168)
 - [#167 — Workspace picker mechanism (localhost)](https://github.com/andysolomon/arc-skill-eval/issues/167) (open; visibility only here); mechanism: [workspace-picker.md](./workspace-picker.md)
 - [#170](https://github.com/andysolomon/arc-skill-eval/issues/170)–[#174](https://github.com/andysolomon/arc-skill-eval/issues/174) section specs; [#175](https://github.com/andysolomon/arc-skill-eval/issues/175) README
-- [ADR-0002](../../adr/ADR-0002-web-app-stack-vite-react-ts-tailwind-token-mapped.md) — Vite + React + Zustand
+- [ADR-0002](../../adr/ADR-0002-web-app-stack-vite-react-ts-tailwind-token-mapped.md) — Vite + TS stack (Foldkit replaced React and Zustand, ADR-0008)
 - [ADR-0004](../../adr/ADR-0004-no-auth-single-user-indexeddb-hosted.md) — no-auth IndexedDB on hosted
 - [`docs/web-app/CONTEXT.md`](../CONTEXT.md) — App Section, Env Variant, Empty State Hero, Workspace Picker, Import Card
 - Design handoff `design.md` § env gating; prototype `data-screen-label` screens in

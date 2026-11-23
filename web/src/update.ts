@@ -175,6 +175,11 @@ const setEnv = (model: Model, env: EnvName): UpdateReturn => {
       ...(notified.commands ?? []),
       ApplyDocumentAttributes({ theme: model.theme, env }),
       SaveShellPreferences({ env }),
+      ...(env === 'localhost'
+        ? Command.mapMessages(Workspace.checkDaemon(model.workspace), (message) =>
+            Message.GotWorkspaceMessage({ message }),
+          )
+        : []),
     ],
   };
 };

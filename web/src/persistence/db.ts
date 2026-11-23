@@ -1,13 +1,14 @@
 import { migrate, PREFERENCES_SCHEMA_VERSION } from './migrations';
 
 export const IDB_NAME = 'arc-skill-eval-web';
-export const IDB_SCHEMA_VERSION = 1;
+export const IDB_SCHEMA_VERSION = 2;
 
 export const STORE_NAMES = [
   'preferences',
   'feedback',
   'improvePlans',
   'learnProgress',
+  'importedRuns',
 ] as const;
 
 export type StoreName = (typeof STORE_NAMES)[number];
@@ -28,10 +29,18 @@ export const transactionDone = (tx: IDBTransaction): Promise<void> =>
   });
 
 const createStores = (db: IDBDatabase, oldVersion: number) => {
-  if (oldVersion >= 1) {
-    return;
+  if (oldVersion < 1) {
+    createVersionOneStores(db);
   }
 
+  // Version 2: the runs imported on the Review page (hosted mode), kept in
+  // a single record under the key "current".
+  if (oldVersion < 2) {
+    db.createObjectStore('importedRuns', { keyPath: 'id' });
+  }
+};
+
+const createVersionOneStores = (db: IDBDatabase) => {
   const preferences = db.createObjectStore('preferences', { keyPath: 'id' });
 
   const feedback = db.createObjectStore('feedback', { keyPath: 'noteId' });
