@@ -2,7 +2,10 @@
 
 ## Status
 
-Accepted (2026-07-22)
+Superseded by [ADR-0008](./ADR-0008-web-app-foldkit-and-effect.md) (2026-11-22). The web app
+no longer uses Tailwind. It reads the `--tt-*` CSS variables from the tokens package's
+`dist/web-theme.css` directly, and `[data-theme]` on `<html>` still swaps the theme.
+Accepted 2026-07-22.
 
 ## Context
 

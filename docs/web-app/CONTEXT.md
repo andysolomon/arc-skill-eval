@@ -1,6 +1,6 @@
 # Web app context
 
-The Vite + React hosted web app for `arc-skill-eval`. Five sections (`run`, `browse`,
+The Foldkit web app for `arc-skill-eval`. Five sections (`run`, `browse`,
 `create`, `review`, `learn`), three themes (tokyonight default, gruvbox, nord), each section
 renders both a localhost and a hosted variant. Source of truth for layout/behavior is the
 prototype at `docs/Arc skill eval web design/design_handoff_arc_skill_eval/arc-skill-eval-app.dc.html`;
@@ -8,8 +8,12 @@ the design system source of truth is `design.md` in the same directory.
 
 ## Stack
 
-Vite + React 18 + TypeScript (strict). Tailwind config mapped from the shared
-`@arc-skill-eval/tokens` package. Zustand for app-level state. *(See ADR-0002 once it lands.)*
+Vite 8 + TypeScript (strict) + [Foldkit](https://foldkit.dev) on Effect 4.1, in the Elm
+architecture: one Schema-typed Model, Messages, a pure update, and side effects as Commands
+and Subscriptions. Styles are inline, and they read the `--tt-*` CSS variables that the
+shared `@arc-skill-eval/tokens` package generates (`dist/web-theme.css`). Hosted state lives
+in IndexedDB. Localhost mode talks to the daemon in `web/daemon/`. See
+[ADR-0008](../adr/ADR-0008-web-app-foldkit-and-effect.md) and [`web/AGENTS.md`](../../web/AGENTS.md).
 
 ## Language
 

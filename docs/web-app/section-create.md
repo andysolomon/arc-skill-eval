@@ -219,7 +219,7 @@ a `↻ retry` button.
 ## Cross-references
 
 - [ADR-0002](../adr/ADR-0002-web-app-stack-vite-react-ts-tailwind-token-mapped.md):
-  Vite + React + TS stack; step-rail/working-pane/live-preview layout
+  Vite + TS (Foldkit since ADR-0008) stack; step-rail/working-pane/live-preview layout
   uses the gap + max-width conventions from §1.4 of design.md.
 - [ADR-0004](../adr/ADR-0004-no-auth-single-user-indexeddb-hosted.md):
   hosted has no LLM or filesystem, so it uses cyan callouts and the

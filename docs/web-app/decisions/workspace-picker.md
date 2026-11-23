@@ -63,7 +63,7 @@ store that hosted IndexedDB (ADR-0004) would need to special-case.
 
 The Workspace Picker is eligible only when **both** hold:
 
-1. `env === "localhost"` (Zustand top-level env per
+1. `env === "localhost"` (root Model env per
    [hosted-empty-state-gating.md](./hosted-empty-state-gating.md) § (a);
    `visible = !hosted`).
 2. The CLI directory daemon is **reachable** on the known loopback endpoint

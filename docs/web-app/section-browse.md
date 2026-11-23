@@ -33,7 +33,7 @@ filesystem and shows an **Empty State Hero** instead
 - **hosted:** the `browse reads local run artifacts` **Empty State Hero** described in this
   spec's Hosted variant section). No import path for `browse` in v0.
 
-The env is declared exactly once via the Zustand `env` store and the app-root
+The env is declared exactly once via the root Model `env` field and the app-root
 `data-env` attribute; `browse` must not invent a second env signal
 ([`hosted-empty-state-gating.md`](./decisions/hosted-empty-state-gating.md) §
 (a)). Handoff parity: set `data-screen-label="browse (localhost)"` and
@@ -226,7 +226,7 @@ ADR-0004). IndexedDB contents are never written to disk and never uploaded.
 ## Cross-references
 
 - [ADR-0002](../adr/ADR-0002-web-app-stack-vite-react-ts-tailwind-token-mapped.md)
-  — Vite + React + TS stack, Zustand `section`/`env` state, `1`–`5` routing.
+  — Vite + TS stack (Foldkit since ADR-0008), root Model `section`/`env` fields, `1`–`5` routing.
 - [ADR-0004](../adr/ADR-0004-no-auth-single-user-indexeddb-hosted.md) — no-auth,
   single-user, IndexedDB persistence boundary; hosted has no filesystem/LLM.
 - [ADR-0006](../adr/ADR-0006-tailwind-datatheme-integration.md) — Tailwind v4 +

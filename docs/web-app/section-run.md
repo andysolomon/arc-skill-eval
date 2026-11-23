@@ -147,7 +147,7 @@ daemon confirms).
 ## Cross-references
 
 - [ADR-0002](../adr/ADR-0002-web-app-stack-vite-react-ts-tailwind-token-mapped.md):
-  Vite + React + TS; Composer + Console is the standard two-panel
+  Vite + TS (Foldkit since ADR-0008); Composer + Console is the standard two-panel
   layout pattern (also used by `browse` and `review`).
 - [ADR-0004](../adr/ADR-0004-no-auth-single-user-indexeddb-hosted.md):
   hosted has no LLM, so it uses `import evals.json`.
