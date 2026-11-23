@@ -170,6 +170,10 @@ test("under Pi, the agent is handed a copy of the skill without its suite", asyn
     "artifacts name the real files, which still exist after the run",
   );
 
-  assert.deepEqual(await readdir(fixture.runTmp), [], "the copies were removed");
+  // `run` spawns `pi --version` when a Pi CLI is on PATH (npm test puts the
+  // bundled one there). That CLI turns on Node's compile cache, which Node
+  // keeps in the temp dir on purpose. It is not something a case left behind.
+  const leftovers = (await readdir(fixture.runTmp)).filter((name) => name !== "node-compile-cache");
+  assert.deepEqual(leftovers, [], "the copies were removed");
   if (!process.env.KEEP_E2E) await rm(fixture.root, { recursive: true, force: true });
 });
