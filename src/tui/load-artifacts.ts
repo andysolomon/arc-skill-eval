@@ -197,11 +197,37 @@ function mapLoadedCase(loaded: LoadedCase, ec: EvalsJsonFile['evals'][number] | 
   };
 }
 
-function mapLoadedSkill(loaded: LoadedSkill): Skill {
+/**
+ * The newest run holds only the cases it ran, so a single-case re-run would
+ * leave every other case "not run". Fill each case the newest run lacks from
+ * the most recent older run that graded it, and list cases in evals.json
+ * order so a re-run does not move the case to the top of the list.
+ */
+function withLatestResults(loaded: LoadedSkill, runs: LoadedRun[]): LoadedCase[] {
+  const older = runs
+    .filter((run) => run.runDir !== loaded.runDir)
+    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+  const filled = loaded.cases.map((loadedCase) => {
+    if (loadedCase.grading) return loadedCase;
+    for (const run of older) {
+      const hit = run.cases.find((c) => String(c.id) === String(loadedCase.id) && c.grading);
+      if (hit) return hit;
+    }
+    return loadedCase;
+  });
+  const order = new Map((loaded.evals?.evals ?? []).map((entry, i) => [String(entry.id), i]));
+  const rank = (c: LoadedCase): number => order.get(String(c.id)) ?? Number.MAX_SAFE_INTEGER;
+  return filled
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => rank(a.c) - rank(b.c) || a.i - b.i)
+    .map(({ c }) => c);
+}
+
+function mapLoadedSkill(loaded: LoadedSkill, runs: LoadedRun[]): Skill {
   const evalById = new Map<string, EvalsJsonFile['evals'][number]>(
     (loaded.evals?.evals ?? []).map((entry) => [String(entry.id), entry]),
   );
-  const cases: Case[] = loaded.cases.map((loadedCase) => {
+  const cases: Case[] = withLatestResults(loaded, runs).map((loadedCase) => {
     if (!loadedCase.grading) return unloadedCase(evalById.get(loadedCase.id) ?? { id: loadedCase.id, prompt: '', expected_output: '' });
     return mapLoadedCase(loadedCase, evalById.get(loadedCase.id));
   });
@@ -304,14 +330,14 @@ function appendDistractorSkills(skills: Skill[]): void {
 export async function reloadSkill(skillDir: string): Promise<{ skill: Skill | null; runs: Run[] }> {
   const { skill, runs } = await reloadSkillArtifacts(skillDir);
   return {
-    skill: skill ? mapLoadedSkill(skill) : null,
+    skill: skill ? mapLoadedSkill(skill, runs) : null,
     runs: runs.map((run) => mapLoadedRun(run, skill?.skillName ?? path.basename(skillDir))),
   };
 }
 
 export async function loadWorkspace(input: string): Promise<Workspace> {
   const { skills: loadedSkills, runs: loadedRuns } = await loadWorkspaceArtifacts(input);
-  const skills = loadedSkills.map(mapLoadedSkill);
+  const skills = loadedSkills.map((skill) => mapLoadedSkill(skill, loadedRuns.filter((run) => run.skillDir === skill.skillDir)));
   const runs = loadedRuns.map((run) => mapLoadedRun(run, run.skillName ?? 'unknown'));
   appendDistractorSkills(skills);
   return { skills, runs };

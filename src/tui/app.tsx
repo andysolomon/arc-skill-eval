@@ -323,6 +323,22 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
   const asrt = cs?.assertions[clampIdx(sel.assertions, cs.assertions.length)];
   const run = runs[clampIdx(sel.runs, runs.length)];
 
+  // A reload can reorder skills and cases, so selection is restored by id,
+  // not by index, once the reloaded workspace has rendered.
+  const [restore, setRestore] = useState<{ skill: string; caseId?: string } | null>(null);
+  const reload = (skillDir: string) => {
+    const want = sk ? { skill: sk.id, caseId: cs?.id } : null;
+    void Promise.resolve(onReload?.(skillDir)).then(() => { if (want) setRestore(want); });
+  };
+  useEffect(() => {
+    if (!restore) return;
+    setRestore(null);
+    const si = viewSkills.findIndex((s) => s.id === restore.skill);
+    if (si < 0) return;
+    const ci = restore.caseId ? applyCaseView(viewSkills[si]!.cases, filter, failOnly).findIndex((c) => c.id === restore.caseId) : -1;
+    setSel((s) => ({ ...s, skills: si, cases: ci >= 0 ? ci : s.cases }));
+  }, [restore]);
+
   // Reset pane/cursor/scroll whenever the projected view changes.
   const viewKey = `${focused}|${sel.skills}|${sel.cases}|${sel.assertions}|${sel.runs}|${caseMode}`;
   useEffect(() => { setScroll(0); setPane(false); setCursor(0); }, [viewKey]);
@@ -343,7 +359,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
     // In-process run console owns the screen while a run is active. Ink never
     // unmounts; on completion, enter/esc reload the affected skill in place.
     if (runCtl.state.active) {
-      if (runCtl.state.done && (key.return || key.escape)) { runCtl.close(); if (sk) void onReload?.(sk.dir); }
+      if (runCtl.state.done && (key.return || key.escape)) { runCtl.close(); if (sk) reload(sk.dir); }
       else if (!runCtl.state.done && key.escape) runCtl.cancel(); // run-abort: stop the run, a second esc closes now
       return;
     }
@@ -477,11 +493,11 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
     <NewCaseForm
       skillDir={sk.dir}
       skillName={sk.id}
-      onClose={(msg) => { setCreating(false); if (msg) setFlash(msg); void onReload?.(sk.dir); }}
+      onClose={(msg) => { setCreating(false); if (msg) setFlash(msg); reload(sk.dir); }}
       onDryRun={(caseId, msg) => {
         // Reload so the fresh case is visible even if the run is aborted;
         // the run-complete path reloads again with the new grading.
-        setCreating(false); setFlash(msg); void onReload?.(sk.dir);
+        setCreating(false); setFlash(msg); reload(sk.dir);
         runCtl.start({ skillDir: sk.dir, caseId, compare: false });
       }}
     />
@@ -492,7 +508,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
       skillName={sk.id}
       hasSuite={sk.role !== 'distractor'}
       recentModels={runs.map((r) => r.model).concat(sk.model).filter(Boolean)}
-      onClose={(msg) => { setCreatingSuite(false); if (msg) setFlash(msg); void onReload?.(sk.dir); }}
+      onClose={(msg) => { setCreatingSuite(false); if (msg) setFlash(msg); reload(sk.dir); }}
     />
   );
 
