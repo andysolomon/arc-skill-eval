@@ -186,6 +186,7 @@ const Metadata = Schema.Struct({
   difficulty: optionalOneOf(["easy", "medium", "hard"]),
   intent: optional(Schema.String, STRING),
   environment: optional(EnvironmentRequirementsSchema, "must be an object"),
+  covers: optional(list(Schema.String.annotate({ message: STRING }), "must be an array of strings"), "must be an array of strings"),
 }).annotate({ message: "must be an object" });
 
 // SCRIPT ASSERTIONS (discriminated by `type`)

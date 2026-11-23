@@ -1,5 +1,7 @@
-import { cp, mkdir, rm } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
+
+import { copySkillForAgent } from "../stage-skill.js";
 
 export interface StageCodexSkillsOptions {
   workspaceDir: string;
@@ -20,7 +22,7 @@ export async function stageCodexSkills(options: StageCodexSkillsOptions): Promis
   if (options.attachSkill && options.targetSkill) {
     const dest = path.join(skillsRoot, options.targetSkill.name);
     await mkdir(dest, { recursive: true });
-    await cp(options.targetSkill.skillDir, dest, { recursive: true, force: true });
+    await copySkillForAgent(options.targetSkill.skillDir, dest);
     stagedPaths.push(dest);
   }
 
@@ -31,7 +33,7 @@ export async function stageCodexSkills(options: StageCodexSkillsOptions): Promis
     const skillName = path.basename(skillDir);
     const dest = path.join(skillsRoot, skillName);
     await mkdir(dest, { recursive: true });
-    await cp(skillDir, dest, { recursive: true, force: true });
+    await copySkillForAgent(skillDir, dest);
     stagedPaths.push(dest);
   }
 

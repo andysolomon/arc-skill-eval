@@ -12,6 +12,12 @@ import { materializeFixture } from "../fixtures/materialize.js";
 import type { MaterializedFixture } from "../fixtures/types.js";
 import type { DiscoveredSkillFiles } from "../load/source-types.js";
 
+/**
+ * Temp-dir prefix for a case workspace. The agent under test works inside this
+ * directory and sees its name, so it must not say the run is an eval.
+ */
+export const CASE_WORKSPACE_PREFIX = "project-";
+
 export interface PreparedCaseWorkspace {
   workspaceDir: string;
   /** Present when setup.kind === "fixture"; owns fixture env + teardown hooks. */
@@ -30,7 +36,7 @@ export async function prepareCaseWorkspace(options: {
   files?: string[];
   skillFiles: DiscoveredSkillFiles;
 }): Promise<PreparedCaseWorkspace> {
-  const workspaceDir = await mkdtemp(path.join(tmpdir(), "arc-skill-eval-case-"));
+  const workspaceDir = await mkdtemp(path.join(tmpdir(), CASE_WORKSPACE_PREFIX));
   let workspaceCleaned = false;
   let materializedFixture: MaterializedFixture | undefined;
 

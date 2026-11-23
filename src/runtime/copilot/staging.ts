@@ -1,5 +1,7 @@
-import { cp, mkdir, rm } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
+
+import { copySkillForAgent } from "../stage-skill.js";
 
 export interface StageCopilotSkillsOptions {
   workspaceDir: string;
@@ -28,7 +30,7 @@ export async function stageCopilotSkills(options: StageCopilotSkillsOptions): Pr
     for (const skillsRoot of roots) {
       const dest = path.join(skillsRoot, skillName);
       await mkdir(dest, { recursive: true });
-      await cp(skillDir, dest, { recursive: true, force: true });
+      await copySkillForAgent(skillDir, dest);
       stagedPaths.push(dest);
     }
   };

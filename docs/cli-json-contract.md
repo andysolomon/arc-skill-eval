@@ -25,8 +25,8 @@
 
 | Exit | stdout has `error`? | Meaning |
 |---|---|---|
-| 0 | no | Success. For `run`, every hard assertion passed. |
-| 1 | no | A verdict, not a crash: `run` had a failing case or hard assertion (or a soft miss with `--strict`), or `emit --check` found drift. |
+| 0 | no | Success. For `run`, every hard assertion passed in every trial. |
+| 1 | no | A verdict, not a crash: `run` had a failing case or hard assertion (or a soft miss with `--strict`, or a failed trial with `--trials`), or `emit --check` found drift. |
 | 1 | yes | The command did not complete. See `error.kind`. |
 | 130 | yes | `run` was cancelled with Ctrl-C (`error.kind` is `cancelled`). |
 
@@ -34,7 +34,7 @@
 
 | Command | Payload (besides `schemaVersion`) |
 |---|---|
-| `run` | `runId`, `iteration?`, `summary` (`totalCases`, `passedCases`, `failedCases`, `totalAssertions`, `passedAssertions`, `failedAssertions`, `softFailedAssertions`, `assertionPassRate`), `skills[]` (`skillName`, `skillDir`, `outputDir`, `cases[]`, `errors[]`, `benchmark?`, `benchmarkPath?`) |
+| `run` | `runId`, `iteration?`, `summary` (`totalCases`, `passedCases`, `failedCases`, `totalAssertions`, `passedAssertions`, `failedAssertions`, `softFailedAssertions`, `assertionPassRate`, `selfJudgedCases`, `selfJudgeModel?`, `failedTrials`), `skills[]` (`skillName`, `skillDir`, `outputDir`, `cases[]`, `errors[]`, `benchmark?`, `benchmarkPath?`, `trials?`, `trialsPath?`, `sync?`) |
 | `create` | `skillDir`, `evalsJsonPath`, `dryRun`, `written`, `guided`, `interactive`, `evals` (the generated `evals.json`), `fixtureInputs`, `rationale`, `adjacentNegativeAssumption` |
 | `emit` | `fromPath`, `outPath`, `skillName`, `caseCount`, `bytes`, `check`, `changed`, `wrote` |
 | `review` | `runDir`, `reviewPath`, `feedbackPath`, `compare`, `caseCount` |
@@ -46,6 +46,15 @@
 | `install-skills` | `target`, `installed[]` (`skill`, `path`), `skipped[]` (`skill`, `path`, `reason`) |
 | `--help`, `<command> --help` | `command` (the command name, or `null` for the root help), `help` (the text) |
 | `--version` | `version` |
+
+Notes on `run`:
+
+- `summary.selfJudgedCases` counts cases whose judge assertions were graded by the model that ran them. `selfJudgeModel` names it.
+- `skills[].benchmark.cases[].assertions[]` (with `--compare`) gives `index`, `text`, `with_skill`, `without_skill` and `discriminates` for each assertion. `benchmark.summary.assertions_passing_in_both` counts the ones that passed without the skill too.
+- `skills[].trials` (with `--trials <n>`, `n` above 1) is the content of `trials.json`: per case `errored_trials`, `failed_trials` and `assertions[]` (`passed_trials`, `graded_trials`, `flaky`), plus `delta` (`per_trial`, `median`, `min`, `max`, `spread`, `measurable`) with `--compare`. `skills[].cases[]` holds the first trial. `summary.failedTrials` counts trials with a hard failure or a crash.
+- `skills[].sync` (with `--stamp`) is `{ "stamped": true, "path" }` or `{ "stamped": false, "reason" }`.
+
+`audit` findings carry a `category`. The suite checks use `eval-suite`, `vacuous-assertion`, `absence-only-case`, `eval-sync` and `eval-coverage`; the [CLI reference](https://andysolomon.github.io/arc-skill-eval/cli-reference/#audit-skill-dir-or-repo) explains each.
 
 `bundled --json` is the one exception: it prints a bare array of `{ name, path }` and has no `schemaVersion`, to stay compatible with scripts written before this contract.
 

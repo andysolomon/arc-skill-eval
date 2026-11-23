@@ -5,7 +5,7 @@ import type { AgentRuntime } from "../../runtime/types.js";
 import type { DiscoveredEvalSkill } from "../discover.js";
 import type { CaseRunArtifacts, CaseRunComparison, VariantRunArtifacts } from "../case-pipeline.js";
 import type { LlmJudgeFn } from "../grade.js";
-import type { BenchmarkJson, EvalCase, EvalRunVariant, EvalsJsonFile } from "../types.js";
+import type { BenchmarkJson, EvalCase, EvalRunVariant, EvalsJsonFile, TrialsJson } from "../types.js";
 import type { EvalContextMode } from "../../observability/types.js";
 
 export class EvalRunError extends Error {
@@ -50,6 +50,21 @@ export interface EvalRunOptions {
    */
   concurrency?: number;
   /**
+   * How many times each case runs. Defaults to 1. Above 1, the first trial
+   * writes the usual artifacts, later trials write under `trial-<k>/` in the
+   * run directory, and `trials.json` reports what held across them. A hard
+   * failure in any trial fails the run.
+   */
+  trials?: number;
+  /**
+   * Write `evals/sync.json` for each skill whose whole suite passed (see
+   * `sync-record.ts`). A failing, erroring or `caseIds`-filtered run is never
+   * stamped; the reason is reported in {@link SkillRunResult.sync}.
+   */
+  stamp?: boolean;
+  /** With {@link stamp}: a soft assertion miss also blocks the stamp, as `--strict` fails the run. */
+  strict?: boolean;
+  /**
    * Cancels the run: every in-flight case is interrupted (agent stopped,
    * workspace removed), no new case starts, and once all of them have been
    * released the run rejects with {@link EvalRunCancelledError}.
@@ -58,6 +73,8 @@ export interface EvalRunOptions {
   onProgress?: (ev: {
     phase: "case-start" | "assertion" | "case-done";
     caseId: string;
+    /** One-based trial number; absent when the run has a single trial. */
+    trial?: number;
     assertionsPassed?: number;
     assertionsTotal?: number;
     passed?: boolean;
@@ -91,6 +108,11 @@ export interface SkillRunResult {
   cases: CaseRunArtifacts[];
   errors: Array<{ caseId: string; message: string }>;
   observabilityExportFailures: Array<{ caseId: string; variant: EvalRunVariant; sink: string; message: string }>;
+  /** Present when the run used more than one trial. */
+  trialsPath?: string;
+  trials?: TrialsJson;
+  /** Present when the run asked for a stamp: whether the sync record was written, and why not. */
+  sync?: { stamped: true; path: string } | { stamped: false; reason: string };
 }
 
 export interface EvalRunSummary {
@@ -109,6 +131,20 @@ export interface EvalRunSummary {
    */
   softFailedAssertions: number;
   assertionPassRate: number | null;
+  /**
+   * Cases whose judge assertions were graded by the same model that ran the
+   * case. A model grading its own output is a known bias; `--judge-model`
+   * with a different model avoids it.
+   */
+  selfJudgedCases: number;
+  /**
+   * With `--trials`: how many trials, of any case, had a hard assertion
+   * failure or crashed. Zero for a single-trial run. Any failed trial fails
+   * the run, so a suite that only passes sometimes does not pass.
+   */
+  failedTrials: number;
+  /** The model behind {@link selfJudgedCases}, when there is one. */
+  selfJudgeModel?: { provider: string; id: string };
 }
 
 export interface EvalRunResult {

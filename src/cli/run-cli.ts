@@ -312,6 +312,9 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
             runtime,
             caseTimeoutMs: parsed.caseTimeoutMs,
             concurrency: parsed.concurrency,
+            trials: parsed.trials,
+            stamp: parsed.stamp,
+            strict: parsed.strict,
             signal: cancellation.signal,
           });
         } catch (error) {
@@ -334,6 +337,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
         const failed =
           result.summary.failedCases > 0 ||
           result.summary.failedAssertions > 0 ||
+          result.summary.failedTrials > 0 ||
           (parsed.strict && result.summary.softFailedAssertions > 0);
         const laminarUrls = laminarSink?.evaluationUrls() ?? [];
         const laminarNote =

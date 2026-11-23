@@ -80,6 +80,12 @@ export interface EvalCaseMetadata {
   difficulty?: "easy" | "medium" | "hard";
   intent?: string;
   environment?: EnvironmentRequirements;
+  /**
+   * The SKILL.md sections this case exercises, by heading text or its leading
+   * words ("Phase 2" names "Phase 2: Draft the config"). `audit` reports an
+   * entry that matches no heading, and the sections no case covers.
+   */
+  covers?: string[];
 }
 
 /**
@@ -268,6 +274,13 @@ export interface BenchmarkSummary {
   with_skill_pass_rate: number | null;
   without_skill_pass_rate: number | null;
   delta: number | null;
+  /**
+   * Assertions that passed with the skill and also without it. They do not
+   * show that the skill helped.
+   */
+  assertions_passing_in_both: number;
+  /** Assertions compared across both variants. */
+  assertions_compared: number;
 }
 
 export interface BenchmarkVariantSummary {
@@ -282,6 +295,19 @@ export interface BenchmarkCaseResult {
   with_skill: BenchmarkVariantSummary;
   without_skill: BenchmarkVariantSummary;
   delta: number | null;
+  /** One row per assertion, in evals.json order. */
+  assertions: BenchmarkAssertionComparison[];
+}
+
+/** How one assertion fared in each variant of a `--compare` run. */
+export interface BenchmarkAssertionComparison {
+  /** Zero-based position in the case's `assertions`. */
+  index: number;
+  text: string;
+  with_skill: boolean;
+  without_skill: boolean;
+  /** True when the variants disagree, so the assertion tells the skill from the baseline. */
+  discriminates: boolean;
 }
 
 export interface BenchmarkCaseError {
@@ -318,6 +344,55 @@ export interface BenchmarkVariantArtifacts {
   mcp_tool_call_count: number;
   attached_skills: ContextManifestJson["attached_skills"];
   mcp_tools: ContextManifestJson["mcp_tools"];
+}
+
+/**
+ * `trials.json`, written at the run root by `run --trials <n>` when n > 1.
+ * It says what held across the repeats of each case.
+ */
+export interface TrialsJson {
+  trials_version: "1";
+  run_id: string;
+  skill_name: string;
+  generated_at: string;
+  /** How many times each case ran. */
+  trials: number;
+  cases: TrialsCaseResult[];
+  /** Compare runs only: the with-minus-without pass-rate delta of each trial. */
+  delta?: TrialsDelta;
+}
+
+export interface TrialsCaseResult {
+  case_id: EvalCaseId;
+  /** Trials that crashed before grading. */
+  errored_trials: number;
+  /** Trials with at least one hard assertion failure. */
+  failed_trials: number;
+  assertions: TrialsAssertionResult[];
+}
+
+export interface TrialsAssertionResult {
+  /** Zero-based position in the case's `assertions`. */
+  index: number;
+  text: string;
+  passed_trials: number;
+  /** Trials that reached grading; an errored trial grades nothing. */
+  graded_trials: number;
+  soft: boolean;
+  /** Passed in some graded trials and failed in others. */
+  flaky: boolean;
+}
+
+export interface TrialsDelta {
+  /** One delta per trial, in trial order. `null` when a variant graded nothing. */
+  per_trial: Array<number | null>;
+  median: number | null;
+  min: number | null;
+  max: number | null;
+  /** `max - min`: how far the delta moves from one trial to the next. */
+  spread: number | null;
+  /** True when the median delta is larger than the spread. A smaller gap is not a measured difference. */
+  measurable: boolean;
 }
 
 export type { ContextManifestJson, ToolSummaryJson };

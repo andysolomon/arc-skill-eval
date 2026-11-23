@@ -146,6 +146,26 @@ As of 0.27.0 the CLI also ships these commands and features:
 - CI blocks broken typecheck/test changes.
 - Published package contains the CLI, runtime code, and docs needed by users.
 
+### P6 — Checks on the suite itself 🚧
+
+**Goal:** distrust the check, not only the skill. The ideas come from Lauren Tan's pstack verification skills.
+
+**Done**
+- [x] Null run in `audit`: report assertions that pass before any agent runs.
+- [x] Per-assertion comparison in `benchmark.json`: mark assertions that pass without the skill too.
+- [x] Sync record: `run --stamp` writes `evals/sync.json`; `audit` reports a skill or suite that changed since.
+- [x] Blinding for every runtime: a neutral workspace name, and the agent is pointed at a copy of the skill that leaves out `evals/` and `evals-runs/`.
+- [x] `run --trials <n>`: flaky assertions and the delta's spread in `trials.json`.
+- [x] Coverage map: `metadata.covers` checked against the `SKILL.md` headings.
+- [x] `arc-maintaining-evals` skill.
+
+**Open**
+- [ ] An eval suite for `arc-maintaining-evals`, then decide whether `install-skills` installs it by default.
+- [ ] Stamp the bundled skills, so their `eval-sync` findings go quiet.
+- [ ] Teach `improve` the same rule the skills follow: say whether the suite or the skill is wrong before proposing a looser assertion.
+
+---
+
 ## Suggested sequence
 
 P0, P1 and P2 are done. P3 is done except the `SKILL.md` snapshot and automatic iteration naming.

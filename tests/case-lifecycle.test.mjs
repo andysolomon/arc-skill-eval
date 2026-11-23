@@ -5,8 +5,8 @@
 //
 //   1. A hung harness is never killed, so `run` hangs forever.
 //   2. A timed-out or cancelled case leaves its child process running.
-//   3. A failed, timed-out or cancelled case leaves `arc-skill-eval-case-*`
-//      workspaces (with staged `.claude/skills`) in the temp dir.
+//   3. A failed, timed-out or cancelled case leaves its temp
+//      workspace (with staged `.claude/skills`) in the temp dir.
 //   4. A timeout is recorded with the wrong message, or aborts the whole run
 //      instead of failing just that case.
 //   5. Ctrl-C exits with the wrong code or skips cleanup.
@@ -140,7 +140,8 @@ async function waitForExit(pid, ms) {
 }
 
 async function leftoverCaseDirs(ctx) {
-  return (await readdir(ctx.runTmp)).filter((name) => name.startsWith("arc-skill-eval-"));
+  // The CLI's temp dir is ours alone, so anything left in it is a leak.
+  return await readdir(ctx.runTmp);
 }
 
 async function saveArtifact(name, result) {

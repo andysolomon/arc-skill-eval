@@ -71,12 +71,12 @@ Each case runs in a temporary workspace. Scripts check the `file-exists`, `file-
 
 | Command | What it does |
 | --- | --- |
-| `run <skill-dir-or-repo>` | Runs the cases and grades them. `--compare` adds a run without the skill. |
+| `run <skill-dir-or-repo>` | Runs the cases and grades them. `--compare` adds a run without the skill. `--trials <n>` repeats each case. `--stamp` records the skill version a passing suite ran against. |
 | `create <skill-dir>` | Writes a starter suite. `--guided` asks a model to propose the cases. |
 | `review <run-dir>` | Writes `review.html` and `feedback.json` for a run. |
 | `improve --from-feedback <file>` | Proposes suite changes from your review notes. |
 | `browse [<skill-dir-or-repo>]` | Opens the terminal run browser. |
-| `audit <skill-dir-or-repo>` | Checks skill files without calling a model. |
+| `audit <skill-dir-or-repo>` | Checks skill files and the suite without calling a model: assertions that cannot fail, and a skill that changed since its suite last passed. |
 | `optimize-description <skill-dir>` | Tests and rewrites the skill's trigger description. |
 | `emit <skill-dir>` | Compiles a TypeScript suite to `evals/evals.json`. |
 | `package <skill-dir>` | Validates a skill and bundles it into a `.skill.tgz`. |
@@ -101,11 +101,11 @@ Each case runs in a temporary workspace. Scripts check the `file-exists`, `file-
     └── context-manifest.json # skills and tools the model could see
 ```
 
-With `--compare`, each case directory holds a `with_skill/` and a `without_skill/` copy of these files. [Artifacts](https://andysolomon.github.io/arc-skill-eval/concepts/artifacts/) documents every field.
+With `--compare`, each case directory holds a `with_skill/` and a `without_skill/` copy of these files, and `benchmark.json` lists which assertions passed without the skill too. With `--trials <n>`, later trials write under `trial-<k>/` and `trials.json` reports flaky assertions and the delta's spread. [Artifacts](https://andysolomon.github.io/arc-skill-eval/concepts/artifacts/) documents every field.
 
 ## Use it from an agent
 
-Two bundled skills let a coding agent drive the CLI from its shell tool. `arc-creating-evals` writes a suite. `arc-running-evals` runs one, explains the result, and repeats the review and improve steps.
+Two bundled skills let a coding agent drive the CLI from its shell tool. `arc-creating-evals` writes a suite. `arc-running-evals` runs one, explains the result, and repeats the review and improve steps. A third, `arc-maintaining-evals`, brings a suite back in line after the skill changes; add it with `arc-skill-eval install-skills --skill arc-maintaining-evals`.
 
 ```bash
 arc-skill-eval install-skills   # writes .agents/skills/ and .claude/skills/ in the current project
@@ -132,7 +132,7 @@ npm run docs:dev                # docs site on localhost
 
 ## Credits
 
-The grading method follows OpenAI's [Testing Agent Skills Systematically with Evals](https://developers.openai.com/blog/eval-skills). The file formats are Anthropic's. [Inspiration](https://andysolomon.github.io/arc-skill-eval/inspiration/) lists the rest.
+The grading method follows OpenAI's [Testing Agent Skills Systematically with Evals](https://developers.openai.com/blog/eval-skills). The file formats are Anthropic's. The checks on the suite itself (the null run, the sync record, blinding, trials) follow Lauren Tan's [pstack](https://github.com/cursor/plugins/tree/main/pstack) verification skills. [Inspiration](https://andysolomon.github.io/arc-skill-eval/inspiration/) lists the rest.
 
 ## License
 
