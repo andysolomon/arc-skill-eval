@@ -147,6 +147,8 @@ export interface BehaviorAssertion extends BaseAssertion {
    * The subject of the assertion: a tool name for `tool-call-*`, a skill
    * name for `skill-read-required`, or a command/external substring for the
    * `*-forbidden` forms. Optional for the `-required` forms (absent = "any").
+   * Tool names match without regard to case (`"Bash"` matches Pi's `bash`);
+   * skill names match exactly.
    */
   value?: string;
   /**

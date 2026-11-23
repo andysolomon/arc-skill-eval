@@ -54,7 +54,7 @@ Read the target `SKILL.md`. Note its `name`, its trigger phrases (from `descript
 - A `regex-match` without `target` checks the agent's final response. Paths are relative to the case workspace.
 - A plain string is a judge assertion. Back it with a deterministic check whenever you can.
 - Prefer checking effects over exact wording. Don't copy the skill's own text into assertions.
-- If the user wants a tool-call check, you may write a `kind: "behavior"` assertion for the CLI to grade later, but tell them lite will skip it. It needs an `id`, and the tool name must match the agent's own spelling exactly. Pi's tools are lowercase:
+- If the user wants a tool-call check, you may write a `kind: "behavior"` assertion for the CLI to grade later, but tell them lite will skip it. It needs an `id`. Use the tool names the CLI's default `pi-sdk` runtime reports (`read`, `bash`, `write`, `edit`). The CLI ignores case when it matches them, so Claude Code's `Write` also counts:
 
   ```json
   { "id": "wrote-the-report", "kind": "behavior", "method": "tool-call-required", "value": "write" }

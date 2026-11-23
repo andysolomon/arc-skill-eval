@@ -5,7 +5,7 @@ description: Deterministic reference skill used as a permanent smoke test for ar
 
 # hello-world
 
-Minimal skill used by `arc-skill-eval` as a permanent reference example + smoke test. The goal is not to be useful — the goal is to be *easy to assert about*.
+Minimal skill that `arc-skill-eval` uses as a permanent reference example and smoke test. It is built to be *easy to assert about*, not to be useful.
 
 ## What this skill does
 
@@ -28,4 +28,4 @@ When invoked, follow these steps exactly:
 
 ## Why it exists
 
-This skill is the smoke test for `arc-skill-eval`. If its evals pass, the framework's deterministic pipeline — discovery, runner, grader, workspace capture, script assertions, and assistant-text assertions — is healthy. Authors of real skills can treat the companion `evals/evals.json` as a worked example of the format.
+This skill is the smoke test for `arc-skill-eval`. If its evals pass, the framework's deterministic pipeline is healthy: discovery, the runner, the grader, workspace capture, script assertions, and assistant-text assertions. Authors of real skills can treat the companion `evals/evals.json` as a worked example of the format.

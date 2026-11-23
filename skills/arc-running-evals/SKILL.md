@@ -8,7 +8,7 @@ description: >
 
 Drives the `arc-skill-eval` CLI to run a skill's eval suite, then turns the result into a clear verdict and a next step. You run the CLI through your shell tool and read its `--json` output. You never scrape human-readable text.
 
-**Contract reference:** `docs/cli-json-contract.md` in the arc-skill-eval repo.
+**Contract reference:** the `--json` notes in `arc-skill-eval --help`, the [CLI reference](https://andysolomon.github.io/arc-skill-eval/cli-reference/#--json), and `docs/cli-json-contract.md` inside the installed `arc-skill-eval` package.
 
 ---
 

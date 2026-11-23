@@ -200,8 +200,10 @@ async function checkFileAbsent(
 
 /**
  * Grade behavior assertions against the run's captured tool/skill/command
- * observations. The matcher is deliberately minimal: an exact tool/skill name
- * plus an optional substring/regex tested against a tool call's `inputSummary`.
+ * observations. The matcher is deliberately minimal: a tool name compared
+ * without regard to case (Pi reports `bash`, Claude Code reports `Bash`), an
+ * exact skill name, plus an optional case-sensitive substring/regex tested
+ * against a tool call's `inputSummary`.
  */
 function gradeBehaviorAssertion(
   assertion: BehaviorAssertion,
@@ -310,9 +312,13 @@ type MatcherResult<T> =
   | { ok: true; predicate: (candidate: T) => boolean }
   | { ok: false; evidence: string };
 
-/** Build a tool-call predicate from an exact name + optional input matcher. */
+/**
+ * Build a tool-call predicate from a name + optional input matcher. The name
+ * must equal the reported tool name ignoring case; the input matcher keeps its
+ * own case sensitivity.
+ */
 function compileToolMatcher(assertion: BehaviorAssertion): MatcherResult<PiSessionTelemetryToolCall> {
-  const name = assertion.value;
+  const name = assertion.value?.toLowerCase();
   let inputCheck: ((summary: string) => boolean) | null = null;
   if (assertion.match !== undefined) {
     const compiled = compileStringMatcher(assertion.match, assertion.matchKind);
@@ -322,7 +328,7 @@ function compileToolMatcher(assertion: BehaviorAssertion): MatcherResult<PiSessi
   return {
     ok: true,
     predicate: (call) => {
-      if (name !== undefined && call.toolName !== name) return false;
+      if (name !== undefined && call.toolName.toLowerCase() !== name) return false;
       if (inputCheck) return inputCheck(call.inputSummary ?? "");
       return true;
     },
