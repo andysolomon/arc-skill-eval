@@ -5,10 +5,17 @@
  */
 
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const webDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+// The daemon runs evals with the library built into the repository's dist/.
+if (!existsSync(resolve(webDir, "..", "dist", "index.js"))) {
+  console.error("The daemon needs the built library. Run `npm run build` in the repository root first.");
+  process.exit(1);
+}
 
 const children = [
   spawn("node", ["daemon/src/index.mjs"], { cwd: webDir, stdio: "inherit" }),

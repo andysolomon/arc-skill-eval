@@ -9,9 +9,6 @@
     "dev": "node --watch src/index.mjs"
   },
   "engines": {
-    "node": ">=20"
-  },
-  "dependencies": {
-    "ws": "8.21.0"
+    "node": ">=22.19.0"
   }
 }
