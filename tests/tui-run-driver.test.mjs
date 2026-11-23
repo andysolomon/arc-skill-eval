@@ -1,9 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdtemp, rm } from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
 
 import { makeCaseDone, runInProcess } from "../dist/tui/run-driver.js";
+
+// Point Pi at an empty agent dir so these runs never read the developer's
+// ~/.pi/agent. A personal default model the bundled catalog does not know
+// would otherwise fail the run before discovery and change the error.
+let emptyAgentDir;
+let previousAgentDir;
+test.before(async () => {
+  emptyAgentDir = await mkdtemp(path.join(tmpdir(), "arc-tui-run-driver-agent-"));
+  previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+  process.env.PI_CODING_AGENT_DIR = emptyAgentDir;
+});
+test.after(async () => {
+  if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+  else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+  await rm(emptyAgentDir, { recursive: true, force: true });
+});
 
 // W-000033 scenario "No dry-run available for missing runtime": a run that
 // cannot even start (missing skill dir here; a preflight/model failure behaves
