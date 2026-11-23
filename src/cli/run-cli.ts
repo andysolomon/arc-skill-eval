@@ -311,11 +311,12 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
             judgeModel: parsed.judgeModel,
             runtime,
             caseTimeoutMs: parsed.caseTimeoutMs,
+            concurrency: parsed.concurrency,
             signal: cancellation.signal,
           });
         } catch (error) {
           if (error instanceof EvalRunCancelledError) {
-            const message = "Run cancelled. The in-flight case was stopped and its temporary workspace removed.";
+            const message = "Run cancelled. In-flight cases were stopped and their temporary workspaces removed.";
             return jsonMode
               ? jsonError("cancelled", message, 130)
               : { exitCode: 130, stdout: "", stderr: `${message}\n` };
@@ -512,7 +513,7 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
 }
 
 /**
- * First Ctrl-C cancels the run gracefully (the in-flight case is interrupted
+ * First Ctrl-C cancels the run gracefully (every in-flight case is interrupted
  * and its resources released); a second Ctrl-C exits immediately.
  */
 function installRunCancellation(): { signal: AbortSignal; dispose: () => void } {

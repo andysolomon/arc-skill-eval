@@ -34,6 +34,7 @@ arc-skill-eval run <skill-dir-or-repo>
                    [--context-mode isolated|ambient]
                    [--sandbox none|just-bash]
                    [--case-timeout <seconds>]
+                   [--concurrency <n>]
                    [--compare]
                    [--strict]
                    [--laminar]
@@ -524,7 +525,17 @@ Stop a case's agent after this many seconds and record the case as an error: "Ca
 arc-skill-eval run . --runtime claude-code --case-timeout 600
 ```
 
-Ctrl-C during `run` cancels it the same way. The run stops the current case, cleans up its temporary files, and exits with code 130. A second Ctrl-C exits at once without cleanup.
+Ctrl-C during `run` cancels it the same way. The run stops every running case, starts no new one, cleans up their temporary files, and exits with code 130. A second Ctrl-C exits at once without cleanup.
+
+### `--concurrency <n>`
+
+Runs up to `n` cases at once, across every selected skill. The default is 1, which runs cases one after another. Results, `errors[]`, and `--json` output keep `evals.json` order whatever order cases finish in. `--case-timeout` applies to each case separately, and Ctrl-C stops all running cases.
+
+```bash
+arc-skill-eval run . --runtime claude-code --concurrency 4
+```
+
+Each case still gets its own temporary workspace, so cases can't see each other's files. Parallel cases do share your provider's rate limits. The CLI harness runtimes (`codex`, `claude-code`, `cursor-agent`, `copilot`) run each case in its own process. `pi-sdk` runs every case's session inside the one `arc-skill-eval` process.
 
 ### `--compare`
 
