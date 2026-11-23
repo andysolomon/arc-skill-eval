@@ -121,6 +121,7 @@ export function statusGlyph(status: string): [string, Color] {
     case 'pass': return [GLYPHS.pass, COLORS.green];
     case 'fail': return [GLYPHS.fail, COLORS.red];
     case 'partial': return [GLYPHS.partial, COLORS.orange];
+    case 'invalid': return ['!', COLORS.orange];
     default: return [GLYPHS.running, COLORS.comment];
   }
 }

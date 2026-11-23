@@ -240,7 +240,7 @@ function skillView(sk: Skill, showWithout: boolean): MainView {
     lines.push(row([
       seg('  ' + g + ' ', gc, true),
       seg(pad(c.id, 36), c.status === 'fail' ? COLORS.red : COLORS.fgDark),
-      c.status === 'not-run' ? seg('not run', COLORS.comment) : seg(`${p}/${c.assertions.length} assert`, COLORS.comment),
+      c.status === 'not-run' ? seg('not run', COLORS.comment) : c.status === 'invalid' ? seg('unreadable grading.json', COLORS.orange) : seg(`${p}/${c.assertions.length} assert`, COLORS.comment),
     ]));
   }
   lines.push(blank());
@@ -276,7 +276,15 @@ function caseView(cs: Case, showWithout: boolean, wrapWidth: number): MainView {
     lines.push(row([seg('  no run artifacts yet · press r to run this case', COLORS.comment)]));
     lines.push(blank());
   }
-  lines.push(sectionRow('GRADING', [cs.status === 'not-run' ? seg('not run', COLORS.comment) : seg(`${passN}/${cs.assertions.length} passed`, rateColor(passN, cs.assertions.length)), seg(`   pass_rate ${safeFrac(passN, cs.assertions.length).toFixed(2)}`, COLORS.comment)]));
+  if (cs.status === 'invalid') {
+    lines.push(...wrapColored('could not read this case\'s run artifacts · press r to run it again', proseW, COLORS.orange, '  '));
+    // Hard-wrap: the reason ends in an artifact path with no spaces to break on.
+    const reason = cs.loadError ?? '';
+    const w = Math.max(10, proseW - 2);
+    for (let i = 0; i < reason.length; i += w) lines.push(row([seg('  ' + reason.slice(i, i + w), COLORS.orange)]));
+    lines.push(blank());
+  }
+  lines.push(sectionRow('GRADING', [cs.status === 'not-run' ? seg('not run', COLORS.comment) : cs.status === 'invalid' ? seg('unreadable', COLORS.orange) : seg(`${passN}/${cs.assertions.length} passed`, rateColor(passN, cs.assertions.length)), seg(`   pass_rate ${safeFrac(passN, cs.assertions.length).toFixed(2)}`, COLORS.comment)]));
   for (const a of cs.assertions) {
     const [g, gc] = statusGlyph(a.passed ? 'pass' : 'fail');
     const infra = !a.passed && isInfraEvidence(a.evidence);
@@ -303,7 +311,7 @@ function caseView(cs: Case, showWithout: boolean, wrapWidth: number): MainView {
   return {
     title: cs.id,
     sub: [
-      seg(cs.status === 'pass' ? '✓ pass' : cs.status === 'fail' ? '✗ fail' : cs.status === 'not-run' ? '◌ not run' : '◐ partial', cs.status === 'pass' ? COLORS.green : cs.status === 'fail' ? COLORS.red : cs.status === 'not-run' ? COLORS.comment : COLORS.orange),
+      seg(cs.status === 'pass' ? '✓ pass' : cs.status === 'fail' ? '✗ fail' : cs.status === 'not-run' ? '◌ not run' : cs.status === 'invalid' ? '! unreadable' : '◐ partial', cs.status === 'pass' ? COLORS.green : cs.status === 'fail' ? COLORS.red : cs.status === 'not-run' ? COLORS.comment : COLORS.orange),
       seg(`   ${passN}/${cs.assertions.length}`, COLORS.comment),
     ],
     lines,
