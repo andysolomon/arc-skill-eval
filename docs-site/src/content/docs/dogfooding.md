@@ -24,8 +24,7 @@ arc-skill-eval run ./skills/my-skill \
   --iteration dogfood-1
 
 arc-skill-eval review ./skills/my-skill/evals-runs/iteration-dogfood-1/<runId>
-arc-skill-eval improve ./skills/my-skill \
-  --from-feedback ./skills/my-skill/evals-runs/iteration-dogfood-1/<runId>/feedback.json
+arc-skill-eval improve --from-feedback ./skills/my-skill/evals-runs/iteration-dogfood-1/<runId>/feedback.json
 ```
 
 ## Creating evals with `create`
@@ -123,8 +122,7 @@ Open `review.html` for case summaries, assistant output, assertion evidence, tim
 Then feed those notes into the improvement workflow:
 
 ```bash
-arc-skill-eval improve ./skills/my-skill \
-  --from-feedback ./skills/my-skill/evals-runs/<runId>/feedback.json
+arc-skill-eval improve --from-feedback ./skills/my-skill/evals-runs/<runId>/feedback.json
 ```
 
 The improvement plan should tell you whether to change the skill description, add fixtures, tighten assertions, or add/remove cases.

@@ -35,14 +35,14 @@
 | Command | Payload (besides `schemaVersion`) |
 |---|---|
 | `run` | `runId`, `iteration?`, `summary` (`totalCases`, `passedCases`, `failedCases`, `totalAssertions`, `passedAssertions`, `failedAssertions`, `softFailedAssertions`, `assertionPassRate`), `skills[]` (`skillName`, `skillDir`, `outputDir`, `cases[]`, `errors[]`, `benchmark?`, `benchmarkPath?`) |
-| `create` | `dryRun`, `guided`, `evalsJsonPath`, `evals` (the generated `evals.json`), `fixtureInputs`, `rationale`, `adjacentNegativeAssumption` |
-| `emit` | `fromPath`, `outPath`, `skillName`, `caseCount`, `check`, `changed`, `wrote` |
+| `create` | `skillDir`, `evalsJsonPath`, `dryRun`, `written`, `guided`, `interactive`, `evals` (the generated `evals.json`), `fixtureInputs`, `rationale`, `adjacentNegativeAssumption` |
+| `emit` | `fromPath`, `outPath`, `skillName`, `caseCount`, `bytes`, `check`, `changed`, `wrote` |
 | `review` | `runDir`, `reviewPath`, `feedbackPath`, `compare`, `caseCount` |
 | `improve` | `feedbackPath`, `runDir`, `evalsJsonPath`, `dryRun`, `applied`, `suggestions[]`, `updatedEvals?` |
 | `audit` | `input`, `skills[]` (each with its findings), `summary` (`skillCount`, `findingCount`, `highCount`, `warnCount`, `infoCount`), `outputPath?` |
 | `optimize-description` | `mode` (`generate-only`, `score`, `optimize`) plus that mode's report |
-| `package` | `skillName`, `outputPath`, `fileCount`, `totalBytes`, `manifest` |
-| `init-runtime` | `targetDir`, `modelsPath`, `settingsPath`, `overwritten` |
+| `package` | `skillDir`, `skillName`, `outputPath`, `fileCount`, `totalBytes`, `manifest` |
+| `init-runtime` | `targetDir`, `modelsPath`, `settingsPath`, `provider`, `model`, `overwritten` |
 | `install-skills` | `target`, `installed[]` (`skill`, `path`), `skipped[]` (`skill`, `path`, `reason`) |
 
 `bundled --json` is the one exception: it prints a bare array of `{ name, path }` and has no `schemaVersion`, to stay compatible with scripts written before this contract.

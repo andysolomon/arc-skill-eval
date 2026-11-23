@@ -8,7 +8,7 @@ This page gets you from zero to a green eval run on the bundled `hello-world` sk
 ## Requirements
 
 - Node.js ≥ 22.19 (required by the bundled Pi SDK 1.x).
-- [Pi](https://github.com/mariozechner/pi) installed and configured with at least one provider API key (Anthropic, OpenAI, Google/Gemini, Mistral, xAI, etc.). The skill's assistant runs via [`@mariozechner/pi-coding-agent`](https://www.npmjs.com/package/@mariozechner/pi-coding-agent).
+- [Pi](https://github.com/earendil-works/pi) installed and configured with at least one provider API key, such as Anthropic, OpenAI, Google Gemini, Mistral, or xAI. The skill's assistant runs through [`@earendil-works/pi-coding-agent`](https://www.npmjs.com/package/@earendil-works/pi-coding-agent).
 
 ## Install
 
@@ -70,13 +70,30 @@ Open `grading.json` for any case to see each assertion's verdict and evidence in
 {
   "case_id": "default-world",
   "assertion_results": [
-    { "text": "file-exists: greeting.txt", "passed": true, "evidence": "Found greeting.txt (15 bytes)" },
-    { "text": "regex-match: Hello, world!", "passed": true, "evidence": "matched in greeting.txt" },
-    { "text": "The response mentions the file `greeting.txt` by name", "passed": true, "evidence": "\"I wrote greeting.txt with the requested message.\"" }
+    {
+      "text": "file-exists: greeting.txt",
+      "passed": true,
+      "evidence": "Found `greeting.txt` (13 bytes)",
+      "assertion": { "type": "file-exists", "path": "greeting.txt" }
+    },
+    {
+      "text": "regex-match: /Hello, world!/ in greeting.txt",
+      "passed": true,
+      "evidence": "Match near: \"Hello, world!\"",
+      "assertion": { "type": "regex-match", "pattern": "Hello, world!", "target": { "file": "greeting.txt" } }
+    },
+    {
+      "text": "regex-match: /greeting\\.txt/ in assistant-text",
+      "passed": true,
+      "evidence": "Match near: \"I wrote greeting.txt with the greeting.\"",
+      "assertion": { "type": "regex-match", "pattern": "greeting\\.txt", "target": "assistant-text" }
+    }
   ],
-  "summary": { "passed": 3, "failed": 0, "total": 3, "pass_rate": 1.0 }
+  "summary": { "passed": 3, "failed": 0, "soft_failed": 0, "total": 3, "pass_rate": 1 }
 }
 ```
+
+All three hello-world assertions are deterministic, so the run needs no judge model to grade them.
 
 ## Pin a model when you need reproducibility
 
@@ -136,8 +153,7 @@ arc-skill-eval review ./skills/hello-world/evals-runs/<runId>
 Open `review.html` to inspect assistant output, deterministic assertion evidence, judge evidence, tool summaries, and compare deltas. Add human notes to `feedback.json`, then use the feedback-driven improvement workflow when you are ready to plan changes:
 
 ```bash
-arc-skill-eval improve ./skills/hello-world \
-  --from-feedback ./skills/hello-world/evals-runs/<runId>/feedback.json
+arc-skill-eval improve --from-feedback ./skills/hello-world/evals-runs/<runId>/feedback.json
 ```
 
 The usual loop is to create a suite, run one case, run with `--compare`, inspect `review.html`, record feedback, and change the skill or evals. Start a new `--iteration` and repeat.

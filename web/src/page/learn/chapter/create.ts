@@ -55,7 +55,7 @@ const flavorCards = [
   {
     color: 'var(--tt-orange)',
     label: 'adjacent-negative',
-    prompt: '"This PR only edits README.md. do I need a release?"',
+    prompt: '"This PR only edits README.md. Do I need a release?"',
   },
 ];
 
@@ -270,7 +270,7 @@ export const view = (demo: CreateDemo, h: HtmlBuilder<Message>): Html => {
       h.div(
         [h.Style(sx({ color: 'var(--tt-fg-dark)', lineHeight: 1.7, marginBottom: 24, maxWidth: 820 }))],
         [
-          "start with a handful of prompts that pin the behaviors you care about you care about, each with a few checks. here's the whole path, worked through on a real skill: ",
+          "start with a handful of prompts that pin the behaviors you care about, each with a few checks. here's the whole path, worked through on a real skill: ",
           h.span([h.Style(sx({ color: 'var(--tt-teal)' }))], ['arc-conventional-commits']),
           '.',
         ],
@@ -367,7 +367,7 @@ export const view = (demo: CreateDemo, h: HtmlBuilder<Message>): Html => {
                   h.span([h.Style(sx({ color: 'var(--tt-green)' }))], ['$ ']),
                   h.span(
                     [h.Style(sx({ color: 'var(--tt-fg)' }))],
-                    ['arc-skill-eval create ./skills/arc-conventional-commits --compare'],
+                    ['arc-skill-eval create ./skills/arc-conventional-commits --guided'],
                   ),
                 ],
               ),
@@ -718,7 +718,7 @@ export const view = (demo: CreateDemo, h: HtmlBuilder<Message>): Html => {
                 [
                   'without ',
                   h.span([h.Style(sx({ color: 'var(--tt-fg-dark)' }))], ['--compare']),
-                  ' you get a single score. with it, you get the pass-rate difference the skill makes signal.',
+                  ' you get a single score. with it, you get the pass-rate difference the skill makes.',
                 ],
               ),
             ],
@@ -806,7 +806,7 @@ export const view = (demo: CreateDemo, h: HtmlBuilder<Message>): Html => {
               ...trafficDots(h),
               h.span(
                 [h.Style(sx({ color: 'var(--tt-comment)', fontSize: 11, marginLeft: 8 }))],
-                ['arc-skill-eval create --interactive'],
+                ['arc-skill-eval create --guided --interactive'],
               ),
             ],
           ),
@@ -819,7 +819,7 @@ export const view = (demo: CreateDemo, h: HtmlBuilder<Message>): Html => {
                   h.span([h.Style(sx({ color: 'var(--tt-green)' }))], ['$ ']),
                   h.span(
                     [h.Style(sx({ color: 'var(--tt-fg)' }))],
-                    ['arc-skill-eval create ./skills/arc-conventional-commits --interactive'],
+                    ['arc-skill-eval create ./skills/arc-conventional-commits --guided --interactive'],
                   ),
                 ],
               ),
@@ -901,7 +901,7 @@ export const view = (demo: CreateDemo, h: HtmlBuilder<Message>): Html => {
         [h.Style(sx({ color: 'var(--tt-comment)', fontSize: 11.5, lineHeight: 1.6, marginBottom: 8 }))],
         [
           h.span([h.Style(sx({ color: 'var(--tt-fg-dark)' }))], ['--interactive']),
-          ' walks each proposed case. accept / skip / edit before anything is written to ',
+          ' walks each proposed case so you can accept, skip, or edit it before anything is written to ',
           h.span([h.Style(sx({ color: 'var(--tt-teal)' }))], ['evals/evals.json']),
           '.',
         ],
@@ -1233,9 +1233,9 @@ export const view = (demo: CreateDemo, h: HtmlBuilder<Message>): Html => {
       h.div(
         [h.Style(sx({ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.6, marginBottom: 32 }))],
         [
-          'a negative case just points at a different fixture. e.g. ',
+          'a negative case just points at a different fixture, for example ',
           h.span([h.Style(sx({ color: 'var(--tt-teal)' }))], ['files/docs-only']),
-          '. so "should do nothing" is testable too.',
+          ', so "should do nothing" is testable too.',
         ],
       ),
       sectionKicker({}, ['a fuller evals.json'], h),
@@ -1349,7 +1349,7 @@ export const view = (demo: CreateDemo, h: HtmlBuilder<Message>): Html => {
             [
               h.span([h.Style(sx({ color: 'var(--tt-yellow)' }))], ['"prompt"']),
               h.span([h.Style(sx({ color: 'var(--tt-comment)' }))], [': ']),
-              h.span([h.Style(sx({ color: 'var(--tt-fg)' }))], ['"This PR only edits README.md. need a release?"']),
+              h.span([h.Style(sx({ color: 'var(--tt-fg)' }))], ['"This PR only edits README.md. Do I need a release?"']),
               h.span([h.Style(sx({ color: 'var(--tt-comment)' }))], [',']),
             ],
           ),
@@ -1408,13 +1408,13 @@ export const view = (demo: CreateDemo, h: HtmlBuilder<Message>): Html => {
           ),
         ],
         [
-          'evals.json is the runtime contract. for larger suites, you do not have to hand-write it. for larger suites, author them in typescript with ',
+          "evals.json is the runtime contract, but you don't have to write it by hand. for larger suites, author it in typescript with ",
           h.span([h.Style(sx({ color: 'var(--tt-fg-dark)' }))], ['defineSkillEval']),
           ': type-checked helpers and one source of truth, then compile to ',
           h.span([h.Style(sx({ color: 'var(--tt-teal)' }))], ['evals/evals.json']),
           ' with ',
           h.span([h.Style(sx({ color: 'var(--tt-fg-dark)' }))], ['emit']),
-          '. same suite as above, authored in code:',
+          '. here is the same suite as above, authored in code:',
         ],
       ),
       h.div(

@@ -1,9 +1,22 @@
 ---
 title: CLI reference
-description: Every flag of `arc-skill-eval run`, `init-runtime`, `review`, `browse`, and `audit`, with model pinning, compare mode, and exit-code semantics.
+description: Every arc-skill-eval command and flag, with model pinning, runtimes, compare mode, JSON output, and exit codes.
 ---
 
-The current CLI centers on `create` for starter/guided suites, `run` for executing evals, `init-runtime` for creating tiny eval-owned Pi runtime config, `review` for static run reports, `improve` for feedback-driven planning, `browse` for an interactive run browser, and `audit` for deterministic skill-quality checks.
+`arc-skill-eval` has twelve commands:
+
+- `create` writes a starter or model-guided `evals/evals.json`.
+- `run` executes a suite, grades it, and writes artifacts.
+- `init-runtime` writes a small eval-owned Pi runtime directory.
+- `review` turns a run into a static report and a `feedback.json` file.
+- `improve` proposes suite changes from `feedback.json`.
+- `browse` opens a terminal run browser.
+- `audit` runs deterministic skill-quality checks.
+- `optimize-description` tests and tunes the `SKILL.md` description for routing.
+- `package` bundles a validated skill into a `.skill.tgz` file.
+- `bundled` prints the paths of the skills that ship with the package.
+- `emit` compiles a TypeScript suite into `evals/evals.json`.
+- `install-skills` copies the agent-facing skills into a project.
 
 ## Synopsis
 
@@ -11,6 +24,7 @@ The current CLI centers on `create` for starter/guided suites, `run` for executi
 arc-skill-eval run <skill-dir-or-repo>
                    [--skill <name>]...
                    [--case <id>]...
+                   [--runtime pi-sdk|codex|claude-code|cursor-agent|copilot]
                    [--model <provider/model[:thinking]>]
                    [--judge-model <provider/model[:thinking]>]
                    [--agent-dir <path>]
@@ -21,6 +35,7 @@ arc-skill-eval run <skill-dir-or-repo>
                    [--sandbox none|just-bash]
                    [--case-timeout <seconds>]
                    [--compare]
+                   [--strict]
                    [--laminar]
                    [--json]
 
@@ -28,14 +43,16 @@ arc-skill-eval init-runtime <agent-dir>
                             --provider <provider>
                             --model <model>
                             [--force]
+                            [--json]
 
 arc-skill-eval review <run-dir>
                       [--output <dir>]
                       [--force]
+                      [--json]
 
 arc-skill-eval improve --from-feedback <feedback.json>
                        [--dry-run]
-                       [--summary]
+                       [--summary | --json]
                        [--apply]
 
 arc-skill-eval create <skill-dir>
@@ -45,11 +62,8 @@ arc-skill-eval create <skill-dir>
                       [--agent-dir <path>]
                       [--authoring-skill <path>]
                       [--dry-run]
-                      [--summary]
+                      [--summary | --json]
                       [--force]
-
-arc-skill-eval improve <skill-dir>
-                       --from-feedback <feedback.json>
 
 arc-skill-eval browse [<skill-dir-or-repo>]
                       [--no-baseline]
@@ -57,6 +71,33 @@ arc-skill-eval browse [<skill-dir-or-repo>]
 arc-skill-eval audit <skill-dir-or-repo>
                      [--json]
                      [--output <path>]
+
+arc-skill-eval optimize-description <skill-dir>
+                     --generate-only [--output <path>] [--force]
+                   | --eval-set <path> [--distractor <skill-dir>]...
+                                       [--max-iterations <n> [--apply]]
+                     [--model <provider/model[:thinking]>]
+                     [--agent-dir <path>]
+                     [--json]
+
+arc-skill-eval package <skill-dir>
+                       [--output <path>]
+                       [--force]
+                       [--json]
+
+arc-skill-eval bundled [<skill-name>]
+                       [--json]
+
+arc-skill-eval emit (<skill-dir> | --from <suite.eval.ts>)
+                    [--out <evals/evals.json>]
+                    [--check]
+                    [--json]
+
+arc-skill-eval install-skills [--target <project-root>]
+                              [--harness claude-code|codex|cursor-agent|copilot|pi]...
+                              [--skill <name>]...
+                              [--force]
+                              [--json]
 ```
 
 ## Commands
@@ -69,54 +110,49 @@ Scaffold a starter `evals/evals.json` next to a `SKILL.md` file:
 arc-skill-eval create ./skills/my-skill
 ```
 
-The command reads `SKILL.md` frontmatter and writes three starter cases:
+The command reads the `SKILL.md` frontmatter and writes three starter cases:
 
 - `trigger-explicit`
 - `execution-golden-path`
 - `adjacent-negative`
 
-When obvious output artifacts are mentioned in `SKILL.md`, such as `plan.md` or `report.json`, the execution case also gets deterministic `file-exists` and `json-valid` assertions. When likely input files are mentioned, such as `notes/input.md`, `requirements.md`, `prd.md`, `issue.md`, or `task.md`, the execution case gets seeded fixture inputs under `evals/files/starter-inputs/`. The adjacent-negative case is domain-aware for common skill types like eval authoring, planning, releases, docs, and auth/webhooks, with a generic fallback.
+If `SKILL.md` mentions an output file such as `plan.md` or `report.json`, the execution case also gets `file-exists` and `json-valid` assertions. If it mentions a likely input file such as `notes/input.md`, `requirements.md`, `prd.md`, `issue.md`, or `task.md`, the command seeds that file under `evals/files/starter-inputs/`. The adjacent-negative prompt is tailored to common skill types: eval authoring, planning, releases, docs, and auth or webhooks. Other skills get a generic prompt.
 
-Use deterministic `create` when a repeatable starter suite is enough: file-writing skills, JSON/config skills, CLI automation, or CI fixtures where the obvious assertions are mechanical. Use guided create when case design is the hard part: conceptual skills, planning/review skills, routing behavior, and subtle adjacent negatives. Guided suggestions are proposals, not authority; review them before committing.
+Use the deterministic form when the checks are mechanical, for example file-writing skills, JSON or config skills, CLI automation, or CI fixtures. Use guided mode when designing the cases is the hard part, for example conceptual skills, planning or review skills, routing behavior, and subtle adjacent negatives. Guided output is a proposal. Review it before you commit it.
 
-Guided mode asks a configured Pi model to act as an eval designer using the bundled `skills/arc-creating-evals/SKILL.md` procedure before files are written:
+Guided mode asks a configured Pi model to design the cases by following the bundled `skills/arc-creating-evals/SKILL.md` procedure:
 
 ```bash
 arc-skill-eval create ./skills/my-skill --guided --dry-run --summary
 ```
 
-The guided proposal is validated through the same eval loader/schema used by `run`. Invalid model output fails with a clear validation error instead of writing files.
+The command validates the proposal with the same loader that `run` uses. If the model returns an invalid suite, the command fails with a validation error and writes nothing.
 
-For a conceptual `grill-me` skill, prefer judge assertions and adjacent negatives over fake file assertions:
+For a conceptual skill such as `grill-me`, prefer judge assertions and adjacent negatives over file assertions:
 
 ```bash
 arc-skill-eval create .agents/skills/grill-me --guided --interactive
 ```
 
-The useful assertions ask whether the assistant challenges assumptions, asks sharp follow-up questions, and stays in interview mode. Adjacent negatives check that ordinary editing or summarization requests do not trigger the skill.
+Useful assertions for that skill ask whether the assistant challenges assumptions, asks sharp follow-up questions, and stays in interview mode. Adjacent negatives check that ordinary editing or summarizing requests do not trigger the skill.
 
 Options:
 
-- `--guided`: ask the configured model to propose cases, fixture inputs, assertions, and rationale.
-- `--interactive`: launch a lightweight prompt flow for guided create. You can include/skip cases and assertions, and edit case prompts, expected output, and judge/regex assertion text before writing.
-- `--model <provider/model[:thinking]>`: pin the guided eval designer model. Without this flag, guided mode uses the configured Pi default.
-- `--agent-dir <path>`: load model registry, settings, and auth from an eval-owned Pi agent directory for guided mode.
-- `--authoring-skill <path>`: override the bundled `arc-creating-evals` instructions, useful when dogfooding a revised eval-authoring skill.
-- `--dry-run`: print the proposed JSON without writing files.
-- `--summary`: print a human-readable review of generated cases, fixtures, rationale, deterministic assertions, and judge assertions. With `--dry-run`, this prints the summary instead of raw JSON.
+- `--guided`: ask the configured model to propose cases, fixture inputs, assertions, and a rationale.
+- `--interactive`: review the guided proposal in the terminal before writing. You can keep or skip each case and assertion, and edit prompts, expected output, and judge or regex text. It needs a terminal and can't be combined with `--json`.
+- `--model <provider/model[:thinking]>`: pin the model that designs the cases. Without it, guided mode uses the Pi default.
+- `--agent-dir <path>`: load the model registry, settings, and auth for guided mode from an eval-owned Pi agent directory.
+- `--authoring-skill <path>`: use a different authoring skill instead of the bundled `arc-creating-evals`. This is useful when you test a revised version of that skill.
+- `--dry-run`: print the proposed suite without writing files.
+- `--summary`: print a readable review of the cases, fixtures, rationale, and assertions. With `--dry-run`, it prints the summary instead of raw JSON.
+- `--json`: print the result as one JSON object. See [JSON output](/arc-skill-eval/json-output/).
 - `--force`: overwrite an existing `evals/evals.json`.
 
-Interactive guided mode:
-
-```bash
-arc-skill-eval create ./skills/my-skill --guided --interactive
-```
-
-Existing overwrite protections still apply before the interactive prompts run unless `--force` is supplied.
+The overwrite check runs before the interactive prompts, so `--interactive` still refuses to replace an existing suite unless you pass `--force`.
 
 ### `init-runtime <agent-dir>`
 
-Create a tiny eval-owned Pi runtime directory with `models.json` and `settings.json`:
+Create a small eval-owned Pi runtime directory with `models.json` and `settings.json`:
 
 ```bash
 arc-skill-eval init-runtime ./.arc-skill-eval/pi-agent \
@@ -126,33 +162,35 @@ arc-skill-eval init-runtime ./.arc-skill-eval/pi-agent \
 
 Options:
 
-- `--provider <provider>`: currently `ollama-cloud` and `ollama` are supported.
-- `--model <model>`: model id to register and set as the Pi default for this runtime.
-- `--force`: overwrite existing `models.json` or `settings.json`. Without this flag, the command refuses to overwrite existing runtime files.
+- `--provider <provider>`: `ollama-cloud` or `ollama`.
+- `--model <model>`: the model ID to register and set as the Pi default for this runtime.
+- `--force`: overwrite an existing `models.json` or `settings.json`. Without it, the command refuses.
+- `--json`: print the result as one JSON object.
 
-For Ollama Cloud, the generated `models.json` references `OLLAMA_API_KEY`; it does not store a literal API key.
+For Ollama Cloud, the generated `models.json` names the `OLLAMA_API_KEY` environment variable. It never stores the key itself.
 
 ### `review <run-dir>`
 
-Generate a static review bundle for an eval run directory:
+Write a static report for a run directory:
 
 ```bash
 arc-skill-eval review ./skills/hello-world/evals-runs/<runId>
 ```
 
-Outputs:
+The command writes two files:
 
-- `review.html` — a standalone report with case summaries, assertion evidence, assistant output, timing/model/tool metadata when available, and side-by-side variants for compare runs.
-- `feedback.json` — a structured skeleton for human notes that future `improve` workflows can consume.
+- `review.html` is a standalone report. It shows case summaries, assertion evidence, assistant output, timing, model and tool data when present, and both variants side by side for compare runs.
+- `feedback.json` has one entry per case with a `status`, a `notes` field, and a `feedback` field for each variant. You fill these in, and `improve` reads them.
 
 Options:
 
-- `--output <dir>`: write the report files outside the run directory.
-- `--force`: overwrite existing `review.html` or `feedback.json`.
+- `--output <dir>`: write the files to another directory instead of the run directory.
+- `--force`: overwrite an existing `review.html` or `feedback.json`.
+- `--json`: print the result as one JSON object.
 
 ### `improve --from-feedback <feedback.json>`
 
-Suggest eval-suite improvements from review feedback. Start by creating a report, then add human notes to `feedback.json`:
+Propose suite changes from review feedback. Write the report first, then add your notes to `feedback.json`:
 
 ```bash
 arc-skill-eval review ./skills/my-skill/evals-runs/<runId>
@@ -160,84 +198,195 @@ arc-skill-eval improve --from-feedback ./skills/my-skill/evals-runs/<runId>/feed
   --dry-run --summary
 ```
 
-Use this after a compare run when the report shows neutral/negative deltas, flaky judge evidence, missing fixture coverage, or assertions that pass without proving the skill helped.
+`improve` takes no positional argument. It finds the run and the suite from the `feedback.json` path.
 
-The command reads human notes and failing assertion summaries from `feedback.json`, then proposes prompt, assertion, fixture, or adjacent-negative improvements with rationale. It preserves human approval by default: no eval files are changed unless `--apply` is supplied. Applied changes annotate matching eval cases with validated improvement metadata and then re-run the existing eval loader.
+Use it after a compare run when the report shows a neutral or negative delta, judge evidence that changes from run to run, missing fixtures, or assertions that pass without proving the skill helped.
+
+The command reads your notes and the failed assertions in `feedback.json`, then proposes changes to prompts, assertions, fixtures, or adjacent-negative cases, each with a reason. It changes no files unless you pass `--apply`. With `--apply`, it adds validated improvement metadata to the matching cases and then reloads the suite to confirm it is still valid.
 
 Options:
 
-- `--from-feedback <feedback.json>`: path to the feedback artifact written by `review`.
-- `--dry-run`: force proposal-only mode.
-- `--summary`: print a human-readable proposal instead of raw JSON.
-- `--apply`: write validated improvement metadata to the matching `evals/evals.json`.
+- `--from-feedback <feedback.json>`: the file that `review` wrote. Required.
+- `--dry-run`: only propose changes.
+- `--summary`: print a readable proposal instead of raw JSON.
+- `--json`: print the result as one JSON object.
+- `--apply`: write the validated improvement metadata to the matching `evals/evals.json`.
 
 ### `browse [<skill-dir-or-repo>]`
 
-Open an interactive terminal run browser (an Ink TUI) over the artifacts under `evals-runs/`. The optional positional resolves as a skill directory (contains `evals/evals.json`) or a repo root; it defaults to the current directory.
+Open a terminal run browser over the artifacts under `evals-runs/`. The argument is a skill directory (it contains `evals/evals.json`) or a repo root. It defaults to the current directory.
 
 ```bash
 arc-skill-eval browse ./skills/arc-conventional-commits   # one skill
 arc-skill-eval browse .                                    # whole repo
 ```
 
-It renders a four-panel layout — Skills, Cases, Assertions, Runs — with the selected case's prompt, grading evidence, metrics, tool calls, and `with_skill` vs `without_skill` comparison in the detail pane. It reads the same per-case `grading.json` / `timing.json` artifacts that `run` writes, so no extra setup is needed. Press `?` inside the TUI for the full keybinding overlay; `r` re-runs the selected skill (or case) and reloads in place.
+The browser has four panels: Skills, Cases, Assertions, and Runs. The detail pane shows the selected case's prompt, grading evidence, metrics, tool calls, and the `with_skill` and `without_skill` comparison. It reads the `grading.json` and `timing.json` files that `run` writes, so it needs no setup. Press `?` for the keybinding overlay. Press `r` to re-run the selected skill or case and reload the results.
 
 Options:
 
-- `--no-baseline`: hide the `without_skill` comparison rows in the detail pane.
+- `--no-baseline`: hide the `without_skill` rows in the detail pane.
 
-The TUI adapts to the terminal: truecolor degrades to 16-color ANSI on low-color terminals, and block/box glyphs fall back to ASCII off a UTF-8 locale. Force the fallbacks with `NO_COLOR` / `FORCE_COLOR=0` (no color) or `ARC_TUI_ASCII=1` (ASCII glyphs). The re-run child is launched as `arc-skill-eval` (must be on `PATH`); override with `ARC_SKILL_EVAL_BIN`.
+`browse` needs a terminal and does not accept `--json`.
 
-See [Browse (TUI)](/arc-skill-eval/browse/) for the full panel reference and keybindings.
+On terminals with fewer colors, the browser drops from truecolor to 16-color ANSI. Without a UTF-8 locale, it draws boxes and bars in ASCII. To force these fallbacks, set `NO_COLOR` or `FORCE_COLOR=0` for no color, or `ARC_TUI_ASCII=1` for ASCII glyphs. The re-run starts `arc-skill-eval` from your `PATH`. Set `ARC_SKILL_EVAL_BIN` to use a different binary.
+
+See [Browse (TUI)](/arc-skill-eval/browse/) for every panel and keybinding.
 
 ### `audit <skill-dir-or-repo>`
 
-Run deterministic skill-quality checks without invoking a model: frontmatter validity, content sprawl, eval coverage, local-link integrity, and duplicate skill families.
+Check skill quality without calling a model. `audit` reports frontmatter problems, descriptions over 500 characters, long `SKILL.md` files, a missing `evals/evals.json`, broken local markdown links, trigger-heavy descriptions on user-invoked skills, and likely duplicate skill families.
 
-`audit` reports frontmatter issues, descriptions over 500 characters, long `SKILL.md` files, a missing `evals/evals.json`, broken local markdown links, trigger-heavy descriptions on user-invoked skills, and likely duplicate skill families. It exits `0` even when it reports findings. To fail a CI job, read the finding counts in the `--json` output.
+`audit` exits `0` even when it reports findings. To fail a CI job, read the finding counts in the `--json` output.
 
 ```bash
 arc-skill-eval audit ./skills/arc-conventional-commits
 arc-skill-eval audit . --json --output ./audit.json
 ```
 
-Like `run`, the positional resolves as a single skill directory or a repo root whose tree is walked for `SKILL.md` + `evals/evals.json` pairs.
+Like `run`, the argument is a skill directory or a repo root. For a repo root, the command checks every `SKILL.md` and `evals/evals.json` pair it finds.
 
 Options:
 
-- `--json`: emit a machine-readable JSON report instead of human-readable lines.
+- `--json`: print a JSON report instead of readable text.
 - `--output <path>`: write the report to a file instead of stdout.
 
-### `install-skills`
+### `optimize-description <skill-dir>`
 
-Copy the bundled agent-facing skills (`arc-creating-evals`, `arc-running-evals`) into the folders coding agents read skills from, so any harness can drive `arc-skill-eval` from its shell tool.
+Measure how well the `SKILL.md` description routes requests, then propose better descriptions. The command has three modes.
+
+Generate a routing eval set. The model writes prompts that should trigger the skill and nearby prompts that should not, tags each one `train` or `test`, and saves them to `<skillDir>/evals/description-evals.json`. Review that file by hand before you use it.
 
 ```bash
-arc-skill-eval install-skills
-arc-skill-eval install-skills --harness codex --harness claude-code --target ../my-project
+arc-skill-eval optimize-description ./skills/my-skill --generate-only
+```
+
+Score the current description. For each prompt, the model gets one routing question with no tools. It sees the target description, the descriptions of sibling skills in the same parent folder, and any `--distractor` skills, in a rotated order. The report gives a verdict per prompt and the accuracy on the train and test splits.
+
+```bash
+arc-skill-eval optimize-description ./skills/my-skill \
+  --eval-set ./skills/my-skill/evals/description-evals.json
+```
+
+Optimize. With `--max-iterations <n>`, the command proposes new descriptions from the train-split failures and picks the winner by test-split accuracy. It changes `SKILL.md` only when you also pass `--apply`. After writing, it reads the file back and restores the original if the new description does not load cleanly.
+
+```bash
+arc-skill-eval optimize-description ./skills/my-skill \
+  --eval-set ./skills/my-skill/evals/description-evals.json \
+  --max-iterations 5
 ```
 
 Options:
 
-- `--target <dir>`: project root to install into (default: current directory). Must already exist.
-- `--harness <id>` *(repeatable)*: `claude-code` → `.claude/skills`; `codex`, `copilot`, `pi` → `.agents/skills`; `cursor-agent` → `.agents/skills` and `.cursor/skills`. Default: `.agents/skills` + `.claude/skills`.
-- `--skill <name>` *(repeatable)*: install specific bundled skills instead of the default two.
-- `--force`: replace an existing install. Without it, existing folders are skipped.
+- `--generate-only`: write a routing eval set. You must pass this or `--eval-set`.
+- `--output <path>`: with `--generate-only`, write the eval set to this path instead.
+- `--force`: with `--generate-only`, overwrite an existing eval set.
+- `--eval-set <path>`: score the description against this eval set.
+- `--distractor <skill-dir>` *(repeatable)*: add another skill's description to every routing question.
+- `--max-iterations <n>`: propose and test up to `n` new descriptions.
+- `--apply`: write the winning description to `SKILL.md`. It requires `--max-iterations`.
+- `--model <provider/model[:thinking]>`: pin the model. Without it, the command uses the Pi default.
+- `--agent-dir <path>`: load Pi config from an eval-owned agent directory.
+- `--json`: print the result as one JSON object.
+
+See [Optimize the description for routing accuracy](/arc-skill-eval/dogfooding/#optimize-the-description-for-routing-accuracy) for how to use the three modes together.
+
+### `package <skill-dir>`
+
+Validate a skill and bundle it into one file:
+
+```bash
+arc-skill-eval package ./skills/my-skill
+```
+
+The command first validates `SKILL.md` and `evals/evals.json`. It then writes `<name>.skill.tgz` to the current directory, where `<name>` is the skill name from the frontmatter. The archive holds the skill directory and a `manifest.json` file with a sha256 hash for every file. It leaves out `evals-runs/`, `node_modules/`, dot-files, and earlier `*.skill.tgz` files.
+
+Options:
+
+- `--output <path>`: write the archive to this path.
+- `--force`: overwrite an existing archive. Without it, the command refuses.
+- `--json`: print the result as one JSON object.
+
+### `bundled [<skill-name>]`
+
+Print the absolute paths of the skills that ship inside the npm package. With a name, print only that skill's path. Use it in a shell substitution so you never need to know where npm installed the package:
+
+```bash
+arc-skill-eval bundled
+arc-skill-eval run "$(arc-skill-eval bundled hello-world)"
+```
+
+The package ships `hello-world`, `arc-creating-evals`, `arc-running-evals`, and `arc-evals-lite`.
+
+Options:
+
+- `--json`: print a JSON array of `{ "name", "path" }` objects. This is the one command whose JSON has no `schemaVersion`.
+
+### `emit (<skill-dir> | --from <suite.eval.ts>)`
+
+Compile a typed suite into `evals/evals.json`. A suite is a `.eval.ts` file that default-exports `defineSkillEval({...})` from `arc-skill-eval/evals`:
+
+```ts
+// skills/my-skill/evals/evals.eval.ts
+import { defineSkillEval, evalCase, fileExists, judge } from "arc-skill-eval/evals";
+
+export default defineSkillEval({
+  skill_name: "my-skill",
+  cases: [
+    evalCase({
+      id: "writes-greeting",
+      prompt: "Create a greeting for Ada.",
+      assertions: [fileExists("greeting.txt"), judge("The reply names greeting.txt")],
+    }),
+  ],
+});
+```
+
+```bash
+arc-skill-eval emit ./skills/my-skill
+arc-skill-eval emit ./skills/my-skill --check
+```
+
+With a skill directory, `emit` reads `evals/evals.eval.ts` and writes `evals/evals.json` in the same folder. It also looks for `suite.eval.ts`, `evals.eval.mjs`, and `evals.eval.js`. The command validates the result with the same loader that `run` uses and transpiles TypeScript itself, so you need no build step. The runner only ever reads the JSON file.
+
+Options:
+
+- `--from <path>`: the suite file to compile, instead of a skill directory.
+- `--out <path>`: where to write the JSON. It defaults to `evals/evals.json` next to the suite.
+- `--check`: compare the committed `evals.json` with the suite instead of writing it. The command exits `1` when they differ. Use it in CI.
+- `--json`: print the result as one JSON object.
+
+### `install-skills`
+
+Copy the bundled agent-facing skills into the folders that coding agents read skills from. After that, an agent can drive `arc-skill-eval` from its shell tool. See [Use it from an agent](/arc-skill-eval/agents/).
+
+```bash
+arc-skill-eval install-skills
+arc-skill-eval install-skills --harness codex --harness claude-code --target ../my-project
+arc-skill-eval install-skills --skill arc-evals-lite
+```
+
+Options:
+
+- `--target <dir>`: the project root to install into. It defaults to the current directory and must already exist.
+- `--harness <id>` *(repeatable)*: `claude-code` installs to `.claude/skills`. `codex`, `copilot`, and `pi` install to `.agents/skills`. `cursor-agent` installs to `.agents/skills` and `.cursor/skills`. Without this flag, the command installs to `.agents/skills` and `.claude/skills`.
+- `--skill <name>` *(repeatable)*: install these bundled skills instead of the default two, `arc-creating-evals` and `arc-running-evals`.
+- `--force`: replace an existing install. Without it, the command skips folders that already exist.
 - `--json`: print `{ target, installed[], skipped[] }`.
 
-Skills are copied without their `evals/` folder.
+The command copies each skill without its `evals/` folder.
 
 ### `run <skill-dir-or-repo>`
 
-Discover skills, materialize fixtures, run cases through Pi, grade assertions, and write artifacts. The positional `<skill-dir-or-repo>` is resolved as a skill directory if it contains `evals/evals.json`, otherwise as a repo whose tree is walked for `SKILL.md` + `evals/evals.json` pairs.
+Find skills, set up fixtures, run each case, grade the assertions, and write artifacts. If the argument contains `evals/evals.json`, it is one skill. Otherwise the command treats it as a repo and runs every `SKILL.md` and `evals/evals.json` pair it finds.
 
-Exit code: `0` when every case has no failing assertions; `1` otherwise.
+The exit code is `0` when no case errors and no hard assertion fails, and `1` otherwise. See [`--strict`](#--strict) for soft assertions.
 
 ## Run flags
 
 ### `--skill <name>` *(repeatable)*
 
-Restrict the run to a specific discovered skill by name. Useful when you point the CLI at a repo root that contains many skills but only want to run one.
+Run only the named skill. Use it when you point the CLI at a repo root with many skills.
 
 ```bash
 arc-skill-eval run . --skill arc-conventional-commits
@@ -245,16 +394,35 @@ arc-skill-eval run . --skill arc-conventional-commits
 
 ### `--case <id>` *(repeatable)*
 
-Restrict the run to one or more cases by id. Combine with `--skill` to drill all the way down to a single case.
+Run only the cases with these IDs. Combine it with `--skill` to run one case in one skill.
 
 ```bash
 arc-skill-eval run ./skills/hello-world --case default-world
 arc-skill-eval run . --skill hello-world --case named-ada --case assistant-names-file
 ```
 
+### `--runtime pi-sdk|codex|claude-code|cursor-agent|copilot`
+
+Choose the agent that runs each case. The default is `pi-sdk`. The other four start the vendor's command-line agent in the case workspace, read its JSON event stream, and grade it with the same assertions and artifacts.
+
+| Runtime | Binary | Credentials |
+| --- | --- | --- |
+| `pi-sdk` | none, bundled | Pi's `models.json` and auth |
+| `codex` | `codex` | `CODEX_API_KEY` or `codex login` |
+| `claude-code` | `claude` | `ANTHROPIC_API_KEY` or a Claude login |
+| `cursor-agent` | `cursor-agent` | `CURSOR_API_KEY` |
+| `copilot` | `copilot` | `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, or `GITHUB_TOKEN` |
+
+```bash
+arc-skill-eval run ./skills/hello-world --runtime claude-code
+arc-skill-eval run ./skills/hello-world --runtime codex --model openai/<codex-model-id>
+```
+
+`--model` still takes the `provider/model` form. A command-line runtime receives the part after the slash. The command-line runtimes do not support `--sandbox just-bash`. The judge keeps its own credentials, set by `--judge-model`. See [Runtime and models](/arc-skill-eval/runtime-and-models/) and [`docs/multi-harness-runtimes.md`](https://github.com/andysolomon/arc-skill-eval/blob/main/docs/multi-harness-runtimes.md).
+
 ### `--model <provider/model[:thinking]>`
 
-Pin the model used by the skill-running agent. Without this flag, Skeval inherits Pi's configured default provider, model, and thinking level from the active Pi agent settings.
+Pin the model that runs the skill. Without this flag, the run uses the default provider, model, and thinking level from your Pi settings.
 
 ```bash
 arc-skill-eval run ./skills/arc-conventional-commits \
@@ -263,9 +431,9 @@ arc-skill-eval run ./skills/arc-conventional-commits \
 
 ### `--judge-model <provider/model[:thinking]>`
 
-Pin the model used for LLM-judged string assertions. Deterministic assertions such as `file-exists`, `regex-match`, and `json-valid` do not use the judge model.
+Pin the model that grades judge assertions. Deterministic assertions such as `file-exists`, `regex-match`, and `json-valid` do not use it.
 
-When the flag is absent, the judge defaults to the model that ran the case (which is guaranteed to be authenticated), falling back to `mistral/ministral-8b-latest` only when no runner model can be resolved. Because the runner-model default means the model grades its own output, pin `--judge-model` to a different model when that bias matters.
+Without this flag, the judge uses the model that ran the case, because that model is known to be authenticated. If no runner model can be resolved, it uses `mistral/ministral-8b-latest`. The default means the model grades its own output, so pin a different judge when that bias matters.
 
 ```bash
 arc-skill-eval run ./skills/arc-conventional-commits \
@@ -273,7 +441,7 @@ arc-skill-eval run ./skills/arc-conventional-commits \
   --judge-model mistral/ministral-8b-latest
 ```
 
-Model IDs may contain colons. Ollama-style IDs like `gpt-oss:20b` are treated as model IDs unless the final suffix is a known thinking level.
+Model IDs can contain colons. The CLI reads the last colon segment as a thinking level only when it is a known level, so an Ollama ID like `gpt-oss:20b` stays a model ID.
 
 ```bash
 arc-skill-eval run ./skills/hello-world \
@@ -281,11 +449,11 @@ arc-skill-eval run ./skills/hello-world \
   --judge-model ollama-cloud/gpt-oss:20b
 ```
 
-See [Runtime & Models](/arc-skill-eval/runtime-and-models/) for provider setup, Pi defaults, and Ollama Cloud examples.
+See [Runtime and models](/arc-skill-eval/runtime-and-models/) for provider setup, Pi defaults, and Ollama Cloud examples.
 
 ### `--agent-dir <path>`
 
-Use an eval-owned Pi agent directory for model registry, settings, and auth lookup. This is useful for reproducible team or CI runs that should not depend on a developer's personal `~/.pi/agent` defaults.
+Load the model registry, settings, and auth from an eval-owned Pi agent directory. Use it for team or CI runs that should not depend on a developer's personal `~/.pi/agent` settings.
 
 ```bash
 arc-skill-eval run ./skills/hello-world \
@@ -294,11 +462,11 @@ arc-skill-eval run ./skills/hello-world \
   --judge-model ollama-cloud/gpt-oss:20b
 ```
 
-When supplied, both the runner and default LLM judge use this directory for Pi config.
+With this flag, both the runner and the default judge read their Pi config from that directory.
 
 ### `--output-dir <path>`
 
-Override where artifacts are written. Default is `<skillDir>/evals-runs/<runId>/`. Useful in CI when you want all artifacts under a single workspace path.
+Write artifacts to another directory. The default is `<skillDir>/evals-runs/<runId>/`. In CI, use it to collect every artifact under one path.
 
 ```bash
 arc-skill-eval run . --output-dir ./evals-runs
@@ -306,7 +474,7 @@ arc-skill-eval run . --output-dir ./evals-runs
 
 ### `--iteration <name>`
 
-Group artifacts under an iteration bucket: `<skillDir>/evals-runs/iteration-<name>/<runId>/`. String names are normalized — `baseline` becomes `iteration-baseline`. Useful for repeated improvement cycles.
+Group a run under an iteration folder: `<skillDir>/evals-runs/iteration-<name>/<runId>/`. For example, `baseline` becomes `iteration-baseline`. Use one name per improvement cycle. The `browse` command can then compare a run with a pinned earlier run.
 
 ```bash
 arc-skill-eval run ./skills/hello-world --iteration 1
@@ -315,7 +483,7 @@ arc-skill-eval run ./skills/hello-world --iteration baseline
 
 ### `--extra-skill <path>` *(repeatable)*
 
-Load explicit distractor or conflict skills into the model's context — either a skill directory or a path to a `SKILL.md`. With `--compare`, `with_skill` receives the target plus extras while `without_skill` receives extras only.
+Load another skill into the model's context as a distractor or a conflict. The path is a skill directory or a `SKILL.md` file. With `--compare`, `with_skill` gets the target and the extras, and `without_skill` gets only the extras.
 
 ```bash
 arc-skill-eval run ./skills/arc-conventional-commits \
@@ -326,10 +494,10 @@ arc-skill-eval run ./skills/arc-conventional-commits \
 
 ### `--context-mode isolated|ambient`
 
-- `isolated` *(default)* — no ambient Pi skills, extensions, prompt templates, themes, or context files are loaded. Only the target skill and any `--extra-skill` paths are exposed to the model.
-- `ambient` — opt into normal Pi ambient resources, including configured extension tools and MCP-like tools when present.
+- `isolated` *(default)*: the run loads no ambient Pi skills, extensions, prompt templates, themes, or context files. The model sees only the target skill and any `--extra-skill` paths.
+- `ambient`: the run loads your normal Pi resources, including extension tools and MCP tools when you have them configured.
 
-The resolved loadout is recorded in each variant's `context-manifest.json`.
+Each variant's `context-manifest.json` records what the model could see.
 
 ```bash
 arc-skill-eval run ./skills/arc-conventional-commits \
@@ -339,10 +507,10 @@ arc-skill-eval run ./skills/arc-conventional-commits \
 
 ### `--sandbox none|just-bash`
 
-- `none` *(default)* — run each case through the standard temp-workspace runner with the host shell and real filesystem.
-- `just-bash` — route the agent's `bash`, `read`, `write`, and `edit` tools through one in-process [`just-bash`](https://www.npmjs.com/package/just-bash) virtual filesystem rooted at the case workspace. Commands run without the host shell. `/` is the workspace, so an absolute path such as `/tmp/out.html` lands at `<workspace>/tmp/out.html`. The workspace is also visible at its real path, which is where the shell starts. Skills in context are readable at their real paths but can't be changed. Nothing else on the host is visible, the repository working tree is never touched, and generated files are still captured under `outputs/`. `npm`/`npx`/`git` resolve to deterministic mocks (no-op success by default).
+- `none` *(default)*: each case runs in a temporary workspace with the host shell and the real filesystem.
+- `just-bash`: the agent's `bash`, `read`, `write`, and `edit` tools go through one in-process [`just-bash`](https://www.npmjs.com/package/just-bash) virtual filesystem rooted at the case workspace. Commands never reach the host shell. `/` is the workspace, so an absolute path such as `/tmp/out.html` lands at `<workspace>/tmp/out.html`. The workspace is also visible at its real path, where the shell starts. Skills in context can be read at their real paths but not changed. Nothing else on the host is visible, and the repository's working tree is never touched. The run still captures generated files under `outputs/`. `npm`, `npx`, and `git` are mocks that succeed and do nothing by default.
 
-This flag overrides each case's own `sandbox` field. Per-case `sandbox` selection and `sandboxMocks` (to return specific stdout/exit codes and file effects) are configured in `evals.json` — see [Eval cases](/arc-skill-eval/concepts/eval-cases/).
+This flag overrides each case's own `sandbox` field. You set per-case `sandbox` values and `sandboxMocks` (specific stdout, exit codes, and file effects) in `evals.json`. See [Eval cases](/arc-skill-eval/concepts/eval-cases/).
 
 ```bash
 arc-skill-eval run . --sandbox just-bash
@@ -350,51 +518,59 @@ arc-skill-eval run . --sandbox just-bash
 
 ### `--case-timeout <seconds>`
 
-Stops a case's agent if it runs longer than this many seconds and records the case as an error ("Case `<id>` timed out after `<n>`s; the agent was stopped."). The limit covers the agent run only, not grading. For CLI harness runtimes (`codex`, `claude-code`, `cursor-agent`, `copilot`) the child process gets SIGTERM, then SIGKILL after 5 seconds; for `pi-sdk` the session's prompt is aborted. Staged skills and the case's temporary workspace are removed either way. There is no limit by default.
+Stop a case's agent after this many seconds and record the case as an error: "Case `<id>` timed out after `<n>`s; the agent was stopped." The limit covers the agent run, not grading. A command-line runtime gets SIGTERM, then SIGKILL 5 seconds later. For `pi-sdk`, the run aborts the session's prompt. Either way, the run removes the staged skills and the case's temporary workspace. There is no limit by default.
 
 ```bash
 arc-skill-eval run . --runtime claude-code --case-timeout 600
 ```
 
-Pressing Ctrl-C during `run` cancels it the same way: the in-flight case is stopped, its temporary resources are cleaned up, and the command exits with code 130. A second Ctrl-C exits immediately without cleanup.
+Ctrl-C during `run` cancels it the same way. The run stops the current case, cleans up its temporary files, and exits with code 130. A second Ctrl-C exits at once without cleanup.
 
 ### `--compare`
 
-Opt into `with_skill` vs `without_skill` dual runs. Each case runs twice, isolated workspaces are materialized fresh for each variant, and a top-level `benchmark.json` aggregates per-case pass rates and the overall delta.
+Run each case twice, once with the skill and once without it. Each variant gets a fresh workspace. The run writes a top-level `benchmark.json` with per-case pass rates and the overall delta.
 
 ```bash
 arc-skill-eval run . --compare
 ```
 
-See [Dogfooding & Authoring Loop](/arc-skill-eval/dogfooding/) for how to interpret the delta.
+See [Dogfooding and authoring loop](/arc-skill-eval/dogfooding/) for how to read the delta.
+
+### `--strict`
+
+Fail the run on soft assertion misses too. An assertion is soft when it sets `mustPass: false` or a `severity` of `info` or `warn`. By default, a soft miss is recorded in `grading.json` and counted in the summary, but the exit code stays `0`. With `--strict`, any soft miss makes the exit code `1`.
+
+```bash
+arc-skill-eval run ./skills/my-skill --strict
+```
 
 ### `--json`
 
-Emit a machine-readable JSON summary on stdout instead of human-readable lines. Useful for CI scripts and for coding agents that drive the CLI from a shell tool.
+Print one JSON object on stdout instead of readable lines. Use it in CI scripts and when a coding agent drives the CLI.
 
 ```bash
 arc-skill-eval run . --json
 ```
 
-Every command except `browse` accepts `--json`. Output always includes `"schemaVersion": 1`. If the command can't complete, stdout holds `{"schemaVersion":1,"error":{"kind":"usage"|"command"|"internal","message":"..."}}` instead, with exit code `1`. An exit code of `1` *without* an `error` object means the run finished and something failed. The full contract, including every payload, is in `docs/cli-json-contract.md` in the repo.
+Every command except `browse` accepts `--json`. The object always includes `"schemaVersion": 1`. If the command can't complete, stdout holds `{"schemaVersion":1,"error":{"kind":"usage"|"command"|"internal","message":"..."}}` instead, and the exit code is `1`. An exit code of `1` *without* an `error` object means the run finished and something failed. [JSON output](/arc-skill-eval/json-output/) has the full contract.
 
 ### `--laminar`
 
-Opt into reporting the run to [Laminar](https://www.lmnr.ai/)'s **Evaluations** view: one evaluation per run variant (`with_skill` / `without_skill`), one scored datapoint per case, grouped by skill name for side-by-side comparison. The run summary prints a direct dashboard URL per evaluation. **Disabled by default** — without this flag no Laminar SDK is loaded and no network calls occur. Laminar export is strictly additive: local artifacts under `evals-runs/` remain the canonical source of truth, and an export failure never fails the run.
+Send the run to [Laminar](https://www.lmnr.ai/)'s Evaluations view. The export creates one evaluation per variant (`with_skill` and `without_skill`) and one scored datapoint per case, grouped by skill name. The run summary prints a dashboard URL for each evaluation. The flag is off by default. Without it, the run loads no Laminar code and makes no network calls. The local artifacts under `evals-runs/` stay the source of truth, and a failed export never fails the run.
 
-Configuration is read from the environment when the flag is set:
+When the flag is set, the run reads these environment variables:
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `LMNR_PROJECT_API_KEY` | yes | Laminar project API key. The command fails fast (before any case runs) if this is missing, naming the key. |
-| `LMNR_BASE_URL` | no | Override the Laminar endpoint. |
-| `LMNR_PROJECT_NAME` | no | Override the evaluation group name (default: the skill name). |
+| `LMNR_PROJECT_API_KEY` | yes | The Laminar project API key. If it is missing, the command names it and stops before any case runs. |
+| `LMNR_BASE_URL` | no | A different Laminar endpoint. |
+| `LMNR_PROJECT_NAME` | no | The evaluation group name. The default is the skill name. |
 
 ```bash
 LMNR_PROJECT_API_KEY=lmnr_... arc-skill-eval run . --laminar
 ```
 
-The Laminar Node SDK (`@lmnr-ai/lmnr`) is an **optional** dependency, loaded on demand only when the flag is enabled. If it is not installed, the run reports a clear error naming the package. See [Artifacts → External observability](/arc-skill-eval/concepts/artifacts/#external-observability-laminar) for the datapoint mapping.
+The Laminar SDK (`@lmnr-ai/lmnr`) is an optional dependency that loads only when you pass the flag. If it is not installed, the run reports an error that names the package. See [External observability](/arc-skill-eval/concepts/artifacts/#external-observability-laminar) for how fields map to datapoints.
 
 ## Examples
 
@@ -408,10 +584,10 @@ arc-skill-eval create ./skills/my-skill --dry-run
 # Review generated cases and assertions as text.
 arc-skill-eval create ./skills/my-skill --dry-run --summary
 
-# Ask an LLM eval designer for a richer dry-run proposal.
+# Ask a model to design a richer suite, without writing it.
 arc-skill-eval create ./skills/my-skill --guided --dry-run --summary
 
-# Run every eval in every discovered skill under the current repo.
+# Run every eval in every skill under the current repo.
 arc-skill-eval run .
 
 # Run one skill.
@@ -420,50 +596,68 @@ arc-skill-eval run ./skills/arc-conventional-commits
 # Run one case inside one skill.
 arc-skill-eval run ./skills/arc-conventional-commits --case 1
 
-# Pin GPT 5.5 for both runner and judge.
+# Pin the same model for the runner and the judge.
 arc-skill-eval run ./skills/arc-conventional-commits \
   --model openai-codex/gpt-6-luna:medium \
   --judge-model openai-codex/gpt-6-luna:medium
 
-# Use the verified Ollama Cloud smoke-test lane.
+# Run a cheap smoke test on Ollama Cloud.
 arc-skill-eval run ./skills/hello-world \
   --model ollama-cloud/gpt-oss:20b \
   --judge-model ollama-cloud/gpt-oss:20b
 
-# Create a tiny eval-owned Pi config/runtime directory.
+# Run the cases with Claude Code instead of Pi.
+arc-skill-eval run ./skills/hello-world --runtime claude-code
+
+# Fail on soft assertion misses as well.
+arc-skill-eval run ./skills/hello-world --strict
+
+# Create an eval-owned Pi runtime directory.
 arc-skill-eval init-runtime ./.arc-skill-eval/pi-agent \
   --provider ollama-cloud \
   --model gpt-oss:20b
 
-# Generate a static review report from artifacts.
+# Write a static review report for a run.
 arc-skill-eval review ./skills/hello-world/evals-runs/<runId>
 
-# Propose improvements from review feedback.
+# Propose suite changes from review feedback.
 arc-skill-eval improve --from-feedback ./skills/hello-world/evals-runs/<runId>/feedback.json \
   --dry-run --summary
 
-# Use an eval-owned Pi config/runtime directory.
+# Use an eval-owned Pi runtime directory.
 arc-skill-eval run ./skills/hello-world \
   --agent-dir ./.arc-skill-eval/pi-agent \
   --model ollama-cloud/gpt-oss:20b \
   --judge-model ollama-cloud/gpt-oss:20b
 
-# Retarget output.
+# Write artifacts somewhere else.
 arc-skill-eval run . --output-dir ./evals-runs
 
-# Compare with vs without the skill, grouped under an iteration bucket.
+# Compare with and without the skill under an iteration folder.
 arc-skill-eval run ./skills/arc-conventional-commits --compare --iteration 1
 
-# Add a distractor skill for conflict testing.
+# Add a distractor skill to test conflicts.
 arc-skill-eval run ./skills/arc-conventional-commits \
   --compare \
   --extra-skill ./skills/release-please \
   --iteration conflict-1
 
-# Opt into normal Pi ambient resources and record the loadout.
+# Load your normal Pi resources and record what the model saw.
 arc-skill-eval run ./skills/arc-conventional-commits \
   --context-mode ambient \
   --iteration ambient-1
+
+# Generate a routing eval set for the description.
+arc-skill-eval optimize-description ./skills/my-skill --generate-only
+
+# Bundle a validated skill into my-skill.skill.tgz.
+arc-skill-eval package ./skills/my-skill
+
+# Fail CI when evals.json is out of date with evals.eval.ts.
+arc-skill-eval emit ./skills/my-skill --check
+
+# Install the agent skills into the current project.
+arc-skill-eval install-skills
 ```
 
 ## Help
@@ -472,4 +666,4 @@ arc-skill-eval run ./skills/arc-conventional-commits \
 arc-skill-eval --help
 ```
 
-prints the usage block. There is no separate `--version`; check `package.json` or `npm ls -g arc-skill-eval`.
+This prints the usage line for every command and notes on each one.

@@ -265,7 +265,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
                 }),
               ),
             ],
-            ['. illustrative'],
+            ['(illustrative)'],
           ),
         ],
         h,
@@ -456,7 +456,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
         [
           'the delta says what the skill buys; ',
           h.span([h.Style(sx({ color: 'var(--tt-fg-dark)' }))], ['benchmark.json']),
-          ' also says what it costs . extra time and tokens vs the baseline. read them together.',
+          ' also says what it costs: extra time and tokens compared with the baseline. read them together.',
         ],
       ),
       h.div(
@@ -497,7 +497,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
               ),
               h.div(
                 [h.Style(sx({ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.5, marginTop: 4 }))],
-                ['a big lift for a small cost. the skill earns its context.'],
+                ['a big lift for a small cost, so the skill earns its context.'],
               ),
             ],
           ),
@@ -527,7 +527,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
               ),
               h.div(
                 [h.Style(sx({ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.5, marginTop: 4 }))],
-                ['marginal gain, doubled cost. trim the skill or cut it.'],
+                ['the gain is marginal and the cost doubles, so trim the skill or cut it.'],
               ),
             ],
           ),

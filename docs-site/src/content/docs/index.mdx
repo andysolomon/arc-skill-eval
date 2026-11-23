@@ -35,7 +35,8 @@ Skills are markdown files with optional scripts. They can change model behavior 
 - Per-case observability: `assistant.md`, `outputs/`, `timing.json`, `trace.json`, `tool-summary.json`, `context-manifest.json`.
 - Model pinning for runner and judge models, including GPT 5.5 and Ollama Cloud through Pi.
 - An authoring skill, [`arc-creating-evals`](/arc-skill-eval/authoring-evals/), that turns success criteria into cases, assertions, and fixtures.
-- A public roadmap for runtime setup, review reports, feedback-driven changes, and description testing.
+- Agent skills and a stable `--json` contract, so a coding agent can write, run, and explain evals from its shell tool.
+- Review reports, feedback-driven suite changes, description tuning for routing, and skill packaging.
 
 ## Where to start
 
@@ -44,6 +45,8 @@ Skills are markdown files with optional scripts. They can change model behavior 
 - **[Authoring evals](/arc-skill-eval/authoring-evals/).** Write `evals/evals.json` for your own skill.
 - **[Dogfooding and authoring loop](/arc-skill-eval/dogfooding/).** Use `--compare`, iterations, and artifacts to improve a skill.
 - **[Runtime and models](/arc-skill-eval/runtime-and-models/).** Configure Pi defaults, pinned models, GPT 5.5, Ollama Cloud, and eval-owned runtimes.
-- **[Skill creator roadmap](/arc-skill-eval/skill-creator-roadmap/).** See planned commands and product work.
+- **[Use it from an agent](/arc-skill-eval/agents/).** Install the agent skills and let Claude Code, Codex, Cursor Agent, Copilot, or Pi drive the CLI.
+- **[Web app](/arc-skill-eval/web-app/).** Review a run or draft a suite in the browser.
+- **[CLI reference](/arc-skill-eval/cli-reference/).** See every command and flag.
 - **[Blog](/arc-skill-eval/blog/).** Read why skill evals matter and what I learned while building this project.
 - **[Inspiration and credits](/arc-skill-eval/inspiration/).** Read the sources that shaped the project.

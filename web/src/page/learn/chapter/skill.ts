@@ -63,9 +63,9 @@ export const view = (h: HtmlBuilder<Message>): Html =>
       h.div(
         [h.Style(sx({ color: 'var(--tt-fg-dark)', lineHeight: 1.7, marginBottom: 30, maxWidth: 800 }))],
         [
-          "a skill is a folder the agent pulls into context when it's relevant. exactly one file is required. ",
+          "a skill is a folder the agent pulls into context when it's relevant. it needs exactly one file, ",
           h.span([h.Style(sx({ color: 'var(--tt-teal)' }))], ['SKILL.md']),
-          ". and everything else (scripts, references, an eval suite) is optional and loaded only when it's needed.",
+          ". everything else, such as scripts, references, and an eval suite, is optional and loads only when it's needed.",
         ],
       ),
       sectionKicker({}, ['SKILL.md, annotated'], h),
@@ -138,11 +138,11 @@ export const view = (h: HtmlBuilder<Message>): Html =>
             [h.Style(sx({ color: 'var(--tt-orange)', fontWeight: 700 }))],
             ['name and description control invocation.'],
           ),
-          " they're the only part always in context, so they alone decide whether the skill fires. write the description for the situations it should trigger in. not just what it does.",
+          " they're the only part always in context, so they alone decide whether the skill fires. write the description for the situations it should trigger in, not only for what it does.",
         ],
         h,
       ),
-      sectionKicker({ style: { marginBottom: 16 } }, ['progressive disclosure. what loads, when'], h),
+      sectionKicker({ style: { marginBottom: 16 } }, ['progressive disclosure: what loads when'], h),
       h.div(
         [h.Style(sx({ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12 }))],
         [
@@ -276,7 +276,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
           h.span([h.Style(sx({ color: 'var(--tt-fg-dark)' }))], ['what']),
           ' the skill does, and name the ',
           h.span([h.Style(sx({ color: 'var(--tt-fg-dark)' }))], ['situations']),
-          " it should fire in. the second is the part most people forget. and it's what makes the difference between a skill that triggers and one that sits unused.",
+          " it should fire in. most people forget the second job, and it decides whether a skill triggers or sits unused.",
         ],
       ),
       h.div(
@@ -324,7 +324,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
               ),
               h.div(
                 [h.Style(sx({ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.5 }))],
-                ["no situations, no nouns the request will contain. the agent can't tell when to reach for it."],
+                ["it names no situations and none of the nouns a request will contain, so the agent can't tell when to use it."],
               ),
             ],
           ),
@@ -358,7 +358,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
                   ),
                 ],
                 [
-                  '"Set up & enforce Conventional Commits. semantic-release, commitlint, release automation. Use when a repo needs versioned releases or commit rules."',
+                  '"Set up & enforce Conventional Commits with semantic-release, commitlint, and release automation. Use when a repo needs versioned releases or commit rules."',
                 ],
               ),
               h.div(
