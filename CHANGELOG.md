@@ -1,3 +1,9 @@
+## [0.28.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.27.1...v0.28.0) (2026-11-23)
+
+### Features
+
+* **run:** add --concurrency to run cases in parallel ([ff1c1d2](https://github.com/andysolomon/arc-skill-eval/commit/ff1c1d26e6129b9f05f7589062111e8817d3596c))
+
 ## [0.27.1](https://github.com/andysolomon/arc-skill-eval/compare/v0.27.0...v0.27.1) (2026-11-23)
 
 ### Bug Fixes
