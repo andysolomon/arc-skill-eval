@@ -1,6 +1,6 @@
 /**
- * Run section Commands: the daemon's `/runs` endpoints, the remembered last
- * run id, and the browser alert the React app used for refusals.
+ * Run section Commands: the daemon's `/runs` endpoints, the selected skill's
+ * case ids, the remembered last run id, and the browser alert for refusals.
  */
 
 import { Clock, Effect, Option, Schema } from 'effect';
@@ -105,6 +105,7 @@ export const StartRun = Command.define('StartRun', {
 
 // CANCEL
 
+/** Ask the daemon to abort the run; it stops the in-flight case and ends the run with run.cancelled. */
 export const DeleteRun = Command.define('DeleteRun', {
   args: { runId: Schema.String },
   messages: [Message.CompletedDeleteRun],
@@ -112,6 +113,51 @@ export const DeleteRun = Command.define('DeleteRun', {
     Effect.tryPromise(() => fetch(`${DAEMON_RUNS_URL}/${encodeURIComponent(runId)}`, { method: 'DELETE' })).pipe(
       Effect.ignore,
       Effect.as(Message.CompletedDeleteRun()),
+    ),
+});
+
+// SUITE CASES
+
+const SkillEvalsResponse = Schema.Struct({
+  ok: Schema.optional(Schema.Unknown),
+  error: Schema.optional(Schema.Unknown),
+  evals: Schema.optional(Schema.Struct({ evals: Schema.optional(Schema.Array(Schema.Unknown)) })),
+});
+
+const caseIdOf = (entry: unknown): Option.Option<string> => {
+  if (typeof entry !== 'object' || entry === null || !('id' in entry)) {
+    return Option.none();
+  }
+  const { id } = entry;
+  return typeof id === 'string' || typeof id === 'number' ? Option.some(String(id)) : Option.none();
+};
+
+export const LoadSuiteCases = Command.define('LoadSuiteCases', {
+  args: { workspaceRoot: Schema.String },
+  messages: [Message.SucceededLoadSuiteCases, Message.FailedLoadSuiteCases],
+  interrupt: true,
+  execute: ({ workspaceRoot }) =>
+    Effect.tryPromise({
+      try: async (signal) => {
+        const response = await fetch(`${DAEMON_URL}/skill-evals?root=${encodeURIComponent(workspaceRoot)}`, { signal });
+        return (await response.json()) as unknown;
+      },
+      catch: errorMessage,
+    }).pipe(
+      Effect.flatMap((payload) =>
+        Schema.decodeUnknownEffect(SkillEvalsResponse)(payload).pipe(Effect.mapError(() => 'invalid evals response')),
+      ),
+      Effect.flatMap((payload) =>
+        payload.ok === true
+          ? Effect.succeed(
+              Message.SucceededLoadSuiteCases({
+                workspaceRoot,
+                caseIds: (payload.evals?.evals ?? []).flatMap((entry) => Option.toArray(caseIdOf(entry))),
+              }),
+            )
+          : Effect.fail(typeof payload.error === 'string' ? payload.error : 'could not read evals.json'),
+      ),
+      Effect.catch((error) => Effect.succeed(Message.FailedLoadSuiteCases({ workspaceRoot, error }))),
     ),
 });
 

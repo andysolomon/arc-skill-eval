@@ -1,7 +1,7 @@
-import { Array } from 'effect';
+import { Array, Option } from 'effect';
 import type { Document, Html, HtmlBuilder } from 'foldkit/html';
 
-import type { AppContext } from '@/app/context';
+import { DaemonInfo, type AppContext } from '@/app/context';
 import { envNames, sections, themeNames, type EnvName, type SectionName, type ThemeName } from '@/app/domain';
 import { INSTALL_COMMAND } from '@/command';
 import { Message } from '@/message';
@@ -167,7 +167,32 @@ const statusHints: Record<SectionName, ReadonlyArray<StatusHint>> = {
   ],
 };
 
-const statusBar = (section: SectionName, h: HtmlBuilder<Message>): Html =>
+/**
+ * Localhost only: the models a run uses when the composer leaves model and
+ * judge on "default", as the daemon reports them. Hosted mode runs no model,
+ * so it shows none.
+ */
+const statusModels = (context: AppContext, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
+  if (context.env !== 'localhost') {
+    return [];
+  }
+  return DaemonInfo.match(context.workspace.daemon, {
+    Unknown: () => [],
+    Offline: () => [h.span([h.Class('status-bar__model')], ['daemon offline'])],
+    Online: ({ runtime, maybeModel, maybeJudgeModel }) => [
+      h.span(
+        [h.Class('status-bar__model'), h.Title(`default run model (${runtime} runtime)`)],
+        [Option.getOrElse(maybeModel, () => 'no default model')],
+      ),
+      h.span(
+        [h.Class('status-bar__judge'), h.Title('default judge model')],
+        [`judge ${Option.getOrElse(maybeJudgeModel, () => 'not configured')}`],
+      ),
+    ],
+  });
+};
+
+const statusBar = (section: SectionName, context: AppContext, h: HtmlBuilder<Message>): Html =>
   h.footer(
     [h.Class('status-bar'), h.DataAttribute('testid', 'status-bar')],
     [
@@ -182,8 +207,7 @@ const statusBar = (section: SectionName, h: HtmlBuilder<Message>): Html =>
         ),
       ),
       h.span([h.Class('status-bar__spacer')]),
-      h.span([h.Class('status-bar__model')], ['anthropic/claude-opus-4-5']),
-      h.span([h.Class('status-bar__judge')], ['judge ministral-8b-latest']),
+      ...statusModels(context, h),
       h.button(
         [
           h.Class('status-bar__reset'),
@@ -248,6 +272,6 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: 'arc-skill-eval',
   body: h.div(
     [h.Class('app-shell'), h.Id('root')],
-    [header(model, h), pageView(model.page, toContext(model), h), statusBar(model.section, h)],
+    [header(model, h), pageView(model.page, toContext(model), h), statusBar(model.section, toContext(model), h)],
   ),
 });

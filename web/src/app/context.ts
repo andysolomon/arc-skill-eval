@@ -7,6 +7,7 @@
 
 import { Schema } from 'effect';
 import { defineMessageUnion } from 'foldkit/message';
+import { defineTaggedUnion } from 'foldkit/schema';
 
 import { EnvName, SectionName, ThemeName } from './domain';
 
@@ -23,8 +24,25 @@ export type WorkspaceSkill = typeof WorkspaceSkill.Type;
 export const WorkspaceStatus = Schema.Literals(['loading', 'live', 'offline']);
 export type WorkspaceStatus = typeof WorkspaceStatus.Type;
 
+/**
+ * What the daemon's `/health` reported: the agent runtime it runs cases on
+ * and the models a run uses when the composer leaves model and judge on
+ * "default". `maybeModel` is empty when Pi has no default model configured.
+ */
+export const DaemonInfo = defineTaggedUnion({
+  Unknown: {},
+  Offline: {},
+  Online: {
+    runtime: Schema.String,
+    maybeModel: Schema.Option(Schema.String),
+    maybeJudgeModel: Schema.Option(Schema.String),
+  },
+});
+export type DaemonInfo = typeof DaemonInfo.Type;
+
 /** Read-only view of the shell's workspace for pages. */
 export const WorkspaceSnapshot = Schema.Struct({
+  daemon: DaemonInfo,
   /** The reference the user picked (path or GitHub URL); empty when none. */
   root: Schema.String,
   /** Skills the daemon found (sample list while the daemon is offline). */

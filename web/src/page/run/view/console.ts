@@ -42,7 +42,7 @@ const idleHint = (h: HtmlBuilder<Message>): Html =>
     [
       'Select ',
       h.span([h.Style(sx({ color: 'var(--tt-green)' }))], ['▶ Run']),
-      ' to start. Comparison mode grades ',
+      ' to start. With comparison on, the run grades ',
       h.span([h.Style(sx({ color: 'var(--tt-cyan)' }))], ['with_skill']),
       ' and ',
       h.span([h.Style(sx({ color: 'var(--tt-orange)' }))], ['without_skill']),
@@ -50,13 +50,19 @@ const idleHint = (h: HtmlBuilder<Message>): Html =>
     ],
   );
 
-const runningLine = (spinner: string, seconds: number, h: HtmlBuilder<Message>): Html =>
+const runningLine = (spinner: string, seconds: number, isComparison: boolean, h: HtmlBuilder<Message>): Html =>
   h.div(
     [h.Style(sx({ color: 'var(--tt-cyan)', marginBottom: 10 }))],
     [
-      `${spinner} running with_skill · without_skill `,
+      `${spinner} running${isComparison ? ' with_skill and without_skill' : ''} `,
       h.span([h.Style(sx({ color: 'var(--tt-comment)' }))], [`· elapsed ${seconds.toFixed(1)}s`]),
     ],
+  );
+
+const failedLine = (error: string, h: HtmlBuilder<Message>): Html =>
+  h.div(
+    [h.Role('alert'), h.Style(sx({ color: 'var(--tt-red)', fontWeight: 700, marginBottom: 10, whiteSpace: 'pre-wrap' }))],
+    [`✗ run failed: ${error}`],
   );
 
 const completeLine = (benchmark: Benchmark, seconds: number, h: HtmlBuilder<Message>): Html =>
@@ -67,21 +73,29 @@ const completeLine = (benchmark: Benchmark, seconds: number, h: HtmlBuilder<Mess
     ],
   );
 
+const phaseGlyph = (row: ProgressRow, isActive: boolean, spinner: string): Readonly<{ glyph: string; color: string }> => {
+  switch (row.phase) {
+    case 'pass':
+      return { glyph: '✓', color: 'var(--tt-green)' };
+    case 'fail':
+      return { glyph: '✗', color: 'var(--tt-red)' };
+    case 'running':
+      return isActive ? { glyph: spinner, color: 'var(--tt-cyan)' } : { glyph: '◐', color: 'var(--tt-orange)' };
+    case 'queued':
+      return { glyph: '·', color: 'var(--tt-comment)' };
+  }
+};
+
 const progressLine = (row: ProgressRow, isActive: boolean, spinner: string, h: HtmlBuilder<Message>): Html => {
-  const isSettled = row.totalAssertions > 0 && row.assertionsPassed + row.assertionsFailed >= row.totalAssertions;
-  const isFailed = row.assertionsFailed > 0;
-  const glyph = isFailed ? '✗' : isSettled ? '✓' : isActive ? spinner : '◐';
-  const glyphColor = isFailed
-    ? 'var(--tt-red)'
-    : isSettled
-      ? 'var(--tt-green)'
-      : isActive
-        ? 'var(--tt-cyan)'
-        : 'var(--tt-orange)';
+  const { glyph, color: glyphColor } = phaseGlyph(row, isActive, spinner);
 
   return h.keyed('div')(
     row.caseId,
-    [h.Style(sx({ alignItems: 'center', display: 'flex', gap: 12, height: 25 }))],
+    [
+      h.DataAttribute('testid', 'run-progress-row'),
+      h.DataAttribute('phase', row.phase),
+      h.Style(sx({ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 12, minHeight: 25 })),
+    ],
     [
       h.span([h.AriaHidden(true), h.Style(sx({ color: glyphColor, fontWeight: 700, width: 12 }))], [glyph]),
       h.span(
@@ -102,6 +116,14 @@ const progressLine = (row: ProgressRow, isActive: boolean, spinner: string, h: H
         [h.Style(sx({ color: 'var(--tt-comment)', fontSize: 12 }))],
         [`${row.assertionsPassed}/${row.totalAssertions === 0 ? '?' : row.totalAssertions} assert`],
       ),
+      Option.match(row.maybeError, {
+        onNone: () => h.empty,
+        onSome: (error) =>
+          h.span(
+            [h.Style(sx({ color: 'var(--tt-red)', flexBasis: '100%', fontSize: 12, paddingLeft: 24 }))],
+            [error],
+          ),
+      }),
     ],
   );
 };
@@ -125,18 +147,20 @@ const barRow = (
   );
 };
 
-const benchmarkView = (benchmark: Benchmark, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
+/** Only a comparison run has a without_skill side, so only it gets the bars and the delta. */
+const comparisonView = (
+  benchmark: Benchmark,
+  withPassed: number,
+  withoutPassed: number,
+  h: HtmlBuilder<Message>,
+): ReadonlyArray<Html> => {
   const { total } = benchmark;
-  const withPassed = Option.getOrElse(benchmark.maybeWithSkill, () => benchmark.passed);
-  const withoutPassed = Option.getOrElse(benchmark.maybeWithoutSkill, () => Math.max(0, total - benchmark.passed));
   const delta = Option.getOrElse(benchmark.maybeDelta, () =>
     total > 0 ? ((withPassed - withoutPassed) / total) * 100 : 0,
   );
   const deltaLabel = `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%`;
-  const isExitOk = benchmark.exitCode === 0;
 
   return [
-    h.div([h.Style(sx({ background: 'var(--tt-border)', height: 1, margin: '18px 0' }))]),
     h.div(
       [h.Style(sx({ alignItems: 'baseline', display: 'flex', gap: 10, marginBottom: 7 }))],
       [
@@ -165,6 +189,19 @@ const benchmarkView = (benchmark: Benchmark, h: HtmlBuilder<Message>): ReadonlyA
         ),
       ],
     ),
+  ];
+};
+
+const benchmarkView = (benchmark: Benchmark, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
+  const isExitOk = benchmark.exitCode === 0;
+  const maybeComparison = Option.all([benchmark.maybeWithSkill, benchmark.maybeWithoutSkill]);
+
+  return [
+    h.div([h.Style(sx({ background: 'var(--tt-border)', height: 1, margin: '18px 0' }))]),
+    ...Option.match(maybeComparison, {
+      onNone: () => [],
+      onSome: ([withPassed, withoutPassed]) => comparisonView(benchmark, withPassed, withoutPassed, h),
+    }),
     h.div(
       [],
       [
@@ -199,6 +236,7 @@ export const consoleView = (model: Model, h: HtmlBuilder<Message>): Html => {
   const spinner = spinnerGlyph(model.spinnerFrame);
   const seconds = elapsedSec(run);
   const isActive = isRunning(run);
+  const isComparison = model.composer.compare === 'on';
 
   return h.section(
     [
@@ -241,9 +279,10 @@ export const consoleView = (model: Model, h: HtmlBuilder<Message>): Html => {
           commandPreview(model, h),
           ...RunState.match(run, {
             Idle: () => [idleHint(h)],
-            Starting: () => [runningLine(spinner, seconds, h)],
-            Streaming: () => [runningLine(spinner, seconds, h)],
+            Starting: () => [runningLine(spinner, seconds, isComparison, h)],
+            Streaming: () => [runningLine(spinner, seconds, isComparison, h)],
             Done: ({ benchmark }) => [completeLine(benchmark, seconds, h)],
+            Failed: ({ error }) => [failedLine(error, h)],
           }),
           h.div(
             [h.AriaLabel('run progress')],
@@ -254,6 +293,7 @@ export const consoleView = (model: Model, h: HtmlBuilder<Message>): Html => {
             Starting: () => [],
             Streaming: () => [],
             Done: ({ benchmark }) => benchmarkView(benchmark, h),
+            Failed: () => [],
           }),
         ],
       ),

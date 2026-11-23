@@ -1,8 +1,12 @@
 /**
- * The daemon's run progress protocol (WebSocket `/runs/<id>` frames), parsed
- * into {@link RunEvent}. The daemon has spoken a few dialects over time
- * (`caseId` / `case` / `id`, `passed` / `assertionsPassed`, ...); every alias
- * the React app accepted is accepted here, with the same precedence.
+ * The daemon's run progress protocol (WebSocket `/runs/<id>` frames, see
+ * web/daemon/src/state.mjs), parsed into {@link RunEvent}:
+ *
+ * - `run.snapshot`: the run so far, sent first on every connection
+ * - `case.progress`: one case changed state (queued, running, pass, fail)
+ * - `run.completed`, `run.cancelled`, `run.failed`: the run ended
+ *
+ * Frames of any other type are ignored.
  */
 
 import { Array, Option, Schema } from 'effect';
@@ -10,17 +14,23 @@ import { defineTaggedUnion } from 'foldkit/schema';
 
 // PROGRESS ROW
 
+export const CasePhase = Schema.Literals(['queued', 'running', 'pass', 'fail']);
+export type CasePhase = typeof CasePhase.Type;
+
 export const ProgressRow = Schema.Struct({
   caseId: Schema.String,
+  phase: CasePhase,
   assertionsPassed: Schema.Number,
   assertionsFailed: Schema.Number,
   totalAssertions: Schema.Number,
+  /** Why the case errored before its assertions ran (no model credentials, a timeout, ...). */
+  maybeError: Schema.Option(Schema.String),
 });
 export type ProgressRow = typeof ProgressRow.Type;
 
 // EVENT
 
-/** Benchmark figures a completion frame may carry; turned into a Benchmark once the run id and rows are known. */
+/** Benchmark figures a completion frame carries; turned into a Benchmark once the run id and rows are known. */
 export const RunSummary = Schema.Struct({
   maybePassed: Schema.Option(Schema.Number),
   maybeTotal: Schema.Option(Schema.Number),
@@ -43,6 +53,7 @@ export const RunEvent = defineTaggedUnion({
   },
   Completed: { maybeRunId: Schema.Option(Schema.String), summary: RunSummary },
   Cancelled: {},
+  Failed: { message: Schema.String },
   Progress: { row: ProgressRow },
 });
 export type RunEvent = typeof RunEvent.Type;
@@ -53,16 +64,10 @@ type Frame = Readonly<Record<string, unknown>>;
 
 const FrameSchema = Schema.Record(Schema.String, Schema.Unknown);
 const decodeFrame = Schema.decodeUnknownOption(FrameSchema);
-
-/** The first value that is neither null nor undefined (JavaScript's `??` chain). */
-const coalesce = (...values: ReadonlyArray<unknown>): unknown =>
-  Option.getOrUndefined(Array.findFirst(values, (value) => value !== null && value !== undefined));
+const decodePhase = Schema.decodeUnknownOption(CasePhase);
 
 const maybeFiniteNumber = (value: unknown): Option.Option<number> =>
   typeof value === 'number' && Number.isFinite(value) ? Option.some(value) : Option.none();
-
-const maybeNumber = (value: unknown): Option.Option<number> =>
-  typeof value === 'number' ? Option.some(value) : Option.none();
 
 const maybeString = (value: unknown): Option.Option<string> =>
   typeof value === 'string' ? Option.some(value) : Option.none();
@@ -70,34 +75,39 @@ const maybeString = (value: unknown): Option.Option<string> =>
 const numberOr = (value: unknown, fallback: number): number =>
   Option.getOrElse(maybeFiniteNumber(value), () => fallback);
 
+const derivedPhase = (passed: number, failed: number, total: number): CasePhase =>
+  failed > 0 ? 'fail' : total > 0 && passed >= total ? 'pass' : 'running';
+
 export const toProgressRow = (frame: Frame): ProgressRow => {
-  const assertionsPassed = numberOr(coalesce(frame.assertionsPassed, frame.passed), 0);
-  const assertionsFailed = numberOr(coalesce(frame.assertionsFailed, frame.failed), 0);
+  const assertionsPassed = numberOr(frame.assertionsPassed, 0);
+  const assertionsFailed = numberOr(frame.assertionsFailed, 0);
+  const totalAssertions = numberOr(frame.totalAssertions, assertionsPassed + assertionsFailed);
   return {
-    caseId: String(coalesce(frame.caseId, frame.case, frame.id, 'run')),
+    caseId: String(frame.caseId ?? 'run'),
+    phase: Option.getOrElse(decodePhase(frame.phase), () =>
+      derivedPhase(assertionsPassed, assertionsFailed, totalAssertions),
+    ),
     assertionsPassed,
     assertionsFailed,
-    totalAssertions: numberOr(
-      coalesce(frame.totalAssertions, frame.assertionsTotal, frame.total),
-      assertionsPassed + assertionsFailed,
-    ),
+    totalAssertions,
+    maybeError: Option.filter(maybeString(frame.error), (error) => error !== ''),
   };
 };
 
 const toSummary = (frame: Frame): RunSummary => ({
   maybePassed: maybeFiniteNumber(frame.passed),
   maybeTotal: maybeFiniteNumber(frame.total),
-  maybeCost: maybeFiniteNumber(coalesce(frame.cost, frame.costUsd)),
-  maybeDelta: maybeNumber(frame.delta),
+  maybeCost: maybeFiniteNumber(frame.cost),
+  maybeDelta: maybeFiniteNumber(frame.delta),
   maybeExitCode: maybeFiniteNumber(frame.exitCode),
   maybeArtifactPath: maybeString(frame.artifactPath),
-  maybeWithSkill: maybeNumber(frame.withSkill),
-  maybeWithoutSkill: maybeNumber(frame.withoutSkill),
+  maybeWithSkill: maybeFiniteNumber(frame.withSkill),
+  maybeWithoutSkill: maybeFiniteNumber(frame.withoutSkill),
 });
 
 const toSnapshot = (frame: Frame): RunEvent => {
   const run = Option.getOrElse(decodeFrame(frame.run), (): Frame => ({}));
-  const progress = Array.isArray(run.progress) ? run.progress : [];
+  const progress = globalThis.Array.isArray(run.progress) ? run.progress : [];
   return RunEvent.Snapshot({
     maybeRunId: Option.filter(maybeString(run.runId), (runId) => runId !== ''),
     maybeStatus: maybeString(run.status),
@@ -106,17 +116,23 @@ const toSnapshot = (frame: Frame): RunEvent => {
   });
 };
 
-const toRunEvent = (frame: Frame): RunEvent => {
-  if (frame.type === 'run.snapshot') {
-    return toSnapshot(frame);
+const toRunEvent = (frame: Frame): Option.Option<RunEvent> => {
+  switch (frame.type) {
+    case 'run.snapshot':
+      return Option.some(toSnapshot(frame));
+    case 'case.progress':
+      return Option.some(RunEvent.Progress({ row: toProgressRow(frame) }));
+    case 'run.completed':
+      return Option.some(RunEvent.Completed({ maybeRunId: maybeString(frame.runId), summary: toSummary(frame) }));
+    case 'run.cancelled':
+      return Option.some(RunEvent.Cancelled());
+    case 'run.failed':
+      return Option.some(
+        RunEvent.Failed({ message: Option.getOrElse(maybeString(frame.message), () => 'The run failed.') }),
+      );
+    default:
+      return Option.none();
   }
-  if (frame.type === 'run.completed') {
-    return RunEvent.Completed({ maybeRunId: maybeString(frame.runId), summary: toSummary(frame) });
-  }
-  if (frame.type === 'run.cancelled') {
-    return RunEvent.Cancelled();
-  }
-  return RunEvent.Progress({ row: toProgressRow(frame) });
 };
 
 const parseJson = (data: string): Option.Option<unknown> => {
@@ -127,6 +143,6 @@ const parseJson = (data: string): Option.Option<unknown> => {
   }
 };
 
-/** Parse one text frame; frames that are not a JSON object are ignored. */
+/** Parse one text frame; frames that are not a JSON object of a known type are ignored. */
 export const parseRunEvent = (data: string): Option.Option<RunEvent> =>
-  parseJson(data).pipe(Option.flatMap(decodeFrame), Option.map(toRunEvent));
+  parseJson(data).pipe(Option.flatMap(decodeFrame), Option.flatMap(toRunEvent));
