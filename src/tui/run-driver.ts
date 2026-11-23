@@ -1,17 +1,16 @@
 // In-process eval runner for the TUI. The browse command and the run command
-// live in the SAME package, so we call runEvalsCommand directly instead of
+// live in the same package, so we call runEvalsCommand directly instead of
 // spawning `arc-skill-eval run` as a child and scraping stdout. Ink never
 // unmounts; the alternate screen is never handed off.
 //
-// Per-case progress comes from an optional `onProgress` hook we add to
-// runEvalsCommand (see SCAFFOLD-RUN-CONSOLE.md → "Repo patch"). When the
-// installed version predates that hook, we degrade gracefully: emit a single
-// "all cases queued" snapshot up front and the real verdicts once the promise
-// resolves.
+// Per-case progress comes from runEvalsCommand's `onProgress` hook. The
+// caller's AbortSignal goes to the run, so closing the console stops the
+// in-flight case instead of leaving it to spend tokens in the background.
 
 import { runEvalsCommand } from '../cli/run-evals-command.js';
 import type { RunEvalsCommandOptions, RunEvalsCommandResult } from '../cli/run-evals-command.js';
 import { readEvalsJson } from '../evals/loader.js';
+import { EvalRunCancelledError } from '../evals/eval-run/types.js';
 import type { EvalContextMode } from '../observability/types.js';
 import { THINKING_LEVEL_VALUES, type ModelSelection, type ThinkingLevel } from '../contracts/types.js';
 import * as path from 'node:path';
@@ -33,7 +32,8 @@ export type RunEvent =
   | { type: 'case-progress'; id: string; assertPass: number }
   | { type: 'case-done'; id: string; phase: 'pass' | 'fail'; assertPass: number; assertTotal: number; message?: string; errored?: boolean }
   | { type: 'done'; passed: number; failed: number; durationMs: number; result: RunEvalsCommandResult }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
+  | { type: 'cancelled' };
 
 export interface RunRequest {
   skillDir: string;
@@ -42,24 +42,13 @@ export interface RunRequest {
   extraArgs?: string;
 }
 
-// Progress payload shape we expect the repo hook to emit (kept structural so a
-// version mismatch never throws — we read fields defensively).
-interface ProgressEvent {
-  phase: 'case-start' | 'assertion' | 'case-done';
-  caseId: string;
-  assertionsPassed?: number;
-  assertionsTotal?: number;
-  passed?: boolean;
-  message?: string;
-}
-
 const THINKING_LEVELS = new Set<ThinkingLevel>(THINKING_LEVEL_VALUES);
 
 /**
  * Build a case-done event. An errored case is exactly one that carries an
- * error message with no assertions run (assertTotal 0) — that is how
- * skill.errors backfill and the onProgress hook both report them — so the
- * flag is decided here, at emit time, and the console reducer stays dumb.
+ * error message with no assertions run (assertTotal 0), which is how the
+ * onProgress hook reports a case that threw. The flag is decided here, at
+ * emit time, so the console reducer stays simple.
  */
 export function makeCaseDone(fields: { id: string; phase: 'pass' | 'fail'; assertPass: number; assertTotal: number; message?: string }): RunEvent {
   const errored = fields.message != null && fields.assertTotal === 0;
@@ -78,6 +67,13 @@ function parseModel(raw: string, flag: string): ModelSelection {
   const id = modelAndMaybeThinking.slice(0, colon);
   if (!id) throw new Error(`Invalid ${flag}: ${raw}. Expected provider/model or provider/model:thinking.`);
   return { provider, id, thinking: suffix as ThinkingLevel };
+}
+
+// Same rule as the run CLI's --case-timeout: positive seconds, stored as ms.
+function parseCaseTimeout(raw: string): number {
+  const seconds = Number(raw);
+  if (!Number.isFinite(seconds) || seconds <= 0) throw new Error(`Invalid --case-timeout: ${raw}. Expected a positive number of seconds.`);
+  return Math.round(seconds * 1000);
 }
 
 function splitArgs(raw = ''): string[] {
@@ -121,6 +117,7 @@ function parseExtraRunArgs(raw?: string): Partial<RunEvalsCommandOptions> {
     else if (flag === '--agent-dir') opts.agentDir = value;
     else if (flag === '--context-mode') opts.contextMode = value as EvalContextMode;
     else if (flag === '--extra-skill') opts.extraSkillPaths = [...(opts.extraSkillPaths ?? []), value!];
+    else if (flag === '--case-timeout') opts.caseTimeoutMs = parseCaseTimeout(value!);
     else if (flag === '--compare') opts.compare = true;
     else if (flag) throw new Error(`Unsupported in-TUI run flag: ${flag}`);
   }
@@ -128,11 +125,11 @@ function parseExtraRunArgs(raw?: string): Partial<RunEvalsCommandOptions> {
 }
 
 /**
- * Drive a run, emitting events as it progresses. Returns the underlying
- * promise so the caller can `await` completion (and a `cancel` is exposed via
- * AbortSignal once the repo run loop honors one — see the patch doc).
+ * Drive a run, emitting events as it progresses. Resolves once the run
+ * settles and never rejects. Aborting `signal` stops the in-flight case; the
+ * run then ends with a `cancelled` event instead of `done` or `error`.
  */
-export async function runInProcess(req: RunRequest, emit: (ev: RunEvent) => void): Promise<void> {
+export async function runInProcess(req: RunRequest, emit: (ev: RunEvent) => void, signal?: AbortSignal): Promise<void> {
   const skillName = path.basename(req.skillDir);
 
   // Seed the case list from evals.json so the overlay paints immediately,
@@ -155,25 +152,13 @@ export async function runInProcess(req: RunRequest, emit: (ev: RunEvent) => void
       caseIds: req.caseId ? [req.caseId] : [],
       compare: req.compare,
       ...parseExtraRunArgs(req.extraArgs),
-      // The hook is optional in the type (added by the patch). Cast keeps this
-      // file compiling against either version of the command options.
-      ...( { onProgress: (ev: ProgressEvent) => {
+      signal,
+      onProgress: (ev) => {
         if (ev.phase === 'case-start') emit({ type: 'case-start', id: ev.caseId });
         else if (ev.phase === 'assertion') emit({ type: 'case-progress', id: ev.caseId, assertPass: ev.assertionsPassed ?? 0 });
         else if (ev.phase === 'case-done') emit(makeCaseDone({ id: ev.caseId, phase: ev.passed ? 'pass' : 'fail', assertPass: ev.assertionsPassed ?? 0, assertTotal: ev.assertionsTotal ?? 0, message: ev.message }));
-      } } as Record<string, unknown> ),
-    } as Parameters<typeof runEvalsCommand>[0]);
-
-    // Backfill verdicts for any case the hook didn't report (older versions).
-    for (const skill of result.skills) {
-      for (const c of skill.cases) {
-        const g = c.grading.summary;
-        emit(makeCaseDone({ id: String(c.caseId), phase: g.failed === 0 && g.total > 0 ? 'pass' : 'fail', assertPass: g.passed, assertTotal: g.total }));
-      }
-      for (const err of skill.errors) {
-        emit(makeCaseDone({ id: String(err.caseId), phase: 'fail', assertPass: 0, assertTotal: 0, message: err.message }));
-      }
-    }
+      },
+    });
 
     if (result.summary.totalCases === 0) {
       // Discovery matched nothing (bad skill dir, stale --case id). Without
@@ -185,6 +170,7 @@ export async function runInProcess(req: RunRequest, emit: (ev: RunEvent) => void
 
     emit({ type: 'done', passed: result.summary.passedCases, failed: result.summary.failedCases, durationMs: Date.now() - started, result });
   } catch (error) {
+    if (error instanceof EvalRunCancelledError || signal?.aborted) { emit({ type: 'cancelled' }); return; }
     emit({ type: 'error', message: error instanceof Error ? error.message : String(error) });
   }
 }

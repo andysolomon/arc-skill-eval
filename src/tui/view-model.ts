@@ -8,7 +8,7 @@
 
 import { isJudgeAssertion } from '../evals/assertion-engine.js';
 import {
-  COLORS, seg, pad, trunc, num, bar, wrap, statusGlyph, rateColor, deltaColor, passFrac,
+  COLORS, seg, pad, trunc, num, bar, wrap, statusGlyph, rateColor, deltaColor, passFrac, segLen,
 } from './theme.js';
 import type { Seg, Line } from './theme.js';
 import { GLYPHS } from './caps.js';
@@ -191,7 +191,7 @@ export function buildMain(
       : caseMode === 'context' ? contextView(cs)
       : caseMode === 'raw' ? caseRawView(cs)
       : caseView(cs, showWithout, wrapWidth);
-    return { title: v.title, sub: caseTabs(cs, caseMode), lines: v.lines, anchors: v.anchors };
+    return { title: v.title, sub: caseTabs(cs, caseMode, wrapWidth), lines: v.lines, anchors: v.anchors };
   }
   if (focus === 'assertions') return assertionView(asrt, wrapWidth);
   return runView(run, compareBase);
@@ -206,7 +206,10 @@ export function modesFor(cs: Case): CaseMode[] {
     : ['overview', 'response', 'trace', 'context', 'raw'];
 }
 
-function caseTabs(cs: Case, mode: CaseMode): Seg[] {
+/** Room the pane header keeps for the title next to the mode tabs. */
+const MIN_TITLE = 14;
+
+function caseTabs(cs: Case, mode: CaseMode, paneWidth: number): Seg[] {
   const modes = modesFor(cs);
   const segs: Seg[] = [];
   modes.forEach((m, i) => {
@@ -214,6 +217,12 @@ function caseTabs(cs: Case, mode: CaseMode): Seg[] {
     segs.push(seg(MODE_LABEL[m], active ? COLORS.blue : COLORS.comment, active));
     if (i < modes.length - 1) segs.push(seg(' \u00b7 ', COLORS.dim));
   });
+  // A narrow pane cannot fit every tab beside the title: show the active
+  // mode, its position, and the keys that switch it.
+  if (segLen(segs) + MIN_TITLE + 3 > paneWidth) {
+    const i = Math.max(0, modes.indexOf(mode));
+    return [seg(MODE_LABEL[modes[i]!], COLORS.blue, true), seg(` ${i + 1}/${modes.length}`, COLORS.comment), seg('  [ ]', COLORS.dim)];
+  }
   return segs;
 }
 
@@ -240,7 +249,7 @@ function skillView(sk: Skill, showWithout: boolean): MainView {
     lines.push(row([
       seg('  ' + g + ' ', gc, true),
       seg(pad(c.id, 36), c.status === 'fail' ? COLORS.red : COLORS.fgDark),
-      c.status === 'not-run' ? seg('not run', COLORS.comment) : seg(`${p}/${c.assertions.length} assert`, COLORS.comment),
+      c.status === 'not-run' ? seg('not run', COLORS.comment) : c.status === 'invalid' ? seg('unreadable grading.json', COLORS.orange) : seg(`${p}/${c.assertions.length} assert`, COLORS.comment),
     ]));
   }
   lines.push(blank());
@@ -276,7 +285,15 @@ function caseView(cs: Case, showWithout: boolean, wrapWidth: number): MainView {
     lines.push(row([seg('  no run artifacts yet · press r to run this case', COLORS.comment)]));
     lines.push(blank());
   }
-  lines.push(sectionRow('GRADING', [cs.status === 'not-run' ? seg('not run', COLORS.comment) : seg(`${passN}/${cs.assertions.length} passed`, rateColor(passN, cs.assertions.length)), seg(`   pass_rate ${safeFrac(passN, cs.assertions.length).toFixed(2)}`, COLORS.comment)]));
+  if (cs.status === 'invalid') {
+    lines.push(...wrapColored('could not read this case\'s run artifacts · press r to run it again', proseW, COLORS.orange, '  '));
+    // Hard-wrap: the reason ends in an artifact path with no spaces to break on.
+    const reason = cs.loadError ?? '';
+    const w = Math.max(10, proseW - 2);
+    for (let i = 0; i < reason.length; i += w) lines.push(row([seg('  ' + reason.slice(i, i + w), COLORS.orange)]));
+    lines.push(blank());
+  }
+  lines.push(sectionRow('GRADING', [cs.status === 'not-run' ? seg('not run', COLORS.comment) : cs.status === 'invalid' ? seg('unreadable', COLORS.orange) : seg(`${passN}/${cs.assertions.length} passed`, rateColor(passN, cs.assertions.length)), seg(`   pass_rate ${safeFrac(passN, cs.assertions.length).toFixed(2)}`, COLORS.comment)]));
   for (const a of cs.assertions) {
     const [g, gc] = statusGlyph(a.passed ? 'pass' : 'fail');
     const infra = !a.passed && isInfraEvidence(a.evidence);
@@ -303,7 +320,7 @@ function caseView(cs: Case, showWithout: boolean, wrapWidth: number): MainView {
   return {
     title: cs.id,
     sub: [
-      seg(cs.status === 'pass' ? '✓ pass' : cs.status === 'fail' ? '✗ fail' : cs.status === 'not-run' ? '◌ not run' : '◐ partial', cs.status === 'pass' ? COLORS.green : cs.status === 'fail' ? COLORS.red : cs.status === 'not-run' ? COLORS.comment : COLORS.orange),
+      seg(cs.status === 'pass' ? '✓ pass' : cs.status === 'fail' ? '✗ fail' : cs.status === 'not-run' ? '◌ not run' : cs.status === 'invalid' ? '! unreadable' : '◐ partial', cs.status === 'pass' ? COLORS.green : cs.status === 'fail' ? COLORS.red : cs.status === 'not-run' ? COLORS.comment : COLORS.orange),
       seg(`   ${passN}/${cs.assertions.length}`, COLORS.comment),
     ],
     lines,

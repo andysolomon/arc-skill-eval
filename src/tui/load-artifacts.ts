@@ -134,6 +134,52 @@ function buildContext(m: LoadedCase['contextManifest']): ContextInfo {
   };
 }
 
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** Why a parsed grading.json cannot be shown, or null when its shape is usable. */
+function gradingProblem(grading: unknown): string | null {
+  if (!isRecord(grading)) return 'grading.json is not a JSON object';
+  const results = grading.assertion_results;
+  if (results !== undefined) {
+    if (!Array.isArray(results)) return 'assertion_results is not an array';
+    const bad = results.findIndex((r) => !isRecord(r));
+    if (bad >= 0) return `assertion_results[${bad}] is not an object`;
+  }
+  const summary = grading.summary;
+  if (summary !== undefined) {
+    if (!isRecord(summary)) return 'summary is not an object';
+    for (const key of ['passed', 'total'] as const) {
+      if (summary[key] !== undefined && typeof summary[key] !== 'number') return `summary.${key} is not a number`;
+    }
+  }
+  return null;
+}
+
+function caseIdOf(loaded: LoadedCase, ec: EvalsJsonFile['evals'][number] | undefined): string {
+  const id = loaded.id as unknown;
+  if ((typeof id === 'string' && id) || typeof id === 'number') return String(id);
+  if (ec?.id != null) return String(ec.id);
+  const dir = path.basename(loaded.caseDir);
+  return dir.startsWith('eval-') ? dir.slice('eval-'.length) : dir;
+}
+
+/** A case whose artifacts exist but cannot be read. It stays listed, flagged, with the reason. */
+function invalidCase(loaded: LoadedCase, ec: EvalsJsonFile['evals'][number] | undefined, problem: string): Case {
+  const base = unloadedCase(ec ?? { id: caseIdOf(loaded, ec), prompt: '', expected_output: '' });
+  return { ...base, id: caseIdOf(loaded, ec), status: 'invalid', loadError: `${problem} (${loaded.caseDir})` };
+}
+
+/** Map one case, flagging it instead of throwing when an artifact has the wrong shape. */
+function mapCaseSafely(loaded: LoadedCase, ec: EvalsJsonFile['evals'][number] | undefined): Case {
+  const problem = gradingProblem(loaded.grading);
+  if (problem) return invalidCase(loaded, ec, problem);
+  try {
+    return mapLoadedCase(loaded, ec);
+  } catch (error) {
+    return invalidCase(loaded, ec, `artifacts could not be read: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 function mapLoadedCase(loaded: LoadedCase, ec: EvalsJsonFile['evals'][number] | undefined): Case {
   const grading = loaded.grading;
   const timing = loaded.timing;
@@ -148,10 +194,12 @@ function mapLoadedCase(loaded: LoadedCase, ec: EvalsJsonFile['evals'][number] | 
   let withoutP = passed;
   let withoutT = total;
   let delta = '';
-  if (loaded.compare && loaded.variants) {
-    const wo = loaded.variants.without_skill.grading;
-    withoutP = wo?.summary?.passed ?? 0;
-    withoutT = wo?.summary?.total ?? total;
+  // A compare case missing its without_skill grading has nothing to compare
+  // against, so it gets no delta and counts like a single run.
+  const wo = loaded.compare ? loaded.variants?.without_skill.grading : null;
+  if (wo && !gradingProblem(wo)) {
+    withoutP = wo.summary?.passed ?? (wo.assertion_results ?? []).filter((r) => r.passed).length;
+    withoutT = wo.summary?.total ?? (wo.assertion_results ?? []).length;
     delta = pct((withT ? withP / withT : 0) - (withoutT ? withoutP / withoutT : 0));
   }
 
@@ -166,7 +214,7 @@ function mapLoadedCase(loaded: LoadedCase, ec: EvalsJsonFile['evals'][number] | 
   const skillReads = Object.entries(tools?.skill_reads_by_name ?? {}).map(([k, v]) => `${k} ×${v}`).join(', ') || '—';
 
   return {
-    id: loaded.id || String(ec?.id ?? ''),
+    id: caseIdOf(loaded, ec),
     status: loaded.grading ? deriveStatus(passed, total) : 'not-run',
     prompt: String(ec?.prompt ?? ''),
     expected: String(ec?.expected_output ?? ''),
@@ -197,13 +245,40 @@ function mapLoadedCase(loaded: LoadedCase, ec: EvalsJsonFile['evals'][number] | 
   };
 }
 
-function mapLoadedSkill(loaded: LoadedSkill): Skill {
+/**
+ * The newest run holds only the cases it ran, so a single-case re-run would
+ * leave every other case "not run". Fill each case the newest run lacks from
+ * the most recent older run that graded it, and list cases in evals.json
+ * order so a re-run does not move the case to the top of the list.
+ */
+function withLatestResults(loaded: LoadedSkill, runs: LoadedRun[]): LoadedCase[] {
+  const older = runs
+    .filter((run) => run.runDir !== loaded.runDir)
+    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+  const filled = loaded.cases.map((loadedCase) => {
+    if (loadedCase.grading) return loadedCase;
+    for (const run of older) {
+      const hit = run.cases.find((c) => String(c.id) === String(loadedCase.id) && c.grading);
+      if (hit) return hit;
+    }
+    return loadedCase;
+  });
+  const order = new Map((loaded.evals?.evals ?? []).map((entry, i) => [String(entry.id), i]));
+  const rank = (c: LoadedCase): number => order.get(String(c.id)) ?? Number.MAX_SAFE_INTEGER;
+  return filled
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => rank(a.c) - rank(b.c) || a.i - b.i)
+    .map(({ c }) => c);
+}
+
+function mapLoadedSkill(loaded: LoadedSkill, runs: LoadedRun[]): Skill {
   const evalById = new Map<string, EvalsJsonFile['evals'][number]>(
     (loaded.evals?.evals ?? []).map((entry) => [String(entry.id), entry]),
   );
-  const cases: Case[] = loaded.cases.map((loadedCase) => {
-    if (!loadedCase.grading) return unloadedCase(evalById.get(loadedCase.id) ?? { id: loadedCase.id, prompt: '', expected_output: '' });
-    return mapLoadedCase(loadedCase, evalById.get(loadedCase.id));
+  const cases: Case[] = withLatestResults(loaded, runs).map((loadedCase) => {
+    const ec = evalById.get(String(loadedCase.id));
+    if (!loadedCase.grading) return unloadedCase(ec ?? { id: String(loadedCase.id), prompt: '', expected_output: '' });
+    return mapCaseSafely(loadedCase, ec);
   });
 
   const passed = cases.filter((c) => c.status === 'pass').length;
@@ -215,7 +290,7 @@ function mapLoadedSkill(loaded: LoadedSkill): Skill {
   const woT = cases.reduce((a, c) => a + c.withoutT, 0);
   const compare = cases.some((c) => c.delta !== '');
   const delta = compare ? pct((withT ? withP / withT : 0) - (woT ? woP / woT : 0)) : '';
-  const first = cases.find((c) => c.status !== 'not-run');
+  const first = cases.find((c) => c.status !== 'not-run' && c.status !== 'invalid');
   const hasRuns = Boolean(loaded.runDir);
 
   return {
@@ -304,14 +379,14 @@ function appendDistractorSkills(skills: Skill[]): void {
 export async function reloadSkill(skillDir: string): Promise<{ skill: Skill | null; runs: Run[] }> {
   const { skill, runs } = await reloadSkillArtifacts(skillDir);
   return {
-    skill: skill ? mapLoadedSkill(skill) : null,
+    skill: skill ? mapLoadedSkill(skill, runs) : null,
     runs: runs.map((run) => mapLoadedRun(run, skill?.skillName ?? path.basename(skillDir))),
   };
 }
 
 export async function loadWorkspace(input: string): Promise<Workspace> {
   const { skills: loadedSkills, runs: loadedRuns } = await loadWorkspaceArtifacts(input);
-  const skills = loadedSkills.map(mapLoadedSkill);
+  const skills = loadedSkills.map((skill) => mapLoadedSkill(skill, loadedRuns.filter((run) => run.skillDir === skill.skillDir)));
   const runs = loadedRuns.map((run) => mapLoadedRun(run, run.skillName ?? 'unknown'));
   appendDistractorSkills(skills);
   return { skills, runs };

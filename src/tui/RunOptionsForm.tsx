@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
 import { COLORS } from './theme.js';
+import { BORDER } from './caps.js';
 
 interface RunOptionsFormProps {
   skillName: string;
@@ -98,7 +99,7 @@ export function RunOptionsForm({ skillName, caseId, recentJudgeModels, recentRun
   };
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor={COLORS.borderActive} paddingX={2} paddingY={1} width={76}>
+    <Box flexDirection="column" borderStyle={BORDER} borderColor={COLORS.borderActive} paddingX={2} paddingY={1} width={76}>
       <Text color={COLORS.blue} bold>Run options</Text>
       <Text color={COLORS.comment}>{`./skills/${skillName}${caseId ? ` · case ${caseId}` : ''}`}</Text>
       <Box height={1} />
