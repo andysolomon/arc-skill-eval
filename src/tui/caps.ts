@@ -70,3 +70,6 @@ const ASCII: GlyphSet = {
 };
 
 export const GLYPHS: GlyphSet = UNICODE ? UNI : ASCII;
+
+/** Box border style: rounded Unicode corners, or `+-|` when glyphs fall back to ASCII. */
+export const BORDER: 'round' | 'classic' = UNICODE ? 'round' : 'classic';

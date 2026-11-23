@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
 
@@ -59,10 +60,105 @@ test("runInProcess turns a thrown run failure into an error event", async () => 
   assert.ok(!events.some((ev) => ev.type === "done"));
 });
 
+// Esc in the run console aborts the run's signal. Ways this can fail, written
+// before the code:
+//   1. The driver never hands the signal to runEvalsCommand, so the case keeps
+//      running (and spending tokens) and the promise waits for the model.
+//   2. The abort arrives as an `error` event, so the console shows a failed
+//      run instead of a cancelled one.
+//   3. The abort is recorded as a case error and the run moves on to the next
+//      case.
+//   4. The model request stays open after the abort.
+// The provider below accepts each request and never answers, so only the
+// abort can end the run.
+async function startHangingProvider() {
+  const requests = [];
+  const server = createServer((req, res) => {
+    const entry = { closed: false };
+    requests.push(entry);
+    res.on("close", () => { entry.closed = true; });
+    req.resume();
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+  return {
+    baseUrl: `http://127.0.0.1:${port}/v1`,
+    requests,
+    close: () => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }),
+  };
+}
+
+test("aborting the signal stops the in-flight case and ends with a cancelled event", async () => {
+  const provider = await startHangingProvider();
+  const root = await mkdtemp(path.join(tmpdir(), "arc-tui-cancel-"));
+  const agentDir = path.join(root, "agent");
+  const skillDir = path.join(root, "skills", "hangs");
+  const previousKey = process.env.ARC_TUI_FAKE_KEY;
+  try {
+    await mkdir(agentDir, { recursive: true });
+    await mkdir(path.join(skillDir, "evals"), { recursive: true });
+    await writeFile(path.join(agentDir, "models.json"), JSON.stringify({
+      providers: {
+        "fake-llm": {
+          baseUrl: provider.baseUrl,
+          api: "openai-completions",
+          apiKey: "$ARC_TUI_FAKE_KEY",
+          authHeader: true,
+          models: [{ id: "fake-1", contextWindow: 32000, maxTokens: 1024, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }],
+        },
+      },
+    }));
+    await writeFile(path.join(agentDir, "settings.json"), JSON.stringify({ defaultProvider: "fake-llm", defaultModel: "fake-1" }));
+    await writeFile(path.join(skillDir, "SKILL.md"), "---\nname: hangs\ndescription: Waits.\n---\n\nReply ready.\n");
+    await writeFile(path.join(skillDir, "evals", "evals.json"), JSON.stringify({
+      skill_name: "hangs",
+      evals: [
+        { id: "first", prompt: "Ready?", assertions: [{ type: "regex-match", pattern: "ready" }] },
+        { id: "second", prompt: "Ready now?", assertions: [{ type: "regex-match", pattern: "ready" }] },
+      ],
+    }));
+    process.env.ARC_TUI_FAKE_KEY = "fake-secret";
+
+    const events = [];
+    const ac = new AbortController();
+    const run = runInProcess(
+      { skillDir, caseId: null, compare: false, extraArgs: `--agent-dir ${agentDir}` },
+      (ev) => {
+        events.push(ev);
+      },
+      ac.signal,
+    );
+
+    const deadline = Date.now() + 10_000;
+    while (provider.requests.length === 0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+    assert.equal(provider.requests.length, 1, "the first case reached the model");
+
+    ac.abort();
+    let timer;
+    const settled = await Promise.race([
+      run.then(() => "settled"),
+      new Promise((r) => { timer = setTimeout(() => r("timeout"), 10_000); }),
+    ]);
+    clearTimeout(timer);
+    assert.equal(settled, "settled", "the run settles soon after the abort");
+
+    assert.equal(events.at(-1)?.type, "cancelled", "the run ends with a cancelled event");
+    assert.ok(!events.some((ev) => ev.type === "error" || ev.type === "done"), "a cancelled run reports neither error nor done");
+    assert.ok(!events.some((ev) => ev.type === "case-start" && ev.id === "second"), "the next case never starts");
+    assert.ok(!events.some((ev) => ev.type === "case-done" && ev.errored), "the abort is not recorded as a case error");
+    assert.equal(provider.requests.length, 1, "no further model requests after the abort");
+    assert.ok(provider.requests[0].closed, "the in-flight model request was closed");
+  } finally {
+    if (previousKey === undefined) delete process.env.ARC_TUI_FAKE_KEY;
+    else process.env.ARC_TUI_FAKE_KEY = previousKey;
+    await provider.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 // W-000042: errored cases arrive as a case-done carrying an error message with
-// assertTotal 0 (the skill.errors backfill and the onProgress hook both emit
-// through makeCaseDone). The driver flags them at emit time so the console
-// reducer stays dumb.
+// assertTotal 0 (the onProgress hook emits through makeCaseDone). The driver
+// flags them at emit time so the console reducer stays simple.
 test("makeCaseDone flags a message with zero assertions as errored", () => {
   const errored = makeCaseDone({ id: "boom-case", phase: "fail", assertPass: 0, assertTotal: 0, message: "runner exploded" });
   assert.equal(errored.type, "case-done");

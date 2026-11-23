@@ -4,13 +4,9 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
 import { COLORS } from './theme.js';
-import { GLYPHS } from './caps.js';
+import { GLYPHS, BORDER } from './caps.js';
 import { runInProcess } from './run-driver.js';
 import type { RunCaseState, RunEvent, RunRequest } from './run-driver.js';
-
-const SPINNER_UNI = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-const SPINNER_ASCII = ['|', '/', '-', '\\'];
-void SPINNER_UNI; void SPINNER_ASCII; // retained for reference; GLYPHS.spinner is canonical
 
 interface RunState {
   active: boolean;
@@ -22,13 +18,17 @@ interface RunState {
   passed: number;
   failed: number;
   error: string | null;
+  cancelling: boolean; // esc pressed, waiting for the in-flight case to stop
+  cancelled: boolean;  // the run stopped because of esc
 }
 
-const initialRun: RunState = { active: false, done: false, skill: '', compare: false, cases: [], passed: 0, failed: 0, error: null };
+const initialRun: RunState = { active: false, done: false, skill: '', compare: false, cases: [], passed: 0, failed: 0, error: null, cancelling: false, cancelled: false };
 
-function reducer(state: RunState, ev: RunEvent | { type: 'reset' }): RunState {
+function reducer(state: RunState, ev: RunEvent | { type: 'reset' } | { type: 'cancelling' }): RunState {
   switch (ev.type) {
     case 'reset': return initialRun;
+    case 'cancelling': return { ...state, cancelling: true };
+    case 'cancelled': return { ...state, done: true, cancelling: false, cancelled: true, cases: state.cases.map((c) => (c.phase === 'running' ? { ...c, phase: 'queued' } : c)) };
     case 'init': return { ...initialRun, active: true, skill: ev.skill, compare: ev.compare, extraArgs: ev.extraArgs, cases: ev.cases };
     case 'case-start': return { ...state, cases: state.cases.map((c) => (c.id === ev.id ? { ...c, phase: 'running' } : c)) };
     case 'case-progress': return { ...state, cases: state.cases.map((c) => (c.id === ev.id ? { ...c, assertPass: ev.assertPass } : c)) };
@@ -39,12 +39,19 @@ function reducer(state: RunState, ev: RunEvent | { type: 'reset' }): RunState {
   }
 }
 
-/** Owns run state + the elapsed clock + the spinner frame. */
+/**
+ * Owns run state, the elapsed clock, and the spinner frame. Each run gets its
+ * own AbortController and a generation number. Events from an older
+ * generation are dropped, so a run that winds down after its console closed
+ * cannot write into the next run's console.
+ */
 export function useRunController() {
   const [state, dispatch] = useReducer(reducer, initialRun);
   const [elapsed, setElapsed] = useState(0);
   const [frame, setFrame] = useState(0);
   const t0 = useRef(0);
+  const generation = useRef(0);
+  const controller = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!state.active || state.done) return;
@@ -54,9 +61,32 @@ export function useRunController() {
     return () => { clearInterval(clock); clearInterval(spin); };
   }, [state.active, state.done]);
 
-  const start = (req: RunRequest) => { dispatch({ type: 'reset' }); void runInProcess(req, dispatch); };
-  const close = () => dispatch({ type: 'reset' });
-  return { state, elapsed, frame, start, close };
+  // Quitting the browser mid-run stops the run too.
+  useEffect(() => () => { controller.current?.abort(); }, []);
+
+  const start = (req: RunRequest) => {
+    controller.current?.abort();
+    const ac = new AbortController();
+    controller.current = ac;
+    const gen = ++generation.current;
+    dispatch({ type: 'reset' });
+    void runInProcess(req, (ev) => { if (generation.current === gen) dispatch(ev); }, ac.signal);
+  };
+  /** Close the console now. Any run still going is aborted and its later events are dropped. */
+  const close = () => {
+    controller.current?.abort();
+    controller.current = null;
+    generation.current++;
+    dispatch({ type: 'reset' });
+  };
+  /** First esc: abort the run and wait for it to stop. A second esc closes without waiting. */
+  const cancel = () => {
+    const ac = controller.current;
+    if (!ac || ac.signal.aborted) { close(); return; }
+    ac.abort();
+    dispatch({ type: 'cancelling' });
+  };
+  return { state, elapsed, frame, start, close, cancel };
 }
 
 function bar(passed: number, total: number, w = 14): string {
@@ -73,17 +103,41 @@ export function RunConsole({ state, elapsed, frame }: { state: RunState; elapsed
   // are counted from the rows so the header can call them out separately.
   const erroredN = state.cases.filter((c) => c.errored).length;
 
+  const failed = state.error != null;
+  const headColor = failed ? COLORS.red : state.cancelled ? COLORS.orange : state.failed ? COLORS.red : COLORS.green;
+  const passedRows = state.cases.filter((c) => c.phase === 'pass').length;
+  const failedRows = state.cases.filter((c) => c.phase === 'fail' && !c.errored).length;
+
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor={state.done ? (state.failed ? COLORS.red : COLORS.green) : COLORS.border} paddingX={2} paddingY={1} width={64}>
+    <Box flexDirection="column" borderStyle={BORDER} borderColor={state.done ? headColor : COLORS.border} paddingX={2} paddingY={1} width={64}>
       {/* header */}
-      {state.done ? (
+      {state.done && failed ? (
         <Text>
-          <Text color={state.failed ? COLORS.red : COLORS.green} bold>{state.failed ? GLYPHS.fail : GLYPHS.pass}</Text>
+          <Text color={COLORS.red} bold>{GLYPHS.fail}</Text>
+          <Text bold>{'  run failed'}</Text>
+          <Text color={COLORS.comment}>{'   ' + t}</Text>
+        </Text>
+      ) : state.done && state.cancelled ? (
+        <Text>
+          <Text color={COLORS.orange} bold>{GLYPHS.fail}</Text>
+          <Text bold>{'  run cancelled   '}</Text>
+          <Text color={COLORS.fgDark}>{`${passedRows} passed  ${failedRows} failed`}</Text>
+          <Text color={COLORS.comment}>{'   ' + t}</Text>
+        </Text>
+      ) : state.done ? (
+        <Text>
+          <Text color={headColor} bold>{state.failed ? GLYPHS.fail : GLYPHS.pass}</Text>
           <Text bold>{'  run complete   '}</Text>
           <Text color={COLORS.green}>{state.passed + ' passed'}</Text>
           {state.failed ? <Text color={COLORS.red}>{'  ' + state.failed + ' failed'}</Text> : null}
           {erroredN ? <Text color={COLORS.orange}>{'  ' + erroredN + ' errored'}</Text> : null}
           <Text color={COLORS.comment}>{'   ' + t}</Text>
+        </Text>
+      ) : state.cancelling ? (
+        <Text>
+          <Text color={COLORS.orange} bold>{spinner + ' '}</Text>
+          <Text bold>{'stopping run   '}</Text>
+          <Text color={COLORS.fgDark}>{'waiting for the current case to stop'}</Text>
         </Text>
       ) : (
         <Text>
@@ -119,7 +173,7 @@ export function RunConsole({ state, elapsed, frame }: { state: RunState; elapsed
             <Text color={gc} bold={c.phase !== 'queued'}>{' ' + g + '  '}</Text>
             <Text color={c.phase === 'queued' ? COLORS.comment : COLORS.fg}>{c.id.padEnd(28)}</Text>
             <Text color={c.phase === 'fail' ? COLORS.red : COLORS.green}>{bar(c.assertPass, c.assertTotal)}</Text>
-            <Text color={COLORS.comment}>{c.phase === 'queued' ? '  queued' : '  ' + c.assertPass + '/' + c.assertTotal}</Text>
+            <Text color={COLORS.comment}>{c.phase === 'queued' ? (state.cancelled ? '  not run' : '  queued') : '  ' + c.assertPass + '/' + c.assertTotal}</Text>
           </Text>
         );
       })}
@@ -128,7 +182,9 @@ export function RunConsole({ state, elapsed, frame }: { state: RunState; elapsed
       <Box height={1} />
       {state.done
         ? <Text><Text color={COLORS.yellow} bold>{'enter'}</Text><Text color={COLORS.comment}>{' reload & close'}</Text></Text>
-        : <Text><Text color={COLORS.yellow} bold>{'esc'}</Text><Text color={COLORS.comment}>{' abort   '}</Text><Text color={COLORS.dim}>{'Ink stays mounted — no terminal handoff'}</Text></Text>}
+        : state.cancelling
+          ? <Text><Text color={COLORS.yellow} bold>{'esc'}</Text><Text color={COLORS.comment}>{' close without waiting'}</Text></Text>
+          : <Text><Text color={COLORS.yellow} bold>{'esc'}</Text><Text color={COLORS.comment}>{' stop the run'}</Text></Text>}
     </Box>
   );
 }

@@ -344,7 +344,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
     // unmounts; on completion, enter/esc reload the affected skill in place.
     if (runCtl.state.active) {
       if (runCtl.state.done && (key.return || key.escape)) { runCtl.close(); if (sk) void onReload?.(sk.dir); }
-      else if (!runCtl.state.done && key.escape) { runCtl.close(); } // abort: drop the overlay (run-abort)
+      else if (!runCtl.state.done && key.escape) runCtl.cancel(); // run-abort: stop the run, a second esc closes now
       return;
     }
     if (creating || creatingSuite || runOptions) return; // overlay forms own input via their own useInput
