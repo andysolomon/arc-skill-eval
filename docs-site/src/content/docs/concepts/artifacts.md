@@ -35,7 +35,7 @@ The workspace snapshot after the run. If the skill writes `greeting.txt`, the fi
 
 ### `grading.json`
 
-The per-assertion verdict. Its Anthropic-compatible `assertion_results[]` array contains `text`, `passed`, and `evidence`. The `summary` block contains `passed`, `failed`, `total`, and `pass_rate`. See [Grading](/arc-skill-eval/concepts/grading/).
+The per-assertion verdict. Its Anthropic-compatible `assertion_results[]` array contains `text`, `passed`, and `evidence`. The `summary` block contains `passed`, `failed`, `soft_failed`, `total`, and `pass_rate`. See [Grading](/arc-skill-eval/concepts/grading/).
 
 `judge_model` records the model that graded the plain-string assertions, for example `{ "provider": "mistral", "id": "ministral-8b-latest" }`. A case with only script assertions omits it. The runner picks the judge in this order: `--judge-model` when set, then the model that ran the case, then `mistral/ministral-8b-latest`. When the runner model is also the judge, it grades its own output. Set `--judge-model` to another model when that bias matters.
 
@@ -149,8 +149,17 @@ When a case has no gradable assertions, its `pass_rate` is `null` and the export
 
 If Laminar export fails, the run still completes, uses assertion results for its exit code, and writes local artifacts. The run reports the failed export without aborting.
 
+## Review files: `review.html` and `feedback.json`
+
+`arc-skill-eval review <run-dir>` writes two files into the run directory. `review.html` is a standalone report of the run. `feedback.json` has one entry per case with a `status` (`needs-review` at first), a `notes` field, and a `feedback` field for each variant, next to that variant's grading summary.
+
+You fill in `feedback.json` by hand, or press `f` on a case in `browse` to write a note into the newest run's file. `improve --from-feedback <feedback.json>` reads the notes and the failed assertions and proposes suite changes. See [`review`](/arc-skill-eval/cli-reference/#review-run-dir) and [`improve`](/arc-skill-eval/cli-reference/#improve---from-feedback-feedbackjson).
+
+## Comparing iterations
+
+`--iteration <name>` puts each run under `evals-runs/iteration-<name>/`, so runs from one improvement cycle stay together. To compare two runs, open `browse`, select a run in the Runs panel, and press `c` to pin it as the baseline. The detail pane for any other run then shows the change in pass rate, cost, and model against that baseline. See [Browse (TUI)](/arc-skill-eval/browse/).
+
 ## Not yet included
 
-- Cross-iteration comparison. Iteration directories group outputs but do not aggregate results or change `SKILL.md`.
-- Human-review `feedback.json`.
-- An evaluated `SKILL.md` snapshot for each iteration.
+- A snapshot of the evaluated `SKILL.md` for each iteration. Use version control to tie a run to a skill version.
+- A file that aggregates results across all iterations. `browse` compares two runs at a time.

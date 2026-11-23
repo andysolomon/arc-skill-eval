@@ -1,0 +1,6 @@
+{
+  "assistantText": "Hello! This answer comes from the replay runtime, not a model.",
+  "files": {
+    "notes.txt": "written by the replay runtime\n"
+  }
+}

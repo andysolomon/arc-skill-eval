@@ -12,126 +12,244 @@ import { parsePackageCommandArgs } from "./package.js";
 import { parseReviewCommandArgs } from "./review.js";
 import { parseRunCommandArgs } from "./run.js";
 
-export function parseCliArgs(argv: string[]): ParsedCliCommand {
-  if (argv.length === 0 || argv[0] === "help" || argv[0] === "--help" || argv[0] === "-h") {
+/** A subcommand name, such as `run` or `install-skills`. */
+export type CliCommandName = Exclude<ParsedCliCommand["command"], "help">;
+
+/**
+ * What `parseCliArgs` returns: a subcommand with its options, a help request
+ * (for the whole CLI, or for one command when `topic` is set), or a version
+ * request.
+ */
+export type ParsedCliInvocation =
+  | Exclude<ParsedCliCommand, { command: "help" }>
+  | { command: "help"; topic?: CliCommandName }
+  | { command: "version" };
+
+interface CommandHelp {
+  usage: string;
+  notes: string[];
+}
+
+const HELP_FLAGS = new Set(["--help", "-h"]);
+const VERSION_FLAGS = new Set(["--version", "-v"]);
+
+const MODEL_NOTE =
+  "Model values use Pi's provider/model form, with an optional :thinking suffix, for example openai-codex/gpt-6-luna:medium.";
+const SKILL_DIR_OR_REPO_NOTE =
+  "<skill-dir-or-repo> is a skill directory that contains evals/evals.json, or a repo root. For a repo root, the CLI finds every directory that has both SKILL.md and evals/evals.json.";
+const TTY_NOTE = "browse and create --interactive need a terminal and refuse to start without one.";
+
+const GENERAL_NOTES = [
+  "--json (every command except browse) prints one JSON object on stdout with schemaVersion. Failures print {\"schemaVersion\":1,\"error\":{\"kind\",\"message\"}} instead. Exit code 1 means the run failed or the command errored. See docs/cli-json-contract.md.",
+  "<command> --help prints the usage for that command. --version prints the installed version.",
+];
+
+// Keyed by every command name, so adding a command without help text fails to compile.
+const COMMAND_HELP: Record<CliCommandName, CommandHelp> = {
+  run: {
+    usage:
+      "run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--runtime pi-sdk|codex|claude-code|cursor-agent|copilot] [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--agent-dir <path>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--sandbox none|just-bash] [--case-timeout <seconds>] [--compare] [--strict] [--laminar] [--json]",
+    notes: [
+      SKILL_DIR_OR_REPO_NOTE,
+      "run writes assistant.md, outputs/, timing.json, grading.json and observability files for each case under <skillDir>/evals-runs/<runId>/eval-<id>/. --output-dir changes that location.",
+      "--runtime picks the agent harness. The default is pi-sdk. codex, claude-code, cursor-agent and copilot each read their own API key env vars, listed in docs/multi-harness-runtimes.md.",
+      "--model pins the model that runs the skill. --judge-model pins the model that grades LLM assertions.",
+      MODEL_NOTE,
+      "--compare runs each case once with the skill and once without it, and writes benchmark.json.",
+      "--extra-skill loads a distractor or conflicting skill into every variant.",
+      "--context-mode ambient loads Pi's normal ambient resources. The default is isolated.",
+      "--sandbox just-bash runs eligible cases in an isolated just-bash environment and overrides each case's `sandbox` field. The default is none, which runs each case in a temporary workspace.",
+      "--case-timeout <seconds> stops a case whose agent runs longer than that and records the case as an error.",
+      "--laminar exports eval traces to Laminar. It needs LMNR_PROJECT_API_KEY and reads LMNR_BASE_URL and LMNR_PROJECT_NAME when they are set. It is off by default.",
+      "run exits with code 1 when any hard assertion fails or any case errors out. --strict also fails the run on soft assertion misses.",
+    ],
+  },
+  "init-runtime": {
+    usage: "init-runtime <agent-dir> --provider <provider> --model <model> [--force] [--json]",
+    notes: ["init-runtime writes a minimal Pi models.json and settings.json into <agent-dir> for eval runs to use."],
+  },
+  review: {
+    usage: "review <run-dir> [--output <dir>] [--force] [--json]",
+    notes: ["review writes static review.html and feedback.json files for an eval run directory. --output writes them to another directory."],
+  },
+  improve: {
+    usage: "improve --from-feedback <feedback.json> [--dry-run] [--summary | --json] [--apply]",
+    notes: ["improve proposes eval suite changes from review feedback. --apply writes validated metadata updates to evals/evals.json."],
+  },
+  create: {
+    usage:
+      "create <skill-dir> [--guided] [--interactive] [--model <provider/model[:thinking]>] [--agent-dir <path>] [--authoring-skill <path>] [--dry-run] [--summary | --json] [--force]",
+    notes: [
+      "create writes a starter evals/evals.json next to a SKILL.md file.",
+      "--guided asks a configured model to propose cases. The model reads the bundled arc-creating-evals skill first, or the skill at --authoring-skill.",
+      "--interactive works with --guided and lets you review, edit and select the proposed cases before anything is written.",
+      MODEL_NOTE,
+      TTY_NOTE,
+    ],
+  },
+  browse: {
+    usage: "browse [<skill-dir-or-repo>] [--no-baseline]",
+    notes: [
+      "browse opens an interactive terminal browser (Ink TUI) over the runs under evals-runs/. It defaults to the current directory.",
+      "--no-baseline hides the without_skill comparison rows in the detail pane.",
+      SKILL_DIR_OR_REPO_NOTE,
+      TTY_NOTE,
+    ],
+  },
+  audit: {
+    usage: "audit <skill-dir-or-repo> [--json] [--output <path>]",
+    notes: [
+      "audit runs deterministic skill-quality checks on frontmatter, sprawl, eval coverage, local links and duplicate skill families.",
+      "--output also writes the report to <path>, as Markdown or, with --json, as JSON.",
+      SKILL_DIR_OR_REPO_NOTE,
+    ],
+  },
+  "optimize-description": {
+    usage:
+      "optimize-description <skill-dir> (--generate-only [--output <path>] [--force] | --eval-set <path> [--distractor <skill-dir>]... [--max-iterations <n> [--apply]]) [--model <provider/model[:thinking]>] [--agent-dir <path>] [--json]",
+    notes: [
+      "--generate-only asks a configured model for prompts that should trigger the skill and nearby prompts that should not. It writes them with train and test split tags to <skillDir>/evals/description-evals.json for you to review.",
+      "--eval-set scores the current frontmatter description. Each prompt gets one routing probe with no tools, which shows the target description next to sibling and --distractor descriptions in rotated order. The report lists a verdict per prompt and train and test accuracy.",
+      "--max-iterations <n> proposes new descriptions from train-split failures and picks the winner by held-out test accuracy. SKILL.md changes only with --apply, which checks that the rewritten file reads back cleanly and restores the original if it does not.",
+      MODEL_NOTE,
+    ],
+  },
+  package: {
+    usage: "package <skill-dir> [--output <path>] [--force] [--json]",
+    notes: [
+      "package validates SKILL.md and evals/evals.json, then bundles the skill directory and a sha256 manifest.json into <name>.skill.tgz. It leaves out evals-runs/, node_modules/, dot-files and earlier *.skill.tgz files.",
+      "--output sets the artifact path. --force overwrites an existing artifact.",
+    ],
+  },
+  bundled: {
+    usage: "bundled [<skill-name>] [--json]",
+    notes: [
+      "bundled prints absolute paths to the skills shipped in the npm package. Use it in shell substitution, for example arc-skill-eval run \"$(arc-skill-eval bundled hello-world)\".",
+    ],
+  },
+  emit: {
+    usage: "emit (<skill-dir> | --from <suite.eval.ts>) [--out <evals/evals.json>] [--check] [--json]",
+    notes: [
+      "emit compiles a typed defineSkillEval suite into evals/evals.json. The suite is a .eval.ts file that default-exports the suite, imported from arc-skill-eval/evals. emit transpiles TypeScript in-process and validates the result with the same loader the runner uses.",
+      "With <skill-dir>, emit reads evals/evals.eval.ts and writes evals/evals.json.",
+      "--check compares the committed JSON with the suite, writes nothing, and exits 1 if they differ. Use it in CI.",
+    ],
+  },
+  "install-skills": {
+    usage:
+      "install-skills [--target <project-root>] [--harness claude-code|codex|cursor-agent|copilot|pi]... [--skill <name>]... [--force] [--json]",
+    notes: [
+      "install-skills copies the bundled agent skills (arc-creating-evals, arc-running-evals) into .agents/skills and .claude/skills under --target, which defaults to the current directory. Any harness can then drive arc-skill-eval.",
+      "--harness limits the install to the folders that harness reads. An existing install is skipped unless you pass --force.",
+    ],
+  },
+};
+
+const FORMAT_REFERENCE = "Format reference: https://platform.claude.com/docs/en/agents-and-tools/agent-skills";
+
+export function isCliCommandName(value: string): value is CliCommandName {
+  return Object.hasOwn(COMMAND_HELP, value);
+}
+
+export function parseCliArgs(argv: string[]): ParsedCliInvocation {
+  // Root flags may come with --json in any order (`--json --version`).
+  const rootArgs = argv.filter((arg) => arg !== "--json");
+  const first = rootArgs[0];
+
+  if (first === undefined || HELP_FLAGS.has(first)) {
     return { command: "help" };
+  }
+
+  if (VERSION_FLAGS.has(first)) {
+    return { command: "version" };
+  }
+
+  if (first === "help") {
+    const topic = rootArgs[1];
+    if (topic === undefined || HELP_FLAGS.has(topic)) return { command: "help" };
+    if (!isCliCommandName(topic)) throw unknownCommand(topic);
+    return { command: "help", topic };
   }
 
   const [commandName, ...rest] = argv;
 
+  if (commandName === undefined || !isCliCommandName(commandName)) {
+    throw unknownCommand(commandName ?? first);
+  }
+
+  // Checked before the command's own parser, so `run --help` does not fail on
+  // a missing positional argument or report --help as an unknown flag.
+  if (rest.some((arg) => HELP_FLAGS.has(arg))) {
+    return { command: "help", topic: commandName };
+  }
+
   switch (commandName) {
     case "run":
-      return {
-        command: "run",
-        ...parseRunCommandArgs(rest),
-      };
+      return { command: "run", ...parseRunCommandArgs(rest) };
     case "init-runtime":
-      return {
-        command: "init-runtime",
-        ...parseInitRuntimeCommandArgs(rest),
-      };
+      return { command: "init-runtime", ...parseInitRuntimeCommandArgs(rest) };
     case "review":
-      return {
-        command: "review",
-        ...parseReviewCommandArgs(rest),
-      };
+      return { command: "review", ...parseReviewCommandArgs(rest) };
     case "improve":
-      return {
-        command: "improve",
-        ...parseImproveCommandArgs(rest),
-      };
+      return { command: "improve", ...parseImproveCommandArgs(rest) };
     case "create":
-      return {
-        command: "create",
-        ...parseCreateCommandArgs(rest),
-      };
+      return { command: "create", ...parseCreateCommandArgs(rest) };
     case "browse":
-      return {
-        command: "browse",
-        ...parseBrowseCommandArgs(rest),
-      };
+      return { command: "browse", ...parseBrowseCommandArgs(rest) };
     case "audit":
-      return {
-        command: "audit",
-        ...parseAuditCommandArgs(rest),
-      };
+      return { command: "audit", ...parseAuditCommandArgs(rest) };
     case "optimize-description":
-      return {
-        command: "optimize-description",
-        ...parseOptimizeDescriptionCommandArgs(rest),
-      };
+      return { command: "optimize-description", ...parseOptimizeDescriptionCommandArgs(rest) };
     case "package":
-      return {
-        command: "package",
-        ...parsePackageCommandArgs(rest),
-      };
+      return { command: "package", ...parsePackageCommandArgs(rest) };
     case "bundled":
-      return {
-        command: "bundled",
-        ...parseBundledCommandArgs(rest),
-      };
+      return { command: "bundled", ...parseBundledCommandArgs(rest) };
     case "emit":
-      return {
-        command: "emit",
-        ...parseEmitCommandArgs(rest),
-      };
+      return { command: "emit", ...parseEmitCommandArgs(rest) };
     case "install-skills":
-      return {
-        command: "install-skills",
-        ...parseInstallSkillsCommandArgs(rest),
-      };
-    default:
-      throw new CliUsageError(`Unknown command: ${commandName}. Run \`arc-skill-eval --help\` for usage.`);
+      return { command: "install-skills", ...parseInstallSkillsCommandArgs(rest) };
   }
 }
 
-export function renderHelp(): string {
+function unknownCommand(name: string): CliUsageError {
+  return new CliUsageError(`Unknown command: ${name}. Run \`arc-skill-eval --help\` for usage.`);
+}
+
+function renderNotes(notes: Iterable<string>): string[] {
+  return [...notes].map((note) => `  - ${note}`);
+}
+
+/**
+ * Render help text. With a command name, print only that command's usage and
+ * notes; without one, print every command.
+ */
+export function renderHelp(topic?: CliCommandName): string {
+  if (topic) {
+    const help = COMMAND_HELP[topic];
+    return [
+      `arc-skill-eval ${topic}`,
+      "",
+      "Usage:",
+      `  arc-skill-eval ${help.usage}`,
+      "",
+      "Notes:",
+      // browse has no --json flag, so it skips the JSON note.
+      ...renderNotes(topic === "browse" ? help.notes : [...help.notes, GENERAL_NOTES[0]!]),
+    ].join("\n");
+  }
+
+  const commands = Object.values(COMMAND_HELP);
+  // Shared notes (such as the model format) appear once, at their first use.
+  const notes = new Set([...GENERAL_NOTES, ...commands.flatMap((help) => help.notes), FORMAT_REFERENCE]);
   return [
     "arc-skill-eval",
     "",
     "Usage:",
-    "  arc-skill-eval run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--runtime pi-sdk|codex|claude-code|cursor-agent|copilot] [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--agent-dir <path>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--sandbox none|just-bash] [--compare] [--strict] [--laminar] [--json]",
-    "  arc-skill-eval init-runtime <agent-dir> --provider <provider> --model <model> [--force] [--json]",
-    "  arc-skill-eval review <run-dir> [--output <dir>] [--force] [--json]",
-    "  arc-skill-eval improve --from-feedback <feedback.json> [--dry-run] [--summary | --json] [--apply]",
-    "  arc-skill-eval create <skill-dir> [--guided] [--interactive] [--model <provider/model[:thinking]>] [--agent-dir <path>] [--authoring-skill <path>] [--dry-run] [--summary | --json] [--force]",
-    "  arc-skill-eval browse [<skill-dir-or-repo>] [--no-baseline]",
-    "  arc-skill-eval audit <skill-dir-or-repo> [--json] [--output <path>]",
-    "  arc-skill-eval optimize-description <skill-dir> (--generate-only [--output <path>] [--force] | --eval-set <path> [--distractor <skill-dir>]... [--max-iterations <n> [--apply]]) [--model <provider/model[:thinking]>] [--agent-dir <path>] [--json]",
-    "  arc-skill-eval package <skill-dir> [--output <path>] [--force] [--json]",
-    "  arc-skill-eval bundled [<skill-name>] [--json]",
-    "  arc-skill-eval emit (<skill-dir> | --from <suite.eval.ts>) [--out <evals/evals.json>] [--check] [--json]",
-    "  arc-skill-eval install-skills [--target <project-root>] [--harness claude-code|codex|cursor-agent|copilot|pi]... [--skill <name>]... [--force] [--json]",
+    ...commands.map((help) => `  arc-skill-eval ${help.usage}`),
+    "  arc-skill-eval <command> --help",
+    "  arc-skill-eval --version",
     "",
     "Notes:",
-    "  - --json (every command except browse) prints one JSON object on stdout with schemaVersion; failures print {\"schemaVersion\":1,\"error\":{\"kind\",\"message\"}} instead. Exit code 1 means the run failed or the command errored. See docs/cli-json-contract.md.",
-    "  - browse and create --interactive need a terminal and refuse to start without one.",
-    "  - <skill-dir-or-repo> is either a skill directory containing evals/evals.json,",
-    "    or a repo root; in the repo case the CLI discovers every SKILL.md + evals/evals.json pair.",
-    "  - run writes per-case assistant.md + outputs/ + timing.json + grading.json + observability artifacts under",
-    "    <skillDir>/evals-runs/<runId>/eval-<id>/ (overridable via --output-dir).",
-    "  - --runtime selects the agent harness (default pi-sdk). Alternatives: codex, claude-code, cursor-agent, copilot — each uses BYOK env vars (see docs/multi-harness-runtimes.md).",
-    "  - --model pins the skill runner model; --judge-model pins the LLM assertion judge.",
-    "  - Model values use Pi's provider/model form, optionally with :thinking (for example openai-codex/gpt-6-luna:medium).",
-    "  - --extra-skill loads explicit distractor/conflict skills for every variant.",
-    "  - --context-mode ambient opts into normal Pi ambient resources; default is isolated.",
-    "  - --sandbox just-bash runs eligible cases in an isolated just-bash environment and overrides each case's `sandbox` field; default is none (the temp-workspace runner).",
-    "  - --laminar opts into exporting eval traces to Laminar; it requires LMNR_PROJECT_API_KEY and optionally honors LMNR_BASE_URL / LMNR_PROJECT_NAME. Disabled by default.",
-    "  - run exits with code 1 when any assertion fails or any case errors out.",
-    "  - init-runtime writes a minimal Pi models.json and settings.json for eval-owned runtime config.",
-    "  - review writes static review.html and feedback.json files for an eval run directory.",
-    "  - improve proposes eval suite changes from review feedback; --apply writes validated metadata updates.",
-    "  - create scaffolds a starter evals/evals.json next to a SKILL.md file; --guided asks a configured model to propose cases using the bundled arc-creating-evals skill first and --interactive lets you review, edit, and select proposed cases before writing.",
-    "  - browse opens an interactive terminal run browser (Ink TUI) over the artifacts under evals-runs/; defaults to the current directory.",
-    "  - browse --no-baseline hides the without_skill comparison rows in the detail pane.",
-    "  - audit performs deterministic skill-quality checks: frontmatter, sprawl, eval coverage, local links, and duplicate families.",
-    "  - optimize-description --generate-only asks a configured model for should-trigger and adjacent should-not-trigger routing prompts, writes <skillDir>/evals/description-evals.json with train/test split tags, and asks you to review it.",
-    "  - optimize-description --eval-set scores the skill's current frontmatter description: one no-tools routing probe per prompt (target + sibling/--distractor skill descriptions, rotated ordering), reporting per-prompt verdicts and train/test accuracy.",
-    "  - optimize-description --max-iterations N proposes improved descriptions from train-split failures and selects the winner by held-out test accuracy; SKILL.md changes only with --apply (which verifies the rewrite reads back cleanly and restores the original otherwise).",
-    "  - package validates SKILL.md and evals/evals.json first, then bundles the skill directory plus a sha256 manifest.json into <name>.skill.tgz (excluding evals-runs/, node_modules/, dot-files, and prior *.skill.tgz artifacts); --output overrides the artifact path and --force overwrites an existing artifact.",
-    "  - bundled prints absolute paths to skills shipped with the npm package; use in shell substitution, e.g. arc-skill-eval run \"$(arc-skill-eval bundled hello-world)\".",
-    "  - emit compiles a typed `defineSkillEval` suite (a .eval.ts that default-exports the suite; imported from arc-skill-eval/evals) into evals/evals.json, validating it through the same loader the runner uses. TypeScript suites are transpiled in-process. With <skill-dir> it resolves evals/evals.eval.ts → evals/evals.json; --check verifies the committed JSON matches the suite and exits 1 on drift (writes nothing) — ideal for CI.",
-    "  - install-skills copies the bundled agent-facing skills (arc-creating-evals, arc-running-evals) into .agents/skills and .claude/skills under --target (default: cwd) so any harness can drive arc-skill-eval. --harness narrows the folders; existing installs are skipped unless --force.",
-    "  - Format reference: https://platform.claude.com/docs/en/agents-and-tools/agent-skills",
+    ...renderNotes(notes),
   ].join("\n");
 }

@@ -4,11 +4,11 @@ import { modifyFields } from 'foldkit/struct';
 
 import { PageOutMessage, type AppContext } from '@/app/context';
 
-import { DeleteRun, LoadLastRunId, SaveLastRunId, ShowAlert, StartRun } from './command';
-import { defaultComposer, findSelectedSkill, hasNoEvals, type Composer, type FieldName } from './composer';
+import { DeleteRun, LoadLastRunId, LoadSuiteCases, SaveLastRunId, ShowAlert, StartRun } from './command';
+import { ALL_CASES, defaultComposer, findSelectedSkill, hasNoEvals, type Composer, type FieldName } from './composer';
 import { RunState, accept, applyEvent, start } from './lifecycle';
 import { Message } from './message';
-import type { Model } from './model';
+import { SuiteCases, type Model } from './model';
 
 // INIT
 
@@ -17,6 +17,7 @@ export const init = (_context: AppContext): Update.Return<Model, Message> => ({
     composer: defaultComposer,
     maybeOpenField: Option.some('skill'),
     extraSkillDraft: '',
+    suiteCases: SuiteCases.NotLoaded(),
     run: RunState.Idle(),
     runAttempt: 0,
     maybeLastRunId: Option.none(),
@@ -85,7 +86,21 @@ const clickRunButton = (model: Model, context: AppContext): UpdateReturn =>
       commands: [DeleteRun({ runId })],
     }),
     Done: () => ({ model: modifyFields(model, { run: () => RunState.Idle() }) }),
+    Failed: () => ({ model: modifyFields(model, { run: () => RunState.Idle() }) }),
   });
+
+/** Picking a skill resets the case to all cases and reads its case ids for the Cases row. */
+const selectSkill = (model: Model, workspaceRoot: string): UpdateReturn => ({
+  model: modifyFields(model, {
+    composer: (composer) => modifyFields(composer, { workspaceRoot: () => workspaceRoot, case: () => ALL_CASES }),
+    maybeOpenField: () => Option.none(),
+    suiteCases: () => (workspaceRoot === '' ? SuiteCases.NotLoaded() : SuiteCases.Loading({ workspaceRoot })),
+  }),
+  commands: workspaceRoot === '' ? [] : [LoadSuiteCases({ workspaceRoot })],
+});
+
+const isCurrentSuite = (model: Model, workspaceRoot: string): boolean =>
+  model.suiteCases._tag === 'Loading' && model.suiteCases.workspaceRoot === workspaceRoot;
 
 const acceptRun = (
   model: Model,
@@ -125,8 +140,15 @@ export const update = (model: Model, message: Message, context: AppContext) =>
     ClickedLearnLink: () => ({ model, outMessage: PageOutMessage.RequestedSection({ section: 'learn' }) }),
     ClickedInspectInBrowse: () => ({ model, outMessage: PageOutMessage.RequestedSection({ section: 'browse' }) }),
     ClickedFlagRow: ({ field }) => toggleField(model, field),
-    SelectedSkill: ({ workspaceRoot }) =>
-      selectFlag(model, (composer) => modifyFields(composer, { workspaceRoot: () => workspaceRoot })),
+    SelectedSkill: ({ workspaceRoot }) => selectSkill(model, workspaceRoot),
+    SucceededLoadSuiteCases: ({ workspaceRoot, caseIds }) =>
+      isCurrentSuite(model, workspaceRoot)
+        ? { model: modifyFields(model, { suiteCases: () => SuiteCases.Loaded({ workspaceRoot, caseIds }) }) }
+        : { model },
+    FailedLoadSuiteCases: ({ workspaceRoot, error }) =>
+      isCurrentSuite(model, workspaceRoot)
+        ? { model: modifyFields(model, { suiteCases: () => SuiteCases.Failed({ workspaceRoot, error }) }) }
+        : { model },
     SelectedCase: ({ value }) => selectFlag(model, (composer) => modifyFields(composer, { case: () => value })),
     SelectedModel: ({ value }) => selectFlag(model, (composer) => modifyFields(composer, { model: () => value })),
     SelectedJudgeModel: ({ value }) =>

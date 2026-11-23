@@ -110,6 +110,42 @@ test("tool-call-forbidden passes when absent and fails when present", async () =
   }
 });
 
+// Pi reports lowercase tool names (`write`, `bash`); Claude Code reports `Write`, `Bash`.
+// Failure cases: a required "Write" never matching `write`; a forbidden "Bash" passing
+// while `bash` ran; case folding widening into prefix matches; the input matcher
+// losing its case sensitivity.
+test("tool names match without regard to case, and only the name is folded", async () => {
+  const ws = await mkdtemp(path.join(tmpdir(), "arc-assertion-engine-"));
+  try {
+    const obs = observations({
+      toolCalls: [
+        { toolCallId: "1", toolName: "write", inputSummary: "README.md" },
+        { toolCallId: "2", toolName: "bash", inputSummary: "ls -la" },
+      ],
+    });
+    const grade = (assertion) => gradeDeterministicAssertion(assertion, ws, "done", obs);
+
+    const required = { id: "a", kind: "behavior", method: "tool-call-required", value: "Write" };
+    assert.equal((await grade(required)).passed, true);
+
+    const forbidden = { id: "b", kind: "behavior", method: "tool-call-forbidden", value: "Bash" };
+    const forbiddenResult = await grade(forbidden);
+    assert.equal(forbiddenResult.passed, false);
+    assert.match(forbiddenResult.evidence, /Forbidden tool called: "bash"/);
+
+    const prefixOnly = observations({ toolCalls: [{ toolCallId: "1", toolName: "write_file", inputSummary: "a" }] });
+    assert.equal(
+      (await gradeDeterministicAssertion({ ...required, id: "c", value: "write" }, ws, "done", prefixOnly)).passed,
+      false,
+    );
+
+    const inputCase = { ...required, id: "d", match: "readme.md" };
+    assert.equal((await grade(inputCase)).passed, false);
+  } finally {
+    await rm(ws, { recursive: true, force: true });
+  }
+});
+
 test("skill-read-required matches captured skill reads by name", async () => {
   const ws = await mkdtemp(path.join(tmpdir(), "arc-assertion-engine-"));
   try {

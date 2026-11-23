@@ -1,0 +1,34 @@
+{
+  "version": "1",
+  "skill_name": "alpha",
+  "evals": [
+    {
+      "id": "greets-the-user",
+      "prompt": "Say hello to me.",
+      "expected_output": "A friendly greeting.",
+      "assertions": [
+        {
+          "type": "regex-match",
+          "pattern": "hello",
+          "flags": "i",
+          "target": "assistant-text"
+        }
+      ]
+    },
+    {
+      "id": "writes-a-report",
+      "prompt": "Write the weekly report to report.md.",
+      "assertions": [
+        {
+          "type": "file-exists",
+          "path": "report.md"
+        },
+        {
+          "type": "regex-match",
+          "pattern": "replay",
+          "target": "assistant-text"
+        }
+      ]
+    }
+  ]
+}

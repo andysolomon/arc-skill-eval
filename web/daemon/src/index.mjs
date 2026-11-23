@@ -2,6 +2,7 @@ import http from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { corsHeaders, refusalReason } from "./access.mjs";
 import { handleApplyPlan } from "./routes/apply-plan.mjs";
 import { handleGenerateEvals } from "./routes/generate-evals.mjs";
 import { handleHealth } from "./routes/health.mjs";
@@ -10,6 +11,7 @@ import { handleRuns } from "./routes/runs.mjs";
 import { handleSkillEvals } from "./routes/skill-evals.mjs";
 import { handleSuggest } from "./routes/suggest.mjs";
 import { handleWorkspace } from "./routes/workspace.mjs";
+import { AccessError } from "./workspaces.mjs";
 import { createRunWebSocketServer } from "./ws.mjs";
 
 const packageJson = JSON.parse(
@@ -20,14 +22,10 @@ const port = Number.parseInt(process.env.PORT ?? "7357", 10);
 const version = packageJson.version;
 
 function sendJson(response, statusCode, payload) {
-  const body = JSON.stringify(payload);
+  const body = statusCode === 204 ? "" : JSON.stringify(payload);
   response.writeHead(statusCode, {
     "content-type": "application/json; charset=utf-8",
     "content-length": Buffer.byteLength(body),
-    // the web app calls the daemon cross-origin from the vite dev server
-    "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET, POST, OPTIONS",
-    "access-control-allow-headers": "content-type",
   });
   response.end(body);
 }
@@ -47,7 +45,19 @@ async function readJson(request) {
 }
 
 async function routeRequest(request, response) {
-  const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
+  // Refuse other websites and rebound host names before anything else,
+  // preflights included, so a refused page never gets CORS headers.
+  const refusal = refusalReason(request.headers);
+  if (refusal) {
+    sendJson(response, 403, { ok: false, error: refusal });
+    return;
+  }
+
+  for (const [name, value] of Object.entries(corsHeaders(request.headers))) {
+    response.setHeader(name, value);
+  }
+
+  const url = new URL(request.url ?? "/", "http://localhost");
   const context = {
     port,
     version,
@@ -77,6 +87,10 @@ async function routeRequest(request, response) {
 
 const server = http.createServer((request, response) => {
   routeRequest(request, response).catch((error) => {
+    if (error instanceof AccessError && !response.headersSent) {
+      sendJson(response, error.statusCode, { ok: false, error: error.message });
+      return;
+    }
     console.error(error);
     if (!response.headersSent) {
       sendJson(response, 500, { error: "Internal server error" });

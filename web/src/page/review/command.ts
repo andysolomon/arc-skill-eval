@@ -225,26 +225,43 @@ export const DownloadPlan = Command.define('DownloadPlan', {
     ),
 });
 
-/** Localhost: stage the plan on the daemon, which answers with a diff to review. */
+const daemonError = (payload: unknown, fallback: string): string =>
+  isRecord(payload) && typeof payload.error === 'string' && payload.error !== '' ? payload.error : fallback;
+
+/**
+ * Localhost: send the plan's feedback notes to the daemon, which turns them
+ * into a feedback file and dry-runs `arc-skill-eval improve --apply` on a copy
+ * of the skill's evals.json. It answers with the diff and the suggestions.
+ */
 export const StagePlan = Command.define('StagePlan', {
   args: { plan: ProposedPlan, runId: Schema.String, workspaceRoot: Schema.String },
   messages: [Message.SucceededStagePlan, Message.FailedStagePlan],
   execute: ({ plan, runId, workspaceRoot }) =>
-    attempt(async () => {
-      const response = await fetch(`${DAEMON_URL}/apply-plan`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ plan: planToJson(plan), runId, skillPath: workspaceRoot, workspaceRoot }),
-      });
-      if (!response.ok) {
-        throw new Error(`apply plan failed with ${response.status}`);
-      }
-      const payload = await readJson(response);
-      if (!isRecord(payload) || typeof payload.planId !== 'string' || typeof payload.stagingPath !== 'string') {
-        throw new Error('apply plan returned an invalid response');
-      }
-      return { planId: payload.planId, stagingPath: payload.stagingPath, diff: payload.diff ?? null };
-    }, 'propose plan failed').pipe(
+    readFeedbackNotes.pipe(
+      Effect.map((notes) =>
+        Array.filter(notes, (note) => Array.contains(plan.sourceNoteIds, note.noteId)).map((note) => ({
+          caseId: Option.getOrNull(note.maybeCaseId),
+          note: note.note,
+        })),
+      ),
+      Effect.flatMap((notes) =>
+        attempt(async () => {
+          const response = await fetch(`${DAEMON_URL}/apply-plan`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ kind: 'improve', skillDir: workspaceRoot, runId, notes }),
+          });
+          const payload = await readJson(response);
+          if (!response.ok) {
+            throw new Error(daemonError(payload, `apply plan failed with ${response.status}`));
+          }
+          if (!isRecord(payload) || typeof payload.planId !== 'string' || typeof payload.stagingPath !== 'string') {
+            throw new Error('apply plan returned an invalid response');
+          }
+          return { planId: payload.planId, stagingPath: payload.stagingPath, diff: payload.diff ?? null };
+        }, 'propose plan failed'),
+      ),
+    ).pipe(
       Effect.map((staged) => Message.SucceededStagePlan({ staged })),
       Effect.catch((error) => Effect.succeed(Message.FailedStagePlan({ error }))),
     ),
@@ -255,10 +272,10 @@ const postApplyAction = (planId: string, action: 'cancel' | 'commit') =>
     const response = await fetch(`${DAEMON_URL}/apply-plan/${encodeURIComponent(planId)}/${action}`, {
       method: 'POST',
     });
-    if (!response.ok) {
-      throw new Error(`${action} failed with ${response.status}`);
-    }
     const payload = await readJson(response);
+    if (!response.ok) {
+      throw new Error(daemonError(payload, `${action} failed with ${response.status}`));
+    }
     if (!isRecord(payload)) {
       throw new Error('apply action returned an invalid response');
     }

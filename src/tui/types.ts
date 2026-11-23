@@ -38,7 +38,7 @@ export interface ContextInfo {
 
 export interface OutputFile { path: string; size: number }
 
-export type CaseStatus = 'pass' | 'fail' | 'partial' | 'not-run';
+export type CaseStatus = 'pass' | 'fail' | 'partial' | 'not-run' | 'invalid';
 
 export interface Case {
   id: string;
@@ -73,6 +73,7 @@ export interface Case {
   context: ContextInfo;
   outputs: OutputFile[];
   assertions: Assertion[];
+  loadError?: string;        // set when status is 'invalid': why the artifacts could not be read
 }
 
 export interface Skill {

@@ -10,9 +10,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
-      '@arc-skill-eval/tokens/web-theme.css': fileURLToPath(
-        new URL('../packages/tokens/dist/web-theme.css', import.meta.url),
-      ),
     },
   },
 });

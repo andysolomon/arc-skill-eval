@@ -7,7 +7,8 @@ import type { AppContext, WorkspaceSkill } from '@/app/context';
 import { sx } from '@/ui/sx';
 
 import {
-  caseOptions,
+  ALL_CASES,
+  DEFAULT_MODEL,
   compareOptions,
   contextModeOptions,
   findSelectedSkill,
@@ -19,8 +20,37 @@ import {
 } from '../composer';
 import { RunState } from '../lifecycle';
 import { Message } from '../message';
-import type { Model } from '../model';
+import { SuiteCases, type Model } from '../model';
 import { spinnerGlyph } from './glyph';
+
+// LABELS
+
+const caseOptionsFor = (model: Model): ReadonlyArray<string> =>
+  SuiteCases.match(model.suiteCases, {
+    NotLoaded: () => [ALL_CASES],
+    Loading: () => [ALL_CASES],
+    Loaded: ({ caseIds }) => [ALL_CASES, ...caseIds],
+    Failed: () => [ALL_CASES],
+  });
+
+const suiteNote = (model: Model): Option.Option<string> =>
+  SuiteCases.match(model.suiteCases, {
+    NotLoaded: () => Option.some('Choose a skill to list its cases.'),
+    Loading: () => Option.some('Reading evals/evals.json…'),
+    Loaded: ({ caseIds }) =>
+      Array.isReadonlyArrayEmpty(caseIds) ? Option.some('evals/evals.json has no cases.') : Option.none(),
+    Failed: ({ error }) => Option.some(error),
+  });
+
+const caseLabel = (option: string): string => (option === ALL_CASES ? '* (all cases)' : option);
+
+/** "default" names the model the daemon reported, when it did. */
+const modelLabel =
+  (maybeDefault: Option.Option<string>) =>
+  (option: string): string =>
+    option === DEFAULT_MODEL
+      ? Option.match(maybeDefault, { onNone: () => 'default', onSome: (model) => `default (${model})` })
+      : option;
 
 // FLAG ROW
 
@@ -117,6 +147,7 @@ const optionList = <Value extends string | number>(
     valueColor: string;
     options: ReadonlyArray<Value>;
     onSelect: (option: Value) => Message;
+    label?: (option: Value) => string;
   }>,
   h: HtmlBuilder<Message>,
 ): Html =>
@@ -149,7 +180,7 @@ const optionList = <Value extends string | number>(
         [
           checkMark(isSelected, h),
           h.span([h.Style(sx({ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }))], [
-            String(option),
+            config.label === undefined ? String(option) : config.label(option),
           ]),
         ],
       );
@@ -340,15 +371,18 @@ const extraSkillEditor = (model: Model, h: HtmlBuilder<Message>): Html =>
 
 type RunButtonLook = Readonly<{ label: string; title: string; style: Readonly<Record<string, string>> }>;
 
+const resetLook: RunButtonLook = {
+  label: '↻ Reset run',
+  title: 'Reset run',
+  style: { background: 'var(--tt-bg-dark)', border: '1px solid var(--tt-border)', color: 'var(--tt-fg-dark)' },
+};
+
 const runButtonLook = (model: Model, isBlocked: boolean): RunButtonLook =>
   RunState.match(model.run, {
     Starting: () => runningLook(model),
     Streaming: () => runningLook(model),
-    Done: () => ({
-      label: '↻ Reset run',
-      title: 'Reset run',
-      style: { background: 'var(--tt-bg-dark)', border: '1px solid var(--tt-border)', color: 'var(--tt-fg-dark)' },
-    }),
+    Done: () => resetLook,
+    Failed: () => resetLook,
     Idle: () =>
       isBlocked
         ? {
@@ -368,7 +402,7 @@ const runButtonLook = (model: Model, isBlocked: boolean): RunButtonLook =>
   });
 
 const runningLook = (model: Model): RunButtonLook => ({
-  label: `${spinnerGlyph(model.spinnerFrame)} Running…`,
+  label: `${spinnerGlyph(model.spinnerFrame)} Running… select to cancel`,
   title: 'Cancel run',
   style: { background: 'var(--tt-bg-dark)', border: '1px solid var(--tt-border)', color: 'var(--tt-cyan)' },
 });
@@ -420,6 +454,10 @@ export const composerView = (model: Model, context: AppContext, h: HtmlBuilder<M
     onNone: () => (composer.workspaceRoot === '' ? 'Choose a skill…' : composer.workspaceRoot),
   });
   const hasExtraSkills = Array.isReadonlyArrayNonEmpty(composer.extraSkill);
+  const daemon = context.workspace.daemon;
+  const maybeDefaultModel = daemon._tag === 'Online' ? daemon.maybeModel : Option.none<string>();
+  // With the judge on "default", the library grades with the model that ran the case.
+  const maybeDefaultJudge = composer.model === DEFAULT_MODEL ? maybeDefaultModel : Option.some(composer.model);
 
   return h.aside(
     [
@@ -470,7 +508,7 @@ export const composerView = (model: Model, context: AppContext, h: HtmlBuilder<M
             {
               field: 'case',
               label: 'Cases (--case)',
-              value: composer.case,
+              value: caseLabel(composer.case),
               valueColor: 'var(--tt-fg-dark)',
               isOpen: isOpen('case'),
             },
@@ -479,11 +517,17 @@ export const composerView = (model: Model, context: AppContext, h: HtmlBuilder<M
                 {
                   value: composer.case,
                   valueColor: 'var(--tt-fg-dark)',
-                  options: caseOptions,
+                  options: caseOptionsFor(model),
                   onSelect: (value) => Message.SelectedCase({ value }),
+                  label: caseLabel,
                 },
                 h,
               ),
+              Option.match(suiteNote(model), {
+                onNone: () => h.empty,
+                onSome: (note) =>
+                  h.div([h.Style(sx({ color: 'var(--tt-comment)', fontSize: 12, padding: '4px 10px' }))], [note]),
+              }),
             ],
             h,
           ),
@@ -491,7 +535,7 @@ export const composerView = (model: Model, context: AppContext, h: HtmlBuilder<M
             {
               field: 'model',
               label: 'Run model (--model)',
-              value: composer.model,
+              value: modelLabel(maybeDefaultModel)(composer.model),
               valueColor: 'var(--tt-blue)',
               isOpen: isOpen('model'),
             },
@@ -502,6 +546,7 @@ export const composerView = (model: Model, context: AppContext, h: HtmlBuilder<M
                   valueColor: 'var(--tt-blue)',
                   options: models,
                   onSelect: (value) => Message.SelectedModel({ value }),
+                  label: modelLabel(maybeDefaultModel),
                 },
                 h,
               ),
@@ -512,7 +557,7 @@ export const composerView = (model: Model, context: AppContext, h: HtmlBuilder<M
             {
               field: 'judgeModel',
               label: 'Judge model (--judge-model)',
-              value: composer.judgeModel,
+              value: modelLabel(maybeDefaultJudge)(composer.judgeModel),
               valueColor: 'var(--tt-magenta)',
               isOpen: isOpen('judgeModel'),
             },
@@ -523,6 +568,7 @@ export const composerView = (model: Model, context: AppContext, h: HtmlBuilder<M
                   valueColor: 'var(--tt-magenta)',
                   options: models,
                   onSelect: (value) => Message.SelectedJudgeModel({ value }),
+                  label: modelLabel(maybeDefaultJudge),
                 },
                 h,
               ),

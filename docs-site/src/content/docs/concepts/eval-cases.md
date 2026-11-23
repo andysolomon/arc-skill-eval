@@ -40,15 +40,19 @@ A few notes on the fields:
 ```ts
 type WorkspaceSetup =
   | { kind: "empty" }
-  | { kind: "seeded"; sources: string[]; mountMode?: "preserve-path" | "flatten" }
+  | { kind: "seeded"; sources: { from: string; to?: string }[]; mountMode?: "preserve-path" | "flatten-contents" }
   | { kind: "fixture"; fixture: FixtureRef };
 ```
 
 - **`empty`** — start with an empty temp workspace. Best for skills that produce files from scratch.
-- **`seeded`** — copy files from `evals/` into the temp workspace before the run. `sources` is a list of paths inside `evals/`; `mountMode` is either `"preserve-path"` (default — preserves source paths) or `"flatten"` (puts every source's contents at workspace root).
+- **`seeded`**: copy files from `evals/` into the temp workspace before the run. Each entry in `sources` has a `from` path inside `evals/` and an optional `to` path in the workspace. With `mountMode: "preserve-path"`, the default, a source lands at its `from` path. With `"flatten-contents"`, the contents of each source land at the workspace root, which is what most suites want:
+
+  ```json
+  "setup": { "kind": "seeded", "sources": [{ "from": "files/clean-repo", "to": "." }], "mountMode": "flatten-contents" }
+  ```
 - **`fixture`** — use the existing `FixtureRef` materializer (in `src/fixtures/`), which supports git initialization and pre-run hooks. Use this when a case needs to start from a non-trivial repo state.
 
-The legacy `files: ["..."]` shorthand still works and compiles to a `seeded` setup with `mountMode: "preserve-path"`. Prefer `setup` for new cases — it's explicit about intent and supports all three kinds.
+The older `files: ["..."]` shorthand still works and becomes a `seeded` setup with `mountMode: "preserve-path"`, so each file keeps its `files/...` path inside the workspace. Prefer `setup` for new cases. It states where files land and supports all three kinds.
 
 ## Sandbox
 

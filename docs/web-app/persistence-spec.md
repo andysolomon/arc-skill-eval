@@ -17,11 +17,11 @@ the ADR.
 
 | Mode | IndexedDB role |
 |---|---|
-| **hosted** | Primary persistence for preferences, Feedback Notes, Improve Plans, and learn progress. No backend. |
+| **hosted** | Primary persistence for preferences, imported runs, Feedback Notes, Improve Plans, and learn progress. No backend. |
 | **localhost** | Does not use IndexedDB for run/review artifacts (disk / Runtime). May *mirror* `theme` / `env` from `preferences` for cross-session chrome only. |
 
 Database name: `arc-skill-eval-web` (constant). Object stores below are the only
-stores in v1.
+stores in database version 2.
 
 Glossary terms **Feedback Note** and **Improve Plan** are owned by
 [`docs/web-app/CONTEXT.md`](./CONTEXT.md).
@@ -32,7 +32,7 @@ Glossary terms **Feedback Note** and **Improve Plan** are owned by
 
 ```ts
 export const IDB_NAME = 'arc-skill-eval-web';
-export const IDB_SCHEMA_VERSION = 1; // bump when object-store layout changes
+export const IDB_SCHEMA_VERSION = 2; // bump when object-store layout changes
 ```
 
 `IDB_SCHEMA_VERSION` is the IndexedDB database version passed to `indexedDB.open`.
@@ -198,11 +198,33 @@ uses IndexedDB, localhost may mirror or use this store for chrome continuity).
 }
 ```
 
+---
+
+### 5. `importedRuns`
+
+The runs imported on the hosted Review page, so they survive a reload like the
+Feedback Notes written about them. Browse reads them too.
+
+| | |
+|---|---|
+| **Primary key** | `"current"` (string literal; one row only) |
+| **Indexes** | none |
+| **Key path** | `id` |
+
+**Fields**
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | `"current"` | Primary key |
+| `runs` | `unknown[]` | The imported runs, encoded with the JSON codec of the web app's `ReviewRun` schema (`Option` fields become `{ "_tag": "Some", "value": … }` or `{ "_tag": "None" }`). |
+
+Importing again replaces the row. `Reset hosted data` clears it.
+
 ## Migrations
 
 ### Version constants
 
-- **`IDB_SCHEMA_VERSION`** (module constant, currently `1`) — IndexedDB
+- **`IDB_SCHEMA_VERSION`** (module constant, currently `2`) — IndexedDB
   `open(name, version)` integer. Bump when adding/removing stores or indexes.
 - **`preferences.schemaVersion`** (integer on the singleton row) — record-shape
   version for in-transaction data transforms after the DB is open.
@@ -212,6 +234,11 @@ uses IndexedDB, localhost may mirror or use this store for chrome continuity).
 | `schemaVersion` | Date | Change |
 |---|---|---|
 | `1` | 2026-07-22 | Initial stores: `preferences`, `feedback`, `improvePlans`, `learnProgress` with indexes above. |
+
+| `IDB_SCHEMA_VERSION` | Date | Change |
+|---|---|---|
+| `1` | 2026-07-22 | The four stores above. |
+| `2` | 2026-11-22 | Adds the `importedRuns` store. No record-shape migration. |
 
 Adds of optional fields are non-breaking and may stay on the same
 `schemaVersion` if readers tolerate missing keys. Breaking renames/removals
@@ -223,7 +250,8 @@ require bumping both `IDB_SCHEMA_VERSION` (if store layout changes) and
 
 ```ts
 function upgrade(db: IDBDatabase, oldVersion: number, newVersion: number): void {
-  // v0 → v1: create all four stores + indexes listed in Stores.
+  // v0 to v1: create the four version 1 stores and their indexes.
+  // v1 to v2: create the importedRuns store.
 }
 ```
 
@@ -258,7 +286,7 @@ allows the control on that chrome without changing gating).
 **Behavior**
 
 1. Clear **every** object store in `arc-skill-eval-web` (`preferences`,
-   `feedback`, `improvePlans`, `learnProgress`).
+   `feedback`, `improvePlans`, `learnProgress`, `importedRuns`).
 2. Reload the app so Env/Theme chrome re-seed defaults.
 
 **Privacy stance**

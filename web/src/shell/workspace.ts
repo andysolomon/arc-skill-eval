@@ -11,7 +11,7 @@ import { defineMessageUnion } from 'foldkit/message';
 import { defineTaggedUnion } from 'foldkit/schema';
 import { modifyFields } from 'foldkit/struct';
 
-import { WorkspaceSkill, WorkspaceStatus, type WorkspaceSnapshot } from '@/app/context';
+import { DaemonInfo, WorkspaceSkill, WorkspaceStatus, type WorkspaceSnapshot } from '@/app/context';
 import { savePreferences } from '@/persistence/effect';
 import { DAEMON_URL } from '@/shell/daemon';
 import * as FolderPicker from '@/shell/folderPicker';
@@ -36,6 +36,7 @@ export const Dropdown = defineTaggedUnion({
 export type Dropdown = typeof Dropdown.Type;
 
 export const Model = Schema.Struct({
+  daemon: DaemonInfo,
   root: Schema.String,
   favorites: Schema.Array(Schema.String),
   resolution: Resolution,
@@ -68,7 +69,11 @@ const offlineResolution = (skills: ReadonlyArray<WorkspaceSkill>): Resolution =>
   maybeError: Option.none(),
 });
 
-export const toSnapshot = (model: Model): WorkspaceSnapshot => ({ root: model.root, ...model.resolution });
+export const toSnapshot = (model: Model): WorkspaceSnapshot => ({
+  daemon: model.daemon,
+  root: model.root,
+  ...model.resolution,
+});
 
 // MESSAGE
 
@@ -85,6 +90,7 @@ export const Message = defineMessageUnion({
   FailedFetchWorkspace: {},
   CompletedPruneFavorites: { kept: Schema.Array(Schema.String) },
   CompletedSavePreferences: {},
+  CompletedFetchHealth: { daemon: DaemonInfo },
 });
 export type Message = typeof Message.Type;
 
@@ -152,9 +158,42 @@ const FetchWorkspace = Command.define('FetchWorkspace', {
     ),
 });
 
+const WireHealth = Schema.Struct({
+  runtime: Schema.optional(Schema.Unknown),
+  model: Schema.optional(Schema.Unknown),
+  judgeModel: Schema.optional(Schema.Unknown),
+});
+
+const FetchHealth = Command.define('FetchHealth', {
+  messages: [Message.CompletedFetchHealth],
+  execute: Effect.tryPromise(async (signal) => {
+    const response = await fetch(`${DAEMON_URL}/health`, { signal });
+    if (!response.ok) {
+      throw new Error(`health check failed with ${response.status}`);
+    }
+    return (await response.json()) as unknown;
+  }).pipe(
+    Effect.flatMap(Schema.decodeUnknownEffect(WireHealth)),
+    Effect.map((health) =>
+      Message.CompletedFetchHealth({
+        daemon: DaemonInfo.Online({
+          runtime: typeof health.runtime === 'string' ? health.runtime : 'pi-sdk',
+          maybeModel: maybeString(health.model),
+          maybeJudgeModel: maybeString(health.judgeModel),
+        }),
+      }),
+    ),
+    Effect.catch(() => Effect.succeed(Message.CompletedFetchHealth({ daemon: DaemonInfo.Offline() }))),
+  ),
+});
+
+const isGithubReference = (reference: string): boolean =>
+  /^(?:https?:\/\/)?github\.com\//.test(reference) || reference.startsWith('github:');
+
 /**
- * Drop favorites that no longer resolve to a real directory. A favorite the
- * daemon cannot be asked about (offline) is kept: we can't verify it.
+ * Drop local favorites the daemon reports as missing. A favorite it cannot
+ * check (offline, outside the folders it may list, or a GitHub repository)
+ * is kept.
  */
 const PruneFavorites = Command.define('PruneFavorites', {
   args: { favorites: Schema.Array(Schema.String) },
@@ -164,9 +203,12 @@ const PruneFavorites = Command.define('PruneFavorites', {
       favorites,
       (favorite) =>
         Effect.tryPromise(async (signal) => {
+          if (isGithubReference(favorite)) {
+            return true;
+          }
           const response = await fetch(`${DAEMON_URL}/fs?path=${encodeURIComponent(favorite)}`, { signal });
-          const data = (await response.json()) as { ok?: unknown };
-          return data.ok === true;
+          const data = (await response.json()) as { ok?: unknown; error?: unknown };
+          return data.ok === true || data.error !== 'directory not found';
         }).pipe(
           Effect.catch(() => Effect.succeed(true)),
           Effect.map((exists) => ({ favorite, exists })),
@@ -198,10 +240,23 @@ const SaveWorkspacePreferences = Command.define('SaveWorkspacePreferences', {
 
 // INIT
 
-export const init = (root: string, favorites: ReadonlyArray<string>): Update.Return<Model, Message> => {
+/**
+ * Ask the daemon for its runtime and default models, unless it already
+ * answered. The shell calls this when localhost mode starts, so the hosted
+ * app never probes localhost.
+ */
+export const checkDaemon = (model: Model): ReadonlyArray<ReturnType<typeof FetchHealth>> =>
+  model.daemon._tag === 'Online' ? [] : [FetchHealth()];
+
+export const init = (
+  root: string,
+  favorites: ReadonlyArray<string>,
+  isLocalhost: boolean,
+): Update.Return<Model, Message> => {
   const resolve = resolveRoot(root);
   return {
     model: {
+      daemon: DaemonInfo.Unknown(),
       root,
       favorites,
       resolution: resolve.resolution,
@@ -209,6 +264,7 @@ export const init = (root: string, favorites: ReadonlyArray<string>): Update.Ret
       reference: '',
     },
     commands: [
+      ...(isLocalhost ? [FetchHealth()] : []),
       ...resolve.commands,
       ...(Array.isReadonlyArrayNonEmpty(favorites) ? [PruneFavorites({ favorites })] : []),
     ],
@@ -317,7 +373,12 @@ export const update = (model: Model, message: Message) =>
       };
     },
     GotFolderPickerMessage: ({ message }) => foldFolderPicker(model, message),
-    SucceededFetchWorkspace: ({ resolution }) => ({ model: modifyFields(model, { resolution: () => resolution }) }),
+    SucceededFetchWorkspace: ({ resolution }) => ({
+      model: modifyFields(model, { resolution: () => resolution }),
+      // The daemon may have started after the page loaded.
+      commands: checkDaemon(model),
+    }),
+    CompletedFetchHealth: ({ daemon }) => ({ model: modifyFields(model, { daemon: () => daemon }) }),
     FailedFetchWorkspace: () => ({ model: modifyFields(model, { resolution: () => offlineResolution(sampleSkills) }) }),
     CompletedPruneFavorites: ({ kept }) =>
       kept.length === model.favorites.length

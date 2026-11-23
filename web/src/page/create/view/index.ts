@@ -122,7 +122,7 @@ const activeStep = (model: Model, context: AppContext, h: HtmlBuilder<Message>):
   if (model.step === 'assertions') {
     return stepAssertions(model, context.env, h);
   }
-  return stepReview(model, h);
+  return stepReview(model, context.env, h);
 };
 
 const navigation = (model: Model, h: HtmlBuilder<Message>): Html => {

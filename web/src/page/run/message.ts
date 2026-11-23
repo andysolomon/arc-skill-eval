@@ -34,6 +34,8 @@ export const Message = defineMessageUnion({
   FailedStartRun: { attempt: Schema.Number, error: Schema.String },
   ReceivedRunEvent: { event: RunEvent, receivedAtMs: Schema.Number },
   CompletedDeleteRun: {},
+  SucceededLoadSuiteCases: { workspaceRoot: Schema.String, caseIds: Schema.Array(Schema.String) },
+  FailedLoadSuiteCases: { workspaceRoot: Schema.String, error: Schema.String },
   CompletedLoadLastRunId: { maybeLastRunId: Schema.Option(Schema.String) },
   CompletedSaveLastRunId: { runId: Schema.String },
   CompletedShowAlert: {},

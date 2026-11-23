@@ -28,7 +28,7 @@ export const view = (demo: PiDemo, h: HtmlBuilder<Message>): Html => {
           h.span([h.Style(sx({ color: 'var(--tt-fg)' }))], ['@earendil-works/pi-coding-agent']),
           '). the choice is philosophical as much as technical: an agent is ',
           h.span([h.Style(sx({ color: 'var(--tt-fg)' }))], ['an llm, a loop, and enough tokens']),
-          '. a tool registry, an inner loop, and a parser. production complexity is engineering, not architecture.',
+          '. in code, that means a tool registry, an inner loop, and a parser. production complexity is engineering, not architecture.',
         ],
       ),
       sectionKicker({ style: { marginBottom: 6 } }, ['why a small harness'], h),
@@ -47,7 +47,7 @@ export const view = (demo: PiDemo, h: HtmlBuilder<Message>): Html => {
         [
           'an eval is only as trustworthy as the machinery between the prompt and the trace. a small, legible runtime means the artifacts describe the ',
           h.span([h.Style(sx({ color: 'var(--tt-fg-dark)' }))], ["skill's"]),
-          " behavior. not a framework's.",
+          " behavior, not a framework's.",
         ],
       ),
       h.div(
@@ -248,7 +248,7 @@ export const view = (demo: PiDemo, h: HtmlBuilder<Message>): Html => {
                           h.span([h.Style(sx({ color: 'var(--tt-green)', fontWeight: 700 }))], ['✓ done']),
                           h.span(
                             [h.Style(sx({ color: 'var(--tt-comment)' }))],
-                            [' . the model stopped calling tools; artifacts written'],
+                            [' · the model stopped calling tools and the artifacts are written'],
                           ),
                         ],
                       ),
@@ -276,7 +276,7 @@ export const view = (demo: PiDemo, h: HtmlBuilder<Message>): Html => {
       ),
       h.div(
         [h.Style(sx({ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.6, marginBottom: 32 }))],
-        ["that's the whole story. nothing hidden in a framework layer. when a check fails, the trace explains it."],
+        ["that's the whole story, with nothing hidden in a framework layer. when a check fails, the trace explains it."],
       ),
       sectionKicker({ style: { marginBottom: 6 } }, ['one flag, any model'], h),
       h.div(
@@ -292,7 +292,7 @@ export const view = (demo: PiDemo, h: HtmlBuilder<Message>): Html => {
           ),
         ],
         [
-          "arc-skill-eval inherits Pi's provider registry, so the runner and the judge each pin to any configured model. or fall back to Pi's default when unpinned.",
+          "arc-skill-eval inherits Pi's provider registry, so the runner and the judge can each pin any configured model, or fall back to Pi's default when unpinned.",
         ],
       ),
       h.div(
@@ -361,7 +361,7 @@ export const view = (demo: PiDemo, h: HtmlBuilder<Message>): Html => {
             [h.Style(sx({ color: 'var(--tt-orange)', fontWeight: 700 }))],
             ["the judge defaults to the runner's model."],
           ),
-          " that means the model grades its own output. fine for smoke tests, biased for anything you'll act on. pin ",
+          " that means the model grades its own output. that is fine for smoke tests but biased for anything you'll act on. pin ",
           h.span([h.Style(sx({ color: 'var(--tt-fg)' }))], ['--judge-model']),
           ' to a different model when the verdict matters. a small cheap judge (ministral-8b) grades tight rubrics well.',
         ],
@@ -518,7 +518,7 @@ export const view = (demo: PiDemo, h: HtmlBuilder<Message>): Html => {
             }),
           ),
         ],
-        ['the eval must measure the skill, not your personal setup. so by default nothing ambient rides along.'],
+        ['the eval must measure the skill, not your personal setup, so by default nothing ambient is loaded.'],
       ),
       h.div(
         [
@@ -594,7 +594,7 @@ export const view = (demo: PiDemo, h: HtmlBuilder<Message>): Html => {
               h.div(
                 [h.Style(sx({ color: 'var(--tt-comment)', fontSize: 12.5, lineHeight: 1.55 }))],
                 [
-                  'opt in to your normal Pi loadout. extension tools, MCP-style tools, configured resources. use it to test how the skill behaves in a crowded context.',
+                  'opt in to your normal Pi loadout: extension tools, MCP-style tools, and configured resources. use it to test how the skill behaves in a crowded context.',
                 ],
               ),
             ],
@@ -606,7 +606,7 @@ export const view = (demo: PiDemo, h: HtmlBuilder<Message>): Html => {
         [
           'either way, the resolved loadout is recorded in ',
           h.span([h.Style(sx({ color: 'var(--tt-fg-dark)' }))], ['context-manifest.json']),
-          '. so when a skill misfires, you can see exactly what else was in the room.',
+          ', so when a skill misfires, you can see everything else that was in context.',
         ],
       ),
       sectionKicker({ style: { marginBottom: 6 } }, ['where bash runs'], h),
@@ -648,7 +648,7 @@ export const view = (demo: PiDemo, h: HtmlBuilder<Message>): Html => {
               h.div(
                 [h.Style(sx({ color: 'var(--tt-comment)', fontSize: 12.5, lineHeight: 1.55 }))],
                 [
-                  'the case runs in a temp workspace on your machine. real shell, real npm. right for skills whose commands must actually work.',
+                  'the case runs in a temp workspace on your machine, with a real shell and real npm. use it for skills whose commands must actually work.',
                 ],
               ),
             ],
@@ -663,7 +663,7 @@ export const view = (demo: PiDemo, h: HtmlBuilder<Message>): Html => {
               h.div(
                 [h.Style(sx({ color: 'var(--tt-comment)', fontSize: 12.5, lineHeight: 1.55 }))],
                 [
-                  'bash executes in an in-process virtual shell rooted at the case workspace. no host shell, repo tree never touched. ',
+                  'bash executes in an in-process virtual shell rooted at the case workspace. it never reaches the host shell or touches the repo tree. ',
                   h.span([h.Style(sx({ color: 'var(--tt-fg-dark)' }))], ['npm']),
                   ' / ',
                   h.span([h.Style(sx({ color: 'var(--tt-fg-dark)' }))], ['npx']),

@@ -314,9 +314,9 @@ const localhostPanel = (config: PanelConfig, h: HtmlBuilder<Message>): Html => {
             ? h.div(
                 [h.Style(introStyle)],
                 [
-                  'Use review notes and failed assertions to propose changes to prompts, assertions, fixtures, or adjacent-negative cases. Review the plan before passing ',
-                  h.span([h.Style(sx({ color: 'var(--tt-yellow)' }))], ['--apply']),
-                  '.',
+                  'The daemon turns your notes into a feedback file and runs ',
+                  h.span([h.Style(sx({ color: 'var(--tt-yellow)' }))], ['arc-skill-eval improve --apply']),
+                  ' on a copy of evals/evals.json. Review the result, then apply it to the skill.',
                 ],
               )
             : h.empty,

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { auditCommand, renderAuditMarkdown } from "./audit-command.js";
@@ -11,6 +12,7 @@ import { jsonError, jsonResult } from "./json-output.js";
 import { initRuntimeCommand } from "./init-runtime-command.js";
 import { optimizeDescriptionCommand, type OptimizeDescriptionRunResult, type ScoreDescriptionResult } from "./optimize-description-command.js";
 import { packageCommand } from "./package-command.js";
+import { resolvePackageRoot } from "./package-root.js";
 import { reviewCommand } from "./review-command.js";
 import { runEvalsCommand } from "./run-evals-command.js";
 import { renderHelp, parseCliArgs } from "./argv.js";
@@ -169,6 +171,15 @@ function formatInstallSkillsSummary(result: InstallSkillsCommandResult): string 
   return lines.join("\n");
 }
 
+function readPackageVersion(): string {
+  const packageJsonPath = path.join(resolvePackageRoot(), "package.json");
+  const { version } = JSON.parse(readFileSync(packageJsonPath, "utf8")) as { version?: unknown };
+  if (typeof version !== "string") {
+    throw new CliCommandError(`${packageJsonPath} has no version field.`);
+  }
+  return version;
+}
+
 /**
  * Interactive commands render to a terminal and wait for keypresses. Agent
  * shell tools never provide one, so fail fast instead of hanging or crashing
@@ -189,12 +200,16 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
     const parsed = parseCliArgs(argv);
 
     switch (parsed.command) {
-      case "help":
-        return {
-          exitCode: 0,
-          stdout: `${renderHelp()}\n`,
-          stderr: "",
-        };
+      case "help": {
+        const help = renderHelp(parsed.topic);
+        if (jsonMode) return jsonResult({ command: parsed.topic ?? null, help });
+        return { exitCode: 0, stdout: `${help}\n`, stderr: "" };
+      }
+      case "version": {
+        const version = readPackageVersion();
+        if (jsonMode) return jsonResult({ version });
+        return { exitCode: 0, stdout: `${version}\n`, stderr: "" };
+      }
       case "init-runtime": {
         const result = await initRuntimeCommand({
           targetDir: parsed.targetDir,

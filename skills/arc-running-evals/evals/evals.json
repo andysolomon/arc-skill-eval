@@ -34,28 +34,30 @@
           "id": "ran-run-with-json",
           "kind": "behavior",
           "method": "tool-call-required",
-          "match": "arc-skill-eval[^\\n]*\\brun\\b[^\\n]*--json",
+          "value": "bash",
+          "match": "(?:^|[;&|(\\x60\\n])\\s*(?:(?:if|then|else|do|while|until|time|exec|command|!)\\s+)*(?:[A-Za-z_][A-Za-z0-9_]*=\\S*\\s+)*(?:npx\\s+(?:-\\S+\\s+)*)?arc-skill-eval(?=\\s|$)\\s+run\\s[^\\n;&|]*--json\\b",
           "matchKind": "regex"
         },
         {
           "id": "smoke-used-case",
           "kind": "behavior",
           "method": "tool-call-required",
-          "match": "arc-skill-eval[^\\n]*\\brun\\b[^\\n]*--case",
+          "value": "bash",
+          "match": "(?:^|[;&|(\\x60\\n])\\s*(?:(?:if|then|else|do|while|until|time|exec|command|!)\\s+)*(?:[A-Za-z_][A-Za-z0-9_]*=\\S*\\s+)*(?:npx\\s+(?:-\\S+\\s+)*)?arc-skill-eval(?=\\s|$)\\s+run\\s[^\\n;&|]*--case\\b",
           "matchKind": "regex"
         },
         {
           "id": "no-unapproved-compare",
           "kind": "behavior",
-          "method": "tool-call-forbidden",
-          "match": "arc-skill-eval[^\\n]*--compare",
+          "method": "command-forbidden",
+          "match": "(?:^|[;&|(\\x60\\n])\\s*(?:(?:if|then|else|do|while|until|time|exec|command|!)\\s+)*(?:[A-Za-z_][A-Za-z0-9_]*=\\S*\\s+)*(?:npx\\s+(?:-\\S+\\s+)*)?arc-skill-eval(?=\\s|$)[^\\n;&|]*\\s--compare\\b",
           "matchKind": "regex"
         },
         {
           "id": "no-interactive-commands",
           "kind": "behavior",
-          "method": "tool-call-forbidden",
-          "match": "arc-skill-eval[^\\n]*(\\bbrowse\\b|--interactive)",
+          "method": "command-forbidden",
+          "match": "(?:^|[;&|(\\x60\\n])\\s*(?:(?:if|then|else|do|while|until|time|exec|command|!)\\s+)*(?:[A-Za-z_][A-Za-z0-9_]*=\\S*\\s+)*(?:npx\\s+(?:-\\S+\\s+)*)?arc-skill-eval(?=\\s|$)(?:\\s+browse(?=\\s|$)|[^\\n;&|]*\\s--interactive\\b)",
           "matchKind": "regex"
         },
         {
@@ -108,8 +110,8 @@
         {
           "id": "no-unapproved-compare",
           "kind": "behavior",
-          "method": "tool-call-forbidden",
-          "match": "arc-skill-eval[^\\n]*--compare",
+          "method": "command-forbidden",
+          "match": "(?:^|[;&|(\\x60\\n])\\s*(?:(?:if|then|else|do|while|until|time|exec|command|!)\\s+)*(?:[A-Za-z_][A-Za-z0-9_]*=\\S*\\s+)*(?:npx\\s+(?:-\\S+\\s+)*)?arc-skill-eval(?=\\s|$)[^\\n;&|]*\\s--compare\\b",
           "matchKind": "regex"
         },
         {
@@ -155,7 +157,8 @@
           "id": "ran-run-with-json",
           "kind": "behavior",
           "method": "tool-call-required",
-          "match": "arc-skill-eval[^\\n]*\\brun\\b[^\\n]*--json",
+          "value": "bash",
+          "match": "(?:^|[;&|(\\x60\\n])\\s*(?:(?:if|then|else|do|while|until|time|exec|command|!)\\s+)*(?:[A-Za-z_][A-Za-z0-9_]*=\\S*\\s+)*(?:npx\\s+(?:-\\S+\\s+)*)?arc-skill-eval(?=\\s|$)\\s+run\\s[^\\n;&|]*--json\\b",
           "matchKind": "regex"
         },
         {
@@ -197,14 +200,15 @@
           "id": "ran-compare-with-json",
           "kind": "behavior",
           "method": "tool-call-required",
-          "match": "arc-skill-eval[^\\n]*\\brun\\b[^\\n]*--compare[^\\n]*--json|arc-skill-eval[^\\n]*\\brun\\b[^\\n]*--json[^\\n]*--compare",
+          "value": "bash",
+          "match": "(?:^|[;&|(\\x60\\n])\\s*(?:(?:if|then|else|do|while|until|time|exec|command|!)\\s+)*(?:[A-Za-z_][A-Za-z0-9_]*=\\S*\\s+)*(?:npx\\s+(?:-\\S+\\s+)*)?arc-skill-eval(?=\\s|$)\\s+run\\s(?=[^\\n;&|]*--compare\\b)(?=[^\\n;&|]*--json\\b)",
           "matchKind": "regex"
         },
         {
           "id": "did-not-launch-browse",
           "kind": "behavior",
-          "method": "tool-call-forbidden",
-          "match": "arc-skill-eval[^\\n]*\\bbrowse\\b",
+          "method": "command-forbidden",
+          "match": "(?:^|[;&|(\\x60\\n])\\s*(?:(?:if|then|else|do|while|until|time|exec|command|!)\\s+)*(?:[A-Za-z_][A-Za-z0-9_]*=\\S*\\s+)*(?:npx\\s+(?:-\\S+\\s+)*)?arc-skill-eval(?=\\s|$)\\s+browse(?=\\s|$)",
           "matchKind": "regex"
         },
         {
@@ -246,8 +250,8 @@
         {
           "id": "ran-no-cli",
           "kind": "behavior",
-          "method": "tool-call-forbidden",
-          "match": "arc-skill-eval|npx",
+          "method": "command-forbidden",
+          "match": "(?:^|[;&|(\\x60\\n])\\s*(?:(?:if|then|else|do|while|until|time|exec|command|!)\\s+)*(?:[A-Za-z_][A-Za-z0-9_]*=\\S*\\s+)*(?:npx|arc-skill-eval)(?=\\s|$)",
           "matchKind": "regex"
         },
         "The response explains that a regex-match assertion with a target file checks the file's contents against the regular expression after the run."

@@ -303,7 +303,7 @@ Required cross-chapter deep dives:
 ## Cross-references
 
 - [ADR-0002](../adr/ADR-0002-web-app-stack-vite-react-ts-tailwind-token-mapped.md)
-  — Vite + React + TS stack, Zustand `section`/`env` state, `1`-`5` routing, and
+  — Vite + TS stack (Foldkit since ADR-0008), root Model `section`/`env` fields, `1`-`5` routing, and
   MDX chapter-series allowance for `learn`.
 - [ADR-0004](../adr/ADR-0004-no-auth-single-user-indexeddb-hosted.md) — no-auth,
   single-user, IndexedDB persistence boundary; `learnProgress` is browser-local.

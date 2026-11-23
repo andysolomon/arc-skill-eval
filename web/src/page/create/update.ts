@@ -97,9 +97,9 @@ const goToStep = (model: Model, step: Step): Model =>
     ? model
     : modifyFields(model, { step: () => step, suggest: () => Suggest.Idle(), stage: () => Stage.Idle() });
 
-const seedDraft = (model: Model, skill: string, rows: ReadonlyArray<BehaviorRow>): Model =>
+const seedDraft = (model: Model, skill: string, rows: ReadonlyArray<BehaviorRow>, source?: unknown): Model =>
   goToStep(
-    mutateDraft(model, () => ({ skill, behaviors: rows })),
+    mutateDraft(model, () => ({ skill, behaviors: rows, ...(source === undefined ? {} : { source }) })),
     'behaviors',
   );
 
@@ -148,6 +148,28 @@ const skillPathFor = (context: AppContext, skillId: string): Option.Option<strin
     Option.flatMap((skill) => skill.path),
   );
 
+/**
+ * The skill folder a localhost write goes to (the daemon writes
+ * <folder>/evals/evals.json): the skill the suite was loaded or drafted
+ * from, else the skill picked in the banner, else the workspace skill named
+ * like the suite, else the workspace root, which the daemon refuses unless it
+ * is a skill folder itself.
+ */
+const writeTarget = (model: Model, context: AppContext): string =>
+  Option.getOrElse(
+    Option.orElse(model.maybeEditTargetPath, () =>
+      Option.orElse(
+        Option.flatMap(model.banner.maybeSelectedSkillId, (skillId) => skillPathFor(context, skillId)),
+        () =>
+          Array.findFirst(
+            context.workspace.skills,
+            (skill) => skill.id === model.draft.skill || Option.contains(skill.name, model.draft.skill),
+          ).pipe(Option.flatMap((skill) => skill.path)),
+      ),
+    ),
+    () => context.workspace.root,
+  );
+
 const transition = (model: Model, message: Message, context: AppContext): UpdateReturn =>
   Message.match<UpdateReturn>(message, {
     CompletedLoadCreateProgress: ({ maybeDraft, maybeStep }) => ({
@@ -174,10 +196,7 @@ const transition = (model: Model, message: Message, context: AppContext): Update
     }),
 
     UpdatedSkill: ({ value }) => ({
-      model: modifyFields(
-        mutateDraft(model, (draft) => modifyFields(draft, { skill: () => value })),
-        { maybeEditTargetPath: () => Option.none() },
-      ),
+      model: mutateDraft(model, (draft) => modifyFields(draft, { skill: () => value })),
     }),
     ClickedAddBehavior: () => ({ model, commands: [CreateBehaviorId()] }),
     CompletedCreateBehaviorId: ({ id }) => ({ model: appendRow(model, makeBehaviorRow(id)) }),
@@ -380,7 +399,7 @@ const transition = (model: Model, message: Message, context: AppContext): Update
           skill,
           rows,
         ),
-        { maybeEditTargetPath: () => Option.none() },
+        { maybeEditTargetPath: () => skillPathFor(context, skill) },
       ),
     }),
     FailedGenerateEvals: ({ error }) => ({
@@ -390,7 +409,7 @@ const transition = (model: Model, message: Message, context: AppContext): Update
           : banner,
       ),
     }),
-    SucceededLoadSkillEvals: ({ skill, rows, skillPath }) => ({
+    SucceededLoadSkillEvals: ({ skill, rows, skillPath, source }) => ({
       model: modifyFields(
         seedDraft(
           modifyBanner(model, (banner) =>
@@ -403,6 +422,7 @@ const transition = (model: Model, message: Message, context: AppContext): Update
           ),
           skill,
           rows,
+          source,
         ),
         { maybeEditTargetPath: () => Option.some(skillPath) },
       ),
@@ -433,7 +453,7 @@ const transition = (model: Model, message: Message, context: AppContext): Update
         model: modifyFields(model, { stage: () => Stage.Staging() }),
         commands: [
           StagePlan({
-            workspaceRoot: Option.getOrElse(model.maybeEditTargetPath, () => context.workspace.root),
+            skillDir: writeTarget(model, context),
             draft: model.draft,
           }),
         ],

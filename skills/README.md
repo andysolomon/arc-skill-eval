@@ -37,10 +37,10 @@ ln -s "$(pwd)/node_modules/arc-skill-eval/skills/arc-creating-evals" ~/.claude/s
 
 ## Bundled skills
 
-- **`arc-creating-evals`** — interview-style skill that authors an `evals/evals.json` test suite for an existing skill. Follows the Anthropic skill-eval methodology. See `arc-creating-evals/SKILL.md`.
+- **`arc-creating-evals`**: interviews the author, then writes an `evals/evals.json` test suite for an existing skill, following the Anthropic skill-eval methodology. See `arc-creating-evals/SKILL.md`.
 - **`arc-evals-lite`**: writes and runs evals with no CLI, using the agent you already have. Each case runs in a fresh sub-agent or headless agent CLI, and lite refuses to run in a harness that can't start one rather than grade its own answers. It checks files, regexes, JSON, and judge assertions, writes results in the CLI's `evals-runs/` layout, and skips tool-call checks, saying they need the CLI. Its evals use a fake `claude` binary in the `just-bash` sandbox to test both the refuse-without-isolation path and a full headless run. See `arc-evals-lite/SKILL.md`.
-- **`arc-running-evals`**: runs an existing suite through the CLI's `--json` output, explains each failure (skill bug, eval bug, or environment problem), and drives review → improve → re-run. It asks before full-suite, `--compare`, or nested-harness runs, because each of those costs money. Its own evals run in the `just-bash` sandbox with a mocked `arc-skill-eval` binary, so they only cost the model calls. See `arc-running-evals/SKILL.md`.
-- **`hello-world`** — deterministic reference skill + permanent smoke test. Writes `greeting.txt` in response to any "create a greeting" prompt. Ships with three eval cases demonstrating `file-exists`, file-targeted `regex-match`, assistant-text `regex-match`, and string (LLM-judged) assertions side-by-side. Use this as a worked example when authoring your own `evals/evals.json`, and as a cheap sanity check when debugging the framework:
+- **`arc-running-evals`**: runs an existing suite through the CLI's `--json` output, explains each failure (skill bug, eval bug, or environment problem), and drives the review, improve, and re-run loop. It asks before full-suite, `--compare`, or nested-harness runs, because each of those costs money. Its own evals run in the `just-bash` sandbox with a mocked `arc-skill-eval` binary, so they only cost the model calls. See `arc-running-evals/SKILL.md`.
+- **`hello-world`**: a deterministic reference skill and permanent smoke test. It writes `greeting.txt` in response to any "create a greeting" prompt. Its three eval cases use only deterministic assertions: `file-exists`, file-targeted `regex-match`, and assistant-text `regex-match`. None of them calls the judge. Use it as a worked example when authoring your own `evals/evals.json`, and as a cheap sanity check when debugging the framework:
    ```bash
    arc-skill-eval run "$(arc-skill-eval bundled hello-world)"
    ```
@@ -59,4 +59,4 @@ Dogfood skills with full fixture trees live under `pilots/` and are not shipped 
 
 ## Authoring your own bundled skills
 
-Follow the [agentskills.io specification](https://agentskills.io) for `SKILL.md` frontmatter. When your skill targets `arc-skill-eval` specifically, document the output format (`evals/evals.json` shape in `src/evals/types.ts`) and the CLI entry points (`arc-skill-eval run`, `arc-skill-eval validate`) it expects.
+Follow the [agentskills.io specification](https://agentskills.io) for `SKILL.md` frontmatter. When your skill targets `arc-skill-eval` specifically, document the output format it expects (the `evals/evals.json` shape, described on the [docs site](https://andysolomon.github.io/arc-skill-eval/concepts/eval-cases/)) and the CLI commands it calls, such as `arc-skill-eval run` and `arc-skill-eval emit --check`. There is no separate validate command: `run` and `emit` validate `evals.json` when they load it. `arc-skill-eval --help` lists every command.
