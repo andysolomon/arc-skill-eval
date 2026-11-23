@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
+import type { Key } from 'ink';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { COLORS, segLen } from './theme.js';
@@ -36,6 +37,20 @@ function applyCaseView(cases: Case[], filter: string, failOnly: boolean): Case[]
   if (failOnly) v = v.filter((c) => c.status !== 'pass');
   if (filter) { const m = v.filter((c) => matchStr(c.id, filter)); v = m.length ? m : v; }
   return v;
+}
+
+/**
+ * Printable text from one input event, or '' for a control key. Ink delivers
+ * a paste as a single event with the whole string, so this keeps every
+ * character, not only one. Line breaks and tabs become spaces, and the
+ * bracketed-paste markers and other control characters are dropped.
+ */
+function typedText(input: string, key: Key): string {
+  if (!input || key.ctrl || (key.meta && input.length === 1)) return '';
+  return input
+    .replace(/\x1b?\[20[01]~/g, '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/[\x00-\x1f\x7f]/g, '');
 }
 
 /** Write/merge a feedback.json note matching the schema `improve` consumes. */
@@ -261,7 +276,7 @@ function StatusBar({ focused, caseMode, pane, sk, filter, filtering, failOnly, s
         ) : filtering ? (
           <Text><Text color={COLORS.yellow} bold>{'/ '}</Text><Text color={COLORS.fg}>{filter}</Text><Text color={COLORS.blue}>{GLYPHS.accent}</Text></Text>
         ) : flash ? (
-          <Text color={COLORS.green}>{flash}</Text>
+          <Text color={COLORS.green} wrap="truncate-start">{flash}</Text>
         ) : (
           <Box>
             {filter ? <Text color={COLORS.cyan}>{'/' + filter + '  '}</Text> : null}
@@ -395,14 +410,16 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
       }
       if (key.escape) { setNoting(false); return; }
       if (key.backspace || key.delete) { setNote((n) => n.slice(0, -1)); return; }
-      if (input && input.length === 1 && input >= ' ' && !key.ctrl && !key.meta) { setNote((n) => n + input); return; }
+      const typed = typedText(input, key);
+      if (typed) { setNote((n) => n + typed); return; }
       return;
     }
     if (filtering) {
       if (key.return) { setFiltering(false); return; }
       if (key.escape) { setFiltering(false); setFilter(''); return; }
       if (key.backspace || key.delete) { setFilter((f) => f.slice(0, -1)); return; }
-      if (input && input.length === 1 && input >= ' ' && !key.ctrl && !key.meta) { setFilter((f) => f + input); return; }
+      const typed = input.length > 1 ? typedText(input, key).trim() : typedText(input, key);
+      if (typed) { setFilter((f) => f + typed); return; }
       return;
     }
     if (flash) setFlash('');
