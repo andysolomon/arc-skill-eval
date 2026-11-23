@@ -50,6 +50,8 @@ Each payload has `schemaVersion` plus these fields.
 | `package` | `skillDir`, `skillName`, `outputPath`, `fileCount`, `totalBytes`, `manifest` |
 | `init-runtime` | `targetDir`, `modelsPath`, `settingsPath`, `provider`, `model`, `overwritten` |
 | `install-skills` | `target`, `installed[]` with `skill` and `path`, `skipped[]` with `skill`, `path`, and `reason` |
+| `--help`, `<command> --help` | `command` (the command name, or `null` for the root help), `help` (the text) |
+| `--version` | `version` |
 
 For `run`, `summary` has `totalCases`, `passedCases`, `failedCases`, `totalAssertions`, `passedAssertions`, `failedAssertions`, `softFailedAssertions`, and `assertionPassRate`. Each entry in `skills[]` has `skillName`, `skillDir`, `outputDir`, `cases[]`, and `errors[]`. Compare runs also have `benchmark` and `benchmarkPath`.
 

@@ -229,7 +229,7 @@ Options:
 
 `browse` needs a terminal and does not accept `--json`.
 
-On terminals with fewer colors, the browser drops from truecolor to 16-color ANSI. Without a UTF-8 locale, it draws boxes and bars in ASCII. To force these fallbacks, set `NO_COLOR` or `FORCE_COLOR=0` for no color, or `ARC_TUI_ASCII=1` for ASCII glyphs. The re-run starts `arc-skill-eval` from your `PATH`. Set `ARC_SKILL_EVAL_BIN` to use a different binary.
+On terminals with fewer colors, the browser drops from truecolor to 16-color ANSI. Without a UTF-8 locale, it draws boxes and bars in ASCII. To force these fallbacks, set `NO_COLOR` or `FORCE_COLOR=0` for no color, or `ARC_TUI_ASCII=1` for ASCII glyphs. A re-run happens inside the browser's own process, so it needs no `arc-skill-eval` on `PATH`.
 
 See [Browse (TUI)](/arc-skill-eval/browse/) for every panel and keybinding.
 
@@ -663,7 +663,9 @@ arc-skill-eval install-skills
 ## Help
 
 ```bash
-arc-skill-eval --help
+arc-skill-eval --help          # every command's usage line
+arc-skill-eval run --help      # one command's usage and notes
+arc-skill-eval --version       # the installed version
 ```
 
-This prints the usage line for every command and notes on each one.
+`<command> --help` works for all twelve commands, and so does `arc-skill-eval help <command>`. With `--json`, help prints `{ "schemaVersion": 1, "command", "help" }` and `--version` prints `{ "schemaVersion": 1, "version" }`.

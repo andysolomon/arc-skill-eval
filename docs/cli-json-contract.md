@@ -44,6 +44,8 @@
 | `package` | `skillDir`, `skillName`, `outputPath`, `fileCount`, `totalBytes`, `manifest` |
 | `init-runtime` | `targetDir`, `modelsPath`, `settingsPath`, `provider`, `model`, `overwritten` |
 | `install-skills` | `target`, `installed[]` (`skill`, `path`), `skipped[]` (`skill`, `path`, `reason`) |
+| `--help`, `<command> --help` | `command` (the command name, or `null` for the root help), `help` (the text) |
+| `--version` | `version` |
 
 `bundled --json` is the one exception: it prints a bare array of `{ name, path }` and has no `schemaVersion`, to stay compatible with scripts written before this contract.
 

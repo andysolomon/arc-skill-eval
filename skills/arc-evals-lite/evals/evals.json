@@ -205,7 +205,7 @@
           "kind": "behavior",
           "method": "tool-call-required",
           "value": "bash",
-          "match": "(?:^\\s*|[;&|(`\\n]\\s*|\\b(?:if|then|else|do|while|until|command -v|which|type|hash|npx)\\s+|!\\s*)arc-skill-eval(?:\\s|$)",
+          "match": "(?:^\\s*|[;&|(`\\n]\\s*|\\b(?:if|then|else|do|while|until|command -v|which|type|hash|npx(?:\\s+-{1,2}[\\w-]+)*)\\s+|!\\s*)arc-skill-eval(?:\\s|$)",
           "matchKind": "regex"
         },
         {

@@ -64,7 +64,7 @@ The detail pane scrolls freely by default. Press `→`, `l`, or `↵` to place a
 
 Press `r` to run the selected skill or case in the TUI. A console overlays the browser with a spinner, elapsed time, and per-case pass bars. When the run finishes, press `↵` to reload the artifacts or `Esc` to abort. In the Skills panel, `r` runs the whole skill. In the Cases panel, it runs only that case. `R` adds `--compare`.
 
-Press `o` to enter custom `run` flags such as `--model`, `--iteration`, `--extra-skill`, or `--context-mode ambient`. The prompt starts with `--model ` in Cases and `--iteration ` in Runs. Press `↵` to run the command and reload, or `Esc` to cancel. This action starts a subprocess, so `arc-skill-eval` must be on `PATH`. Set `ARC_SKILL_EVAL_BIN` to use another binary path.
+Press `o` to enter custom `run` flags such as `--model`, `--iteration`, `--extra-skill`, or `--context-mode ambient`. The prompt starts with `--model ` in Cases and `--iteration ` in Runs. Press `↵` to run the command and reload, or `Esc` to cancel. The run happens inside the browser's own process, so it needs no `arc-skill-eval` on `PATH`. While it runs, `Esc` stops the run, and a second `Esc` closes the console.
 
 ### New eval case (`n`)
 
