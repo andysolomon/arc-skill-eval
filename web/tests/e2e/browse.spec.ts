@@ -1,7 +1,9 @@
+import path from 'node:path';
 import type { Page } from '@playwright/test';
 import { ARTIFACT_PATH, featCommitArtifacts, runsForQuery } from './fixtures/data';
 import type { DaemonMock } from './fixtures/daemon';
-import { expect, goToSection, openApp, switchEnv, test } from './fixtures/test';
+import { createWorkspace, recordArtifact, runSuite, usesDeployedApp } from './fixtures/local';
+import { chooseWorkspace, expect, goToSection, openApp, switchEnv, test } from './fixtures/test';
 
 const runsRail = (page: Page) => page.getByRole('complementary', { name: 'Runs Rail' });
 const caseList = (page: Page) => page.getByRole('region', { name: 'Case List' });
@@ -129,7 +131,39 @@ test.describe('hosted', () => {
   });
 });
 
-test.describe('localhost', () => {
+test.describe('localhost with the real daemon', () => {
+  test.use({ mockDaemon: false });
+  test.skip(usesDeployedApp, 'needs the local daemon the suite starts');
+
+  test('reads a comparison run and its per-variant artifacts from disk', async ({ page, request }, testInfo) => {
+    const workspace = await createWorkspace(testInfo);
+    const alpha = path.join(workspace, 'skills', 'alpha');
+    await runSuite(request, workspace, alpha, { compare: true });
+
+    await openApp(page);
+    await switchEnv(page, 'localhost');
+    await chooseWorkspace(page, workspace);
+    await goToSection(page, 'browse');
+    await expect(page.getByTestId('browse-app')).toBeVisible();
+    await expect(page.getByRole('group', { name: 'browsing skill' }).getByRole('button')).toHaveText(['alpha']);
+
+    await caseList(page).getByRole('button', { name: 'select case eval-greets-the-user' }).click();
+    const surface = detail(page);
+    const variants = surface.getByLabel('variant switch');
+    await expect(variants.getByRole('button')).toHaveText(['with_skill', 'without_skill']);
+    await expect(surface).toContainText('PASS');
+
+    // The Response tab reads assistant.md through the daemon's artifact route.
+    await selectTab(page, 'Response');
+    await expect(surface).toContainText('This answer comes from the replay runtime, not a model.');
+    await selectTab(page, 'Raw');
+    await expect(surface.getByLabel('raw artifact json')).toContainText('"case_id": "greets-the-user"');
+
+    await recordArtifact(testInfo, { skill: 'alpha', compare: true, browsedCase: 'greets-the-user', verdict: 'PASS' });
+  });
+});
+
+test.describe('localhost (daemon responses mocked)', () => {
   const mockDiskRuns = (daemon: DaemonMock) => {
     daemon.on('GET', '/runs', ({ query }) => ({ json: runsForQuery(query) }));
     daemon.on('GET', ARTIFACT_PATH, ({ path }) => {

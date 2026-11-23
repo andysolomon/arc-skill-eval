@@ -35,7 +35,7 @@ const fsHandler = ({ query }: DaemonRequest) => {
   const dir = resolve(query.get('path'));
   const entries = tree[dir];
   if (!entries) {
-    return { json: { ok: false, path: dir, parent: parentOf(dir), error: 'no such directory', entries: [] } };
+    return { json: { ok: false, path: dir, parent: parentOf(dir), error: 'directory not found', entries: [] } };
   }
   return {
     json: {
@@ -179,7 +179,7 @@ test('a stale workspace is flagged and the picker falls back to an ancestor', as
   await expect(page.getByTestId('workspace-chip').getByTitle(/directory not found/)).toBeVisible();
 
   await dropdown(page).getByRole('button', { name: 'Choose a folder' }).click();
-  await expect(picker(page)).toContainText(`✗ no such directory. Showing ${HOME}`);
+  await expect(picker(page)).toContainText(`✗ directory not found. Showing ${HOME}`);
   await expect(folderRow(page, 'src')).toBeVisible();
   await expect(picker(page).getByRole('button', { name: /Select this directory/ })).toBeEnabled();
 
@@ -242,7 +242,7 @@ test('saved directories persist, switch the workspace, and stale ones are pruned
   // A saved directory that no longer exists is dropped on the next load.
   daemon.on('GET', '/fs', (request) =>
     resolve(request.query.get('path')) === `${HOME}/empty`
-      ? { json: { ok: false, path: `${HOME}/empty`, parent: HOME, error: 'gone', entries: [] } }
+      ? { json: { ok: false, path: `${HOME}/empty`, parent: HOME, error: 'directory not found', entries: [] } }
       : fsHandler(request),
   );
   await reloadApp(page);

@@ -1,0 +1,93 @@
+import { createHash } from 'node:crypto';
+import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { expect, type APIRequestContext, type TestInfo } from '@playwright/test';
+
+/**
+ * Helpers for specs that drive the real daemon (web/daemon). Playwright
+ * starts it on E2E_DAEMON_PORT with the replay runtime test seam on (see
+ * playwright.config.ts), and builds the app with VITE_DAEMON_URL pointing at
+ * it. Cases run on the library's replay runtime instead of a model;
+ * everything else (workspaces, grading, artifacts on disk, progress, cancel,
+ * evals.json writes, improve --apply) is the real code path.
+ */
+
+export const E2E_DAEMON_PORT = 7358;
+export const E2E_DAEMON_URL = `http://localhost:${E2E_DAEMON_PORT}`;
+
+/** Real-daemon specs need the local servers; they skip against a deployed app. */
+export const usesDeployedApp = Boolean(process.env.PLAYWRIGHT_BASE_URL);
+
+const fixturesDir = path.dirname(fileURLToPath(import.meta.url));
+const webDir = path.resolve(fixturesDir, '..', '..', '..');
+const workspaceTemplate = path.join(fixturesDir, 'workspace');
+export const workspacesDir = path.join(webDir, 'test-artifacts', 'e2e-workspaces');
+const recordsDir = path.join(webDir, 'test-artifacts', 'e2e');
+
+const slug = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 100);
+
+/**
+ * A fresh copy of fixtures/workspace for one test: skills/alpha (two cases,
+ * one passes on the replay runtime and one fails), skills/beta (no suite) and
+ * skills/gamma (a suite that uses every optional field).
+ */
+export const createWorkspace = async (testInfo: TestInfo): Promise<string> => {
+  const target = path.join(workspacesDir, slug(`${path.basename(testInfo.file)}-${testInfo.title}`));
+  await rm(target, { recursive: true, force: true });
+  await mkdir(path.dirname(target), { recursive: true });
+  await cp(workspaceTemplate, target, { recursive: true });
+  return target;
+};
+
+export const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
+
+export const readText = (file: string) => readFile(file, 'utf8');
+
+/**
+ * Save what a real-daemon test observed as JSON next to its screenshot
+ * (`test-artifacts/e2e/<spec>/<test>.json`). The teardown lists these files,
+ * with their sha256, in manifest.json.
+ */
+export const recordArtifact = async (testInfo: TestInfo, record: unknown): Promise<void> => {
+  const spec = path.basename(testInfo.file).replace(/\.spec\.ts$/, '');
+  const name = slug(testInfo.titlePath.slice(1).join(' '));
+  const file = path.join(recordsDir, spec, `${name}.json`);
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(file, `${JSON.stringify(record, null, 2)}\n`);
+};
+
+/**
+ * Run a skill's suite through the daemon's HTTP API, as the Run page does,
+ * and wait for it to finish. Specs for Review and Browse use this to get a
+ * real run on disk without driving the Run page first.
+ */
+export const runSuite = async (
+  request: APIRequestContext,
+  workspace: string,
+  skillDir: string,
+  options: Readonly<{ compare?: boolean }> = {},
+): Promise<string> => {
+  // Opening the workspace registers it with the daemon, like the workspace chip does.
+  expect((await request.get(`${E2E_DAEMON_URL}/workspace?root=${encodeURIComponent(workspace)}`)).ok()).toBe(true);
+  const response = await request.post(`${E2E_DAEMON_URL}/runs`, {
+    data: { workspaceRoot: skillDir, case: '*', compare: options.compare ? 'on' : 'off' },
+  });
+  expect(response.status()).toBe(201);
+  const { runId } = (await response.json()) as { runId: string };
+  await expect
+    .poll(
+      async () => ((await (await request.get(`${E2E_DAEMON_URL}/runs/${runId}`)).json()) as { status: string }).status,
+      { timeout: 20_000 },
+    )
+    .toBe('completed');
+  return runId;
+};
+
+/** Relative path inside the workspace, so records do not depend on the checkout location. */
+export const relativeTo = (root: string, file: string) => path.relative(root, file).split(path.sep).join('/');
