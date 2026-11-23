@@ -102,7 +102,7 @@ const behaviorTypes: ReadonlyArray<AssertionType> = [
       ih.span([ih.Style(sx({ color: 'var(--tt-fg-dark)' }))], ['never']),
       ' called. ',
       ih.span([ih.Style(sx({ color: 'var(--tt-orange)' }))], ['gotcha:']),
-      ' tool names are case-sensitive , ',
+      ' tool names are case-sensitive: ',
       ih.span([ih.Style(sx({ color: 'var(--tt-fg-dark)' }))], ['Write']),
       ', not ',
       ih.span([ih.Style(sx({ color: 'var(--tt-fg-dark)' }))], ['write']),
@@ -143,14 +143,14 @@ const roadmap: ReadonlyArray<Readonly<{ label: string; desc: Children }>> = [
   {
     label: 'not-regex',
     desc: [
-      'a pattern must NOT appear. e.g. no hardcoded ',
+      'a pattern must NOT appear, for example no hardcoded ',
       ih.span([ih.Style(sx({ color: 'var(--tt-fg-dark)' }))], ['npm publish']),
     ],
   },
   {
     label: 'json-path',
     desc: [
-      'a value at a key equals X , ',
+      'a value at a key equals X, for example ',
       ih.span([ih.Style(sx({ color: 'var(--tt-fg-dark)' }))], ['.on == "pull_request"']),
     ],
   },
@@ -188,7 +188,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
           h.span([h.Style(sx({ color: 'var(--tt-blue)' }))], ['behavior']),
           ' (the run trace is inspected) → ',
           h.span([h.Style(sx({ color: 'var(--tt-magenta)' }))], ['llm-judge']),
-          ' (a rubric decides. burns tokens, keep it last).',
+          ' (a rubric decides; it burns tokens, so keep it last).',
         ],
       ),
       sectionKicker({ style: { marginBottom: 14 } }, ['choosing a check'], h),
@@ -315,7 +315,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
       h.div(
         [h.Style(sx({ color: 'var(--tt-fg-dark)', fontSize: 12.5, lineHeight: 1.6, marginBottom: 14, maxWidth: 820 }))],
         [
-          'still deterministic. no judge. but they read what the run ',
+          'these checks are still deterministic and use no judge, but they read what the run ',
           h.em([], ['did']),
           ' (tool calls, skill reads, touched files) instead of the files it left behind. reach for these when the ',
           h.span([h.Style(sx({ color: 'var(--tt-blue)' }))], ['process']),
@@ -457,7 +457,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
                   ),
                   h.div(
                     [h.Style(sx({ color: 'var(--tt-fg-dark)', fontSize: 12, lineHeight: 1.5 }))],
-                    ['"Done. semantic-release is set up.". names no plugins'],
+                    ['"Done, semantic-release is set up." it names no plugins.'],
                   ),
                 ],
               ),
@@ -543,7 +543,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
             [
               h.div(
                 [h.Style(sx({ color: 'var(--tt-cyan)', fontSize: 12, fontWeight: 700, marginBottom: 8 }))],
-                ['deterministic. fields'],
+                ['fields of a deterministic check'],
               ),
               h.div(
                 [
@@ -613,7 +613,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
             [
               h.div(
                 [h.Style(sx({ color: 'var(--tt-magenta)', fontSize: 12, fontWeight: 700, marginBottom: 8 }))],
-                ['judge. a single criterion'],
+                ['a judge claim'],
               ),
               h.div(
                 [
@@ -633,7 +633,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
               ),
               h.div(
                 [h.Style(sx({ color: 'var(--tt-comment)', fontSize: 12, lineHeight: 1.55 }))],
-                ['one observable claim, graded true / false. not a paragraph, not a checklist.'],
+                ['one observable claim, graded true or false. it is not a paragraph or a checklist.'],
               ),
             ],
           ),
@@ -713,7 +713,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
               ),
               h.div(
                 [h.Style(sx({ color: 'var(--tt-comment)', fontSize: 11.5, marginTop: 6 }))],
-                ['subjective. two people (or two runs) disagree.'],
+                ['subjective, so two people (or two runs) disagree.'],
               ),
             ],
           ),
@@ -780,9 +780,9 @@ export const view = (h: HtmlBuilder<Message>): Html =>
           ),
         ],
         [
-          'a PASS needs concrete evidence that quotes or references the output. never the benefit of the doubt. if the rubric says "includes a summary" and the output has a section titled Summary with one vague sentence, that\'s a ',
+          'a PASS needs concrete evidence that quotes or references the output. never give the benefit of the doubt. if the rubric says "includes a summary" and the output has a section titled Summary with one vague sentence, that\'s a ',
           h.span([h.Style(sx({ color: 'var(--tt-red)' }))], ['FAIL']),
-          ". the label is there, the substance isn't. and while grading, grade the assertions themselves: too easy, too hard, or unverifiable ones get fixed for the next iteration.",
+          ". the label is there, but the substance isn't. while you grade, also grade the assertions themselves, and fix any that are too easy, too hard, or unverifiable before the next iteration.",
         ],
       ),
       h.div(

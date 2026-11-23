@@ -34,9 +34,9 @@ const dimensionCards = [
   {
     accent: 'var(--tt-blue)',
     title: 'process',
-    desc: 'did it trigger the skill and take the intended steps. not a lucky shortcut?',
+    desc: 'did it trigger the skill and take the intended steps, rather than a lucky shortcut?',
     example: [
-      'e.g. reads SKILL.md, runs commitlint. not a raw ',
+      'e.g. reads SKILL.md and runs commitlint, not a raw ',
       ih.span([ih.Style(sx({ color: 'var(--tt-fg)' }))], ['npm publish']),
     ],
     checked: [
@@ -49,7 +49,7 @@ const dimensionCards = [
   {
     accent: 'var(--tt-magenta)',
     title: 'style',
-    desc: 'does the output read the way the skill promises. the conventions, tone, shape?',
+    desc: 'does the output follow the conventions, tone, and shape the skill promises?',
     example: ['e.g. commit subjects read ', ih.span([ih.Style(sx({ color: 'var(--tt-fg)' }))], ['type: summary'])],
     checked: [
       'checked with ',
@@ -76,14 +76,14 @@ const triggerCards = [
   {
     accent: 'var(--tt-green)',
     title: 'explicit',
-    desc: 'names the skill directly. proves direct usage keeps working as you edit. your smoke test.',
+    desc: 'names the skill directly. it proves direct use keeps working as you edit, so it is your smoke test.',
     example: '"Use arc-conventional-commits to set up releases."',
     passes: ['passes when it ', ih.span([ih.Style(sx({ color: 'var(--tt-green)' }))], ['fires and does the task'])],
   },
   {
     accent: 'var(--tt-blue)',
     title: 'implicit',
-    desc: 'describes the scenario without naming it. the real test of whether your description earns the trigger.',
+    desc: 'describes the scenario without naming it. this is the real test of whether your description earns the trigger.',
     example: '"Automate releases from our commit messages."',
     passes: [
       "passes when it's ",
@@ -93,8 +93,8 @@ const triggerCards = [
   {
     accent: 'var(--tt-cyan)',
     title: 'contextual',
-    desc: 'a realistic, noisy prompt with distractions around the real ask. closest to production.',
-    example: '"Our version bumps are a mess. sort out the release flow."',
+    desc: 'a realistic, noisy prompt with distractions around the real ask. it is the closest to production.',
+    example: '"Our version bumps are a mess. Sort out the release flow."',
     passes: [
       'passes when it fires ',
       ih.span([ih.Style(sx({ color: 'var(--tt-cyan)' }))], ['and produces the right structure']),
@@ -103,8 +103,8 @@ const triggerCards = [
   {
     accent: 'var(--tt-orange)',
     title: 'adjacent-negative',
-    desc: 'a nearby request it should NOT fire for. catches false positives. the boundary most skills leak at.',
-    example: '"This PR only edits README. do I need a release?"',
+    desc: 'a nearby request it should NOT fire for. it catches false positives at the boundary where most skills leak.',
+    example: '"This PR only edits README. Do I need a release?"',
     passes: [
       'passes when it ',
       ih.span([ih.Style(sx({ color: 'var(--tt-orange)' }))], ['stays out and writes nothing']),
@@ -123,16 +123,16 @@ const loopCommands = [
   {
     color: 'var(--tt-green)',
     label: 'create',
-    desc: 'scaffold a starter suite. deterministic, guided, or interactive.',
+    desc: 'scaffold a starter suite: deterministic, guided, or interactive.',
   },
   { color: 'var(--tt-blue)', label: 'run', desc: 'execute cases; --compare grades with_skill vs without_skill.' },
-  { color: 'var(--tt-teal)', label: 'audit', desc: 'deterministic skill-quality checks. no model tokens.' },
+  { color: 'var(--tt-teal)', label: 'audit', desc: 'deterministic skill-quality checks that use no model tokens.' },
   { color: 'var(--tt-fg)', label: 'browse', desc: 'a four-panel run browser over the artifacts.' },
   { color: 'var(--tt-yellow)', label: 'review', desc: 'a static report; capture human notes in feedback.json.' },
   {
     color: 'var(--tt-magenta)',
     label: 'improve',
-    desc: 'turn feedback + failures into proposed changes. nothing written without --apply.',
+    desc: 'turn feedback and failures into proposed changes. nothing is written without --apply.',
   },
 ];
 
@@ -214,7 +214,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
             [h.Style(sx({ color: 'var(--tt-fg)' }))],
             ['arc-skill-eval replaces "does this feel better?" with evidence'],
           ),
-          ' . run the skill, capture what happened, and grade it against a small set of checks you can compare over time.',
+          '. it runs the skill, captures what happened, and grades it against a small set of checks you can compare over time.',
         ],
       ),
       sectionKicker({}, ['first, what a skill is'], h),
@@ -236,13 +236,13 @@ export const view = (h: HtmlBuilder<Message>): Html =>
             [
               'a skill is a folder with a ',
               h.span([h.Style(sx({ color: 'var(--tt-teal)' }))], ['SKILL.md']),
-              ' , yaml frontmatter (',
+              ' file that holds yaml frontmatter (',
               h.span([h.Style(sx({ color: 'var(--tt-fg)' }))], ['name']),
               ' + ',
               h.span([h.Style(sx({ color: 'var(--tt-fg)' }))], ['description']),
-              ") plus markdown instructions, and optional scripts and resources. the name and description control invocation: they're what the agent matches a request against to decide ",
+              ") and markdown instructions, plus optional scripts and resources. the name and description control invocation: they're what the agent matches a request against to decide ",
               h.span([h.Style(sx({ color: 'var(--tt-fg)' }))], ['whether']),
-              ' to trigger the skill and pull the rest into context. progressive disclosure keeps it cheap. metadata is always loaded, instructions load on trigger, bundled files only when read.',
+              ' to trigger the skill and pull the rest into context. progressive disclosure keeps it cheap: metadata is always loaded, instructions load on trigger, and bundled files load only when read.',
             ],
           ),
           h.div(
@@ -355,7 +355,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
           ),
         ],
         [
-          'before writing the skill, write down what success means in terms you can measure. keep the list small and must-pass. the behaviors you care about most, across four dimensions.',
+          'before writing the skill, write down what success means in terms you can measure. keep the list small and limited to the must-pass behaviors you care about most, across four dimensions.',
         ],
       ),
       h.div(
@@ -433,7 +433,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
           ),
         ],
         [
-          "invocation depends on the name + description. test that the skill fires when it should , and holds back when it shouldn't. these become your starter cases.",
+          "invocation depends on the name + description. test that the skill fires when it should and holds back when it shouldn't. these become your starter cases.",
         ],
       ),
       h.div(
@@ -521,12 +521,12 @@ export const view = (h: HtmlBuilder<Message>): Html =>
                 [
                   h.div(
                     [h.Style(sx({ color: 'var(--tt-cyan)', fontSize: 13, fontWeight: 700, marginBottom: 4 }))],
-                    ['1 · deterministic. first'],
+                    ['1 · deterministic, first'],
                   ),
                   h.div(
                     [h.Style(sx({ color: 'var(--tt-comment)', fontSize: 12.5, lineHeight: 1.55 }))],
                     [
-                      'scripts check what actually happened: files written, patterns matched, json parsed. fast, free, repeatable, explainable.',
+                      'scripts check what actually happened: files written, patterns matched, json parsed. they are fast, free, repeatable, and explainable.',
                     ],
                   ),
                 ],
@@ -554,7 +554,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
                         }),
                       ),
                     ],
-                    ['2 · llm-judge. where rules fall short'],
+                    ['2 · llm-judge, where rules fall short'],
                   ),
                   h.div(
                     [h.Style(sx({ color: 'var(--tt-comment)', fontSize: 12.5, lineHeight: 1.55 }))],
@@ -624,7 +624,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
                       h.span([h.Style(sx({ color: 'var(--tt-green)' }))], ['with_skill']),
                       ' and again ',
                       h.span([h.Style(sx({ color: 'var(--tt-orange)' }))], ['without_skill']),
-                      '. the delta is the evidence the skill earned its place. not a vibe.',
+                      '. the delta is the evidence that the skill earned its place.',
                     ],
                   ),
                   h.div(
@@ -695,7 +695,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
         [
           "you don't need a benchmark. ",
           h.span([h.Style(sx({ color: 'var(--tt-fg)' }))], ['10–20 prompts']),
-          ' is enough to surface regressions and confirm improvements. start tiny; every manual fix you make while building becomes a new case. so the suite turns into a living record of what the skill must keep getting right.',
+          ' is enough to surface regressions and confirm improvements. start tiny; every manual fix you make while building becomes a new case, so the suite becomes a record of what the skill must keep getting right.',
         ],
       ),
       sectionKicker({}, ['the loop'], h),
@@ -797,7 +797,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
           ),
         ],
         [
-          "the on-disk format follows Anthropic's published skill-eval standard; the methodology , layered grading, small suites that grow from real failures, the with-skill / without-skill comparison as compare with and without the skill. is inspired by OpenAI's work on testing agent skills. the runtime is ",
+          "the on-disk format follows Anthropic's published skill-eval standard. the methodology comes from OpenAI's work on testing agent skills: layered grading, small suites that grow from real failures, and the with-skill / without-skill comparison as the main signal. the runtime is ",
           h.span([h.Style(sx({ color: 'var(--tt-teal)' }))], ['Pi']),
           ': an llm, a loop, and enough tokens.',
         ],
