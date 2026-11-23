@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import type { Key } from 'ink';
 import { promises as fs } from 'node:fs';
@@ -559,8 +559,13 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
   // help visibility is declared with the other state above; the input handler
   // re-registers each render, so it always reads the current value.
 
+  // Every screen fills the terminal. Ink clears the terminal before a frame
+  // only when the frame is at least as tall as the screen, so a shorter
+  // overlay after the full layout was drawn below the old frame's leftovers.
+  const fullScreen = (node: ReactNode) => <Box flexDirection="column" width={cols} minHeight={rowsT}>{node}</Box>;
+
   if (skills.length === 0) {
-    return (
+    return fullScreen(
       <Box padding={1} flexDirection="column">
         <Text color={COLORS.orange}>No eval runs found.</Text>
         <Text color={COLORS.comment}>Run `arc-skill-eval run &lt;skill-dir&gt;` first, then `arc-skill-eval browse`.</Text>
@@ -568,10 +573,10 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
     );
   }
   if (showHelp) return <HelpView rows={rowsT} cols={cols} scroll={helpScroll} />;
-  // Overlays render in place of the layout (mirrors the help overlay) — Ink
-  // stays mounted, so no terminal handoff. Run console takes priority.
-  if (runCtl.state.active) return <RunConsole state={runCtl.state} elapsed={runCtl.elapsed} frame={runCtl.frame} />;
-  if (runOptions && sk) return (
+  // Overlays render in place of the layout, and Ink stays mounted. The run
+  // console takes priority.
+  if (runCtl.state.active) return fullScreen(<RunConsole state={runCtl.state} elapsed={runCtl.elapsed} frame={runCtl.frame} />);
+  if (runOptions && sk) return fullScreen(
     <Box padding={1}>
       <RunOptionsForm
         skillName={sk.id}
@@ -583,7 +588,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
       />
     </Box>
   );
-  if (creating && sk) return (
+  if (creating && sk) return fullScreen(
     <NewCaseForm
       skillDir={sk.dir}
       skillName={sk.id}
@@ -596,7 +601,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
       }}
     />
   );
-  if (creatingSuite && sk) return (
+  if (creatingSuite && sk) return fullScreen(
     <CreateForm
       skillDir={sk.dir}
       skillName={sk.id}
@@ -607,7 +612,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
   );
 
   if (cols < 72 || rowsT < 18) {
-    return (
+    return fullScreen(
       <Box padding={1} flexDirection="column">
         <Text color={COLORS.orange}>Terminal too small.</Text>
         <Text color={COLORS.comment}>{`Resize to at least 72×18 (currently ${cols}×${rowsT}).`}</Text>
