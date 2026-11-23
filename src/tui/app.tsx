@@ -84,10 +84,8 @@ export interface AppState {
   caseMode: CaseMode;
 }
 
-/** Actions the App hands back to the controller loop (browse-command.ts). */
-export type AppAction =
-  | { type: 'quit'; state?: AppState }
-  | { type: 'rerun'; skillDir: string; caseId: string | null; state: AppState; compare?: boolean; extraArgs?: string };
+/** What the App hands back to browse-command.ts when the user quits. */
+export type AppAction = { type: 'quit'; state?: AppState };
 
 const clampIdx = (i: number, len: number): number => Math.max(0, Math.min(Math.max(0, len - 1), i));
 
