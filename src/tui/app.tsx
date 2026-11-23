@@ -55,6 +55,7 @@ function typedText(input: string, key: Key): string {
 
 /** Write/merge a feedback.json note matching the schema `improve` consumes. */
 async function writeFeedback(skill: Skill, caseId: string, note: string): Promise<string> {
+  if (!skill.runDir) throw new Error(`${skill.id} has no run directory`);
   const fpath = path.join(skill.runDir, 'feedback.json');
   let doc: any = null;
   try { doc = JSON.parse(await fs.readFile(fpath, 'utf8')); } catch { doc = null; }
@@ -255,7 +256,7 @@ function emptyFilterView(filter: string, failOnly: boolean): { title: string; su
 
 // ------------------------------------------------------------------ status bar
 
-function StatusBar({ focused, caseMode, pane, sk, filter, filtering, failOnly, sortMode, noting, note, flash }: { focused: Focus; caseMode: CaseMode; pane: boolean; sk: Skill | undefined; filter: string; filtering: boolean; failOnly: boolean; sortMode: SortMode; noting: boolean; note: string; flash: string }) {
+function StatusBar({ focused, caseMode, pane, sk, filter, filtering, failOnly, sortMode, noting, note, flash, flashWarn }: { flashWarn: boolean; focused: Focus; caseMode: CaseMode; pane: boolean; sk: Skill | undefined; filter: string; filtering: boolean; failOnly: boolean; sortMode: SortMode; noting: boolean; note: string; flash: string }) {
   const ud = `${GLYPHS.up}${GLYPHS.down}`;
   const hints: [string, string][] = !sk
     ? [['F', 'failures-only'], ['/', 'filter'], ['?', 'help'], ['q', 'quit']]
@@ -276,7 +277,7 @@ function StatusBar({ focused, caseMode, pane, sk, filter, filtering, failOnly, s
         ) : filtering ? (
           <Text><Text color={COLORS.yellow} bold>{'/ '}</Text><Text color={COLORS.fg}>{filter}</Text><Text color={COLORS.blue}>{GLYPHS.accent}</Text></Text>
         ) : flash ? (
-          <Text color={COLORS.green} wrap="truncate-start">{flash}</Text>
+          <Text color={flashWarn ? COLORS.orange : COLORS.green} wrap="truncate-middle">{flash}</Text>
         ) : (
           <Box>
             {filter ? <Text color={COLORS.cyan}>{'/' + filter + '  '}</Text> : null}
@@ -345,7 +346,9 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
   const [sortMode, setSortMode] = useState<SortMode>('name');
   const [noting, setNoting] = useState(false);
   const [note, setNote] = useState('');
-  const [flash, setFlash] = useState('');
+  const [flash, setFlashText] = useState('');
+  const [flashWarn, setFlashWarn] = useState(false); // warnings and failures render in orange, not green
+  const setFlash = (text: string, warn = false) => { setFlashText(text); setFlashWarn(warn); };
   const [compareBase, setCompareBase] = useState<Run | null>(null);
   const [runOptions, setRunOptions] = useState(false);
   const runCtl = useRunController();              // in-process run console (r / R / o)
@@ -404,7 +407,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
       if (key.return) {
         if (sk && cs) {
           const skill = sk; const caseId = cs.id; const text = note;
-          void writeFeedback(skill, caseId, text).then((p) => setFlash('feedback saved → ' + p)).catch((e) => setFlash('feedback failed: ' + (e?.message ?? String(e))));
+          void writeFeedback(skill, caseId, text).then((p) => setFlash('feedback saved → ' + p)).catch((e) => setFlash('feedback failed: ' + (e?.message ?? String(e)), true));
         }
         setNoting(false); return;
       }
@@ -436,14 +439,18 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
       if (input >= '1' && input <= '4') { setFocused(ORDER[Number(input) - 1]!); return; }
       return;
     }
-    if (input === 'f' && focused === 'cases') { setNote(''); setNoting(true); return; }
+    if (input === 'f' && focused === 'cases') {
+      // feedback.json lives in a run directory, and improve rejects a note without one.
+      if (!sk.runDir) { setFlash(`${sk.id} has no runs yet. Press r to run it before adding a note.`, true); return; }
+      setNote(''); setNoting(true); return;
+    }
     if (input === 'c' && focused === 'runs') { setCompareBase((b) => (b && run && b.runId === run.runId ? null : run ?? null)); return; }
     if (input === 'r') { runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' && cs ? cs.id : null, compare: false }); return; }
     if (input === 'R') { runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' && cs ? cs.id : null, compare: true }); return; }
     if (input === 'n' && (focused === 'skills' || focused === 'cases')) { setCreating(true); return; }
     if (input === 'C' && focused === 'skills') {
       if (sk.dir) setCreatingSuite(true);
-      else setFlash(`skill directory unknown for ${sk.id} — cannot create an eval suite`);
+      else setFlash(`skill directory unknown for ${sk.id}, so there is nowhere to write an eval suite`, true);
       return;
     }
     if (input === 'o') { setRunOptions(true); return; }
@@ -583,7 +590,7 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
         </Box>
         <MainPane title={main.title} sub={main.sub} lines={main.lines} scroll={scroll} maxRows={maxRows} innerWidth={mainInner} cursorLine={cursorLine} paneFocused={pane} />
       </Box>
-      <StatusBar focused={focused} caseMode={caseMode} pane={pane} sk={sk} filter={filter} filtering={filtering} failOnly={failOnly} sortMode={sortMode} noting={noting} note={note} flash={flash} />
+      <StatusBar focused={focused} caseMode={caseMode} pane={pane} sk={sk} filter={filter} filtering={filtering} failOnly={failOnly} sortMode={sortMode} noting={noting} note={note} flash={flash} flashWarn={flashWarn} />
     </Box>
   );
 }
