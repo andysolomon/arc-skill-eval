@@ -95,6 +95,7 @@ const normalizeDraft = (value: unknown): Draft => {
       Schema.decodeUnknownOption(Schema.Array(BehaviorRow))(value.behaviors),
       () => defaultDraft.behaviors,
     ),
+    ...(isRecord(value.source) ? { source: value.source } : {}),
   };
 };
 
@@ -325,9 +326,9 @@ export const LoadSkillEvals = Command.define('LoadSkillEvals', {
       }
       return behaviorsFromEvalsJson(data.evals);
     }, 'could not load evals.json').pipe(
-      Effect.flatMap(({ skill, seeds }) =>
+      Effect.flatMap(({ skill, seeds, source }) =>
         Effect.map(toRows(seeds), (rows) =>
-          Message.SucceededLoadSkillEvals({ skill: skill || skillId, rows, skillPath }),
+          Message.SucceededLoadSkillEvals({ skill: skill || skillId, rows, skillPath, source }),
         ),
       ),
       Effect.catch((error) => Effect.succeed(Message.FailedLoadSkillEvals({ error }))),
@@ -347,14 +348,16 @@ const toStagedPlan = (payload: unknown): StagedPlan => {
   };
 };
 
+/** Stage the suite for <skillDir>/evals/evals.json; the daemon validates it and answers with a diff. */
 export const StagePlan = Command.define('StagePlan', {
-  args: { workspaceRoot: Schema.String, draft: Draft },
+  args: { skillDir: Schema.String, draft: Draft },
   messages: [Message.SucceededStagePlan, Message.FailedStagePlan],
-  execute: ({ workspaceRoot, draft }) =>
+  execute: ({ skillDir, draft }) =>
     daemonCall(async () => {
-      const response = await postJson('/apply-plan', { workspaceRoot, plan: assembleEvalsJson(draft) });
+      const response = await postJson('/apply-plan', { kind: 'evals', skillDir, evals: assembleEvalsJson(draft) });
       if (!response.ok) {
-        throw new Error(`apply plan failed with ${response.status}`);
+        const maybeError = await readJsonError(response);
+        throw new Error(Option.getOrElse(maybeError, () => `apply plan failed with ${response.status}`));
       }
       return toStagedPlan(await readJson(response));
     }, 'apply plan failed').pipe(
@@ -373,7 +376,8 @@ export const CommitPlan = Command.define('CommitPlan', {
     daemonCall(async () => {
       const response = await fetch(planUrl(planId, 'commit'), { method: 'POST' });
       if (!response.ok) {
-        throw new Error(`commit failed with ${response.status}`);
+        const maybeError = await readJsonError(response);
+        throw new Error(Option.getOrElse(maybeError, () => `commit failed with ${response.status}`));
       }
       const result = await readJson(response);
       return isRecord(result) && typeof result.path === 'string' ? Option.some(result.path) : Option.none<string>();

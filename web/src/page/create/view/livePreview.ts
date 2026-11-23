@@ -3,7 +3,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html';
 
 import { sx } from '@/ui/sx';
 
-import { assembleEvalsJson, type Draft, type EvalsAssertion, type EvalsCase } from '../domain';
+import { assembleEvalsJson, type Draft, type EvalsCase } from '../domain';
 import type { Message } from '../message';
 
 const punctStyle = { color: 'var(--tt-comment)' } as const;
@@ -21,15 +21,23 @@ const line = (indent: number, children: ReadonlyArray<Html>, h: HtmlBuilder<Mess
     children,
   );
 
-const formatObjectAssertion = (assertion: Readonly<Record<string, string>>): string =>
+const formatValue = (value: unknown): string =>
+  typeof value === 'string' ? `"${value || '…'}"` : JSON.stringify(value);
+
+const formatObjectAssertion = (assertion: Readonly<Record<string, unknown>>): string =>
   `{ ${Array.join(
-    Array.map(Object.entries(assertion), ([field, value]) => `"${field}": "${value || '…'}"`),
+    Array.map(Object.entries(assertion), ([field, value]) => `"${field}": ${formatValue(value)}`),
     ', ',
   )} }`;
 
-const assertionLine = (assertion: EvalsAssertion, isLast: boolean, h: HtmlBuilder<Message>): Html => {
+const assertionLine = (assertion: unknown, isLast: boolean, h: HtmlBuilder<Message>): Html => {
   const isJudge = typeof assertion === 'string';
-  const content = typeof assertion === 'string' ? `"${assertion || '…'}"` : formatObjectAssertion(assertion);
+  const content =
+    typeof assertion === 'string'
+      ? formatValue(assertion)
+      : typeof assertion === 'object' && assertion !== null && !globalThis.Array.isArray(assertion)
+        ? formatObjectAssertion(assertion as Readonly<Record<string, unknown>>)
+        : JSON.stringify(assertion);
   return line(
     8,
     [
@@ -41,13 +49,15 @@ const assertionLine = (assertion: EvalsAssertion, isLast: boolean, h: HtmlBuilde
   );
 };
 
-const caseLines = (rowId: string, testCase: EvalsCase, isLast: boolean, h: HtmlBuilder<Message>): Html =>
-  h.keyed('div')(
+const caseLines = (rowId: string, testCase: EvalsCase, isLast: boolean, h: HtmlBuilder<Message>): Html => {
+  const assertions = testCase.assertions ?? [];
+  const id = typeof testCase.id === 'number' ? String(testCase.id) : `"${testCase.id}"`;
+  return h.keyed('div')(
     rowId,
     [],
     [
       line(4, [punct('{', h)], h),
-      line(6, [key('id', h), punct(': ', h), h.span([h.Style(sx({ color: 'var(--tt-fg)' }))], ['"', testCase.id, '"']), punct(',', h)], h),
+      line(6, [key('id', h), punct(': ', h), h.span([h.Style(sx({ color: 'var(--tt-fg)' }))], [id]), punct(',', h)], h),
       line(
         6,
         [
@@ -60,13 +70,12 @@ const caseLines = (rowId: string, testCase: EvalsCase, isLast: boolean, h: HtmlB
         true,
       ),
       line(6, [key('assertions', h), punct(': [', h)], h),
-      ...Array.map(testCase.assertions, (assertion, index) =>
-        assertionLine(assertion, index === testCase.assertions.length - 1, h),
-      ),
+      ...Array.map(assertions, (assertion, index) => assertionLine(assertion, index === assertions.length - 1, h)),
       line(6, [punct(']', h)], h),
       line(4, [punct(isLast ? '}' : '},', h)], h),
     ],
   );
+};
 
 export const livePreview = (draft: Draft, h: HtmlBuilder<Message>): Html => {
   const evalsJson = assembleEvalsJson(draft);
