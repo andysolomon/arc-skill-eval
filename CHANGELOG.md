@@ -1,3 +1,30 @@
+## [0.27.1](https://github.com/andysolomon/arc-skill-eval/compare/v0.27.0...v0.27.1) (2026-11-23)
+
+### Bug Fixes
+
+* **cli:** print per-command help, add --version, list --case-timeout in usage ([ae406f3](https://github.com/andysolomon/arc-skill-eval/commit/ae406f32675de6ee9c27aa6728fcdf0130162d96))
+* **daemon:** answer only the web app and keep paths inside the chosen workspace ([f3b3bc2](https://github.com/andysolomon/arc-skill-eval/commit/f3b3bc2de2040c5db5a77167e6086861d4a4f317))
+* **evals:** match tool names in behavior assertions without regard to case ([e7980a7](https://github.com/andysolomon/arc-skill-eval/commit/e7980a76cede08ee34d974e9ec4cbe1bfb5b0309))
+* **skills:** anchor arc-running-evals command checks to the command word ([e0fb13e](https://github.com/andysolomon/arc-skill-eval/commit/e0fb13ef02d12980ef44ae684c84e398c1743bda))
+* **skills:** say which assertions can be soft in arc-creating-evals ([0c0f59a](https://github.com/andysolomon/arc-skill-eval/commit/0c0f59af27041b997ce4a7153c8ffa4aee77b9dc))
+* **skills:** teach assertions and fixture setup that match what the runner does ([22cb4f7](https://github.com/andysolomon/arc-skill-eval/commit/22cb4f7a939e4b9ee038a64d1f9a14ed08b76442))
+* **tokens:** emit the JavaScript the package exports ([72de0e1](https://github.com/andysolomon/arc-skill-eval/commit/72de0e19859398be2700e027e5b768044242237f))
+* **tui:** accept pasted text in the filter and the feedback note ([e56a4cd](https://github.com/andysolomon/arc-skill-eval/commit/e56a4cd41734983ce910827042d9b7b2cc9e6abc))
+* **tui:** draw overlays over the whole screen ([ecf887b](https://github.com/andysolomon/arc-skill-eval/commit/ecf887b0815c56ea44d766d4e6ec2a41d7ee168e))
+* **tui:** fit the help overlay and the case title in an 80x24 terminal ([331db62](https://github.com/andysolomon/arc-skill-eval/commit/331db62bca260ff5d4959e558ebf5b161347feae))
+* **tui:** flag a case with an unreadable grading.json instead of crashing ([dfc7d62](https://github.com/andysolomon/arc-skill-eval/commit/dfc7d62690ccc16cae62a25220fa93f7dd6743b0))
+* **tui:** give the side panels whole-row heights ([22a2e0e](https://github.com/andysolomon/arc-skill-eval/commit/22a2e0e57686bd8c335d594130d4e873d60a517e))
+* **tui:** honor NO_COLOR and draw ASCII borders under ARC_TUI_ASCII ([62868e1](https://github.com/andysolomon/arc-skill-eval/commit/62868e1ad85a487cd918be42525ff1f63b7ff466))
+* **tui:** keep earlier case results after a single-case re-run ([df2b780](https://github.com/andysolomon/arc-skill-eval/commit/df2b780467dcd02e78dea5672c7c208cb2e6c121))
+* **tui:** refuse a feedback note for a skill with no runs ([b2be330](https://github.com/andysolomon/arc-skill-eval/commit/b2be33074221184bff786718f0779c9a489e6944))
+* **tui:** reset the run console clock for each run ([c08b456](https://github.com/andysolomon/arc-skill-eval/commit/c08b45679ff6d7b69d54096e056caf905094b697))
+* **tui:** show an empty filtered view instead of "No eval runs found" ([b003ae2](https://github.com/andysolomon/arc-skill-eval/commit/b003ae2b9d523f21e86358794d29a34df0ad286a))
+* **tui:** stop the run when esc closes the run console ([7b99dd9](https://github.com/andysolomon/arc-skill-eval/commit/7b99dd99b835ee3318af0b05fe0a4cd3b51c400d))
+* **web:** apply Review feedback with improve --apply ([e1fd82d](https://github.com/andysolomon/arc-skill-eval/commit/e1fd82d51958d733219d35f4846ea661bacabb5d))
+* **web:** keep hosted imported runs across a reload ([b16b76c](https://github.com/andysolomon/arc-skill-eval/commit/b16b76cdacccf2d96235629783b3ce3ec4b67347))
+* **web:** run evals through the daemon with live progress and cancel ([5977a77](https://github.com/andysolomon/arc-skill-eval/commit/5977a77b5a55d02508dbe2c63cebddfff6854f61))
+* **web:** write Create suites to the skill's evals folder without losing fields ([3318aa1](https://github.com/andysolomon/arc-skill-eval/commit/3318aa1c6b9ddda07ff61d03f6f0b5c13780a9d6))
+
 ## [0.27.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.26.1...v0.27.0) (2026-11-22)
 
 ### Features
