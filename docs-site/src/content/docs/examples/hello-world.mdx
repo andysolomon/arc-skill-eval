@@ -1,17 +1,17 @@
 ---
 title: hello-world (worked example)
-description: A full walkthrough of the hello-world reference skill — what SKILL.md says, what evals/evals.json checks, and what the artifact tree looks like after a clean run.
+description: A walkthrough of the hello-world reference skill. It covers what SKILL.md says, what evals/evals.json checks, and the artifact tree after a clean run.
 sidebar:
   order: 1
 ---
 
-`hello-world` is a small reference skill that ships with `arc-skill-eval`. It exercises discovery, execution, grading, workspace capture, and artifact writing. If its evals pass, those pipeline stages are working.
+`hello-world` is a small reference skill that ships with `arc-skill-eval`. A run of its suite exercises discovery, execution, grading, workspace capture, and artifact writing. If its evals pass, those stages work.
 
-You can find it in the repo at [`skills/hello-world/`](https://github.com/andysolomon/arc-skill-eval/tree/main/skills/hello-world).
+The skill lives in the repo at [`skills/hello-world/`](https://github.com/andysolomon/arc-skill-eval/tree/main/skills/hello-world).
 
 ## What `SKILL.md` says
 
-The skill is intentionally trivial. From its `SKILL.md`:
+The skill is deliberately trivial. From its `SKILL.md`:
 
 > When invoked, follow these steps exactly:
 >
@@ -21,14 +21,14 @@ The skill is intentionally trivial. From its `SKILL.md`:
 > 2. Use the **Write** tool to create a file called **`greeting.txt`** in the workspace root. The file content is exactly one line: `Hello, <name>!` (note the comma, the space after it, and the trailing exclamation mark).
 > 3. Reply with a **single sentence** that confirms the file was written and mentions the filename `greeting.txt` explicitly.
 
-Two details make the skill straightforward to grade:
+Two details make the skill easy to grade:
 
-- The "exactly one line" + literal punctuation gives a script assertion something concrete to regex-match against. Models can paraphrase intent; they can't paraphrase punctuation.
-- The "must mention `greeting.txt` explicitly" rule gives the LLM-judge assertion a checkable claim — there's a literal token to find in the assistant's reply.
+- The file has one line with exact punctuation, so a regex can check it. A model can paraphrase intent, but it can't paraphrase punctuation.
+- The reply must contain the literal string `greeting.txt`, so a regex can check the reply too.
 
 ## What `evals/evals.json` checks
 
-Three cases:
+The suite has three cases. This is the file as it ships:
 
 ```json
 {
@@ -41,17 +41,17 @@ Three cases:
       "assertions": [
         { "type": "file-exists", "path": "greeting.txt" },
         { "type": "regex-match", "pattern": "Hello, world!", "target": { "file": "greeting.txt" } },
-        "The response mentions the file `greeting.txt` by name"
+        { "type": "regex-match", "pattern": "greeting\\.txt", "target": "assistant-text" }
       ]
     },
     {
       "id": "named-ada",
       "prompt": "Create a greeting for Ada.",
-      "expected_output": "greeting.txt contains 'Hello, Ada!' and the assistant reply confirms it greeted Ada.",
+      "expected_output": "greeting.txt contains 'Hello, Ada!' and the assistant reply names the file.",
       "assertions": [
         { "type": "file-exists", "path": "greeting.txt" },
         { "type": "regex-match", "pattern": "Hello, Ada!", "target": { "file": "greeting.txt" } },
-        "The response confirms the greeting was written for Ada"
+        { "type": "regex-match", "pattern": "greeting\\.txt", "target": "assistant-text" }
       ]
     },
     {
@@ -68,12 +68,14 @@ Three cases:
 }
 ```
 
-Notable patterns:
+Points to notice:
 
-- **Two assertions per case from scripts, one from the judge.** The script assertions cover the mechanical facts (file exists, regex matches the file body); the judge handles the prose claim.
-- **`target: "assistant-text"`** on the third case. The same `regex-match` machinery that checks workspace files can check the assistant's literal reply.
-- **`Hello, Grace Hopper!`** — the third case proves multi-word names round-trip. If the skill mangles the name, the regex fails.
-- **No `setup`, no `files`.** Every case starts from an empty workspace. Hello-world isn't testing repo state; it's testing one skill's effect on an empty directory.
+- **Every assertion is deterministic.** Each case checks that the file exists, that the file body matches, and that the reply names the file. No judge model is involved, so the suite gives the same verdict for the same output every time and costs nothing to grade.
+- **`target: "assistant-text"`** points `regex-match` at the assistant's reply instead of a workspace file. The same assertion type checks both.
+- **`Hello, Grace Hopper!`** in the third case checks that a two-word name comes through intact. If the skill mangles the name, the regex fails.
+- **No `setup` and no `files`.** Every case starts from an empty workspace. Hello-world tests one skill's effect on an empty directory, not repo state.
+
+Earlier versions of the suite used judge assertions for the reply. Regex checks on `assistant-text` replaced them to keep the smoke test deterministic. Real skills usually need a judge for prose claims. See [Assertions](/arc-skill-eval/concepts/assertions/) for when to use one.
 
 ## Run it
 
@@ -81,16 +83,16 @@ Notable patterns:
 arc-skill-eval run ./skills/hello-world
 ```
 
-Stdout shows one line per case (PASS/FAIL + id) plus a summary. Total wall-clock is dominated by the model call latency — typically under a minute on Anthropic, somewhat faster on OpenAI.
+Stdout shows one line per case, `PASS` or `FAIL` with the case ID, then a summary. Model latency accounts for most of the wall-clock time.
 
 ## Read the artifacts
 
-After a clean run, you'll have:
+After a clean run, you have:
 
 ```text
 skills/hello-world/evals-runs/<runId>/
 ├── eval-default-world/
-│   ├── assistant.md          # "I wrote greeting.txt with the requested message."
+│   ├── assistant.md          # "I wrote greeting.txt with the greeting."
 │   ├── outputs/greeting.txt  # "Hello, world!"
 │   ├── timing.json
 │   ├── grading.json          # 3 assertions, all passed
@@ -103,11 +105,11 @@ skills/hello-world/evals-runs/<runId>/
     └── ...
 ```
 
-Three things to spot-check on a successful run:
+Check three things after a successful run:
 
-1. **`grading.json.summary.pass_rate === 1.0`** for each case. Anything less and one of the assertions failed.
-2. **`tool-summary.json.tool_calls_by_name`** shows `write: 1` and nothing else. If the skill ran `bash`, the `SKILL.md` rule "Do not run shell commands" was violated.
-3. **`context-manifest.json.attached_skills`** has exactly one entry — `hello-world`, role `target`. Anything else means an ambient skill leaked into the context.
+1. **`grading.json` has `summary.pass_rate` of `1`** for each case. A lower value means an assertion failed.
+2. **`tool-summary.json` has `tool_calls_by_name`** with `write: 1` and nothing else. If the skill ran `bash`, it broke the `SKILL.md` rule "Do not run shell commands."
+3. **`context-manifest.json` has one entry in `attached_skills`**: `hello-world` with role `target`. Any other entry means an ambient skill leaked into the context.
 
 ## Compare against the no-skill baseline
 
@@ -115,14 +117,14 @@ Three things to spot-check on a successful run:
 arc-skill-eval run ./skills/hello-world --compare
 ```
 
-Compare mode shows whether the skill instructions change the result. With the skill attached, modern Claude and GPT models usually pass all three cases. Without it, the model often writes a different filename or skips the exact punctuation contract. The `benchmark.json` delta records how pass rates differ between the two runs.
+Compare mode shows whether the skill instructions change the result. With the skill attached, current Claude and GPT models usually pass all three cases. Without it, the model often picks a different filename or misses the exact punctuation. The `benchmark.json` delta records the difference in pass rates.
 
 ## Use it as a template
 
-If you're authoring evals for your first skill, copy this directory verbatim and edit:
+To write evals for your first skill, copy this directory and edit it:
 
-1. `SKILL.md` — replace the steps with your skill's logic. Keep at least one mechanical detail the model can't paraphrase (a literal filename, a specific word, an exact format).
-2. `evals/evals.json` — replace cases. Aim for 6–10. Layer your assertions: scripts first, judge for prose only.
-3. *(Optional)* `evals/files/<fixture>/` — add fixtures for cases that need pre-existing repo state. Hello-world doesn't have any.
+1. `SKILL.md`: replace the steps with your skill's logic. Keep at least one detail the model can't paraphrase, such as a literal filename, a specific word, or an exact format.
+2. `evals/evals.json`: replace the cases. Aim for six to ten. Use script assertions first and add judge assertions only for prose.
+3. `evals/files/<fixture>/` *(optional)*: add fixtures for cases that need existing repo state. Hello-world has none.
 
 For more guidance, see [Authoring evals](/arc-skill-eval/authoring-evals/).

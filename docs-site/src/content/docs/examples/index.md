@@ -10,7 +10,7 @@ These examples include the skill, eval suite, commands, and generated artifacts.
 
 ## Available now
 
-- [hello-world](/arc-skill-eval/examples/hello-world/) is the reference skill included with `arc-skill-eval`. Its three cases use `file-exists`, `regex-match` against files and responses, and a judged assertion. A run usually takes about 30 seconds.
+- [hello-world](/arc-skill-eval/examples/hello-world/) is the reference skill included with `arc-skill-eval`. Its three cases use only deterministic assertions: `file-exists`, plus `regex-match` against the written file and the reply. A run usually takes about 30 seconds.
 
 ## Coming soon
 
