@@ -47,8 +47,12 @@ const summarizeCase = (maybeEvalsJson: Option.Option<unknown>, maybeCaseId: Opti
     onNone: () => 'Run-level feedback.',
     onSome: (caseId) => {
       const evalCases = Option.match(maybeEvalsJson, { onNone: () => [], onSome: readEvalCases });
+      // Runs on disk name each case folder eval-<case id>.
+      const ids = [caseId, caseId.replace(/^eval-/, '')];
       return Option.match(
-        Array.findFirst(evalCases, (testCase) => Option.contains(readCaseId(testCase), caseId)),
+        Array.findFirst(evalCases, (testCase) =>
+          Option.match(readCaseId(testCase), { onNone: () => false, onSome: (id) => ids.includes(id) }),
+        ),
         {
           onNone: () => `No eval case with id ${caseId} was found.`,
           onSome: (matchedCase) => {
