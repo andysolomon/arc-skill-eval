@@ -48,7 +48,7 @@ const GENERAL_NOTES = [
 const COMMAND_HELP: Record<CliCommandName, CommandHelp> = {
   run: {
     usage:
-      "run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--runtime pi-sdk|codex|claude-code|cursor-agent|copilot] [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--agent-dir <path>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--sandbox none|just-bash] [--case-timeout <seconds>] [--concurrency <n>] [--compare] [--strict] [--laminar] [--json]",
+      "run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--runtime pi-sdk|codex|claude-code|cursor-agent|copilot] [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--agent-dir <path>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--sandbox none|just-bash] [--case-timeout <seconds>] [--concurrency <n>] [--trials <n>] [--compare] [--strict] [--stamp] [--laminar] [--json]",
     notes: [
       SKILL_DIR_OR_REPO_NOTE,
       "run writes assistant.md, outputs/, timing.json, grading.json and observability files for each case under <skillDir>/evals-runs/<runId>/eval-<id>/. --output-dir changes that location.",
@@ -61,6 +61,8 @@ const COMMAND_HELP: Record<CliCommandName, CommandHelp> = {
       "--sandbox just-bash runs eligible cases in an isolated just-bash environment and overrides each case's `sandbox` field. The default is none, which runs each case in a temporary workspace.",
       "--case-timeout <seconds> stops a case whose agent runs longer than that and records the case as an error.",
       "--concurrency <n> runs up to n cases at once (default 1). Results keep evals.json order.",
+      "--trials <n> runs every case n times (default 1) and writes trials.json. It lists each assertion that passed in some trials and failed in others, and with --compare it gives the median delta and its spread across trials. A delta no larger than its spread is not a measured difference. A hard failure in any trial fails the run. Later trials write under trial-<k>/ in the run directory.",
+      "--stamp writes evals/sync.json when every case of the suite passes. It records a hash of each skill file and suite file, so audit can report a skill that changed after its suite last passed. A failing run or a run narrowed with --case is not stamped.",
       "--laminar exports eval traces to Laminar. It needs LMNR_PROJECT_API_KEY and reads LMNR_BASE_URL and LMNR_PROJECT_NAME when they are set. It is off by default.",
       "run exits with code 1 when any hard assertion fails or any case errors out. --strict also fails the run on soft assertion misses.",
     ],
@@ -101,6 +103,7 @@ const COMMAND_HELP: Record<CliCommandName, CommandHelp> = {
     usage: "audit <skill-dir-or-repo> [--json] [--output <path>]",
     notes: [
       "audit runs deterministic skill-quality checks on frontmatter, sprawl, eval coverage, local links and duplicate skill families.",
+      "For a skill with a suite, audit also sets up each case's workspace and grades the script assertions before any agent runs. An assertion that already passes cannot fail, and is reported. audit compares evals/sync.json with the files on disk and reports a skill or suite that changed since `run --stamp`. No model is called.",
       "--output also writes the report to <path>, as Markdown or, with --json, as JSON.",
       SKILL_DIR_OR_REPO_NOTE,
     ],
@@ -142,6 +145,7 @@ const COMMAND_HELP: Record<CliCommandName, CommandHelp> = {
     notes: [
       "install-skills copies the bundled agent skills (arc-creating-evals, arc-running-evals) into .agents/skills and .claude/skills under --target, which defaults to the current directory. Any harness can then drive arc-skill-eval.",
       "--harness limits the install to the folders that harness reads. An existing install is skipped unless you pass --force.",
+      "--skill installs a named bundled skill instead of the default pair, such as arc-maintaining-evals or arc-evals-lite.",
     ],
   },
 };

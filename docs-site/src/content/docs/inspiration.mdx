@@ -62,6 +62,19 @@ What carried into Skeval:
 - The model requests file operations; the runner executes them. `tool-summary.json` and `context-manifest.json` record those actions and available tools.
 - Skeval supports more than three tools, but many cases need only read, write, and bash.
 
+## Verification discipline from pstack
+
+[pstack](https://github.com/cursor/plugins/tree/main/pstack), by Lauren Tan, MIT licensed. Its verification skills (`create-verification-skill`, `create-formal-verification-skill`, and the two `maintain-*` skills), the Eval playbook in `poteto-mode`, and the `explain-the-number` principle distrust the check itself, not only the thing checked.
+
+What carried into Skeval:
+
+- *"A check that you have never seen fail proves nothing."* The null run in [`audit`](/arc-skill-eval/cli-reference/#audit-skill-dir-or-repo) reports assertions that pass before any agent runs, and `benchmark.json` marks assertions that pass without the skill too.
+- Record what each check covers and when that was last true. [`run --stamp`](/arc-skill-eval/cli-reference/#--stamp) writes `evals/sync.json`, and `audit` reports a skill that changed under its suite. A passing check on a stale description is the dangerous case, because it looks like proof.
+- Blinding. The agent under test works in a neutrally named directory and is not handed the suite that grades it. The run reports when the judge is the model that ran the case.
+- Whether a gap holds across trials. [`--trials`](/arc-skill-eval/cli-reference/#--trials-n) reports the delta's spread, and a delta no larger than its spread is not called a difference.
+- The upkeep pass, with its named outcomes and its rule against weakening a check until it passes. The bundled `arc-maintaining-evals` skill is a port of it.
+- The feature map. A case can name the `SKILL.md` sections it covers in `metadata.covers`.
+
 ## Suggested reading order
 
 If you're trying to write your first eval, in this order:

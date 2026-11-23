@@ -60,6 +60,37 @@ Per case:
 
 The file also includes the mean pass rate for each variant and the mean delta across cases.
 
+## Which assertions the skill earned
+
+A positive delta says the skill helped somewhere. It does not say which assertions did the telling. Each case in `benchmark.json` lists its assertions with the verdict in both variants:
+
+```json
+"assertions": [
+  { "index": 0, "text": "file-exists: package.json", "with_skill": true, "without_skill": true, "discriminates": false },
+  { "index": 1, "text": "file-exists: .releaserc.json", "with_skill": true, "without_skill": false, "discriminates": true }
+]
+```
+
+An assertion that passes without the skill too does not show the skill helped. `summary.assertions_passing_in_both` counts them, and the text report prints the count. Tighten those assertions, or keep them as guards and stop counting them as evidence.
+
+## Is the delta real? `--trials`
+
+One run per variant cannot tell an effect from luck. `--trials <n>` runs every case `n` times and writes `trials.json` at the run root:
+
+```json
+"delta": { "per_trial": [0.5, 0, 0.5], "median": 0.5, "min": 0, "max": 0.5, "spread": 0.5, "measurable": false }
+```
+
+`spread` is how far the delta moves from one trial to the next. `measurable` is true only when the median delta is larger than the spread. A smaller gap is not a measured difference, however good one of the runs looks.
+
+`trials.json` also lists each assertion with `passed_trials` and `graded_trials`, and marks it `flaky` when it passed in some trials and failed in others. A hard failure in any trial fails the run, so a suite that only passes sometimes does not pass. The first trial writes the usual artifacts. Later trials write under `trial-<k>/` in the run directory, in the same layout.
+
+## The agent should not know it is being tested
+
+The agent under test works in a temp directory named `project-*`, with nothing in the path that says eval. Every runtime is pointed at a copy of the skill, in a temp directory named `skills-*`, never at the real skill directory. The copy leaves out `evals/` and `evals-runs/`, so the agent cannot read the suite that grades it or earlier results. An `--extra-skill` is copied the same way. The copies are removed after the case, and `context-manifest.json` still names the real `SKILL.md` files.
+
+The judge is a separate concern. With no `--judge-model`, the model that ran the case also grades it. The run summary counts those cases (`summary.selfJudgedCases`) and the text report says so. Pass `--judge-model` with a different model to avoid it.
+
 The top level keeps Anthropic's per-case results, overall pass rates, overall delta, and error summaries. Pi-specific fields such as artifact paths, trace paths, model metadata, and estimated cost live under `metadata.extensions`.
 
 ## Test conflicts with `--extra-skill`

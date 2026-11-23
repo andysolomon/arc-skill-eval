@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { CliCommandError, runEvalsCommand } from "../dist/index.js";
+import { CliCommandError, formatRunEvalsResult, runEvalsCommand } from "../dist/index.js";
 
 async function createSkillFixture({
   skillName = "sample",
@@ -483,6 +483,44 @@ test("judge model defaults to the resolved runner model when --judge-model is ab
     const [caseArt] = result.skills[0].cases;
     const grading = JSON.parse(await readFile(caseArt.gradingPath, "utf8"));
     assert.deepEqual(grading.judge_model, { provider: "mock", id: "mock-model" });
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
+// Self-judging: with no --judge-model the judge is the model that ran the
+// case, so it grades its own work. The summary has to say so. It could:
+//   1. count a case that has no judge assertion (a script cannot self-judge),
+//   2. miss the default fallback, where nobody asked for that judge,
+//   3. still count the case when --judge-model names a different model.
+test("the summary counts cases graded by the model that ran them", async () => {
+  const { repoRoot, skillDir } = await createSkillFixture({
+    skillName: "self-judged",
+    evals: [
+      { id: "judged", prompt: "Say hello.", assertions: ["The response contains 'hello'"] },
+      { id: "scripted", prompt: "Say hello.", assertions: [{ type: "regex-match", pattern: "hello" }] },
+    ],
+  });
+
+  const runOnce = (judgeModel) =>
+    runEvalsCommand({
+      input: skillDir,
+      createSession: async ({ caseDefinition }) => ({
+        model: null,
+        session: createInjectedSession(caseDefinition.prompt),
+      }),
+      judge: STUB_JUDGE_PASS,
+      ...(judgeModel ? { judgeModel } : {}),
+    });
+
+  try {
+    const selfJudged = await runOnce();
+    assert.equal(selfJudged.summary.selfJudgedCases, 1);
+    assert.match(formatRunEvalsResult(selfJudged), /1 case was graded by the model that ran it \(mock\/mock-model\)/);
+
+    const separateJudge = await runOnce({ provider: "other", id: "judge-model" });
+    assert.equal(separateJudge.summary.selfJudgedCases, 0);
+    assert.doesNotMatch(formatRunEvalsResult(separateJudge), /graded by the model that ran/);
   } finally {
     await rm(repoRoot, { recursive: true, force: true });
   }

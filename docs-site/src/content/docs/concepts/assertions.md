@@ -102,7 +102,7 @@ Skeval records an external call when a shell command runs `gh`, runs `curl` or `
 
 Tool names match without regard to case. The default `pi-sdk` runtime reports `read`, `bash`, `write`, and `edit`, and Claude Code reports `Read`, `Bash`, `Write`, and `Edit`, so `"value": "write"` matches either. Other runtimes may use different names altogether. Skill names match exactly.
 
-`match` is a substring by default, or a regular expression with `"matchKind": "regex"`. It is case-sensitive. For a tool call, it is tested against a summary of the input. Under `pi-sdk`, that summary is the command for `bash` and the path for `read`, `write`, and `edit`. Paths are often absolute, and case workspaces live under `/tmp/arc-skill-eval-case-*`, so a loose pattern can match a path by accident. Anchor command patterns to the start of the command, and set `"value": "bash"` so only shell calls are checked.
+`match` is a substring by default, or a regular expression with `"matchKind": "regex"`. It is case-sensitive. For a tool call, it is tested against a summary of the input. Under `pi-sdk`, that summary is the command for `bash` and the path for `read`, `write`, and `edit`. Paths are often absolute, and case workspaces live under the system temp directory as `project-*`, so a loose pattern can match a path by accident. Anchor command patterns to the start of the command, and set `"value": "bash"` so only shell calls are checked.
 
 The `codex`, `claude-code`, `cursor-agent`, and `copilot` runtimes record tool calls but not shell commands, skill reads, file writes, or external calls. Under those runtimes, `skill-read-required` always fails, and `command-forbidden`, `external-call-forbidden`, `no-forbidden-files-touched`, and `no-live-external-calls` always pass.
 

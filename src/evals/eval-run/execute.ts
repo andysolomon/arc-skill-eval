@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import { Effect } from "effect";
 
 import {
@@ -14,7 +16,7 @@ import {
   type PlannedSkillRun,
   type SkillRunResult,
 } from "./types.js";
-import { writeSkillBenchmark } from "./aggregate.js";
+import { writeSkillBenchmark, writeSkillTrials, type TrialOutcome } from "./aggregate.js";
 
 type CaseOutcome =
   | { kind: "done"; artifacts: CaseRunArtifacts }
@@ -24,6 +26,8 @@ type CaseOutcome =
 interface CaseWork {
   planned: PlannedSkillRun;
   evalCase: EvalCase;
+  /** One-based. */
+  trial: number;
 }
 
 /**
@@ -36,7 +40,17 @@ export async function executeEvalRun(plan: EvalRunPlan, options: EvalRunOptions)
     throw new EvalRunError(`concurrency must be a positive whole number, got ${concurrency}.`);
   }
 
-  const work: CaseWork[] = plan.skills.flatMap((planned) => planned.cases.map((evalCase) => ({ planned, evalCase })));
+  const trials = options.trials ?? 1;
+  if (!Number.isInteger(trials) || trials < 1) {
+    throw new EvalRunError(`trials must be a positive whole number, got ${trials}.`);
+  }
+
+  // Every trial of a case is its own unit of work, in case order then trial order.
+  const work: CaseWork[] = plan.skills.flatMap((planned) =>
+    planned.cases.flatMap((evalCase) =>
+      Array.from({ length: trials }, (_, index) => ({ planned, evalCase, trial: index + 1 })),
+    ),
+  );
 
   // A bounded pool over every case of every skill. Cancellation does not
   // interrupt the pool: each running case already stops on `options.signal`
@@ -64,14 +78,24 @@ export async function executeEvalRun(plan: EvalRunPlan, options: EvalRunOptions)
       observabilityExportFailures: [],
     };
 
+    const trialOutcomes: Array<{ caseId: string; outcomes: TrialOutcome[] }> = [];
     for (const evalCase of planned.cases) {
-      const outcome = outcomes[next++]!;
+      const caseOutcomes = outcomes.slice(next, next + trials);
+      next += trials;
+
+      // The first trial is the run's result, exactly as with a single trial.
+      const outcome = caseOutcomes[0]!;
       if (outcome.kind === "done") {
         result.cases.push(outcome.artifacts);
         result.observabilityExportFailures.push(...collectObservabilityExportFailures(outcome.artifacts));
       } else if (outcome.kind === "failed") {
         result.errors.push({ caseId: String(evalCase.id), message: outcome.message });
       }
+
+      trialOutcomes.push({
+        caseId: String(evalCase.id),
+        outcomes: caseOutcomes.map((entry) => (entry.kind === "done" ? entry.artifacts : null)),
+      });
     }
 
     if (options.compare) {
@@ -86,6 +110,19 @@ export async function executeEvalRun(plan: EvalRunPlan, options: EvalRunOptions)
       result.benchmark = benchmark;
     }
 
+    if (trials > 1) {
+      const { trialsPath, trials: trialsJson } = await writeSkillTrials({
+        runId: plan.runId,
+        skillName: result.skillName,
+        outputDir: planned.outputDir,
+        trials,
+        cases: trialOutcomes,
+        compare: options.compare ?? false,
+      });
+      result.trialsPath = trialsPath;
+      result.trials = trialsJson;
+    }
+
     skillResults.push(result);
   }
 
@@ -93,12 +130,15 @@ export async function executeEvalRun(plan: EvalRunPlan, options: EvalRunOptions)
 }
 
 /** Runs one case. Never rejects: a failure is recorded, and cancellation is reported as such. */
-async function runCase({ planned, evalCase }: CaseWork, plan: EvalRunPlan, options: EvalRunOptions): Promise<CaseOutcome> {
+async function runCase({ planned, evalCase, trial }: CaseWork, plan: EvalRunPlan, options: EvalRunOptions): Promise<CaseOutcome> {
   if (options.signal?.aborted) {
     return { kind: "cancelled" };
   }
   const caseId = String(evalCase.id);
-  options.onProgress?.({ phase: "case-start", caseId });
+  const trialTag = (options.trials ?? 1) > 1 ? { trial } : {};
+  // Later trials write beside the first one, in the same layout.
+  const outputDir = trial === 1 ? planned.outputDir : path.join(planned.outputDir, `trial-${trial}`);
+  options.onProgress?.({ phase: "case-start", caseId, ...trialTag });
   try {
     const artifacts = await executeCasePipeline({
       specification: {
@@ -115,19 +155,21 @@ async function runCase({ planned, evalCase }: CaseWork, plan: EvalRunPlan, optio
         extraSkillPaths: options.extraSkillPaths ?? [],
         contextMode: options.contextMode ?? "isolated",
         sandbox: options.sandbox ?? evalCase.sandbox ?? "none",
-        observabilitySinks: options.observabilitySinks ?? [],
+        // Sinks key a result by run and case, so only the first trial is exported.
+        observabilitySinks: trial === 1 ? (options.observabilitySinks ?? []) : [],
         createSession: options.createSession,
         judge: options.judge,
         runtime: options.runtime,
         caseTimeoutMs: options.caseTimeoutMs,
         signal: options.signal,
       },
-      context: { outputDir: planned.outputDir, runId: plan.runId, iteration: plan.iteration },
+      context: { outputDir, runId: plan.runId, iteration: plan.iteration },
     });
     const g = artifacts.grading.summary;
     options.onProgress?.({
       phase: "case-done",
       caseId,
+      ...trialTag,
       assertionsPassed: g.passed,
       assertionsTotal: g.total,
       passed: g.failed === 0 && g.total > 0,
@@ -139,7 +181,7 @@ async function runCase({ planned, evalCase }: CaseWork, plan: EvalRunPlan, optio
       return { kind: "cancelled" };
     }
     const message = error instanceof Error ? error.message : String(error);
-    options.onProgress?.({ phase: "case-done", caseId, passed: false, message });
+    options.onProgress?.({ phase: "case-done", caseId, ...trialTag, passed: false, message });
     return { kind: "failed", message };
   }
 }

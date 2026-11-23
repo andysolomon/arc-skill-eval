@@ -10,6 +10,7 @@ export function parseRunCommandArgs(args: string[]) {
   let json = false;
   let compare = false;
   let strict = false;
+  let stamp = false;
   let laminar = false;
   let outputDir: string | undefined;
   let iteration: string | undefined;
@@ -22,6 +23,7 @@ export function parseRunCommandArgs(args: string[]) {
   let runtime: string | undefined;
   let caseTimeoutMs: number | undefined;
   let concurrency: number | undefined;
+  let trials: number | undefined;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
@@ -38,6 +40,11 @@ export function parseRunCommandArgs(args: string[]) {
 
     if (arg === "--strict") {
       strict = true;
+      continue;
+    }
+
+    if (arg === "--stamp") {
+      stamp = true;
       continue;
     }
 
@@ -158,6 +165,17 @@ export function parseRunCommandArgs(args: string[]) {
       continue;
     }
 
+    if (arg === "--trials" || arg.startsWith("--trials=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      const value = Number(parsed.value);
+      if (!Number.isInteger(value) || value < 1) {
+        throw new CliUsageError(`Invalid --trials: ${parsed.value}. Expected a positive whole number of runs per case.`);
+      }
+      trials = value;
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
     if (arg.startsWith("-")) {
       throw new CliUsageError(`Unknown flag: ${arg}.`);
     }
@@ -188,8 +206,10 @@ export function parseRunCommandArgs(args: string[]) {
     runtime,
     caseTimeoutMs,
     concurrency,
+    trials,
     compare,
     strict,
+    stamp,
     laminar,
     json,
   };

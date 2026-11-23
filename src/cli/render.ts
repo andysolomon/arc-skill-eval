@@ -19,12 +19,23 @@ export function formatRunEvalsResult(result: RunEvalsCommandResult, options: Cli
     ...(result.summary.softFailedAssertions > 0
       ? [`Soft misses: ${result.summary.softFailedAssertions} (non-failing; use --strict to gate)`]
       : []),
+    ...formatSelfJudged(result.summary),
   ];
 
   for (const skill of result.skills) {
     lines.push("", `${skill.skillName}  →  ${skill.outputDir}`);
     if (skill.benchmark) {
       lines.push(`  Benchmark delta: ${formatSignedFractionPercent(skill.benchmark.summary.delta)} (${skill.benchmarkPath})`);
+      const { assertions_passing_in_both: inBoth, assertions_compared: compared } = skill.benchmark.summary;
+      if (inBoth > 0) {
+        lines.push(`  ${inBoth} of ${compared} assertions passed without the skill too, so they do not show the skill helped.`);
+      }
+    }
+    if (skill.trials) {
+      lines.push(...formatTrials(skill.trials, skill.trialsPath));
+    }
+    if (skill.sync) {
+      lines.push(skill.sync.stamped ? `  Sync record written: ${skill.sync.path}` : `  Sync record not written: ${skill.sync.reason}`);
     }
     if (skill.cases.length === 0 && skill.errors.length === 0) {
       lines.push("  (no cases selected)");
@@ -46,6 +57,43 @@ export function formatRunEvalsResult(result: RunEvalsCommandResult, options: Cli
   lines.push(...formatAllCasesErroredDiagnosis(result));
 
   return `${lines.join("\n")}\n`;
+}
+
+/** What held across the repeats of each case: the delta's spread, and assertions that only pass sometimes. */
+function formatTrials(trials: NonNullable<RunEvalsCommandResult["skills"][number]["trials"]>, trialsPath?: string): string[] {
+  const lines: string[] = [];
+  const delta = trials.delta;
+  if (delta && delta.median !== null) {
+    const verdict = delta.measurable
+      ? "The gap is larger than the run-to-run spread."
+      : "The gap is no larger than the run-to-run spread, so this is not a measured difference.";
+    lines.push(
+      `  Across ${trials.trials} trials: median delta ${formatSignedFractionPercent(delta.median)}, range ${formatSignedFractionPercent(delta.min)} to ${formatSignedFractionPercent(delta.max)}. ${verdict}`,
+    );
+  } else {
+    lines.push(`  Across ${trials.trials} trials${trialsPath ? ` (${trialsPath})` : ""}:`);
+  }
+  for (const trialCase of trials.cases) {
+    if (trialCase.errored_trials > 0) {
+      lines.push(`  [ERROR] ${trialCase.case_id}: ${trialCase.errored_trials} of ${trials.trials} trials crashed`);
+    }
+    for (const assertion of trialCase.assertions) {
+      if (assertion.flaky) {
+        lines.push(`  [FLAKY] ${trialCase.case_id}: ${assertion.text} passed ${assertion.passed_trials} of ${assertion.graded_trials} trials`);
+      }
+    }
+  }
+  return lines;
+}
+
+/** A model that grades its own output tends to pass it; say when that happened. */
+function formatSelfJudged(summary: RunEvalsCommandResult["summary"]): string[] {
+  if (summary.selfJudgedCases === 0) return [];
+  const one = summary.selfJudgedCases === 1;
+  const model = summary.selfJudgeModel ? ` (${summary.selfJudgeModel.provider}/${summary.selfJudgeModel.id})` : "";
+  return [
+    `Self-judged: ${summary.selfJudgedCases} ${one ? "case was" : "cases were"} graded by the model that ran ${one ? "it" : "them"}${model}. Pass --judge-model to grade with a different one.`,
+  ];
 }
 
 /** Identical errors (e.g. a rejected model) print once, listing every case they hit. */

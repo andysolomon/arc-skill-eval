@@ -13,6 +13,8 @@ export interface RunEvalsCliOptions extends CommandSelectionOptions {
   compare?: boolean;
   /** Fail the run (exit 1) on soft assertion misses that otherwise only warn. */
   strict?: boolean;
+  /** `--stamp`: write evals/sync.json when the whole suite passes. */
+  stamp?: boolean;
   laminar?: boolean;
   extraSkillPaths?: string[];
   contextMode?: "isolated" | "ambient";
@@ -25,6 +27,8 @@ export interface RunEvalsCliOptions extends CommandSelectionOptions {
   caseTimeoutMs?: number;
   /** `--concurrency <n>`: how many cases run at once (default 1). */
   concurrency?: number;
+  /** `--trials <n>`: how many times each case runs (default 1). */
+  trials?: number;
 }
 
 export interface InitRuntimeCliOptions {

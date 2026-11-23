@@ -111,7 +111,7 @@ The skills, tools, and ambient resources available during the case:
 }
 ```
 
-For `--compare` runs, compare the manifests to confirm that only the target skill differs.
+For `--compare` runs, compare the manifests to confirm that only the target skill differs. The agent reads each skill from a temporary copy, but `attached_skills[].path` names the real `SKILL.md`, which still exists after the run. Skill reads in `trace.json` show the copy's path, because that is the file the agent opened.
 
 ## The run-level `benchmark.json` (compare runs only)
 
@@ -125,7 +125,41 @@ For `--compare` runs, compare the manifests to confirm that only the target skil
 │   └── without_skill/...
 ```
 
-Per-case results, overall pass rates, overall delta, and errors stay at the top level. Pi-specific fields such as artifact paths, trace paths, token counts, timing, model metadata, estimated cost, context-window use, tool-call counts, MCP tool counts, and attached-skill summaries live under `metadata.extensions`.
+Per-case results, overall pass rates, overall delta, and errors stay at the top level. Each case also lists its assertions with the verdict in both variants (`with_skill`, `without_skill`, `discriminates`), and `summary.assertions_passing_in_both` counts the ones that passed without the skill too. Pi-specific fields such as artifact paths, trace paths, token counts, timing, model metadata, estimated cost, context-window use, tool-call counts, MCP tool counts, and attached-skill summaries live under `metadata.extensions`.
+
+## The run-level `trials.json` (`--trials` runs only)
+
+`--trials <n>` with `n` above 1 runs every case `n` times. The first trial writes the tree above. Later trials write the same tree under `trial-<k>/`:
+
+```text
+<skillDir>/evals-runs/<runId>/
+├── trials.json
+├── eval-<case-id>/...
+├── trial-2/
+│   └── eval-<case-id>/...
+└── trial-3/
+    └── eval-<case-id>/...
+```
+
+`trials.json` lists, for each case, how many trials crashed (`errored_trials`), how many had a hard failure (`failed_trials`), and each assertion with `passed_trials`, `graded_trials` and `flaky`. With `--compare` it adds `delta`: the delta of each trial, the `median`, the `min` and `max`, the `spread` (`max - min`) and `measurable`, which is true only when the median is larger than the spread. Only the first trial is exported to observability sinks.
+
+## The sync record: `evals/sync.json`
+
+`run --stamp` writes `<skillDir>/evals/sync.json` when every case of the suite passes. It is not a run artifact: it lives next to `evals.json` and is meant to be committed.
+
+```json
+{
+  "version": 1,
+  "stamped_at": "2026-11-23T18:04:11.000Z",
+  "run_id": "2026-11-23T18-03-52-118Z",
+  "commit": "5426bf6…",
+  "dirty": false,
+  "skill": { "SKILL.md": "<sha256>", "references/guide.md": "<sha256>" },
+  "suite": { "evals.json": "<sha256>", "files/repo/package.json": "<sha256>" }
+}
+```
+
+`skill` hashes every file of the skill except `evals/`, `evals-runs/`, `node_modules/` and dot-files. `suite` hashes every file under `evals/` except the record itself. `commit` and `dirty` are present when the skill is in a git repository. [`audit`](/arc-skill-eval/cli-reference/#audit-skill-dir-or-repo) compares the hashes with the files on disk and names the ones that changed. A failing run, or a run narrowed with `--case`, is never stamped.
 
 ## External observability (Laminar)
 
@@ -161,5 +195,5 @@ You fill in `feedback.json` by hand, or press `f` on a case in `browse` to write
 
 ## Not yet included
 
-- A snapshot of the evaluated `SKILL.md` for each iteration. Use version control to tie a run to a skill version.
+- A snapshot of the evaluated `SKILL.md` for each iteration. `evals/sync.json` records its hash at the last stamped run; use version control for the content.
 - A file that aggregates results across all iterations. `browse` compares two runs at a time.

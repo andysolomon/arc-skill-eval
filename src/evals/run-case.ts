@@ -6,6 +6,7 @@ import type { ModelSelection, SandboxMode } from "../contracts/types.js";
 import type { DiscoveredSkillFiles, RepoSourceDescriptor } from "../load/source-types.js";
 import type { PiSdkSessionFactory } from "../pi/sdk-runner.js";
 import { piSdkRuntime } from "../pi/sdk-eval-case.js";
+import { stageSkillsForAgent } from "../runtime/stage-skill.js";
 import type { AgentRuntime, RuntimeSkillIdentity } from "../runtime/types.js";
 import {
   buildToolSummary,
@@ -110,9 +111,10 @@ export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCase
 }
 
 /**
- * Scoped form of {@link runEvalCase}. Acquires the case workspace and the
- * runtime run as resources of the surrounding `Scope`; closing the scope
- * releases the runtime first, then the workspace. If anything after an
+ * Scoped form of {@link runEvalCase}. Acquires the case workspace, the staged
+ * skill copies and the runtime run as resources of the surrounding `Scope`;
+ * closing the scope releases the runtime first, then the copies, then the
+ * workspace. If anything after an
  * acquisition fails, times out or is interrupted, everything acquired so far
  * is released before the failure propagates.
  */
@@ -134,7 +136,21 @@ export function runEvalCaseScoped(
       (workspace) => releaseQuietly(workspace.cleanup),
     );
 
-    const skillIdentity = toRuntimeSkillIdentity(skillFiles);
+    // The agent is pointed at copies of the skills, never at the real
+    // directories: a copy has no eval suite beside SKILL.md, and its path does
+    // not say the run is an eval.
+    const staged = yield* Effect.acquireRelease(
+      Effect.promise(() =>
+        stageSkillsForAgent({ skillDir: skillFiles.skillDir, extraSkillPaths: options.extraSkillPaths ?? [] }),
+      ),
+      (copies) => releaseQuietly(copies.cleanup),
+    );
+
+    const skillIdentity = toRuntimeSkillIdentity({
+      ...skillFiles,
+      skillDir: staged.skillDir,
+      skillDefinitionPath: path.join(staged.skillDir, path.relative(skillFiles.skillDir, skillFiles.skillDefinitionPath)),
+    });
     const runtime = options.runtime ?? piSdkRuntime;
     const caseId = String(options.case.id);
 
@@ -149,7 +165,7 @@ export function runEvalCaseScoped(
         model: options.model,
         createSession: options.createSession,
         attachSkill: options.attachSkill,
-        extraSkillPaths: options.extraSkillPaths,
+        extraSkillPaths: staged.extraSkillPaths,
         contextMode: options.contextMode,
         sandbox: options.sandbox,
         sandboxMocks: options.case.sandboxMocks,
@@ -189,7 +205,17 @@ export function runEvalCaseScoped(
       context_window_used_percent: runtimeResult.usage.contextWindowUsedPercent,
     };
     const trace = normalizePiSdkCaseRunResult(runtimeResult, runtime.id);
-    const contextManifest = enrichContextManifestWithTrace(runtimeResult.contextManifest, trace);
+    // Artifacts outlive the copies, so they name the files the copies came from.
+    const contextManifest = enrichContextManifestWithTrace(
+      {
+        ...runtimeResult.contextManifest,
+        attached_skills: runtimeResult.contextManifest.attached_skills.map((attachment) => ({
+          ...attachment,
+          path: staged.toSourcePath(attachment.path),
+        })),
+      },
+      trace,
+    );
     const toolSummary = buildToolSummary(trace, contextManifest);
 
     return {

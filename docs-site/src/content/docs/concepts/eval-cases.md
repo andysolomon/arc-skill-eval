@@ -32,6 +32,7 @@ A few notes on the fields:
 - **`prompt`** — exactly what you'd type into your agent. One realistic user message per case.
 - **`expected_output`** — a human-readable description of success. Not used directly by the grader; it's a comment for the author and for whoever reads the suite later.
 - **`assertions`** — see [Assertions](/arc-skill-eval/concepts/assertions/) for the union of types.
+- **`metadata.covers`**: optional list of the `SKILL.md` sections this case exercises, by heading text or its leading words (`"Phase 2"` names `## Phase 2: Draft the config`). [`audit`](/arc-skill-eval/cli-reference/#audit-skill-dir-or-repo) reports an entry that matches no heading, which means the skill was restructured under the suite, and lists the sections no case covers.
 
 ## Workspace setup
 

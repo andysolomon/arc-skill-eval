@@ -35,8 +35,10 @@ arc-skill-eval run <skill-dir-or-repo>
                    [--sandbox none|just-bash]
                    [--case-timeout <seconds>]
                    [--concurrency <n>]
+                   [--trials <n>]
                    [--compare]
                    [--strict]
+                   [--stamp]
                    [--laminar]
                    [--json]
 
@@ -237,6 +239,20 @@ See [Browse (TUI)](/arc-skill-eval/browse/) for every panel and keybinding.
 ### `audit <skill-dir-or-repo>`
 
 Check skill quality without calling a model. `audit` reports frontmatter problems, descriptions over 500 characters, long `SKILL.md` files, a missing `evals/evals.json`, broken local markdown links, trigger-heavy descriptions on user-invoked skills, and likely duplicate skill families.
+
+For a skill that has a suite, `audit` also checks the suite itself:
+
+| `category` | Severity | What it means |
+| --- | --- | --- |
+| `eval-suite` | high | `evals/evals.json` does not load, or a case's workspace cannot be set up. |
+| `vacuous-assertion` | warn | The null run: `audit` sets up the case's workspace and grades its script assertions before any agent runs. This assertion already passes, usually because it checks a file the fixture seeded, so it cannot show the skill did anything. Keep it only if it guards content the run must not change. |
+| `absence-only-case` | info | Every assertion in the case checks that something did not happen, so an agent that does nothing passes it. Make sure another case shows the same things happening. |
+| `eval-sync` | warn | Skill files or suite files changed since [`run --stamp`](#--stamp) last recorded a passing run. The message names them. The old pass no longer covers them. |
+| `eval-sync` | info | There is no `evals/sync.json`, so nothing shows which version of the skill the suite passed against. |
+| `eval-coverage` | warn | A case's `metadata.covers` names a `SKILL.md` section that no longer exists. |
+| `eval-coverage` | info | `SKILL.md` sections that no case covers. Reported only when at least one case uses `metadata.covers`. |
+
+Judge assertions are skipped by the null run, because grading them needs a model. Assertions that check absence (`file-absent`, the `*-forbidden` behaviors, safety assertions) pass on a null run by design and are not reported one by one.
 
 `audit` exits `0` even when it reports findings. To fail a CI job, read the finding counts in the `--json` output.
 
@@ -537,6 +553,14 @@ arc-skill-eval run . --runtime claude-code --concurrency 4
 
 Each case still gets its own temporary workspace, so cases can't see each other's files. Parallel cases do share your provider's rate limits. The CLI harness runtimes (`codex`, `claude-code`, `cursor-agent`, `copilot`) run each case in its own process. `pi-sdk` runs every case's session inside the one `arc-skill-eval` process.
 
+### `--trials <n>`
+
+Run every case `n` times (default `1`) and write `trials.json` at the run root. It marks each assertion that passed in some trials and failed in others as `flaky`. With `--compare` it reports the median delta and its spread across trials, and calls the delta `measurable` only when the median is larger than the spread. A hard failure in any trial makes the exit code `1`. The first trial writes the usual artifacts; later trials write under `trial-<k>/`. Cost scales with `n`.
+
+```bash
+arc-skill-eval run ./skills/my-skill --compare --trials 3
+```
+
 ### `--compare`
 
 Run each case twice, once with the skill and once without it. Each variant gets a fresh workspace. The run writes a top-level `benchmark.json` with per-case pass rates and the overall delta.
@@ -553,6 +577,14 @@ Fail the run on soft assertion misses too. An assertion is soft when it sets `mu
 
 ```bash
 arc-skill-eval run ./skills/my-skill --strict
+```
+
+### `--stamp`
+
+Write `<skillDir>/evals/sync.json` when every case of the suite passes. The record holds a hash of each skill file and each suite file, plus the commit when the skill is in a git repository. `audit` later compares it with the files on disk and reports a skill that changed under its suite. A failing run, a run narrowed with `--case`, or a run with a failed trial is not stamped; the result gives the reason in `skills[].sync.reason`. Commit `sync.json` with the suite.
+
+```bash
+arc-skill-eval run ./skills/my-skill --stamp
 ```
 
 ### `--json`

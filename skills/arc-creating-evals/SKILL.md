@@ -60,6 +60,8 @@ The `setup` block copies the contents of `<skillDir>/evals/files/<fixture-dir>/`
 
 Propose cases across these classes. **Aim for 6–10 cases.**
 
+Tie each case to the part of the skill it exercises with `"metadata": { "covers": ["<SKILL.md heading>"] }`. The leading words of a heading are enough (`"Phase 2"`). `arc-skill-eval audit` then lists the sections no case covers, and reports a case whose section was renamed or removed.
+
 ### Trigger cases (3–5)
 Prove the skill gets invoked when it should.
 - 1–2 **explicit**: the user names the skill (*"Use arc-conventional-commits to..."*).
@@ -97,7 +99,7 @@ Apply assertions in priority order. Back weaker signals with stronger ones.
    - `{ "id": "<slug>", "kind": "behavior", "method": "skill-read-required", "value": "<skill-name>" }`: the run read the skill's `SKILL.md`.
    - `{ "id": "<slug>", "kind": "safety", "method": "no-forbidden-files-touched", "config": { "paths": [".env", ".github"] } }`: the run never touched these paths.
    - Write tool names as the default `pi-sdk` runtime reports them: `read`, `bash`, `write`, `edit`. The match ignores case, so Claude Code's `Write` also matches `write`. Codex and other runtimes may use different names altogether.
-   - A tool-input `match` tests the whole input, including file paths. Case workspaces live under `/tmp/arc-skill-eval-case-*`, so a pattern like `arc-skill-eval` matches every absolute path. Anchor command patterns to the start of the command, and pass `"value": "bash"` so only shell calls are checked.
+   - A tool-input `match` tests the whole input, including file paths. Case workspaces live under the system temp directory (`/tmp/project-*`), so a loose pattern like `project` or `tmp` matches every absolute path. Anchor command patterns to the start of the command, and pass `"value": "bash"` so only shell calls are checked.
    - Behavior and safety assertions require an `id`. An assertion with an `id` and a `kind` may declare `"mustPass": false` or `"severity": "info" | "warn"` to make a miss **soft**: it is recorded but fails the run only with `--strict`. Plain strings and `type` script assertions ignore these fields, so write a soft file check in the `kind` form, for example `{ "id": "<slug>", "kind": "workspace", "method": "file-exists", "path": "<relative>", "mustPass": false }`. Use soft assertions for style and quality signals you don't want to gate CI.
 3. **String assertions** (LLM-judged) for properties a script or the trace cannot check:
    - Write them as short, specific claims about behavior that the judge can cite evidence for, not about incidental wording.
@@ -152,13 +154,21 @@ Apply assertions in priority order. Back weaker signals with stronger ones.
    - **`Judge error: ...`** is an infrastructure problem, not your assertion. The judge model itself failed, usually because of an unauthenticated provider or a bad model id. Fix the judge selection (`--judge-model`, provider auth) and leave the assertion alone.
    - **`Judge returned unparseable output`** means the judge responded, but not in the expected JSON shape. Retry once. If it persists, the judge model is too weak for the rubric, so pick a stronger `--judge-model`.
    - **Paraphrased evidence.** If the judge's evidence paraphrases instead of citing the text, tighten the assertion (make it more literal) or swap it for a script assertion.
-6. **Summary.** Tell the user:
+6. **Prove the suite can fail.** A suite that has never failed proves nothing.
+   ```bash
+   arc-skill-eval audit <skillDir> --json
+   ```
+   No model is called. In `skills[0].findings`, a `vacuous-assertion` is an assertion that already passes before any agent runs, usually because it checks a file the fixture seeded. Replace it with a check on something the run has to produce, or keep it only as a guard on content the run must not change. An `absence-only-case` only checks that things did not happen, so an agent that does nothing passes it: make sure another case shows the same thing happening. Then, with the user's consent (it doubles the cost), run one execution case with `--compare` and read `skills[0].benchmark.cases[0].assertions[]`. An assertion with `"discriminates": false` that passed both ways does not show the skill helped.
+7. **Stamp the suite** once the user has seen a full run pass: `arc-skill-eval run <skillDir> --stamp --json` writes `evals/sync.json`, a hash of every skill and suite file. `audit` then reports the skill changing under the suite. Commit `sync.json` with the suite.
+8. **Summary.** Tell the user:
    - file path of the new `evals.json`
    - which fixtures were created and under what paths
    - how many cases per class, how many total assertions
    - the dry-run result (pass/fail + assertion summary)
    - the command to run the full suite
    - that the `arc-running-evals` skill can take over from here to run the suite, explain failures, and iterate
+   - what the audit reported, and which assertions pass without the skill
+   - that the `arc-maintaining-evals` skill brings the suite back in line after the skill changes
    - a reminder: *"Every manual fix is a signal. Add a new case whenever you debug a real regression."*
 
 ---

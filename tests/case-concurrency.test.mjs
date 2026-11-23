@@ -174,7 +174,8 @@ function maxOverlap(events) {
 }
 
 async function leftoverCaseDirs(ctx) {
-  return (await readdir(ctx.runTmp)).filter((name) => name.startsWith("arc-skill-eval-"));
+  // The CLI's temp dir is ours alone, so anything left in it is a leak.
+  return await readdir(ctx.runTmp);
 }
 
 async function saveArtifact(name, result, events) {

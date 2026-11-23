@@ -63,6 +63,8 @@ From the `run --json` object:
 
 - `summary`: `totalCases`, `passedCases`, `failedCases`, `totalAssertions`, `failedAssertions` (hard), `softFailedAssertions` (only fail with `--strict`), `assertionPassRate`.
 - `skills[]`: one per skill. `outputDir` is the run directory, `<skillDir>/evals-runs/<runId>`. `errors[]` lists cases that crashed rather than failed. `benchmark.summary.delta` is the with-minus-without pass-rate change when `--compare` was used.
+- `summary.selfJudgedCases`: cases graded by the model that ran them. Above zero, say so in the verdict and recommend `--judge-model` with a different model.
+- `skills[].benchmark.cases[].assertions[]` (with `--compare`): `with_skill`, `without_skill` and `discriminates` for each assertion. `benchmark.summary.assertions_passing_in_both` counts the ones that passed without the skill too. Those do not show the skill helped, whatever the delta says.
 - `skills[].cases[]`: `caseId`, plus `grading.summary` (`passed`/`failed`/`total`) and `grading.assertion_results[]` (`text`, `passed`, `evidence`).
 
 For each failing case, open `<outputDir>/eval-<caseId>/`. With `--compare`, look under `with_skill/` and `without_skill/`. Read:
@@ -101,7 +103,7 @@ This writes `review.html` and a `feedback.json` skeleton, and returns their path
 <cli> run <skill-dir> --case <id-1> --case <id-2> --json
 ```
 
-Stop when the targeted cases pass or the user says stop. Then offer one full-suite run to confirm nothing else broke.
+Stop when the targeted cases pass or the user says stop. Then offer one full-suite run to confirm nothing else broke. Add `--stamp` to that run: when every case passes it writes `evals/sync.json`, which lets `audit` report the skill changing under the suite later. If the skill itself changed since the suite last passed, hand over to `arc-maintaining-evals`.
 
 ## Report back
 
