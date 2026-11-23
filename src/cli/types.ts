@@ -23,6 +23,8 @@ export interface RunEvalsCliOptions extends CommandSelectionOptions {
   runtime?: string;
   /** `--case-timeout <seconds>`, converted to milliseconds. */
   caseTimeoutMs?: number;
+  /** `--concurrency <n>`: how many cases run at once (default 1). */
+  concurrency?: number;
 }
 
 export interface InitRuntimeCliOptions {

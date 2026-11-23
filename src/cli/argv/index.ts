@@ -48,7 +48,7 @@ const GENERAL_NOTES = [
 const COMMAND_HELP: Record<CliCommandName, CommandHelp> = {
   run: {
     usage:
-      "run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--runtime pi-sdk|codex|claude-code|cursor-agent|copilot] [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--agent-dir <path>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--sandbox none|just-bash] [--case-timeout <seconds>] [--compare] [--strict] [--laminar] [--json]",
+      "run <skill-dir-or-repo> [--skill <name>]... [--case <id>]... [--runtime pi-sdk|codex|claude-code|cursor-agent|copilot] [--model <provider/model[:thinking]>] [--judge-model <provider/model[:thinking]>] [--agent-dir <path>] [--output-dir <path>] [--iteration <name>] [--extra-skill <path>]... [--context-mode isolated|ambient] [--sandbox none|just-bash] [--case-timeout <seconds>] [--concurrency <n>] [--compare] [--strict] [--laminar] [--json]",
     notes: [
       SKILL_DIR_OR_REPO_NOTE,
       "run writes assistant.md, outputs/, timing.json, grading.json and observability files for each case under <skillDir>/evals-runs/<runId>/eval-<id>/. --output-dir changes that location.",
@@ -60,6 +60,7 @@ const COMMAND_HELP: Record<CliCommandName, CommandHelp> = {
       "--context-mode ambient loads Pi's normal ambient resources. The default is isolated.",
       "--sandbox just-bash runs eligible cases in an isolated just-bash environment and overrides each case's `sandbox` field. The default is none, which runs each case in a temporary workspace.",
       "--case-timeout <seconds> stops a case whose agent runs longer than that and records the case as an error.",
+      "--concurrency <n> runs up to n cases at once (default 1). Results keep evals.json order.",
       "--laminar exports eval traces to Laminar. It needs LMNR_PROJECT_API_KEY and reads LMNR_BASE_URL and LMNR_PROJECT_NAME when they are set. It is off by default.",
       "run exits with code 1 when any hard assertion fails or any case errors out. --strict also fails the run on soft assertion misses.",
     ],

@@ -7,6 +7,7 @@ import {
   EvalRunError,
 } from "../evals/eval-run/index.js";
 import type { CaseRunArtifacts, CaseRunComparison, VariantRunArtifacts } from "../evals/case-pipeline.js";
+import { EvalsJsonValidationError } from "../evals/loader.js";
 import { CliCommandError } from "./types.js";
 
 export type RunEvalsCommandOptions = EvalRunOptions;
@@ -31,6 +32,10 @@ export async function runEvalsCommand(options: RunEvalsCommandOptions): Promise<
   } catch (error) {
     if (error instanceof EvalRunError) {
       throw new CliCommandError(error.message);
+    }
+    // Show what is wrong with the file, not a stack trace with only a count.
+    if (error instanceof EvalsJsonValidationError) {
+      throw new CliCommandError(`${error.message}\n${error.issues.map((issue) => `- ${issue}`).join("\n")}`);
     }
     throw error;
   }

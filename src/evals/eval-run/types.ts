@@ -45,8 +45,14 @@ export interface EvalRunOptions {
   /** Per-case agent time limit; a case that exceeds it is stopped and recorded as an error. */
   caseTimeoutMs?: number;
   /**
-   * Cancels the run: the in-flight case is interrupted (agent stopped,
-   * workspace removed) and the run rejects with {@link EvalRunCancelledError}.
+   * How many cases run at once, across all selected skills. Defaults to 1.
+   * Results keep evals.json order whatever order cases finish in.
+   */
+  concurrency?: number;
+  /**
+   * Cancels the run: every in-flight case is interrupted (agent stopped,
+   * workspace removed), no new case starts, and once all of them have been
+   * released the run rejects with {@link EvalRunCancelledError}.
    */
   signal?: AbortSignal;
   onProgress?: (ev: {

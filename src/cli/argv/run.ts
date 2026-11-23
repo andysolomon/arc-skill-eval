@@ -21,6 +21,7 @@ export function parseRunCommandArgs(args: string[]) {
   let judgeModel: ModelSelection | undefined;
   let runtime: string | undefined;
   let caseTimeoutMs: number | undefined;
+  let concurrency: number | undefined;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
@@ -146,6 +147,17 @@ export function parseRunCommandArgs(args: string[]) {
       continue;
     }
 
+    if (arg === "--concurrency" || arg.startsWith("--concurrency=")) {
+      const parsed = readFlagValue(arg, args[index + 1]);
+      const value = Number(parsed.value);
+      if (!Number.isInteger(value) || value < 1) {
+        throw new CliUsageError(`Invalid --concurrency: ${parsed.value}. Expected a positive whole number of cases.`);
+      }
+      concurrency = value;
+      index += parsed.consumedNext ? 1 : 0;
+      continue;
+    }
+
     if (arg.startsWith("-")) {
       throw new CliUsageError(`Unknown flag: ${arg}.`);
     }
@@ -175,6 +187,7 @@ export function parseRunCommandArgs(args: string[]) {
     judgeModel,
     runtime,
     caseTimeoutMs,
+    concurrency,
     compare,
     strict,
     laminar,
