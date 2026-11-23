@@ -154,6 +154,17 @@ function RowList({ rows, selected, focused, width, maxRows }: { rows: Seg[][]; s
 
 // ------------------------------------------------------------------ panel
 
+/** Split `total` rows by `weights` into whole numbers that sum to `total`, each at least 3. */
+function splitRows(total: number, weights: number[]): number[] {
+  const sum = weights.reduce((a, w) => a + w, 0);
+  const exact = weights.map((w) => (total * w) / sum);
+  const out = exact.map((x) => Math.max(3, Math.floor(x)));
+  let left = total - out.reduce((a, h) => a + h, 0);
+  const byFraction = exact.map((x, i) => ({ i, f: x - Math.floor(x) })).sort((a, b) => b.f - a.f);
+  for (let k = 0; left > 0; k = (k + 1) % byFraction.length, left--) out[byFraction[k]!.i]! += 1;
+  return out;
+}
+
 function Panel(props: {
   n: number;
   name: string;
@@ -161,19 +172,18 @@ function Panel(props: {
   rows: Seg[][];
   selected: number;
   focused: boolean;
-  grow: number;
+  height: number;
   innerWidth: number;
   maxRows: number;
 }) {
-  const { n, name, count, rows, selected, focused, grow, innerWidth, maxRows } = props;
+  const { n, name, count, rows, selected, focused, height, innerWidth, maxRows } = props;
   const overflow = maxRows > 0 && rows.length > maxRows;
   const badge = overflow ? `${selected + 1}/${rows.length}` : count;
   return (
     <Box
       flexDirection="column"
-      flexGrow={grow}
-      flexBasis={0}
-      minHeight={3}
+      height={height}
+      flexShrink={0}
       borderStyle={BORDER}
       borderColor={focused ? COLORS.borderActive : COLORS.border}
       overflowY="hidden"
@@ -607,21 +617,20 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
     );
   }
 
-  // Approximate each panel's visible row capacity from the rail height and the
-  // flexGrow ratios (border 2 + title 1 = 3 chrome rows per panel).
-  const grows = { skills: 1.4, cases: 1.5, assertions: 1.6, runs: 1.2 };
-  const sumG = grows.skills + grows.cases + grows.assertions + grows.runs;
-  const railH = rowsT - 1; // minus the status bar
-  const cap = (g: number) => Math.max(1, Math.floor((railH * g) / sumG) - 3);
+  // Split the rail into whole-row panel heights. With fractional flex heights
+  // the layout rounded a panel shorter than its row estimate, and the
+  // selected first row could disappear at 80x24.
+  const heights = splitRows(rowsT - 1, [1.4, 1.5, 1.6, 1.2]); // rail = screen minus the status bar
+  const cap = (i: number) => Math.max(1, heights[i]! - 3); // border 2 + title 1
 
   return (
     <Box flexDirection="column" width={cols} height={rowsT}>
       <Box flexGrow={1} flexDirection="row">
         <Box flexDirection="column" width={railWidth}>
-          <Panel n={1} name="Skills" grow={grows.skills} count={String(viewSkills.length)} rows={skillRows(viewSkills)} selected={clampIdx(sel.skills, viewSkills.length)} focused={!pane && focused === 'skills'} innerWidth={innerRail} maxRows={cap(grows.skills)} />
-          <Panel n={2} name="Cases" grow={grows.cases} count={String(viewCases.length)} rows={caseRows(viewCases)} selected={clampIdx(sel.cases, viewCases.length)} focused={!pane && focused === 'cases'} innerWidth={innerRail} maxRows={cap(grows.cases)} />
-          <Panel n={3} name="Assertions" grow={grows.assertions} count={String(cs?.assertions.length ?? 0)} rows={cs ? assertionRows(cs) : []} selected={clampIdx(sel.assertions, cs?.assertions.length ?? 0)} focused={!pane && focused === 'assertions'} innerWidth={innerRail} maxRows={cap(grows.assertions)} />
-          <Panel n={4} name="Runs" grow={grows.runs} count={String(runs.length)} rows={runRows(runs, compareBase?.runId)} selected={sel.runs} focused={!pane && focused === 'runs'} innerWidth={innerRail} maxRows={cap(grows.runs)} />
+          <Panel n={1} name="Skills" height={heights[0]!} count={String(viewSkills.length)} rows={skillRows(viewSkills)} selected={clampIdx(sel.skills, viewSkills.length)} focused={!pane && focused === 'skills'} innerWidth={innerRail} maxRows={cap(0)} />
+          <Panel n={2} name="Cases" height={heights[1]!} count={String(viewCases.length)} rows={caseRows(viewCases)} selected={clampIdx(sel.cases, viewCases.length)} focused={!pane && focused === 'cases'} innerWidth={innerRail} maxRows={cap(1)} />
+          <Panel n={3} name="Assertions" height={heights[2]!} count={String(cs?.assertions.length ?? 0)} rows={cs ? assertionRows(cs) : []} selected={clampIdx(sel.assertions, cs?.assertions.length ?? 0)} focused={!pane && focused === 'assertions'} innerWidth={innerRail} maxRows={cap(2)} />
+          <Panel n={4} name="Runs" height={heights[3]!} count={String(runs.length)} rows={runRows(runs, compareBase?.runId)} selected={sel.runs} focused={!pane && focused === 'runs'} innerWidth={innerRail} maxRows={cap(3)} />
         </Box>
         <MainPane title={main.title} sub={main.sub} lines={main.lines} scroll={scroll} maxRows={maxRows} innerWidth={mainInner} cursorLine={cursorLine} paneFocused={pane} />
       </Box>
