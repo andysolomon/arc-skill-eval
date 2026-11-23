@@ -3,7 +3,7 @@ import { Box, Text, useInput, useStdout } from 'ink';
 import type { Key } from 'ink';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
-import { COLORS, segLen, pad, trunc } from './theme.js';
+import { COLORS, NO_COLOR, segLen, pad, trunc } from './theme.js';
 import { GLYPHS, BORDER } from './caps.js';
 import { seg } from './theme.js';
 import type { Seg } from './theme.js';
@@ -138,7 +138,7 @@ function RowList({ rows, selected, focused, width, maxRows }: { rows: Seg[][]; s
         const more = overflow && idx === 0 && start > 0 ? GLYPHS.up : overflow && idx === maxRows - 1 && start + maxRows < total ? GLYPHS.down : null;
         const fill = ' '.repeat(Math.max(0, width - segLen(segs) - 1 - (more ? 1 : 0)));
         return (
-          <Text key={i} wrap="truncate" backgroundColor={bg}>
+          <Text key={i} wrap="truncate" backgroundColor={bg} inverse={NO_COLOR && sel}>
             <Text color={COLORS.blue} backgroundColor={bg}>{accent}</Text>
             {segs.map((s, j) => (
               <Text key={j} color={s.c} bold={s.b} backgroundColor={bg}>{s.t}</Text>
@@ -174,7 +174,7 @@ function Panel(props: {
       flexGrow={grow}
       flexBasis={0}
       minHeight={3}
-      borderStyle="round"
+      borderStyle={BORDER}
       borderColor={focused ? COLORS.borderActive : COLORS.border}
       overflowY="hidden"
     >
@@ -208,7 +208,7 @@ function MainPane(props: {
   const shown = lines.slice(start, start + maxRows);
   const end = start + shown.length;
   return (
-    <Box flexDirection="column" flexGrow={1} flexBasis={0} borderStyle="round" borderColor={paneFocused ? COLORS.borderActive : COLORS.border} overflowY="hidden">
+    <Box flexDirection="column" flexGrow={1} flexBasis={0} borderStyle={BORDER} borderColor={paneFocused ? COLORS.borderActive : COLORS.border} overflowY="hidden">
       <Box justifyContent="space-between" paddingX={1}>
         <Text bold color={COLORS.blue}>{trunc(title, Math.max(4, innerWidth - 3 - segLen(sub)))}</Text>
         <Text>{sub.map((s, i) => (<Text key={i} color={s.c} bold={s.b}>{s.t}</Text>))}</Text>
@@ -220,7 +220,7 @@ function MainPane(props: {
           const bg = isCursor ? COLORS.selection : line.bg;
           const fill = isCursor ? ' '.repeat(Math.max(0, innerWidth - segLen(line.segs) - 1)) : '';
           return (
-            <Text key={i} wrap="truncate" backgroundColor={bg}>
+            <Text key={i} wrap="truncate" backgroundColor={bg} inverse={NO_COLOR && isCursor}>
               {isCursor ? <Text color={COLORS.blue} backgroundColor={bg}>{GLYPHS.accent}</Text> : null}
               {line.segs.map((s, j) => (<Text key={j} color={s.c} bold={s.b} backgroundColor={bg}>{s.t}</Text>))}
               {isCursor ? <Text backgroundColor={bg}>{fill}</Text> : null}

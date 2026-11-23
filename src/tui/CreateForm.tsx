@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
 import { COLORS } from './theme.js';
-import { GLYPHS } from './caps.js';
+import { GLYPHS, BORDER } from './caps.js';
 import { generateCreateProposal, writeCreateProposal } from './create-driver.js';
 import type { CreateProposal } from './create-driver.js';
 import type { LlmEvalDesignerFn } from '../cli/create-command.js';
@@ -180,7 +180,7 @@ export function CreateForm({ skillDir, skillName, hasSuite, onClose, designer, r
   const winStart = Math.max(0, Math.min(reviewIdx - MAX_REVIEW_CASES + 1, cases.length - MAX_REVIEW_CASES));
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor={COLORS.borderActive} paddingX={2} paddingY={1} width={72}>
+    <Box flexDirection="column" borderStyle={BORDER} borderColor={COLORS.borderActive} paddingX={2} paddingY={1} width={72}>
       <Text color={COLORS.blue} bold>Create eval suite — {skillName}</Text>
       <Text color={COLORS.comment}>{skillDir}</Text>
       <Box height={1} />

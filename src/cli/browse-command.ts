@@ -17,6 +17,7 @@ import * as path from 'node:path';
 import { App } from '../tui/app.js';
 import type { AppAction, AppState } from '../tui/app.js';
 import { loadWorkspace, reloadSkill } from '../tui/load-artifacts.js';
+import { renderStream } from '../tui/caps.js';
 import type { Workspace } from '../tui/types.js';
 
 const ALT_ENTER = '\x1b[?1049h';
@@ -51,7 +52,7 @@ function runApp(ws: Workspace, initial: AppState | undefined, showWithout: boole
       try { mergeSkill(ws, skillDir, await reloadSkill(skillDir)); } catch { /* keep the stale view */ }
       if (!done && instance) instance.rerender(element());
     }
-    instance = render(element(), { exitOnCtrlC: true });
+    instance = render(element(), { exitOnCtrlC: true, stdout: renderStream(process.stdout) });
     // Ctrl-C path: Ink resolves waitUntilExit on its own.
     instance.waitUntilExit().then(() => { if (!done) { done = true; resolve({ type: 'quit' }); } });
   });

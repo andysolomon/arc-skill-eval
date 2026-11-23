@@ -70,8 +70,15 @@ export const PALETTES: Record<string, Palette> = { tokyonight: { ...HEX }, gruvb
 const THEME = (process.env.ARC_TUI_THEME || 'tokyonight').toLowerCase();
 const PICKED: Palette = PALETTES[THEME] ?? { ...HEX };
 
+/** True under NO_COLOR or FORCE_COLOR=0. Selection then shows as inverse video instead of a background color. */
+export const NO_COLOR = colorLevel === 0;
+
+// Ink skips coloring for an empty color string, so with color off every token
+// is ''. Before this, level 0 fell through to the 16-color palette.
+const NONE = Object.fromEntries(Object.keys(HEX).map((k) => [k, ''])) as Palette;
+
 export type Color = string;
-export const COLORS: Palette = colorLevel >= 2 ? PICKED : ANSI;
+export const COLORS: Palette = NO_COLOR ? NONE : colorLevel >= 2 ? PICKED : ANSI;
 
 export interface Seg { t: string; c: Color; b?: boolean }
 export interface Line { segs: Seg[]; bg?: Color }
