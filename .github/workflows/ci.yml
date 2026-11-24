@@ -7,6 +7,24 @@ on:
   pull_request:
 
 jobs:
+  package-entrypoints:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: install
+        run: npm ci
+
+      - name: every exported file ships and loads, from the registry tarball and a git install
+        run: npm run check:packages
+
   build-and-smoke:
     runs-on: ubuntu-latest
     steps:
