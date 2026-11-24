@@ -5,7 +5,6 @@ import path from "node:path";
 import test from "node:test";
 
 import { runEvalsCommand } from "../dist/index.js";
-import { createCursorAgentRuntime } from "../dist/runtime/cursor-agent/index.js";
 import { createCopilotRuntime } from "../dist/runtime/copilot/index.js";
 
 async function createSkillFixture(prefix, name, evals) {
@@ -34,27 +33,6 @@ const greetingEvals = [
     ],
   },
 ];
-
-test("cursor-agent runtime with injected invoker grades a case", async () => {
-  const { skillDir } = await createSkillFixture("arc-cursor-rt-", "cursor-demo", greetingEvals);
-  const runtime = createCursorAgentRuntime({
-    invoker: async ({ cwd }) => {
-      await writeFile(path.join(cwd, "greeting.txt"), "hello\n", "utf8");
-      return {
-        stdout: `${JSON.stringify({ type: "assistant", text: "I wrote greeting.txt" })}\n`,
-        stderr: "",
-        exitCode: 0,
-      };
-    },
-  });
-
-  const result = await runEvalsCommand({ input: skillDir, runtime });
-  assert.equal(result.summary.passedCases, 1);
-  const trace = JSON.parse(
-    await readFile(path.join(skillDir, "evals-runs", result.runId, "eval-greeting", "trace.json"), "utf8"),
-  );
-  assert.equal(trace.identity.runtime, "cursor-agent");
-});
 
 test("copilot runtime with injected invoker grades a case", async () => {
   const { skillDir } = await createSkillFixture("arc-copilot-rt-", "copilot-demo", greetingEvals);

@@ -11,14 +11,15 @@
 //      happens to be called `evals`.
 //   4. An `--extra-skill` is staged unfiltered.
 //   5. The renamed workspace is no longer removed after the run.
+//   6. The staged skill is copied into outputs/ with what the agent wrote.
 //
 // Per-assertion comparison: a pass with the skill means little if the same
 // assertion passes without it. Ways that could fail:
 //
-//   6. An assertion that passes both ways is not marked.
-//   7. An assertion only the skill passes is marked as telling nothing.
-//   8. An assertion that fails both ways is counted as passing both ways.
-//   9. The plain-text report says nothing about it.
+//   7. An assertion that passes both ways is not marked.
+//   8. An assertion only the skill passes is marked as telling nothing.
+//   9. An assertion that fails both ways is counted as passing both ways.
+//  10. The plain-text report says nothing about it.
 //
 // Each test writes the CLI's output and the fake harness's log to
 // test-artifacts/blind-compare/.
@@ -81,6 +82,7 @@ async function setup() {
             { type: "file-exists", path: "always.txt" },
             { type: "file-exists", path: "earned.txt" },
             { type: "file-exists", path: "never.txt" },
+            { type: "regex-match", pattern: "^done$", target: "assistant-text" },
           ],
         },
       ],
@@ -159,6 +161,18 @@ test("the agent cannot see that it is being tested, or the suite that grades it"
   assert.ok(withSkill.staged.includes("blind-demo/references/evals/notes.md"), "a nested evals folder is the skill's own");
 
   assert.deepEqual(await readdir(ctx.runTmp), [], "every workspace was removed");
+
+  const [skill] = JSON.parse(result.stdout).skills;
+  for (const variant of ["with_skill", "without_skill"]) {
+    const variantDir = path.join(skill.outputDir, "eval-writes-files", variant);
+    const grading = JSON.parse(await readFile(path.join(variantDir, "grading.json"), "utf8"));
+    const answer = grading.assertion_results.find((assertion) => assertion.text.startsWith("regex-match"));
+    assert.equal(answer.passed, true, `${variant}: ${answer.evidence}`);
+
+    const outputs = (await readdir(path.join(variantDir, "outputs"), { recursive: true })).map((entry) => entry.split(path.sep).join("/"));
+    assert.ok(outputs.includes("always.txt"), `${variant} outputs/ holds what the agent wrote`);
+    assert.ok(!outputs.some((entry) => entry.startsWith(".claude/skills")), `${variant} outputs/ carries the staged skill`);
+  }
 });
 
 test("benchmark.json says which assertions pass without the skill too", async () => {
@@ -180,10 +194,11 @@ test("benchmark.json says which assertions pass without the skill too", async ()
       { text: "file-exists: always.txt", with_skill: true, without_skill: true, discriminates: false },
       { text: "file-exists: earned.txt", with_skill: true, without_skill: false, discriminates: true },
       { text: "file-exists: never.txt", with_skill: false, without_skill: false, discriminates: false },
+      { text: "regex-match: /^done$/ in assistant-text", with_skill: true, without_skill: true, discriminates: false },
     ],
   );
-  assert.equal(benchmark.summary.assertions_passing_in_both, 1);
+  assert.equal(benchmark.summary.assertions_passing_in_both, 2);
 
   const text = await runCli(ctx, "per-assertion-text", []);
-  assert.match(text.stdout, /1 of 3 assertions passed without the skill too/);
+  assert.match(text.stdout, /2 of 4 assertions passed without the skill too/);
 });
