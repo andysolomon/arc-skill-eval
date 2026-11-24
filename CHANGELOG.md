@@ -1,3 +1,9 @@
+## [0.29.2](https://github.com/andysolomon/arc-skill-eval/compare/v0.29.1...v0.29.2) (2026-11-24)
+
+### Bug Fixes
+
+* **tui:** draw every screen in one terminal-sized frame ([a89e857](https://github.com/andysolomon/arc-skill-eval/commit/a89e8574efe1e6056ee8d43bbb07486b3e2885bd))
+
 ## [0.29.1](https://github.com/andysolomon/arc-skill-eval/compare/v0.29.0...v0.29.1) (2026-11-24)
 
 ### Bug Fixes
