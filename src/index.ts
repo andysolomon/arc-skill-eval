@@ -1,5 +1,6 @@
 export * from "./contracts/types.js";
 export * from "./contracts/normalize.js";
+export * from "./contracts/model-selection.js";
 export * from "./load/index.js";
 export * from "./fixtures/index.js";
 export * from "./pi/index.js";

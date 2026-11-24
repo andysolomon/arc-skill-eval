@@ -18,7 +18,6 @@ import {
   isDimension,
   isFlavor,
   makeBehaviorRow,
-  parseModel,
   stepIndex,
   steps,
   stripTrailingPeriod,
@@ -58,12 +57,6 @@ const postJson = (path: string, body: unknown): Promise<Response> =>
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
-  });
-
-const withModel = (assistModel: string): Record<string, unknown> =>
-  Option.match(parseModel(assistModel), {
-    onNone: () => ({}),
-    onSome: (model) => ({ model }),
   });
 
 const createRowId: Effect.Effect<string> = Effect.gen(function* () {
@@ -158,7 +151,7 @@ const postSuggestion = async (
   context: Record<string, unknown>,
   assistModel: string,
 ): Promise<Record<string, unknown>> => {
-  const response = await postJson('/suggest', { kind, skill, context, ...withModel(assistModel) });
+  const response = await postJson('/suggest', { kind, skill, context, model: assistModel });
   if (!response.ok) {
     const maybeError = await readJsonError(response);
     throw new Error(Option.getOrElse(maybeError, () => `suggest failed with ${response.status}`));
@@ -275,7 +268,7 @@ export const GenerateEvals = Command.define('GenerateEvals', {
       const response = await postJson('/generate-evals', {
         workspaceRoot: skillPath,
         behaviors: [],
-        ...withModel(assistModel),
+        model: assistModel,
       });
       if (!response.ok) {
         const maybeError = await readJsonError(response);

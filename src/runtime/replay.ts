@@ -41,6 +41,8 @@ export async function readReplayFixture(fixturePath: string): Promise<ReplayFixt
   return validateReplayFixture(JSON.parse(raw), fixturePath);
 }
 
+const REPLAY_MODEL = { provider: "replay", id: "scripted" };
+
 export function createReplayRuntime(fixture: ReplayFixture): AgentRuntime {
   return {
     id: "replay",
@@ -72,6 +74,7 @@ async function replayCase(fixture: ReplayFixture, options: RuntimeCaseOptions): 
   const inputTokens = fixture.usage?.inputTokens ?? 0;
   const outputTokens = fixture.usage?.outputTokens ?? 0;
   const caseDefinition = toCompatibilityExecutionCase(options);
+  const model = options.model ? { provider: options.model.provider, id: options.model.id } : REPLAY_MODEL;
 
   return {
     source: options.source,
@@ -86,7 +89,7 @@ async function replayCase(fixture: ReplayFixture, options: RuntimeCaseOptions): 
     agentDir: options.agentDir ?? "",
     sessionDir: "",
     fixture: null,
-    model: { provider: "replay", id: "scripted" },
+    model,
     startedAt: startedAt.toISOString(),
     finishedAt: finishedAt.toISOString(),
     durationMs: finishedAt.getTime() - startedAt.getTime(),
@@ -101,8 +104,8 @@ async function replayCase(fixture: ReplayFixture, options: RuntimeCaseOptions): 
       events: [],
     },
     usage: {
-      model: { provider: "replay", id: "scripted" },
-      thinkingLevel: null,
+      model,
+      thinkingLevel: options.model?.thinking ?? null,
       inputTokens,
       outputTokens,
       cacheReadTokens: 0,

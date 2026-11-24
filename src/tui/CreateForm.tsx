@@ -12,7 +12,8 @@ import { GLYPHS, BORDER } from './caps.js';
 import { generateCreateProposal, writeCreateProposal } from './create-driver.js';
 import type { CreateProposal } from './create-driver.js';
 import type { LlmEvalDesignerFn } from '../cli/create-command.js';
-import { THINKING_LEVEL_VALUES, type ModelSelection, type ThinkingLevel } from '../contracts/types.js';
+import { parseModelSelection } from '../contracts/model-selection.js';
+import type { ModelSelection } from '../contracts/types.js';
 
 type Phase = 'confirm' | 'model' | 'generating' | 'review' | 'writing' | 'error';
 
@@ -21,29 +22,6 @@ const INNER = 72 - 6; // width less border 1 and padding 2 each side
 const MAX_RATIONALE_LINES = 3;
 
 const errText = (err: unknown): string => (err instanceof Error ? err.message : String(err));
-
-const THINKING_LEVELS = new Set<string>(THINKING_LEVEL_VALUES);
-
-/**
- * Parse `provider/model[:thinking]` with the same rules as the run CLI's
- * --model flag: the slash is required, and a `:suffix` only becomes a
- * thinking level when it names a known one. Exported for tests.
- */
-export function parseModelInput(raw: string): ModelSelection {
-  const trimmed = raw.trim();
-  const invalid = () => new Error(`Invalid model: ${trimmed || '(empty)'}. Expected provider/model or provider/model:thinking.`);
-  const slash = trimmed.indexOf('/');
-  if (slash <= 0 || slash === trimmed.length - 1) throw invalid();
-  const provider = trimmed.slice(0, slash);
-  const modelAndMaybeThinking = trimmed.slice(slash + 1);
-  const colon = modelAndMaybeThinking.lastIndexOf(':');
-  if (colon < 0) return { provider, id: modelAndMaybeThinking };
-  const suffix = modelAndMaybeThinking.slice(colon + 1);
-  if (!THINKING_LEVELS.has(suffix)) return { provider, id: modelAndMaybeThinking };
-  const id = modelAndMaybeThinking.slice(0, colon);
-  if (!id) throw invalid();
-  return { provider, id, thinking: suffix as ThinkingLevel };
-}
 
 const modelLabel = (m: ModelSelection): string => `${m.provider}/${m.id}${m.thinking ? `:${m.thinking}` : ''}`;
 
@@ -101,13 +79,11 @@ export function CreateForm({ skillDir, skillName, hasSuite, onClose, designer, r
 
   // Enter on the model line: parse, keep the entry open on bad input.
   const submitModel = (value: string) => {
-    try {
-      setModel(parseModelInput(value));
-      setModelError('');
-      setPhase('confirm');
-    } catch (err) {
-      setModelError(errText(err));
-    }
+    const parsed = parseModelSelection(value);
+    if (!parsed.ok) { setModelError(parsed.message); return; }
+    setModel(parsed.selection);
+    setModelError('');
+    setPhase('confirm');
   };
 
   const accept = () => {

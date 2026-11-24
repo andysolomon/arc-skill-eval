@@ -6,6 +6,7 @@ import {
 } from "../../../../dist/cli/guided-eval-designer.js";
 import { invokePiCompletion } from "../../../../dist/cli/pi-completion.js";
 import { parseSkillFrontmatter } from "../../../../dist/skills/intake.js";
+import { modelFromRequest } from "../model-selection.mjs";
 import { resolveInWorkspace } from "../workspaces.mjs";
 
 function errorMessage(error) {
@@ -23,6 +24,7 @@ export async function handleGenerateEvals(request, response, context) {
       throw new Error("workspaceRoot must be the path to a skill directory.");
     }
 
+    const model = modelFromRequest(body.model, "model");
     const skillDir = await resolveInWorkspace(body.workspaceRoot);
     const skillMarkdown = await readFile(path.join(skillDir, "SKILL.md"), "utf8");
     const frontmatter = parseSkillFrontmatter(skillMarkdown, skillDir);
@@ -31,12 +33,6 @@ export async function handleGenerateEvals(request, response, context) {
       skillDescription: frontmatter.description,
       skillMarkdown,
     });
-    const model =
-      body.model
-      && typeof body.model.provider === "string"
-      && typeof body.model.id === "string"
-        ? { provider: body.model.provider, id: body.model.id }
-        : undefined;
     const raw = await invokePiCompletion({
       prompt,
       purpose: "guided eval designer",
