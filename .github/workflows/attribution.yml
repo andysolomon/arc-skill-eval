@@ -1,0 +1,20 @@
+name: attribution
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  attribution:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: reject agent attribution
+        env:
+          BASE_REF: origin/${{ github.base_ref }}
+          PR_BODY: ${{ github.event.pull_request.user.type != 'Bot' && github.event.pull_request.body || '' }}
+        run: node scripts/check-attribution.mjs "origin/${{ github.base_ref }}..${{ github.event.pull_request.head.sha }}"
