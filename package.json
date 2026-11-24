@@ -59,6 +59,7 @@
     "check:packages": "node scripts/check-package-entrypoints.mjs",
     "release": "semantic-release",
     "test": "npm run build && node --test tests/*.test.mjs",
+    "verify:formal": "node scripts/verify-formal.mjs",
     "docs:keymap": "npm run build && node scripts/gen-keymap-docs.mjs",
     "docs:dev": "npm --prefix docs-site run dev",
     "docs:build": "npm run docs:keymap && npm --prefix docs-site run build",

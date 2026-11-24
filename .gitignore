@@ -4,7 +4,8 @@ package-lock.json.bak
 coverage/
 dist/
 .agents/
-.claude/
+.claude/*
+!.claude/skills/
 .pi/
 # Per-run eval artifacts — produced by `arc-skill-eval run`. Authored
 # content (SKILL.md, evals/evals.json, evals/files/) stays tracked.

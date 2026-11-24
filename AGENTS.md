@@ -11,4 +11,5 @@ Guidance for coding agents working in this repository.
 ### Where tests live
 
 - E2E: `web/tests/e2e/` (Playwright). CI runs them with `npm --prefix web run test:e2e`.
+- Formal models: `formal/*.tla` (TLA+), checked by `npm run verify:formal` and in CI. Changing the TUI run console's lifecycle? Follow `.claude/skills/verify-run-lifecycle/SKILL.md`.
 - Isolated tests: `tests/*.test.mjs` (`node --test` against `dist/`, run with `npm test`). This suite keeps only tests that catch real bugs the E2E suite would miss. Don't add tests that pin constants or copy, only check shapes, or exercise their own mocks.
