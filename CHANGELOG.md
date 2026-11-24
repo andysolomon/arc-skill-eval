@@ -1,3 +1,9 @@
+## [0.29.3](https://github.com/andysolomon/arc-skill-eval/compare/v0.29.2...v0.29.3) (2026-11-24)
+
+### Bug Fixes
+
+* parse provider/model:thinking with one library parser ([a6b5607](https://github.com/andysolomon/arc-skill-eval/commit/a6b560738dbb0c1e41f1d8dd048f17521a71aad3))
+
 ## [0.29.2](https://github.com/andysolomon/arc-skill-eval/compare/v0.29.1...v0.29.2) (2026-11-24)
 
 ### Bug Fixes
