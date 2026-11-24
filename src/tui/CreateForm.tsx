@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
-import { COLORS } from './theme.js';
+import { COLORS, trunc, truncMiddle } from './theme.js';
 import { GLYPHS, BORDER } from './caps.js';
 import { generateCreateProposal, writeCreateProposal } from './create-driver.js';
 import type { CreateProposal } from './create-driver.js';
@@ -17,6 +17,7 @@ import { THINKING_LEVEL_VALUES, type ModelSelection, type ThinkingLevel } from '
 type Phase = 'confirm' | 'model' | 'generating' | 'review' | 'writing' | 'error';
 
 const MAX_REVIEW_CASES = 8;
+const INNER = 72 - 6; // width less border 1 and padding 2 each side
 const MAX_RATIONALE_LINES = 3;
 
 const errText = (err: unknown): string => (err instanceof Error ? err.message : String(err));
@@ -181,8 +182,8 @@ export function CreateForm({ skillDir, skillName, hasSuite, onClose, designer, r
 
   return (
     <Box flexDirection="column" borderStyle={BORDER} borderColor={COLORS.borderActive} paddingX={2} paddingY={1} width={72}>
-      <Text color={COLORS.blue} bold>Create eval suite — {skillName}</Text>
-      <Text color={COLORS.comment}>{skillDir}</Text>
+      <Text color={COLORS.blue} bold>{trunc(`Create eval suite — ${skillName}`, INNER)}</Text>
+      <Text color={COLORS.comment}>{truncMiddle(skillDir, INNER)}</Text>
       <Box height={1} />
 
       {phase === 'confirm' && (
@@ -223,7 +224,7 @@ export function CreateForm({ skillDir, skillName, hasSuite, onClose, designer, r
         <>
           <Text color={COLORS.blue} bold>Proposal <Text color={COLORS.green}>({cases.length} cases)</Text>{proposal.fixtureInputs.length > 0 ? <Text color={COLORS.comment}> · {proposal.fixtureInputs.length} fixture inputs</Text> : null}</Text>
           {proposal.rationale.slice(0, MAX_RATIONALE_LINES).map((r, i) => (
-            <Text key={i} color={COLORS.dim} wrap="truncate">{GLYPHS.bullet} {r}</Text>
+            <Text key={i} color={COLORS.dim} wrap="truncate">{trunc(`${GLYPHS.bullet} ${r}`, INNER)}</Text>
           ))}
           <Box flexDirection="column" marginY={1}>
             {winStart > 0 && <Text color={COLORS.dim}>…{winStart} above</Text>}
@@ -231,12 +232,14 @@ export function CreateForm({ skillDir, skillName, hasSuite, onClose, designer, r
               const idx = winStart + i;
               const sel = idx === reviewIdx;
               const off = excluded.has(String(c.id));
+              const id = trunc(String(c.id), INNER - 4);
+              const rest = trunc(`  ${(c.assertions ?? []).length} assertions${c.description ? ` — ${c.description}` : ''}`, INNER - 4 - id.length);
               return (
                 <Text key={String(c.id)} wrap="truncate">
                   <Text color={sel ? COLORS.blue : COLORS.comment} bold={sel}>{sel ? '› ' : '  '}</Text>
                   <Text color={off ? COLORS.dim : COLORS.green}>{off ? GLYPHS.fail : GLYPHS.pass} </Text>
-                  <Text color={off ? COLORS.dim : COLORS.fg} bold={sel}>{String(c.id)}</Text>
-                  <Text color={COLORS.comment}>  {(c.assertions ?? []).length} assertions{c.description ? ` — ${c.description}` : ''}</Text>
+                  <Text color={off ? COLORS.dim : COLORS.fg} bold={sel}>{id}</Text>
+                  {rest.length > 1 ? <Text color={COLORS.comment}>{rest}</Text> : null}
                 </Text>
               );
             })}

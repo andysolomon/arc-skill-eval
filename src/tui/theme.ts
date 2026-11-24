@@ -97,7 +97,50 @@ export const trunc = (s: unknown, n: number): string => {
 
 export const num = (n: number): string => Number(n).toLocaleString('en-US');
 
+/** Keep the start and end of `s`, cut to `n` characters with … in the middle. */
+export const truncMiddle = (s: string, n: number): string => {
+  if (s.length <= n) return s;
+  if (n <= 1) return s.slice(0, Math.max(0, n));
+  const head = Math.ceil((n - 1) / 2);
+  return s.slice(0, head) + '…' + s.slice(s.length - (n - 1 - head));
+};
+
 export const segLen = (segs: Seg[]): number => segs.reduce((a, s) => a + s.t.length, 0);
+
+/** Cut `segs` to `w` characters, ending the cut with …. */
+export function fitSegs(segs: Seg[], w: number): Seg[] {
+  if (segLen(segs) <= w) return segs;
+  const out: Seg[] = [];
+  let room = Math.max(0, w - 1);
+  for (const s of segs) {
+    if (room === 0) break;
+    const t = s.t.slice(0, room);
+    out.push({ ...s, t });
+    room -= t.length;
+  }
+  if (w > 0) out.push(seg('…', out.at(-1)?.c ?? COLORS.dim));
+  return out;
+}
+
+/** Break a line wider than `w` into rows of at most `w` characters, keeping each segment's color. */
+export function breakLine(line: Line, w: number): Line[] {
+  if (w <= 0 || segLen(line.segs) <= w) return [line];
+  const rows: Line[] = [];
+  let cur: Seg[] = [];
+  let room = w;
+  for (const s of line.segs) {
+    let t = s.t;
+    while (t) {
+      if (room === 0) { rows.push({ ...line, segs: cur }); cur = []; room = w; }
+      const take = t.slice(0, room);
+      cur.push({ ...s, t: take });
+      room -= take.length;
+      t = t.slice(take.length);
+    }
+  }
+  if (cur.length) rows.push({ ...line, segs: cur });
+  return rows;
+}
 
 /** A filled/empty block-bar — glyphs come from the capability-aware set. */
 export function bar(frac: number, color: Color, width = 18): Seg[] {
@@ -108,7 +151,9 @@ export function bar(frac: number, color: Color, width = 18): Seg[] {
 
 /** Word-wrap prose into indented main-pane lines. */
 export function wrap(text: string, w: number, indent = '  '): Line[] {
-  const words = String(text).split(/\s+/).filter(Boolean);
+  // A word longer than a line (a path, a URL) is split so it keeps the indent.
+  const room = Math.max(1, w - indent.length);
+  const words = String(text).split(/\s+/).filter(Boolean).flatMap((word) => word.match(new RegExp(`.{1,${room}}`, 'g')) ?? []);
   const out: Line[] = [];
   let line = indent;
   for (const word of words) {

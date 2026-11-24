@@ -8,7 +8,7 @@
 
 import { isJudgeAssertion } from '../evals/assertion-engine.js';
 import {
-  COLORS, seg, pad, trunc, num, bar, wrap, statusGlyph, rateColor, deltaColor, passFrac, segLen,
+  COLORS, seg, pad, trunc, num, bar, wrap, statusGlyph, rateColor, deltaColor, passFrac, segLen, breakLine,
 } from './theme.js';
 import type { Seg, Line } from './theme.js';
 import { GLYPHS } from './caps.js';
@@ -167,6 +167,11 @@ export interface MainView {
   anchors: number[]; // cursorable line indices; index aligns to the side-panel item
 }
 
+/**
+ * The main pane's view, with every line at most `wrapWidth - 2` characters
+ * (the pane's inner width minus its padding). Views wrap prose themselves;
+ * any line still too wide is broken here, so the pane never cuts one.
+ */
 export function buildMain(
   focus: Focus,
   sk: Skill,
@@ -177,6 +182,24 @@ export function buildMain(
   showWithout: boolean,
   compareBase?: Run,
   wrapWidth = 70,
+): MainView {
+  const v = projectMain(focus, sk, cs, asrt, run, caseMode, showWithout, compareBase, wrapWidth);
+  const first: number[] = [];
+  const lines: Line[] = [];
+  for (const line of v.lines) { first.push(lines.length); lines.push(...breakLine(line, wrapWidth - 2)); }
+  return { ...v, lines, anchors: v.anchors.map((a) => first[a] ?? a) };
+}
+
+function projectMain(
+  focus: Focus,
+  sk: Skill,
+  cs: Case | undefined,
+  asrt: Assertion,
+  run: Run | undefined,
+  caseMode: CaseMode,
+  showWithout: boolean,
+  compareBase: Run | undefined,
+  wrapWidth: number,
 ): MainView {
   // A distractor skill has no cases, so case/assertion views have nothing to
   // project — fall back to the skill view.

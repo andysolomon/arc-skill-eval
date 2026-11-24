@@ -7,7 +7,7 @@
 import { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
-import { COLORS } from './theme.js';
+import { COLORS, trunc, truncMiddle } from './theme.js';
 import { BORDER } from './caps.js';
 import {
   appendEvalCase,
@@ -17,6 +17,17 @@ import {
 } from './new-case.js';
 
 const CASE_FIELDS = ['case id', 'prompt', 'expected output'] as const;
+/** Room for a value inside a field box: form width 72, less border and padding (6), less the field's own (4). */
+const VALUE_WIDTH = 62;
+
+/** A text input one row tall. A long value shows its end, where typing happens. */
+function OneLineInput(props: { value: string; onChange: (v: string) => void }) {
+  return (
+    <Box height={1} flexGrow={1} flexDirection="column" justifyContent="flex-end" overflowY="hidden">
+      <Box flexShrink={0}><TextInput value={props.value} onChange={props.onChange} /></Box>
+    </Box>
+  );
+}
 
 type AssertionKind = AuthoredAssertion['type'];
 
@@ -196,7 +207,7 @@ export function NewCaseForm({ skillDir, skillName, onClose, onDryRun }: {
   return (
     <Box flexDirection="column" borderStyle={BORDER} borderColor={COLORS.borderActive} paddingX={2} paddingY={1} width={72}>
       <Text color={COLORS.blue} bold>New eval case</Text>
-      <Text color={COLORS.comment}>{`appends to ./skills/${skillName}/evals/evals.json`}</Text>
+      <Text color={COLORS.comment}>{truncMiddle(`appends to ./skills/${skillName}/evals/evals.json`, 72 - 6)}</Text>
       <Box height={1} />
 
       {mode === 'fields' && (
@@ -206,8 +217,8 @@ export function NewCaseForm({ skillDir, skillName, onClose, onDryRun }: {
               <Text color={field === i ? COLORS.blue : COLORS.comment} bold={field === i}>{label}</Text>
               <Box borderStyle={BORDER} borderColor={field === i ? COLORS.borderActive : COLORS.border} paddingX={1}>
                 {field === i
-                  ? <TextInput value={vals[i]!} onChange={(v) => setVal(i, v)} />
-                  : <Text color={vals[i] ? COLORS.fg : COLORS.dim}>{vals[i] || ' '}</Text>}
+                  ? <OneLineInput value={vals[i]!} onChange={(v) => setVal(i, v)} />
+                  : <Text color={vals[i] ? COLORS.fg : COLORS.dim}>{trunc(vals[i] || ' ', VALUE_WIDTH)}</Text>}
               </Box>
             </Box>
           ))}
@@ -275,8 +286,8 @@ export function NewCaseForm({ skillDir, skillName, onClose, onDryRun }: {
               <Text color={editField === i ? COLORS.blue : COLORS.comment} bold={editField === i}>{f.label}</Text>
               <Box borderStyle={BORDER} borderColor={editField === i ? COLORS.borderActive : COLORS.border} paddingX={1}>
                 {editField === i
-                  ? <TextInput value={editVals[f.name] ?? ''} onChange={(v) => setEditVals((prev) => ({ ...prev, [f.name]: v }))} />
-                  : <Text color={editVals[f.name] ? COLORS.fg : COLORS.dim}>{editVals[f.name] || ' '}</Text>}
+                  ? <OneLineInput value={editVals[f.name] ?? ''} onChange={(v) => setEditVals((prev) => ({ ...prev, [f.name]: v }))} />
+                  : <Text color={editVals[f.name] ? COLORS.fg : COLORS.dim}>{trunc(editVals[f.name] || ' ', VALUE_WIDTH)}</Text>}
               </Box>
             </Box>
           ))}
