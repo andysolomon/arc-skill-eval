@@ -53,6 +53,7 @@ const RUNTIMES = [
   { runtime: "claude-code", binary: "claude", skillsDir: ".claude/skills", tokens: { input_tokens: 4, output_tokens: 129 } },
   { runtime: "codex", binary: "codex", skillsDir: ".agents/skills", tokens: { input_tokens: 52909, output_tokens: 72 } },
   { runtime: "cursor-agent", binary: "cursor-agent", skillsDir: ".cursor/skills", tokens: { input_tokens: 14330, output_tokens: 148 } },
+  { runtime: "copilot", binary: "copilot", skillsDir: ".github/skills", tokens: null },
 ];
 
 async function setup(binary) {
