@@ -1,8 +1,3 @@
-/**
- * Eval case artifact persistence — single owner for `evals-runs/` per-variant
- * file layout and JSON shapes. CLI writes through here; TUI and review read through here.
- */
-
 import { access, cp, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -497,9 +492,7 @@ async function listOutputFiles(dir: string, cap = 200): Promise<LoadedOutputFile
         let size = 0;
         try {
           size = (await stat(full)).size;
-        } catch {
-          /* ignore */
-        }
+        } catch {}
         out.push({ path: relative, size });
       }
     }

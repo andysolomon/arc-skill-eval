@@ -1,30 +1,17 @@
-/**
- * The coverage map: a case names the SKILL.md sections it covers in
- * `metadata.covers`, and this module checks those names against the headings.
- * A name with no heading means the skill was restructured under the suite. A
- * heading with no case is a part of the skill nothing exercises.
- */
-
 import type { EvalCase } from "./types.js";
 
 export interface SkillSection {
-  /** Heading level: 2 for `##`, 3 for `###`. */
   level: 2 | 3;
   title: string;
-  /** For a level-3 section, the title of the level-2 section above it. */
   parent?: string;
 }
 
 export interface CoverageCheck {
-  /** False when no case uses `metadata.covers`; the map is opt-in. */
   declared: boolean;
-  /** `covers` entries that match no section. */
   unknown: Array<{ caseId: string; covers: string }>;
-  /** Level-2 sections that no case covers, directly or through a subsection. */
   uncovered: string[];
 }
 
-/** The `##` and `###` headings of a SKILL.md, outside frontmatter and code fences. */
 export function skillSections(markdown: string): SkillSection[] {
   const sections: SkillSection[] = [];
   let inFence = false;
@@ -76,11 +63,6 @@ export function checkCoverage(markdown: string, cases: ReadonlyArray<EvalCase>):
   return { declared, unknown, uncovered };
 }
 
-/**
- * A `covers` entry names a section when it equals the heading or is its
- * leading words, so "Phase 2" names "Phase 2: Draft the config". Case,
- * markdown emphasis and trailing punctuation are ignored.
- */
 function sectionMatches(title: string, entry: string): boolean {
   const heading = normalize(title);
   const wanted = normalize(entry);

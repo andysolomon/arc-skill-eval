@@ -1,15 +1,3 @@
-// Deterministic replay runtime — the first non-Pi AgentRuntime, proving the
-// seam is real. It executes no model and touches no network: a case "run"
-// writes scripted files into the prepared workspace and synthesizes a
-// minimal session/usage so the standard artifact pipeline (assistant.md,
-// grading, timing, trace, tool-summary, context-manifest) works unchanged.
-// Deterministic script assertions (file-exists / regex-match / json-valid)
-// then grade against the replayed workspace, which lets integration tests
-// exercise the full grade-and-artifact path provider-free.
-//
-// Consumes protocol-neutral RuntimeCaseOptions and synthesizes Pi-compatible
-// result fields (profile/tier/kind/lane) only at this return boundary.
-
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -17,7 +5,6 @@ import type { PiSdkExecutionCase } from "../pi/types.js";
 import type { AgentRuntime, RuntimeCaseOptions, RuntimeCaseResult } from "./types.js";
 
 export interface ReplayFixture {
-  /** Final assistant text for the replayed run. */
   assistantText: string;
   /** Workspace files to "produce": workspace-relative path → content. */
   files?: Record<string, string>;
@@ -25,7 +12,6 @@ export interface ReplayFixture {
   usage?: { inputTokens?: number; outputTokens?: number };
 }
 
-/** Validate a parsed replay fixture; problems name the offending field. */
 export function validateReplayFixture(value: unknown, source = "replay fixture"): ReplayFixture {
   const issues: string[] = [];
   const record = value as Record<string, unknown> | null;
@@ -148,7 +134,6 @@ async function replayCase(fixture: ReplayFixture, options: RuntimeCaseOptions): 
   };
 }
 
-/** Synthesize Pi-compatible case metadata only at the replay result boundary. */
 function toCompatibilityExecutionCase(options: RuntimeCaseOptions): PiSdkExecutionCase {
   return {
     kind: "execution",

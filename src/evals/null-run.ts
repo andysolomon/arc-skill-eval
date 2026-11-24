@@ -1,9 +1,3 @@
-/**
- * The null run: set up a case's workspace and grade its assertions before any
- * agent has touched it. An assertion that passes there cannot fail, so it says
- * nothing about the skill. No model is called and no runtime is started.
- */
-
 import path from "node:path";
 
 import type { DiscoveredSkillFiles } from "../load/source-types.js";
@@ -18,9 +12,7 @@ import {
 import type { EvalAssertion, EvalCase } from "./types.js";
 import { prepareCaseWorkspace } from "./workspace.js";
 
-/** A positive assertion that already passes on the untouched workspace. */
 export interface VacuousAssertion {
-  /** Zero-based position in the case's `assertions`. */
   index: number;
   text: string;
   evidence: string;
@@ -29,16 +21,10 @@ export interface VacuousAssertion {
 export interface NullRunCaseResult {
   caseId: string;
   vacuous: VacuousAssertion[];
-  /**
-   * Every assertion checks that something did not happen, so an agent that
-   * does nothing passes the case.
-   */
   absenceOnly: boolean;
-  /** Workspace setup failed, so nothing was graded. */
   setupError?: string;
 }
 
-/** What a run that did nothing looks like to the grader. */
 const NOTHING_HAPPENED: EvalTraceObservations = {
   assistantText: "",
   toolCalls: [],
@@ -98,10 +84,6 @@ export async function nullRunCase(options: {
   }
 }
 
-/**
- * Assertions that hold when nothing happens. They pass on a null run by
- * design, so the null run cannot judge them.
- */
 function checksAbsence(assertion: EvalAssertion): boolean {
   if (typeof assertion === "string") return false;
   if ("type" in assertion) return assertion.type === "file-absent";

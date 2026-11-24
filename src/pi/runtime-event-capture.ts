@@ -1,6 +1,4 @@
 /**
- * Bounded, linear-space capture of raw Pi runtime events for traces.
- *
  * Pi sends every `message_update` with the whole partial assistant message
  * so far (`message` and `assistantMessageEvent.partial`). Cloning those on
  * every delta stores the streamed output once per delta, which grows
@@ -8,26 +6,18 @@
  * each update adds (its type, content index, delta, and the finished block
  * on `*_end` events). The complete message is still captured once, by
  * `message_end` and by the session's message list.
- *
- * Past a size budget the recorder stops appending and reports `truncated`,
- * so observability alone can never take the run down.
  */
 
-/** Default ceiling on the JSON size of captured runtime events. */
 export const DEFAULT_MAX_RUNTIME_EVENT_BYTES = 32 * 1024 * 1024;
 
-/** Environment override for {@link DEFAULT_MAX_RUNTIME_EVENT_BYTES}. */
 export const MAX_RUNTIME_EVENT_BYTES_ENV = "ARC_SKILL_EVAL_MAX_RUNTIME_EVENT_BYTES";
 
-/** Fields of an assistant message event that carry new information, not cumulative state. */
 const ASSISTANT_EVENT_FIELDS = ["contentIndex", "delta", "content", "toolCall", "reason"] as const;
 
-/** Size charged to an event that cannot be serialized to measure it. */
 const UNMEASURABLE_EVENT_BYTES = 1024;
 
 export interface RuntimeEventRecorder {
   readonly events: unknown[];
-  /** True once an event was dropped because the budget was reached. */
   readonly truncated: boolean;
   record: (event: unknown) => void;
 }
@@ -35,7 +25,6 @@ export interface RuntimeEventRecorder {
 export function createRuntimeEventRecorder(options: { maxBytes?: number } = {}): RuntimeEventRecorder {
   const maxBytes = options.maxBytes ?? resolveMaxRuntimeEventBytes();
   const events: unknown[] = [];
-  // JSON size of `events` as an array: brackets plus one comma per extra item.
   let bytes = 2;
   let truncated = false;
 
@@ -58,7 +47,6 @@ export function createRuntimeEventRecorder(options: { maxBytes?: number } = {}):
   };
 }
 
-/** Clone an event for capture, compacting streaming `message_update` partials. */
 export function captureRuntimeEvent(event: unknown): unknown {
   return isMessageUpdateEvent(event) ? compactMessageUpdate(event) : cloneValue(event);
 }

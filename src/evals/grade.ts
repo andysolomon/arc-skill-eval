@@ -1,15 +1,3 @@
-/**
- * Grader for an `evals/evals.json` case. Given a run's assistant text,
- * its workspace directory, and the case's assertions, produces a
- * `GradingJson` with per-assertion `{ passed, evidence }` pairs.
- *
- * String and output-judge assertions are graded by an LLM judge (Pi SDK by
- * default, but tests inject their own `judge` function). Every other script
- * and intent assertion is graded deterministically by the assertion engine.
- *
- * Reference: `docs/evals-json-pivot.md`, section "Assertion grading contract".
- */
-
 import type { ModelSelection } from "../contracts/types.js";
 import { piJudgeSessionRunner } from "../pi/session-adapter.js";
 import {
@@ -108,14 +96,11 @@ export async function gradeEvalCase(options: GradeEvalCaseOptions): Promise<Grad
   const assertions = options.case.assertions ?? [];
   const caseId = toCaseId(options.case.id);
 
-  // Pre-allocate slots so we can fill them in input order regardless of
-  // whether the result comes from the judge or a script check.
   const results: (AssertionResult | undefined)[] = new Array(assertions.length);
   const judgeAssertionSlots: Array<{
     index: number;
     text: string;
     assertion: EvalAssertion;
-    /** Scored judge threshold + ceiling, when the assertion declares `threshold`. */
     scored?: { threshold: number; scaleMax: number };
   }> = [];
 
@@ -163,7 +148,6 @@ export async function gradeEvalCase(options: GradeEvalCaseOptions): Promise<Grad
   const assertionResults: AssertionResult[] = results.map((result, index) => {
     const assertion = assertions[index]!;
     const base = result ?? {
-      // Defensive fallback: should never happen because every index is filled above.
       text: summarizeAssertion(assertion),
       passed: false,
       evidence: "Grader did not produce a result",
@@ -178,8 +162,6 @@ export async function gradeEvalCase(options: GradeEvalCaseOptions): Promise<Grad
   });
 
   const passed = assertionResults.filter((r) => r.passed).length;
-  // Split misses into hard failures (fail the run by default) and soft misses
-  // (recorded, but fail the run only under `--strict`).
   const misses = assertionResults.filter((r) => !r.passed);
   const softFailed = misses.filter((r) => r.soft).length;
   const failed = misses.length - softFailed;
@@ -201,14 +183,8 @@ export async function gradeEvalCase(options: GradeEvalCaseOptions): Promise<Grad
   };
 }
 
-/** Rubric ceiling used when a scored judge sets `threshold` without a `scaleMax`. */
 const DEFAULT_JUDGE_SCALE_MAX = 5;
 
-/**
- * A scored-judge rubric for an assertion, or null if it is a plain (binary)
- * judge. Scoring applies only to output judge assertions carrying a numeric
- * `threshold`; bare-string judges are always binary.
- */
 function scoredRubricFor(assertion: EvalAssertion): { threshold: number; scaleMax: number } | null {
   if (typeof assertion !== "object" || assertion === null || !("kind" in assertion)) return null;
   if (assertion.kind !== "output" || assertion.method !== "judge") return null;
@@ -217,12 +193,7 @@ function scoredRubricFor(assertion: EvalAssertion): { threshold: number; scaleMa
   return { threshold: assertion.threshold, scaleMax };
 }
 
-/**
- * Turn a scored judge's response into an `AssertionResult`. Pass is decided by
- * the rubric threshold, not the judge's own boolean. A judge that returned no
- * numeric score falls back to its boolean verdict so a weak model never hard-
- * fails on shape alone.
- */
+// A judge that returns no numeric score falls back to its boolean verdict, so a weak model never hard-fails on shape alone.
 function scoredResult(
   text: string,
   assertion: EvalAssertion,
@@ -252,12 +223,6 @@ function clampScore(score: number, scaleMax: number): number {
   return score;
 }
 
-/**
- * Classify an assertion's severity and whether a miss is soft. Only intent
- * assertions (objects with a `kind`) can be soft — a bare string or a legacy
- * script (`type`) assertion is always hard. Soft applies when the assertion
- * declares `mustPass: false` or an `info`/`warn` severity.
- */
 function classifyAssertion(assertion: EvalAssertion): { severity?: "info" | "warn" | "error"; soft: boolean } {
   if (typeof assertion !== "object" || !("kind" in assertion)) {
     return { soft: false };
@@ -267,13 +232,6 @@ function classifyAssertion(assertion: EvalAssertion): { severity?: "info" | "war
   return { ...(severity ? { severity } : {}), soft };
 }
 
-/**
- * Invokes the judge and normalizes its output into a per-assertion array
- * of length N. A judge that THROWS marks every assertion failed with the
- * thrown message ("Judge error: ..."), so misconfiguration (e.g. an
- * unauthenticated judge provider) is distinguishable from a judge that
- * responded with malformed output. Never throws itself.
- */
 async function runJudgeSafely(
   judge: LlmJudgeFn,
   input: LlmJudgeInput,
@@ -450,18 +408,15 @@ export function parseJudgeResponse(
   return { results };
 }
 
-/** Strip common formatting (code fences, leading prose) and isolate the first JSON object. */
 function extractJsonBlob(raw: string): string | null {
   const trimmed = raw.trim();
   if (trimmed.length === 0) return null;
 
-  // Handle ```json ... ``` or ``` ... ``` fences.
   const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
   if (fenceMatch && fenceMatch[1]) {
     return fenceMatch[1].trim();
   }
 
-  // Find the first balanced JSON object in the string.
   const start = trimmed.indexOf("{");
   if (start < 0) return null;
 

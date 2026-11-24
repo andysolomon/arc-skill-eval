@@ -1,9 +1,4 @@
-/**
- * Types for the Anthropic-standard `evals/evals.json` format and our
- * runtime-side extensions (script assertions + grading output).
- *
- * Shape reference: https://platform.claude.com/docs/en/agents-and-tools/agent-skills
- */
+// `evals/evals.json` shape reference: https://platform.claude.com/docs/en/agents-and-tools/agent-skills
 
 import type {
   EnvironmentRequirements,
@@ -39,7 +34,6 @@ export type SkillEvalDefinition = SkillDefinition<EvalSuite>;
 export interface EvalCase {
   /** Stable case identifier — number or string. Unique within the file. */
   id: string | number;
-  /** Optional author-facing case description. */
   description?: string;
   /** The user-facing prompt the skill must handle. */
   prompt: string;
@@ -55,7 +49,6 @@ export interface EvalCase {
    * Prefer `setup: { kind: "seeded", sources: ... }` for new cases.
    */
   files?: string[];
-  /** Assertions to grade against the run output, workspace, behavior, or safety. */
   assertions?: EvalAssertion[];
   /**
    * Execution isolation for this case. Defaults to `"none"` (the

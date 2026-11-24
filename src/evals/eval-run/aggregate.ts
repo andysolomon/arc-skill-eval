@@ -88,7 +88,6 @@ export async function writeSkillBenchmark(args: {
   return { benchmarkPath, benchmark };
 }
 
-/** One trial of one case: its artifacts, or `null` when the trial crashed before grading. */
 export type TrialOutcome = CaseRunArtifacts | null;
 
 export async function writeSkillTrials(args: {
@@ -135,10 +134,6 @@ function summarizeCaseTrials(entry: { caseId: string; outcomes: TrialOutcome[] }
   };
 }
 
-/**
- * The suite-wide with-minus-without delta of each trial, and whether the gap
- * is larger than its own movement between trials.
- */
 function summarizeTrialDeltas(
   trials: number,
   cases: Array<{ caseId: string; outcomes: TrialOutcome[] }>,
@@ -175,7 +170,6 @@ function summarizeTrialDeltas(
     min,
     max,
     spread,
-    // One trial has no spread to compare against, so it measures nothing.
     measurable: deltas.length > 1 && Math.abs(median) > spread,
   };
 }
@@ -269,10 +263,6 @@ function buildBenchmarkJson(args: {
   };
 }
 
-/**
- * Pair each assertion's verdict across the two variants. Both gradings come
- * from the same case, so they list the same assertions in the same order.
- */
 function compareAssertions(withSkill: GradingJson, withoutSkill: GradingJson): BenchmarkAssertionComparison[] {
   const rows: BenchmarkAssertionComparison[] = [];
   const count = Math.min(withSkill.assertion_results.length, withoutSkill.assertion_results.length);

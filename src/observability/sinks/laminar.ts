@@ -5,12 +5,6 @@ import type {
   ObservabilitySink,
 } from "../types.js";
 
-/**
- * Configuration for the Laminar observability sink.
- *
- * `apiKey` is required to authenticate with the Laminar ingestion API.
- * `baseUrl` and `projectName` are optional overrides.
- */
 export interface LaminarSinkConfig {
   apiKey: string;
   baseUrl?: string;
@@ -40,35 +34,28 @@ export interface LaminarCaseVariantRecord {
   run_id: string;
   /** Optional iteration label when a case is executed multiple times. */
   iteration?: string;
-  /** Skill under test. */
   skill_name: string;
   skill_dir: string;
   /** Shared case identifier so both variants group under the same case. */
   case_id: string;
-  /** "with_skill" | "without_skill" — the distinguishing attribute. */
   variant: ObservabilityCaseVariantPayload["variant"];
   /** Model + provider, derived from `timing.model`. */
   model_provider: string | null;
   model_id: string | null;
   thinking_level: string | null;
-  /** Token usage. */
   total_tokens: number;
   input_tokens: number;
   output_tokens: number;
   cache_read_tokens: number;
   cache_write_tokens: number;
-  /** Estimated cost in USD. */
   estimated_cost_usd: number;
-  /** Wall-clock duration in milliseconds. */
   duration_ms: number;
-  /** Grading pass/fail summary. */
   grading_passed: number;
   grading_failed: number;
   grading_total: number;
   grading_pass_rate: number | null;
   /** Per-assertion verdicts (text + evidence quote, never full outputs). */
   assertions: LaminarAssertionOutcome[];
-  /** Tool-summary counts. */
   tool_call_count: number;
   tool_error_count: number;
   mcp_tool_call_count: number;
@@ -214,8 +201,6 @@ export function buildDatapoint(record: LaminarCaseVariantRecord): LaminarDatapoi
     duration_ms: record.duration_ms,
     tool_calls: record.tool_call_count,
   };
-  // pass_rate is the headline score; a null rate (no gradable assertions)
-  // is omitted rather than coerced to 0, which would read as a failure.
   if (record.grading_pass_rate !== null) {
     scores.pass_rate = record.grading_pass_rate;
   }
@@ -285,8 +270,6 @@ async function createRealClient(
     projectApiKey: config.apiKey,
   });
 
-  // One evaluation per (run, iteration, variant), memoized as a promise so
-  // concurrent case exports for the same variant share a single init call.
   const evaluations = new Map<string, Promise<{ id: string; url: string }>>();
   const nextIndex = new Map<string, number>();
   const urls: string[] = [];
@@ -379,8 +362,6 @@ export function createLaminarSink(
       return client?.evaluationUrls?.() ?? [];
     },
     async shutdown(): Promise<void> {
-      // Only a client that was actually constructed (i.e. at least one export
-      // happened, or a client was injected) needs draining.
       await client?.shutdown?.();
     },
   };

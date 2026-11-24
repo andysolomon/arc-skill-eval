@@ -31,25 +31,13 @@ export class EvalsJsonValidationError extends Error {
   }
 }
 
-// SCHEMA BUILDING BLOCKS
-//
-// Every schema carries its own message, and the formatter puts the field path
-// in front of it, so an issue reads like
-// "evals[2]: `assertions[0].pattern` must be a non-empty string".
-
 const NON_EMPTY = "must be a non-empty string";
 const STRING = "must be a string";
 const BOOLEAN = "must be a boolean";
 
-/** A required field: the same message whether the key is missing or the value is wrong. */
 const required = <S extends Schema.Top>(schema: S, message: string) =>
   schema.annotate({ message }).pipe(Schema.annotateKey({ messageMissingKey: message }));
 
-/**
- * An optional field. `undefined` counts as absent: builder code passes JS
- * objects, where `{ files: undefined }` is common, and the old validator
- * accepted it.
- */
 const optional = <S extends Schema.Top>(schema: S, message: string) =>
   // The `| undefined` wrapper is itself a union, which reports its own error
   // for a wrong-typed value, so it carries the message too.
@@ -62,7 +50,6 @@ const oneOf = <const L extends ReadonlyArray<string>>(values: L) =>
 
 const optionalOneOf = <const L extends ReadonlyArray<string>>(values: L) => optional(oneOf(values), oneOfMessage(values));
 
-/** Arrays decode as mutable so the decoded type lines up with the interfaces in `types.ts`. */
 const list = <S extends Schema.Top>(item: S, message: string) =>
   Schema.mutable(Schema.Array(item)).annotate({ message });
 
@@ -71,7 +58,6 @@ const list = <S extends Schema.Top>(item: S, message: string) =>
 const nonEmpty = Schema.String.annotate({ message: NON_EMPTY }).check(Schema.isNonEmpty({ message: NON_EMPTY }));
 const finite = (message: string) => Schema.Number.annotate({ message }).check(Schema.isFinite({ message }));
 
-/** A key that must be absent or `undefined`. */
 const forbidden = (message: string) => optional(Schema.Never, message);
 
 const isValidRegex = (pattern: string, flags: string | undefined): boolean => {
@@ -83,10 +69,6 @@ const isValidRegex = (pattern: string, flags: string | undefined): boolean => {
   }
 };
 
-/**
- * Cross-field check: the regex in `field` must compile, with the struct's
- * `flags` when it has them. `when` limits the check to some values.
- */
 const compilesAsRegex = <A extends object>(field: keyof A & string, when?: (value: A) => boolean) =>
   Schema.makeFilter<A>((value) => {
     if (when && !when(value)) return undefined;
@@ -97,8 +79,6 @@ const compilesAsRegex = <A extends object>(field: keyof A & string, when?: (valu
     }
     return { path: [field], issue: "is not a valid regular expression" };
   });
-
-// WORKSPACE SETUP
 
 const SETUP_MESSAGE = `must be an object with \`kind\` from [${WORKSPACE_KIND_VALUES.join(", ")}]`;
 
@@ -126,8 +106,6 @@ const WorkspaceSetupSchema = Schema.Union([
     ),
   }),
 ]).annotate({ message: SETUP_MESSAGE });
-
-// SANDBOX MOCKS + METADATA
 
 const SandboxMockFile = Schema.Struct({
   path: required(nonEmpty, NON_EMPTY),
@@ -189,8 +167,6 @@ const Metadata = Schema.Struct({
   covers: optional(list(Schema.String.annotate({ message: STRING }), "must be an array of strings"), "must be an array of strings"),
 }).annotate({ message: "must be an object" });
 
-// SCRIPT ASSERTIONS (discriminated by `type`)
-
 const SCRIPT_ASSERTION_TYPES = ["file-exists", "file-absent", "regex-match", "json-valid"] as const;
 
 // Union members are told apart by single-literal fields; a member keyed on
@@ -209,16 +185,12 @@ const RegexMatchAssertion = Schema.Struct({
   ),
 }).check(compilesAsRegex("pattern"));
 
-// INTENT ASSERTIONS (discriminated by `kind`, then `method`)
-
 const INTENT_ASSERTION_KINDS = ["output", "workspace", "behavior", "safety"] as const;
 
 const intentBase = {
   id: required(nonEmpty, NON_EMPTY),
   mustPass: optional(Schema.Boolean, BOOLEAN),
   severity: optionalOneOf(["info", "warn", "error"]),
-  // An object with a `type` key is a script assertion, even when it also has
-  // `kind`, and even when `type` is `undefined` (the old `"type" in value`).
   type: Schema.optionalKey(Schema.Never.annotate({ message: oneOfMessage(SCRIPT_ASSERTION_TYPES) })),
 };
 
@@ -236,7 +208,6 @@ const BEHAVIOR_METHODS = [
   "command-forbidden",
 ] as const;
 
-/** The discriminating `method` of one union member; a missing key names every allowed method. */
 const method = <M extends string>(value: M, all: ReadonlyArray<string>) =>
   required(Schema.Literal(value), oneOfMessage(all));
 
@@ -345,7 +316,7 @@ const SafetyAssertion = Schema.Union([
       ...intentBase,
       kind: Schema.Literal("safety"),
       method: method(methodName, SAFETY_METHODS),
-      config: Schema.optional(Schema.Unknown), // free-form; never fails
+      config: Schema.optional(Schema.Unknown),
     }),
   ),
 ]).annotate({
@@ -367,8 +338,6 @@ const Assertion = Schema.Union([
     `must be a non-empty string, a script assertion with \`type\` from [${SCRIPT_ASSERTION_TYPES.join(", ")}], ` +
     `or an intent assertion with \`kind\` from [${INTENT_ASSERTION_KINDS.join(", ")}]`,
 });
-
-// CASE + FILE
 
 const EvalCaseSchema = Schema.Struct({
   id: required(Schema.Union([Schema.String, Schema.Number]), "must be a string or number"),
@@ -413,8 +382,6 @@ export type EvalsJsonSchemaMatchesTypes = AssertTrue<
   typeof EvalsJsonFileSchema.Type extends EvalsJsonFile ? true : false
 >;
 
-// PUBLIC API
-
 /**
  * Read and validate an `evals/evals.json` file. Returns the parsed
  * shape, frozen against further mutation. Throws
@@ -451,7 +418,6 @@ export function validateEvalsJsonValue(value: unknown, sourceDescription = "eval
   const result = decodeEvalsJson(value);
 
   if (Result.isFailure(result)) {
-    // Several union candidates can report the same problem; list it once.
     const issues = [...new Set(toIssueList(result.failure.issue).issues.map(formatIssue))];
     throw new EvalsJsonValidationError(
       `evals.json at ${sourceDescription} failed validation (${issues.length} issue${
@@ -463,7 +429,7 @@ export function validateEvalsJsonValue(value: unknown, sourceDescription = "eval
 
   // The schema drops keys it doesn't know. Build the result from the
   // original value instead, so nested objects (assertions, setup, metadata)
-  // keep any extra keys exactly as written, the same as before Schema.
+  // keep any extra keys exactly as written.
   const file = value as EvalsJsonFile;
   return Object.freeze({
     version: file.version,
@@ -487,7 +453,6 @@ function freezeCase(value: EvalCase): EvalCase {
   });
 }
 
-/** `evals[2]: \`assertions[0].pattern\` must be a non-empty string` */
 function formatIssue(issue: { readonly path?: ReadonlyArray<PropertyKey | { key: PropertyKey }> | undefined; readonly message: string }): string {
   const keys = (issue.path ?? []).map((segment) => (typeof segment === "object" ? segment.key : segment));
   const [head, index, ...rest] = keys;
@@ -506,10 +471,6 @@ function atPath(keys: ReadonlyArray<PropertyKey>, message: string): string {
   return `\`${rendered}\` ${message}`;
 }
 
-/**
- * Shallow type guard re-exported so downstream modules don't need to
- * reach into loader internals.
- */
 export function isScriptAssertion(assertion: EvalAssertion): assertion is ScriptAssertion {
   return typeof assertion !== "string" && "type" in assertion;
 }

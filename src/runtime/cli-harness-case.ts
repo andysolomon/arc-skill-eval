@@ -1,16 +1,3 @@
-/**
- * Shared case runner for the CLI harness runtimes (claude-code, codex,
- * cursor-agent, copilot). Each harness only differs in its binary, argv,
- * stdout parser and skill-staging layout; the lifecycle is identical:
- *
- *   stage skills -> invoke the CLI -> parse stdout -> build the result
- *
- * The staged skills are a scoped resource. Any failure or interruption after
- * staging (non-zero exit, unparseable output, a throwing parser, a timeout,
- * Ctrl-C) removes them before the error surfaces; on success they stay until
- * the caller invokes `result.cleanup()`.
- */
-
 import path from "node:path";
 
 import { Data, Effect } from "effect";
@@ -31,7 +18,6 @@ export interface CliInvocationOptions {
   argv: string[];
   env: NodeJS.ProcessEnv;
   prompt: string;
-  /** Aborted when the case times out or the run is cancelled; the default invoker kills the child. */
   signal?: AbortSignal;
 }
 
@@ -43,7 +29,6 @@ export interface CliInvocationResult {
 
 export type CliInvoker = (options: CliInvocationOptions) => Promise<CliInvocationResult>;
 
-/** Common shape every harness stdout parser returns. */
 export interface ParsedHarnessOutput {
   assistantText: string;
   messages: unknown[];
@@ -64,15 +49,12 @@ export interface StageHarnessSkillsOptions {
 
 export interface CliHarnessSpec {
   id: EvalTraceRuntime;
-  /** Human label used in failure messages, e.g. "Claude Code". */
   label: string;
-  /** Prefix for the fallback session id when stdout carries none. */
   sessionPrefix: string;
   buildArgv(workspaceDir: string, prompt: string, model: ModelSelection | null): string[];
   parse(stdout: string, fallbackSessionId: string): ParsedHarnessOutput;
   stageSkills(options: StageHarnessSkillsOptions): Promise<string[]>;
   cleanupStagedSkills(stagedPaths: string[]): Promise<void>;
-  /** Fail the case when stdout had unparseable lines and produced no assistant text. */
   failOnUnparseableOutput: boolean;
 }
 
@@ -99,7 +81,6 @@ export class CliHarnessOutputError extends Data.TaggedError("CliHarnessOutputErr
   }
 }
 
-/** Invoker that spawns `binary` and kills it when `signal` aborts. */
 export function processInvoker(binary: string): CliInvoker {
   return (options) =>
     runProcessPromise(binary, options.argv, { cwd: options.cwd, env: options.env, signal: options.signal });

@@ -1,12 +1,3 @@
-/**
- * `defineSkillEval` — a typed, programmatic authoring layer that emits the same
- * `evals/evals.json` the runtime already consumes. This is NOT Eve's
- * `defineEval`: there is no `test(t)`, no live session driver, no second runner.
- * `toJSON()` builds an `EvalsJsonFile` and validates it with the loader's own
- * validator, so authoring errors (duplicate ids, bad assertion shapes) surface
- * at build time instead of at run time. See `docs/eve-eval-leverage.md`.
- */
-
 import { validateEvalsJsonValue } from "../loader.js";
 import type { EvalAssertion, EvalCase, EvalsJsonFile } from "../types.js";
 import type { WorkspaceMountMode, WorkspaceSetup } from "../../contracts/types.js";
@@ -56,8 +47,6 @@ export function defineSkillEval(input: DefineSkillEvalInput): SkillEvalSuite {
       evals,
     };
 
-    // Reuse the loader's validator so emit fails early on duplicate case ids,
-    // malformed assertions, or bad setup shapes. Returns a frozen EvalsJsonFile.
     return validateEvalsJsonValue(file, "defineSkillEval");
   };
 

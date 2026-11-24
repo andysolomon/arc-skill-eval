@@ -194,7 +194,6 @@ function assertInteractiveTerminal(what: string): void {
 }
 
 export async function runCli(argv: string[]): Promise<CliInvocationResult> {
-  // Decided before parsing so usage errors can be reported in JSON too.
   const jsonMode = argv.includes("--json");
   try {
     const parsed = parseCliArgs(argv);
@@ -274,8 +273,6 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
         };
       }
       case "run": {
-        // Resolve Laminar config before running so missing credentials fail
-        // fast (resolveLaminarConfig throws CliUsageError naming the key).
         const laminarConfig = resolveLaminarConfig({ enabled: parsed.laminar, env: process.env });
         const laminarSink = laminarConfig ? createLaminarSink(laminarConfig) : undefined;
         const observabilitySinks = laminarSink ? [laminarSink] : undefined;
@@ -327,9 +324,6 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
           throw error;
         } finally {
           cancellation.dispose();
-          // Drain sinks before the process exits so in-flight exports (e.g.
-          // Laminar spans) actually reach their backend. A teardown failure
-          // must never mask the run result, so errors are swallowed.
           for (const sink of observabilitySinks ?? []) {
             await Promise.resolve(sink.shutdown?.()).catch(() => undefined);
           }
@@ -516,10 +510,6 @@ export async function runCli(argv: string[]): Promise<CliInvocationResult> {
   }
 }
 
-/**
- * First Ctrl-C cancels the run gracefully (every in-flight case is interrupted
- * and its resources released); a second Ctrl-C exits immediately.
- */
 function installRunCancellation(): { signal: AbortSignal; dispose: () => void } {
   const controller = new AbortController();
   const onSigint = () => {

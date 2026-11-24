@@ -1,9 +1,3 @@
-// Shared single-shot Pi completion for CLI commands that need one no-tools
-// model call (guided create's eval designer, optimize-description's prompt
-// generator and routing probes). Resolves the model through the same
-// settings/auth/model-registry chain as the runner, executes from an isolated
-// temp cwd, and returns the streamed text.
-
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -13,7 +7,6 @@ import { CliCommandError } from "./types.js";
 
 export interface PiCompletionOptions {
   prompt: string;
-  /** What to call the invocation in error messages, e.g. "guided create". */
   purpose: string;
   model?: ModelSelection;
   agentDir?: string;
@@ -75,9 +68,7 @@ export async function invokePiCompletionDetailed(options: PiCompletionOptions): 
       },
     );
 
-    // A provider failure surfaces as an error stop reason with empty content —
-    // report it instead of returning "" (same class of silent failure the
-    // sdk-runner guards against).
+    // Pi reports a provider failure as an error stop reason with empty content, not a throw.
     const text = response.content
       .filter((item): item is { type: "text"; text: string } => item.type === "text")
       .map((item) => item.text)
@@ -106,7 +97,6 @@ export async function invokePiCompletionDetailed(options: PiCompletionOptions): 
   }
 }
 
-/** Extract the first balanced JSON object from a model response (handles ```json fences). */
 export function extractJsonObject(raw: string): string | null {
   const trimmed = raw.trim();
   const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);

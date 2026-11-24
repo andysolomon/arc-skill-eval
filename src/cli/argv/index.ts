@@ -12,7 +12,6 @@ import { parsePackageCommandArgs } from "./package.js";
 import { parseReviewCommandArgs } from "./review.js";
 import { parseRunCommandArgs } from "./run.js";
 
-/** A subcommand name, such as `run` or `install-skills`. */
 export type CliCommandName = Exclude<ParsedCliCommand["command"], "help">;
 
 /**
@@ -39,12 +38,14 @@ const SKILL_DIR_OR_REPO_NOTE =
   "<skill-dir-or-repo> is a skill directory that contains evals/evals.json, or a repo root. For a repo root, the CLI finds every directory that has both SKILL.md and evals/evals.json.";
 const TTY_NOTE = "browse and create --interactive need a terminal and refuse to start without one.";
 
+const JSON_NOTE =
+  "--json (every command except browse) prints one JSON object on stdout with schemaVersion. Failures print {\"schemaVersion\":1,\"error\":{\"kind\",\"message\"}} instead. Exit code 1 means the run failed or the command errored. See docs/cli-json-contract.md.";
+
 const GENERAL_NOTES = [
-  "--json (every command except browse) prints one JSON object on stdout with schemaVersion. Failures print {\"schemaVersion\":1,\"error\":{\"kind\",\"message\"}} instead. Exit code 1 means the run failed or the command errored. See docs/cli-json-contract.md.",
+  JSON_NOTE,
   "<command> --help prints the usage for that command. --version prints the installed version.",
 ];
 
-// Keyed by every command name, so adding a command without help text fails to compile.
 const COMMAND_HELP: Record<CliCommandName, CommandHelp> = {
   run: {
     usage:
@@ -157,7 +158,6 @@ export function isCliCommandName(value: string): value is CliCommandName {
 }
 
 export function parseCliArgs(argv: string[]): ParsedCliInvocation {
-  // Root flags may come with --json in any order (`--json --version`).
   const rootArgs = argv.filter((arg) => arg !== "--json");
   const first = rootArgs[0];
 
@@ -182,8 +182,6 @@ export function parseCliArgs(argv: string[]): ParsedCliInvocation {
     throw unknownCommand(commandName ?? first);
   }
 
-  // Checked before the command's own parser, so `run --help` does not fail on
-  // a missing positional argument or report --help as an unknown flag.
   if (rest.some((arg) => HELP_FLAGS.has(arg))) {
     return { command: "help", topic: commandName };
   }
@@ -238,13 +236,11 @@ export function renderHelp(topic?: CliCommandName): string {
       `  arc-skill-eval ${help.usage}`,
       "",
       "Notes:",
-      // browse has no --json flag, so it skips the JSON note.
-      ...renderNotes(topic === "browse" ? help.notes : [...help.notes, GENERAL_NOTES[0]!]),
+      ...renderNotes(topic === "browse" ? help.notes : [...help.notes, JSON_NOTE]),
     ].join("\n");
   }
 
   const commands = Object.values(COMMAND_HELP);
-  // Shared notes (such as the model format) appear once, at their first use.
   const notes = new Set([...GENERAL_NOTES, ...commands.flatMap((help) => help.notes), FORMAT_REFERENCE]);
   return [
     "arc-skill-eval",

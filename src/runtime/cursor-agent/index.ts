@@ -17,7 +17,6 @@ export type CursorInvoker = CliInvoker;
 
 export interface CreateCursorAgentRuntimeOptions {
   invoker?: CursorInvoker;
-  /** Binary name on PATH. Defaults to `cursor-agent`. */
   binary?: string;
 }
 

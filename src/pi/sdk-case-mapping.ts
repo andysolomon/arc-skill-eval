@@ -14,7 +14,6 @@ import type {
   PiSdkRoutingCase,
 } from "./types.js";
 
-/** Internal owner for Pi eval case conversion, selection, and model precedence. */
 export function collectPiSdkRunnableCases(contract: NormalizedSkillEvalContract): PiSdkRunnableCase[] {
   return [
     ...contract.routing.explicit.map((definition) => toRoutingCase(contract, "routing-explicit", definition)),

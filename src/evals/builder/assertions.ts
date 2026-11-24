@@ -1,16 +1,3 @@
-/**
- * Typed, pure assertion helpers for `defineSkillEval`. Each helper returns an
- * {@link AssertionBuilder} that serializes to a plain `EvalAssertion` — the same
- * shape the runtime loader accepts. Helpers are synchronous and do no I/O;
- * fixtures stay as case `setup` / `files` data.
- *
- * Severity chaining (`.gate()` / `.soft()` / `.severity()` / `.id()`) upgrades
- * an assertion to its richer *intent* form only when needed — otherwise the
- * builder emits the cheapest valid shape (a bare string for judges, a
- * `{ type }` script object for file/regex checks). See
- * `docs/eve-eval-leverage.md` (workstream D).
- */
-
 import type {
   BehaviorAssertion,
   EvalAssertion,
@@ -134,10 +121,6 @@ export class AssertionBuilder {
 /** Any value accepted in a case's `assertions` array. */
 export type AssertionInput = AssertionBuilder | string | EvalAssertion;
 
-// ---------------------------------------------------------------------------
-// Workspace / file checks — cheap `{ type }` script form by default.
-// ---------------------------------------------------------------------------
-
 /** Passes iff the file exists at `path` after the run. */
 export function fileExists(path: string): AssertionBuilder {
   return new AssertionBuilder({
@@ -197,10 +180,6 @@ export function exact(expected: string): AssertionBuilder {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Judge — bare string by default; upgrades to an output-judge intent form.
-// ---------------------------------------------------------------------------
-
 /** An LLM-judged rubric. Emits a bare string unless severity/id is chained. */
 export function judge(prompt: string): AssertionBuilder {
   return new AssertionBuilder({
@@ -209,10 +188,6 @@ export function judge(prompt: string): AssertionBuilder {
     intent: (id) => ({ id, kind: "output", method: "judge", prompt }),
   });
 }
-
-// ---------------------------------------------------------------------------
-// Behavior — trace-graded. Always intent form (they require an id).
-// ---------------------------------------------------------------------------
 
 function behavior(
   method: BehaviorAssertion["method"],
@@ -257,10 +232,6 @@ export function commandForbidden(value: string, opts?: ToolMatchOptions): Assert
 export function externalCallForbidden(value?: string): AssertionBuilder {
   return behavior("external-call-forbidden", "external-forbidden", value);
 }
-
-// ---------------------------------------------------------------------------
-// Safety — trace-graded. Always intent form.
-// ---------------------------------------------------------------------------
 
 function safety(method: SafetyAssertion["method"], idHint: string, config?: unknown): AssertionBuilder {
   return new AssertionBuilder({

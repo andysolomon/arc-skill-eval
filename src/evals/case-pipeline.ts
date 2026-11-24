@@ -1,9 +1,3 @@
-/**
- * Protocol-neutral execution pipeline for one eval case. This module owns the
- * lifetime of a case workspace: execute, grade, persist local artifacts,
- * export observability, then clean up after every workspace consumer is done.
- */
-
 import path from "node:path";
 
 import type { ModelSelection, SandboxMode } from "../contracts/types.js";
@@ -186,8 +180,6 @@ async function executeCaseVariant(args: {
   });
 
   try {
-    // Judge precedence: explicit judge model, then the model that ran the
-    // case, then gradeEvalCase's built-in fallback.
     const runnerModel = run.timing.model;
     const judgeModel = execution.judgeModel ??
       (runnerModel ? { provider: runnerModel.provider, id: runnerModel.id } : undefined);

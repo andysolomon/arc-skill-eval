@@ -110,7 +110,6 @@ export async function createCommand(options: CreateCommandOptions): Promise<Crea
   await writeStarterFixtureInputs(evalsDir, fixtureInputs);
   await writeFile(evalsJsonPath, `${JSON.stringify(evals, null, 2)}\n`, "utf8");
 
-  // Validate the written file through the same loader used by `run`.
   const validated = await readEvalsJson(evalsJsonPath);
   return {
     skillDir,

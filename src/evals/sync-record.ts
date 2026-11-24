@@ -1,10 +1,3 @@
-/**
- * The sync record: `<skillDir>/evals/sync.json`, written by `run --stamp` when
- * the whole suite passes. It holds a hash of every skill file and every suite
- * file as they were at that moment, so a later check can tell whether the
- * suite still describes the skill it passed against.
- */
-
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readdir, readFile, writeFile } from "node:fs/promises";
@@ -15,21 +8,15 @@ const execFileAsync = promisify(execFile);
 
 export const SYNC_RECORD_RELATIVE_PATH = "evals/sync.json";
 
-/** Relative posix path to sha256, for every file in one tree. */
 export type FileHashes = Record<string, string>;
 
 export interface SyncRecord {
   version: 1;
   stamped_at: string;
-  /** The run that passed. */
   run_id: string;
-  /** HEAD when the record was written, when the skill lives in a git repository. */
   commit?: string;
-  /** True when the skill directory had uncommitted changes at that commit. */
   dirty?: boolean;
-  /** The skill's own files: everything except `evals/`, `evals-runs/`, `node_modules/` and dot-files. */
   skill: FileHashes;
-  /** The suite: every file under `evals/` except this record. */
   suite: FileHashes;
 }
 
@@ -39,7 +26,6 @@ export type SyncCheck =
   | { status: "in_sync"; record: SyncRecord }
   | { status: "stale"; record: SyncRecord; skillChanges: string[]; suiteChanges: string[] };
 
-/** Hash the skill and suite trees and write the record. */
 export async function writeSyncRecord(skillDir: string, runId: string): Promise<{ path: string; record: SyncRecord }> {
   const git = await readGitState(skillDir);
   const record: SyncRecord = {
@@ -54,7 +40,6 @@ export async function writeSyncRecord(skillDir: string, runId: string): Promise<
   return { path: recordPath, record };
 }
 
-/** Compare the record with the files on disk. Never throws. */
 export async function checkSyncRecord(skillDir: string): Promise<SyncCheck> {
   let raw: string;
   try {
@@ -117,7 +102,6 @@ async function hashTree(
   }
 }
 
-/** Paths that were added, removed or edited, sorted. */
 function changedPaths(recorded: FileHashes, current: FileHashes): string[] {
   const changed = new Set<string>();
   for (const [file, hash] of Object.entries(recorded)) {
@@ -151,7 +135,6 @@ function isFileHashes(value: unknown): value is FileHashes {
   );
 }
 
-/** HEAD and whether the skill directory is dirty, or undefined outside a git repository. */
 async function readGitState(skillDir: string): Promise<{ commit: string; dirty: boolean } | undefined> {
   try {
     const options = { cwd: skillDir, timeout: 5_000 };

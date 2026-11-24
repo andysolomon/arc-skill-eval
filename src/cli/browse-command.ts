@@ -1,9 +1,3 @@
-// `arc-skill-eval browse [skill-dir-or-repo]`: the interactive run browser.
-//
-// Runs started with r, R, o, and the new-case dry run happen in process: the
-// App calls runEvalsCommand directly and reloads the skill through the
-// onReload callback below. Ink stays mounted until the user quits.
-
 import { createElement } from 'react';
 import { render } from 'ink';
 import { promises as fs } from 'node:fs';
@@ -24,10 +18,6 @@ export interface BrowseOptions {
   showWithout?: boolean;
 }
 
-/** Render the App and resolve once the user quits.
- *  `onReload` lets the App reload a skill in place after an in-process run or
- *  a new-case write. It patches the shared workspace and re-renders without
- *  unmounting. */
 function runApp(ws: Workspace, initial: AppState | undefined, showWithout: boolean): Promise<AppAction> {
   return new Promise((resolve) => {
     let done = false;
@@ -41,7 +31,7 @@ function runApp(ws: Workspace, initial: AppState | undefined, showWithout: boole
       resolve(a);
     }
     async function onReload(skillDir: string): Promise<void> {
-      try { mergeSkill(ws, skillDir, await reloadSkill(skillDir)); } catch { /* keep the stale view */ }
+      try { mergeSkill(ws, skillDir, await reloadSkill(skillDir)); } catch {}
       if (!done && instance) instance.rerender(element());
     }
     instance = render(element(), { exitOnCtrlC: true, stdout: renderStream(process.stdout) });
@@ -50,18 +40,15 @@ function runApp(ws: Workspace, initial: AppState | undefined, showWithout: boole
   });
 }
 
-/** Splice a freshly-reloaded skill (and its runs) into the in-memory workspace. */
 function mergeSkill(ws: Workspace, skillDir: string, reloaded: Awaited<ReturnType<typeof reloadSkill>>): void {
   if (!reloaded.skill) return;
   const dir = path.resolve(skillDir);
   const i = ws.skills.findIndex((s) => s.dir === dir);
   if (i >= 0) ws.skills[i] = reloaded.skill; else ws.skills.push(reloaded.skill);
   const base = path.basename(dir);
-  // drop this skill's old runs (matched by name/basename) and append the fresh ones
   ws.runs = ws.runs.filter((r) => r.skill !== base && r.skill !== reloaded.skill!.id).concat(reloaded.runs);
 }
 
-// Persist the last view per input path (so quitting + reopening lands where you left off).
 function stateFile(input: string): string {
   const hash = createHash('sha1').update(path.resolve(input)).digest('hex').slice(0, 12);
   return path.join(os.tmpdir(), `arc-skill-eval-tui-${hash}.json`);
@@ -70,7 +57,7 @@ async function readState(input: string): Promise<AppState | undefined> {
   try { return JSON.parse(await fs.readFile(stateFile(input), 'utf8')) as AppState; } catch { return undefined; }
 }
 async function writeState(input: string, state: AppState): Promise<void> {
-  try { await fs.writeFile(stateFile(input), JSON.stringify(state), 'utf8'); } catch { /* ignore */ }
+  try { await fs.writeFile(stateFile(input), JSON.stringify(state), 'utf8'); } catch {}
 }
 
 export async function browseCommand(opts: BrowseOptions = {}): Promise<number> {
@@ -82,7 +69,7 @@ export async function browseCommand(opts: BrowseOptions = {}): Promise<number> {
   process.on('exit', cleanup);
 
   try {
-    const ws = await loadWorkspace(input); // loaded once; in-process runs patch it in place
+    const ws = await loadWorkspace(input);
     const action = await runApp(ws, await readState(input), showWithout);
     if (action.state) await writeState(input, action.state);
   } finally {
@@ -92,7 +79,6 @@ export async function browseCommand(opts: BrowseOptions = {}): Promise<number> {
   return 0;
 }
 
-// Allow `node dist/cli/browse-command.js <dir>` directly during development.
 if (import.meta.url === `file://${process.argv[1]}`) {
   browseCommand({ input: process.argv[2] }).then((code) => process.exit(code));
 }

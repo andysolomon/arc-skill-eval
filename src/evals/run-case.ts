@@ -21,11 +21,6 @@ import type { EvalCase, TimingJson } from "./types.js";
 import { prepareCaseWorkspace } from "./workspace.js";
 import { releaseQuietly, runScopedHandoff } from "../effect/scope.js";
 
-/**
- * Options accepted by {@link runEvalCase}. Intentionally scoped to the
- * M2A runner — the M2B grader receives the returned
- * {@link EvalCaseRunResult} and produces `grading.json`.
- */
 export interface RunEvalCaseOptions {
   /** Skill discovered via `discoverEvalSkills`. */
   skill: DiscoveredEvalSkill;
@@ -78,9 +73,7 @@ export interface RunEvalCaseOptions {
  * downstream grading has finished reading the workspace.
  */
 export interface EvalCaseRunResult {
-  /** The case id pulled straight from {@link EvalCase.id}. */
   caseId: EvalCase["id"];
-  /** Final assistant text produced by the run. */
   assistantText: string;
   /** Absolute path to the per-case workspace (populated if `files` declared). */
   workspaceDir: string;
@@ -98,12 +91,7 @@ export interface EvalCaseRunResult {
 
 /**
  * Execute one {@link EvalCase} against its parent skill via an
- * {@link AgentRuntime}.
- *
- * Constructs protocol-neutral runtime input (skill identity + case id/prompt)
- * and delegates Pi-specific contract/lane synthesis to the Pi adapter.
- * Captures assistant text + timing + trace and hands the populated workspace
- * back for downstream assertion grading.
+ * {@link AgentRuntime} and hand the populated workspace back for grading.
  */
 export async function runEvalCase(options: RunEvalCaseOptions): Promise<EvalCaseRunResult> {
   const { value, release } = await runScopedHandoff(runEvalCaseScoped(options), { signal: options.signal });
@@ -136,9 +124,6 @@ export function runEvalCaseScoped(
       (workspace) => releaseQuietly(workspace.cleanup),
     );
 
-    // The agent is pointed at copies of the skills, never at the real
-    // directories: a copy has no eval suite beside SKILL.md, and its path does
-    // not say the run is an eval.
     const staged = yield* Effect.acquireRelease(
       Effect.promise(() =>
         stageSkillsForAgent({ skillDir: skillFiles.skillDir, extraSkillPaths: options.extraSkillPaths ?? [] }),
@@ -173,8 +158,6 @@ export function runEvalCaseScoped(
       }),
     );
 
-    // Interruptible acquire: a timeout or cancellation must be able to stop a
-    // hung agent. The runtime releases its own partial resources on abort.
     const runtimeResult = yield* Effect.acquireRelease(
       options.timeoutMs === undefined
         ? runAgent
@@ -205,7 +188,6 @@ export function runEvalCaseScoped(
       context_window_used_percent: runtimeResult.usage.contextWindowUsedPercent,
     };
     const trace = normalizePiSdkCaseRunResult(runtimeResult, runtime.id);
-    // Artifacts outlive the copies, so they name the files the copies came from.
     const contextManifest = enrichContextManifestWithTrace(
       {
         ...runtimeResult.contextManifest,
@@ -250,8 +232,6 @@ function buildSkillFiles(skill: DiscoveredEvalSkill): DiscoveredSkillFiles {
     skillDir: skill.skillDir,
     relativeSkillDir: skill.relativeSkillDir,
     skillDefinitionPath: skill.skillDefinitionPath,
-    // evals.json replaces the legacy `skill.eval.ts` — reuse the slot
-    // so callers that log it still get a meaningful path.
     evalDefinitionPath: skill.evalsJsonPath,
   };
 }
@@ -267,8 +247,6 @@ function toRuntimeSkillIdentity(files: DiscoveredSkillFiles): RuntimeSkillIdenti
 }
 
 function buildSourceDescriptor(skill: DiscoveredEvalSkill): RepoSourceDescriptor {
-  // `relativeSkillDir` equals "." when the skill lives at the repo root.
-  // Otherwise, the repo root is `<skillDir>` minus that relative prefix.
   const repositoryRoot =
     skill.relativeSkillDir === "."
       ? skill.skillDir

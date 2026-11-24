@@ -18,13 +18,9 @@ export type RunEvalsCommandSummary = EvalRunSummary;
 export type RunEvalsCommandResult = EvalRunResult;
 
 /**
- * Discover skills at `input`, load each `evals/evals.json`, run every
- * selected case through the Pi-backed runner, grade the outputs, and
- * write per-case `assistant.md` + `outputs/` + `timing.json` +
- * `grading.json` + observability artifacts. The
- * command never throws on per-case failures — they are recorded in
- * `errors[]` so a partial run still produces artifacts for the cases
- * that succeeded.
+ * Runs and grades every selected case and writes its artifacts. A per-case
+ * failure never throws: it is recorded in `errors[]`, so a partial run still
+ * writes artifacts for the cases that succeeded.
  */
 export async function runEvalsCommand(options: RunEvalsCommandOptions): Promise<RunEvalsCommandResult> {
   try {
@@ -33,7 +29,6 @@ export async function runEvalsCommand(options: RunEvalsCommandOptions): Promise<
     if (error instanceof EvalRunError) {
       throw new CliCommandError(error.message);
     }
-    // Show what is wrong with the file, not a stack trace with only a count.
     if (error instanceof EvalsJsonValidationError) {
       throw new CliCommandError(`${error.message}\n${error.issues.map((issue) => `- ${issue}`).join("\n")}`);
     }

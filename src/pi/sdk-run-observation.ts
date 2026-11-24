@@ -4,7 +4,6 @@ import { loadPiSessionTelemetry } from "./session-telemetry.js";
 import type { PiSdkSessionLike } from "./sdk-runner.js";
 import { createRuntimeEventRecorder } from "./runtime-event-capture.js";
 
-/** Internal owner for Pi event capture, usage normalization, telemetry, and terminal errors. */
 export function observePiSdkSession(session: PiSdkSessionLike): {
   events: unknown[];
   isTruncated: () => boolean;
@@ -60,7 +59,6 @@ export function collectPiSdkUsageMetrics(
   };
 }
 
-/** The terminal provider error, excluding errors the agent recovered from. */
 export function findTerminalProviderError(messages: Iterable<unknown>): string | null {
   let last: { stopReason?: unknown; errorMessage?: unknown } | null = null;
   for (const message of messages) {
@@ -83,6 +81,10 @@ export async function loadTelemetryIfAvailable(sessionFile: string | undefined) 
   } catch {
     return null;
   }
+}
+
+export function caseErrorPrefix(caseId: string): string {
+  return `Case ${caseId}: `;
 }
 
 export function buildPromptFailureMessage(caseId: string, error: unknown): string {

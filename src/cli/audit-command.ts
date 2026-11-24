@@ -171,7 +171,6 @@ async function auditSkill(skillPath: string): Promise<SkillAuditRecord> {
 
 const EVALS_JSON = "evals/evals.json";
 
-/** Suite checks that need no model: the file loads, and its assertions can fail. */
 async function auditEvalSuite(skillDir: string, skillText: string): Promise<SkillAuditFinding[]> {
   const evalsDir = path.join(skillDir, "evals");
   let suite;
@@ -209,7 +208,6 @@ async function auditEvalSuite(skillDir: string, skillText: string): Promise<Skil
   return findings;
 }
 
-/** Do the sections that cases claim to cover still exist, and which sections have no case? */
 function auditCoverage(skillText: string, cases: Parameters<typeof checkCoverage>[1]): SkillAuditFinding[] {
   const coverage = checkCoverage(skillText, cases);
   const findings: SkillAuditFinding[] = coverage.unknown.map((entry) => ({
@@ -229,7 +227,6 @@ function auditCoverage(skillText: string, cases: Parameters<typeof checkCoverage
   return findings;
 }
 
-/** Does the suite still describe the skill it last passed against? */
 async function auditSyncRecord(skillDir: string): Promise<SkillAuditFinding[]> {
   const check = await checkSyncRecord(skillDir);
   const finding = (severity: AuditSeverity, message: string): SkillAuditFinding[] => [

@@ -1,13 +1,3 @@
-/**
- * Child-process execution as an interruptible Effect.
- *
- * Every harness CLI (claude, codex, cursor-agent, copilot), the Pi CLI-JSON
- * runner and fixture hooks used to hand-roll the same spawn/collect/close
- * Promise with no timeout and no way to stop the child. Here the child is a
- * resource: if the fiber is interrupted (timeout, Ctrl-C, caller abort) the
- * child receives SIGTERM, then SIGKILL after a grace period.
- */
-
 import { spawn, type ChildProcess } from "node:child_process";
 
 import { Data, Effect } from "effect";
@@ -25,7 +15,6 @@ export interface RunProcessOptions {
   env?: NodeJS.ProcessEnv;
 }
 
-/** The binary could not be started (ENOENT, EACCES, ...). */
 export class ProcessSpawnError extends Data.TaggedError("ProcessSpawnError")<{
   readonly command: string;
   readonly cause: unknown;
@@ -35,7 +24,6 @@ export class ProcessSpawnError extends Data.TaggedError("ProcessSpawnError")<{
   }
 }
 
-/** How long a child gets to exit after SIGTERM before it is SIGKILLed. */
 export const KILL_GRACE_MS = 5_000;
 
 export const runProcess = (
@@ -69,7 +57,6 @@ export const runProcess = (
     return Effect.sync(() => terminate(child));
   });
 
-/** Promise boundary for callers that are not Effect-based yet. */
 export function runProcessPromise(
   command: string,
   args: readonly string[],
