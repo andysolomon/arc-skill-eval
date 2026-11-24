@@ -1,3 +1,9 @@
+## [0.29.4](https://github.com/andysolomon/arc-skill-eval/compare/v0.29.3...v0.29.4) (2026-11-24)
+
+### Bug Fixes
+
+* **copilot:** read the final answer from assistant.message events ([8ef0699](https://github.com/andysolomon/arc-skill-eval/commit/8ef0699b8aef867458612fa96613cf22fdb84aea))
+
 ## [0.29.3](https://github.com/andysolomon/arc-skill-eval/compare/v0.29.2...v0.29.3) (2026-11-24)
 
 ### Bug Fixes
