@@ -15,11 +15,20 @@
 //   6. A Pi CLI on PATH whose major version differs from the bundled SDK
 //      goes unmentioned, so "works in pi, fails here" is a mystery.
 //
+// Added later, so these are checked against what the real SDK emits:
+//   7. Tool calls the model makes (a curl in bash, a write, a failing read)
+//      never reach grading or tool-summary.json.
+//   8. timing.json names the default model instead of the one --model asked
+//      for, or drops the provider's token counts.
+//   9. A case that asks for "sandbox": "just-bash" runs unsandboxed when
+//      --sandbox is not passed, so the agent writes to the host.
+//
 // Each run leaves its evals-runs/ artifacts (grading.json, trace.json) in a
 // temp skill dir; the passing run asserts they exist and agree. Set
 // KEEP_E2E=1 to keep the temp dirs (arc-skill-eval-pi-e2e-*) for inspection.
 
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
@@ -31,37 +40,78 @@ import { runCli } from "../dist/index.js";
 const PROVIDER = "fake-llm";
 const KEY_ENV = "ARC_SKILL_EVAL_FAKE_LLM_KEY";
 
-async function startFakeProvider() {
+const ready = { text: "ready", usage: { prompt_tokens: 12, completion_tokens: 1, total_tokens: 13 } };
+
+function defaultReply(body) {
+  if (body.model === "fake-retired") {
+    return {
+      status: 400,
+      error: { message: "The 'fake-retired' model is not supported with this account.", code: "model_not_found" },
+    };
+  }
+  return ready;
+}
+
+/** `reply(body, { index, origin })` returns `{ status, error }`, `{ text, usage }` or `{ toolCalls }`. */
+async function startFakeProvider(reply = defaultReply) {
   const requests = [];
+  let origin;
   const server = createServer((req, res) => {
     let body = "";
     req.on("data", (chunk) => { body += chunk; });
     req.on("end", () => {
+      if (req.method === "GET") {
+        res.writeHead(200, { "content-type": "text/plain" });
+        res.end("ok\n");
+        return;
+      }
       const parsed = body ? JSON.parse(body) : {};
       requests.push({ url: req.url, auth: req.headers.authorization, body: parsed });
+      const step = reply(parsed, { index: requests.length - 1, origin });
 
-      if (parsed.model === "fake-retired") {
-        res.writeHead(400, { "content-type": "application/json" });
-        res.end(JSON.stringify({
-          error: { message: "The 'fake-retired' model is not supported with this account.", code: "model_not_found" },
-        }));
+      if (step.status) {
+        res.writeHead(step.status, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: step.error }));
         return;
       }
 
       res.writeHead(200, { "content-type": "text/event-stream" });
       const chunk = (payload) => res.write(`data: ${JSON.stringify({ id: "c1", object: "chat.completion.chunk", created: 0, model: parsed.model, ...payload })}\n\n`);
-      chunk({ choices: [{ index: 0, delta: { role: "assistant", content: "ready" }, finish_reason: null }] });
-      chunk({ choices: [{ index: 0, delta: {}, finish_reason: "stop" }] });
-      chunk({ choices: [], usage: { prompt_tokens: 12, completion_tokens: 1, total_tokens: 13 } });
+      if (step.toolCalls) {
+        const toolCalls = step.toolCalls.map(({ name, args }, index) => ({
+          index,
+          id: `call_${index + 1}`,
+          type: "function",
+          function: { name, arguments: JSON.stringify(args) },
+        }));
+        chunk({ choices: [{ index: 0, delta: { role: "assistant", tool_calls: toolCalls }, finish_reason: null }] });
+        chunk({ choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] });
+      } else {
+        chunk({ choices: [{ index: 0, delta: { role: "assistant", content: step.text }, finish_reason: null }] });
+        chunk({ choices: [{ index: 0, delta: {}, finish_reason: "stop" }] });
+      }
+      chunk({ choices: [], usage: step.usage ?? ready.usage });
       res.end("data: [DONE]\n\n");
     });
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address();
-  return { baseUrl: `http://127.0.0.1:${port}/v1`, requests, close: () => new Promise((resolve) => server.close(resolve)) };
+  origin = `http://127.0.0.1:${port}`;
+  return { baseUrl: `${origin}/v1`, origin, requests, close: () => new Promise((resolve) => server.close(resolve)) };
 }
 
-async function createFixture(baseUrl) {
+/** First turn calls `toolCalls`, every later turn answers `text`. */
+function toolsThen(toolCalls, text = "done") {
+  return (body, context) =>
+    body.messages?.some((message) => message.role === "tool") ? { text } : { toolCalls: toolCalls(context) };
+}
+
+const DEFAULT_EVALS = [
+  { id: "first", prompt: "Are you ready?", assertions: [{ type: "regex-match", pattern: "\\bready\\b" }] },
+  { id: "second", prompt: "Say you are ready.", assertions: [{ type: "regex-match", pattern: "\\bready\\b" }] },
+];
+
+async function createFixture(baseUrl, { evals = DEFAULT_EVALS, models = [] } = {}) {
   const root = await mkdtemp(path.join(tmpdir(), "arc-skill-eval-pi-e2e-"));
   const agentDir = path.join(root, "agent");
   const skillDir = path.join(root, "skills", "echo-ready");
@@ -76,7 +126,7 @@ async function createFixture(baseUrl) {
         api: "openai-completions",
         apiKey: `$${KEY_ENV}`,
         authHeader: true,
-        models: [model("fake-1"), model("fake-retired")],
+        models: [model("fake-1"), model("fake-retired"), ...models.map((extra) => ({ ...model(extra.id), ...extra }))],
       },
     },
   }, null, 2));
@@ -91,20 +141,14 @@ async function createFixture(baseUrl) {
     "Reply with the word `ready` and nothing else.",
     "",
   ].join("\n"));
-  await writeFile(path.join(skillDir, "evals", "evals.json"), JSON.stringify({
-    skill_name: "echo-ready",
-    evals: [
-      { id: "first", prompt: "Are you ready?", assertions: [{ type: "regex-match", pattern: "\\bready\\b" }] },
-      { id: "second", prompt: "Say you are ready.", assertions: [{ type: "regex-match", pattern: "\\bready\\b" }] },
-    ],
-  }, null, 2));
+  await writeFile(path.join(skillDir, "evals", "evals.json"), JSON.stringify({ skill_name: "echo-ready", evals }, null, 2));
 
   return { root, agentDir, skillDir };
 }
 
-async function withFixture(run) {
-  const provider = await startFakeProvider();
-  const fixture = await createFixture(provider.baseUrl);
+async function withFixture(run, { reply, ...fixtureOptions } = {}) {
+  const provider = await startFakeProvider(reply);
+  const fixture = await createFixture(provider.baseUrl, fixtureOptions);
   const previousKey = process.env[KEY_ENV];
   const previousPath = process.env.PATH;
   const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
@@ -234,4 +278,101 @@ test("run stays quiet about versions when no Pi CLI is on PATH", async () => {
     assert.equal(result.exitCode, 0, result.stderr || result.stdout);
     assert.doesNotMatch(result.stderr, /Pi CLI/);
   });
+});
+
+async function caseDir(skillDir, caseId) {
+  const [runId] = await listRunDirs(skillDir);
+  return path.join(skillDir, "evals-runs", runId, `eval-${caseId}`);
+}
+
+const readJson = async (file) => JSON.parse(await readFile(file, "utf8"));
+
+test("tool calls the model makes are graded and counted in tool-summary.json", async () => {
+  await withFixture(async (fixture) => {
+    const result = await runCli(runArgs(fixture, "--model", `${PROVIDER}/fake-1`, "--json"));
+    assert.equal(fixture.provider.requests.length, 2, result.stderr || result.stdout);
+
+    const dir = await caseDir(fixture.skillDir, "tools");
+    const grading = await readJson(path.join(dir, "grading.json"));
+    assert.deepEqual(
+      grading.assertion_results.map(({ passed }) => passed),
+      [true, false, false],
+      JSON.stringify(grading.assertion_results, null, 2),
+    );
+    assert.match(grading.assertion_results[1].evidence, /curl -s/);
+    assert.match(grading.assertion_results[2].evidence, /127\.0\.0\.1/);
+
+    const host = new URL(fixture.provider.origin).host;
+    const summary = await readJson(path.join(dir, "tool-summary.json"));
+    assert.equal(summary.tool_call_count, 3);
+    assert.equal(summary.tool_result_count, 3);
+    assert.equal(summary.tool_error_count, 1);
+    assert.deepEqual(summary.tool_calls_by_name, { bash: 1, read: 1, write: 1 });
+    assert.equal(summary.bash_command_count, 1);
+    assert.deepEqual(summary.written_files, ["notes.md"]);
+    assert.deepEqual(summary.external_calls, [{ system: "http", operation: "curl", target: host }]);
+  }, {
+    evals: [{
+      id: "tools",
+      prompt: "Fetch the page, save notes, then read missing.txt.",
+      assertions: [
+        { id: "wrote", kind: "behavior", method: "tool-call-required", value: "write" },
+        { id: "no-curl", kind: "behavior", method: "command-forbidden", value: "curl" },
+        { id: "no-local-http", kind: "behavior", method: "external-call-forbidden", value: "127.0.0.1" },
+      ],
+    }],
+    reply: toolsThen(({ origin }) => [
+      { name: "bash", args: { command: `curl -s --max-time 5 ${origin}/page` } },
+      { name: "write", args: { path: "notes.md", content: "notes\n" } },
+      { name: "read", args: { path: "missing.txt" } },
+    ]),
+  });
+});
+
+test("timing.json records the model --model asked for and the provider's token counts", async () => {
+  await withFixture(async (fixture) => {
+    const result = await runCli(runArgs(fixture, "--model", `${PROVIDER}/fake-alt`, "--json"));
+    assert.equal(result.exitCode, 0, result.stderr || result.stdout);
+    assert.ok(fixture.provider.requests.every((request) => request.body.model === "fake-alt"));
+
+    const dir = await caseDir(fixture.skillDir, "first");
+    const timing = await readJson(path.join(dir, "timing.json"));
+    assert.equal(timing.model.provider, PROVIDER);
+    assert.equal(timing.model.id, "fake-alt");
+    assert.equal(timing.context_window_tokens, 64000);
+    assert.equal(timing.token_usage.input_tokens, 37);
+    assert.equal(timing.token_usage.output_tokens, 5);
+    assert.equal(timing.total_tokens, 42);
+    assert.equal(await readFile(path.join(dir, "assistant.md"), "utf8"), "ready\n");
+
+    const manifest = await readJson(path.join(dir, "context-manifest.json"));
+    assert.equal(manifest.mode, "isolated");
+    assert.deepEqual(manifest.attached_skills.map(({ name, role }) => ({ name, role })), [{ name: "echo-ready", role: "target" }]);
+  }, {
+    evals: [DEFAULT_EVALS[0]],
+    models: [{ id: "fake-alt", contextWindow: 64000 }],
+    reply: () => ({ text: "ready", usage: { prompt_tokens: 37, completion_tokens: 5, total_tokens: 42 } }),
+  });
+});
+
+test("a case that asks for the just-bash sandbox gets it without --sandbox", async () => {
+  const probe = `arc-sandbox-probe-${process.pid}-${Date.now()}.txt`;
+  try {
+    await withFixture(async (fixture) => {
+      const result = await runCli(runArgs(fixture, "--model", `${PROVIDER}/fake-1`, "--json"));
+      assert.equal(result.exitCode, 0, result.stderr || result.stdout);
+      assert.equal(JSON.parse(result.stdout).summary.passedAssertions, 1);
+      assert.equal(existsSync(path.join("/tmp", probe)), false, "the write reached the host's /tmp");
+    }, {
+      evals: [{
+        id: "sandboxed",
+        prompt: "Write the probe file.",
+        sandbox: "just-bash",
+        assertions: [{ type: "file-exists", path: `tmp/${probe}` }],
+      }],
+      reply: toolsThen(() => [{ name: "write", args: { path: `/tmp/${probe}`, content: "inside\n" } }]),
+    });
+  } finally {
+    await rm(path.join("/tmp", probe), { force: true });
+  }
 });
