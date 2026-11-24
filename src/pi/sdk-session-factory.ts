@@ -8,7 +8,6 @@ import {
   resolvePiModel,
 } from "./session-adapter.js";
 
-/** Internal owner for default SDK session construction at the Pi adapter boundary. */
 export async function createDefaultPiSdkSession(
   options: PiSdkSessionFactoryOptions,
 ): Promise<PiSdkSessionFactoryResult> {
@@ -44,7 +43,6 @@ export async function createDefaultPiSdkSession(
     customTools:
       options.sandbox === "just-bash"
         ? createJustBashCodingTools(options.workspaceDir, options.env, options.sandboxMocks, {
-          // Skills in context stay readable (bundled templates etc.), never writable.
           readOnlyPaths: resourceLoader.getSkills().skills.map((skill) => skill.baseDir),
         })
         : createPiSdkCodingTools(options.workspaceDir, options.env),

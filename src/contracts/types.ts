@@ -36,7 +36,7 @@ export const NETWORK_MODE_VALUES = ["none", "mocked", "live"] as const;
 /**
  * Execution isolation modes for an eval case. `none` uses the default
  * temp-workspace runner; `just-bash` runs the case inside a virtual
- * bash sandbox (behavior added in W-000021).
+ * bash sandbox.
  */
 export const SANDBOX_MODE_VALUES = ["none", "just-bash"] as const;
 

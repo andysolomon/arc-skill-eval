@@ -9,9 +9,6 @@ const PACKAGE_NAME = "arc-skill-eval";
 
 let cachedPackageRoot: string | undefined;
 
-/**
- * Resolve the installed package root (directory containing package.json).
- */
 export function resolvePackageRoot(): string {
   if (cachedPackageRoot) {
     return cachedPackageRoot;
@@ -27,9 +24,7 @@ export function resolvePackageRoot(): string {
           cachedPackageRoot = current;
           return current;
         }
-      } catch {
-        // Keep walking — malformed or unrelated package.json.
-      }
+      } catch {}
     }
 
     const parent = path.dirname(current);
@@ -44,9 +39,6 @@ export function resolvePackageRoot(): string {
   );
 }
 
-/**
- * List bundled skill directory names that contain SKILL.md.
- */
 export async function listBundledSkills(): Promise<string[]> {
   const skillsDir = path.join(resolvePackageRoot(), "skills");
   let entries;
@@ -72,9 +64,6 @@ export async function listBundledSkills(): Promise<string[]> {
   return names.sort((a, b) => a.localeCompare(b));
 }
 
-/**
- * Resolve an absolute path to a bundled skill directory.
- */
 export function resolveBundledSkillPath(skillName: string): string {
   const normalized = skillName.trim();
   if (!normalized || normalized.includes(path.sep) || normalized.includes("/")) {

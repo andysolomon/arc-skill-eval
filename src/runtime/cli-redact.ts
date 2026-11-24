@@ -1,4 +1,3 @@
-/** Max length for redacted stderr previews persisted in traces / error messages. */
 export const STDERR_PREVIEW_MAX_CHARS = 400;
 
 const SECRET_PATTERNS: Array<{ pattern: RegExp; replace: (match: string) => string }> = [

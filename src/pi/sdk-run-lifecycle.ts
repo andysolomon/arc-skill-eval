@@ -14,7 +14,6 @@ import type {
 } from "./types.js";
 import { snapshotValue } from "./sdk-run-observation.js";
 
-/** Internal owner for Pi run environment, fixture, and idempotent cleanup lifecycle. */
 export async function createPiSdkRunEnvironment(
   options: CreatePiSdkRunEnvironmentOptions,
 ): Promise<PiSdkRunEnvironment> {

@@ -7,19 +7,12 @@ import type { ModelSelection } from "../contracts/types.js";
 import { createPiSessionBootstrap, describeUnresolvedModel } from "./session-adapter.js";
 
 export interface PiModelPreflightOptions {
-  /** Eval-owned Pi agent dir (`--agent-dir`); defaults to the personal Pi agent dir. */
   agentDir?: string;
-  /** Runner model; falls back to the Pi settings default when absent. */
   model?: ModelSelection;
-  /** Judge model, checked only when one was given explicitly. */
   judgeModel?: ModelSelection;
 }
 
 /**
- * Resolve the runner (and explicit judge) model in the bundled Pi catalog and
- * check that its provider has credentials, before any case fans out. Returns
- * one human-readable issue per problem; empty when the run can proceed.
- *
  * This does not send a request, so a model the provider rejects at request
  * time (e.g. `model_not_found` for the account) still surfaces per case.
  */
@@ -79,7 +72,6 @@ export function detectPiCliVersionSkew(): string | null {
     "Update arc-skill-eval or your Pi CLI so the major versions match.";
 }
 
-/** null when the provider has usable credentials; otherwise the reason, or "" when Pi gave none. */
 async function findAuthProblem(
   modelRuntime: Awaited<ReturnType<typeof createPiSessionBootstrap>>["modelRuntime"],
   model: NonNullable<ReturnType<typeof modelRuntime.getModel>>,

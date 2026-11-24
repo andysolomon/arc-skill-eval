@@ -10,7 +10,6 @@ import { createCopilotRuntime, type CopilotInvoker } from "./copilot/index.js";
 import { createCursorAgentRuntime, type CursorInvoker } from "./cursor-agent/index.js";
 import type { AgentRuntime } from "./types.js";
 
-/** CLI-selectable harness runtimes (`arc-skill-eval run --runtime`). */
 export const CLI_RUNTIME_IDS = [
   "pi-sdk",
   "codex",

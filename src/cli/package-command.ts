@@ -4,11 +4,11 @@ import { existsSync } from "node:fs";
 import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { readEvalsJson } from "../evals/loader.js";
 import { parseSkillFrontmatter } from "../skills/intake.js";
+import { resolvePackageRoot } from "./package-root.js";
 import { CliCommandError } from "./types.js";
 
 const execFileAsync = promisify(execFile);
@@ -42,14 +42,11 @@ export interface PackageCommandResult {
   manifest: PackageManifest;
 }
 
-/** Directories that never belong in a distributable skill artifact. */
 const EXCLUDED_DIRECTORIES = new Set(["evals-runs", "node_modules"]);
 
 export async function packageCommand(options: PackageCommandOptions): Promise<PackageCommandResult> {
   const skillDir = path.resolve(options.skillDir);
 
-  // Validate everything before writing anything: a broken skill must not
-  // produce a partial artifact.
   const skillPath = path.join(skillDir, "SKILL.md");
   let skillText: string;
   try {
@@ -95,8 +92,6 @@ export async function packageCommand(options: PackageCommandOptions): Promise<Pa
     arc_skill_eval_version: await readArcSkillEvalVersion(),
   };
 
-  // Stage the selected files plus manifest.json under a top-level folder
-  // named after the skill, then let system tar produce the artifact.
   const stagingDir = await mkdtemp(path.join(tmpdir(), "arc-skill-eval-package-"));
   try {
     const stageRoot = path.join(stagingDir, frontmatter.name);
@@ -130,12 +125,6 @@ export async function packageCommand(options: PackageCommandOptions): Promise<Pa
   };
 }
 
-/**
- * Walk the skill directory and return the relative (posix-style) paths of
- * every regular file that belongs in the artifact, sorted lexicographically
- * so packaging is deterministic. Excludes evals-runs/, node_modules/, any
- * dot-prefixed file or directory, and previously built *.skill.tgz artifacts.
- */
 async function collectPackageFiles(skillDir: string): Promise<string[]> {
   const found: string[] = [];
   await walk(skillDir, "", found);
@@ -162,11 +151,8 @@ async function walk(absoluteDir: string, relativePrefix: string, found: string[]
 }
 
 async function readArcSkillEvalVersion(): Promise<string> {
-  // Compiled location is dist/cli/package-command.js, so the project
-  // package.json sits two directories up from this module.
-  const packageJsonPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "package.json");
   try {
-    const parsed = JSON.parse(await readFile(packageJsonPath, "utf8")) as { version?: unknown };
+    const parsed = JSON.parse(await readFile(path.join(resolvePackageRoot(), "package.json"), "utf8")) as { version?: unknown };
     return typeof parsed.version === "string" ? parsed.version : "unknown";
   } catch {
     return "unknown";

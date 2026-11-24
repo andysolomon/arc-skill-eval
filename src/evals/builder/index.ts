@@ -20,20 +20,17 @@ export {
   AssertionBuilder,
   type AssertionInput,
   type ToolMatchOptions,
-  // workspace / output
   fileExists,
   fileAbsent,
   jsonValid,
   regexMatch,
   exact,
   judge,
-  // behavior
   toolRequired,
   toolForbidden,
   skillReadRequired,
   commandForbidden,
   externalCallForbidden,
-  // safety
   noForbiddenFilesTouched,
   noLiveExternalCalls,
 } from "./assertions.js";

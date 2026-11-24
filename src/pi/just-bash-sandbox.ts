@@ -5,11 +5,6 @@ import { createCodingTools } from "@earendil-works/pi-coding-agent";
 
 import type { SandboxCommandMock } from "../contracts/types.js";
 
-/**
- * External commands that get a no-op success mock by default so common
- * skills can run under the sandbox without per-case configuration.
- * Per-case `sandboxMocks` override these.
- */
 const DEFAULT_MOCK_COMMANDS = ["npm", "npx", "git"] as const;
 
 export interface JustBashSandboxOptions {
@@ -145,7 +140,6 @@ function isSameOrInside(child: string, parent: string): boolean {
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
-/** Host absolute path -> virtual POSIX path (identical on POSIX hosts). */
 function toSandboxPath(hostPath: string): string {
   const resolved = path.resolve(hostPath);
   if (path.sep === "/") return resolved;
@@ -185,10 +179,6 @@ function detectImageMimeType(bytes: Buffer): string | null {
   return null;
 }
 
-/**
- * Resolve default + per-case mocks into `just-bash` custom commands.
- * Per-case mocks override the no-op defaults for the same command name.
- */
 function buildMockedCommands(mocks: SandboxCommandMock[]) {
   const byName = new Map<string, SandboxCommandMock>();
   for (const command of DEFAULT_MOCK_COMMANDS) {

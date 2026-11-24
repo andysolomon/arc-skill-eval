@@ -61,7 +61,6 @@ export async function installSkillsCommand(options: InstallSkillsCommandOptions 
     : (["claude-code", "codex", "copilot", "pi"] as InstallHarnessId[]);
   const skillNames = options.skills && options.skills.length > 0 ? options.skills : [...DEFAULT_INSTALL_SKILLS];
 
-  // Validate everything before writing anything.
   const targetStat = await stat(target).catch(() => undefined);
   if (!targetStat?.isDirectory()) {
     throw new CliCommandError(`Install target is not an existing directory: ${target}. Pass --target <project-root>.`);

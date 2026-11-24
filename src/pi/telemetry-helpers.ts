@@ -106,9 +106,7 @@ function extractUrls(command: string): URL[] {
   for (const match of command.matchAll(/https?:\/\/[^\s"'`]+/gu)) {
     try {
       urls.push(new URL(match[0]));
-    } catch {
-      // Ignore invalid URLs.
-    }
+    } catch {}
   }
 
   return urls;

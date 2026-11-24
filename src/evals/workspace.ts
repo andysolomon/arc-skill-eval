@@ -1,8 +1,3 @@
-/**
- * Eval case workspace preparation — single owner for temp-dir creation,
- * setup/files materialization, and idempotent cleanup for every evals.json case.
- */
-
 import { cp, lstat, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -11,12 +6,9 @@ import type { SeededWorkspaceSetup, WorkspaceSetup } from "../contracts/types.js
 import { materializeFixture } from "../fixtures/materialize.js";
 import type { MaterializedFixture } from "../fixtures/types.js";
 import type { DiscoveredSkillFiles } from "../load/source-types.js";
+import type { BlindName } from "../runtime/stage-skill.js";
 
-/**
- * Temp-dir prefix for a case workspace. The agent under test works inside this
- * directory and sees its name, so it must not say the run is an eval.
- */
-export const CASE_WORKSPACE_PREFIX = "project-";
+export const CASE_WORKSPACE_PREFIX: BlindName<"project-"> = "project-";
 
 export interface PreparedCaseWorkspace {
   workspaceDir: string;

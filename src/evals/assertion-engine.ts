@@ -1,12 +1,3 @@
-/**
- * Deterministic assertion classification and grading for eval cases.
- *
- * This module deliberately has no judge or Pi runtime dependency. The caller
- * owns judge invocation; this engine owns every assertion that is not sent to
- * that judge, including trace-aware behavior/safety forms which grade against
- * the run's captured observations.
- */
-
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
@@ -171,12 +162,6 @@ async function gradeWorkspaceAssertion(
   }
 }
 
-/**
- * Shared core for `file-absent`, reachable both as a script assertion
- * (`{ type: "file-absent" }`) and as a workspace method
- * (`{ kind: "workspace", method: "file-absent" }`). `rawAssertion` is the
- * caller's original object so the result records the exact shape authored.
- */
 async function checkFileAbsent(
   pathLabel: string,
   workspaceDir: string,
@@ -189,8 +174,6 @@ async function checkFileAbsent(
 
   try {
     const info = await stat(resolved.absolutePath);
-    // A directory at the path is not the file the author forbade, so treat it
-    // as present-but-not-a-file rather than a pass.
     const kind = info.isDirectory() ? "directory" : "file";
     return failed(text, `Expected \`${pathLabel}\` to be absent, but a ${kind} exists`, rawAssertion);
   } catch {
@@ -198,13 +181,7 @@ async function checkFileAbsent(
   }
 }
 
-/**
- * Grade behavior assertions against the run's captured tool/skill/command
- * observations. The matcher is deliberately minimal: a tool name compared
- * without regard to case (Pi reports `bash`, Claude Code reports `Bash`), an
- * exact skill name, plus an optional case-sensitive substring/regex tested
- * against a tool call's `inputSummary`.
- */
+// Tool names compare without regard to case: Pi reports `bash`, Claude Code reports `Bash`.
 function gradeBehaviorAssertion(
   assertion: BehaviorAssertion,
   observations?: EvalTraceObservations,
@@ -272,10 +249,6 @@ function gradeBehaviorAssertion(
   }
 }
 
-/**
- * Grade safety assertions against captured observations. `config` is read
- * defensively; malformed config fails the assertion with a clear message.
- */
 function gradeSafetyAssertion(
   assertion: SafetyAssertion,
   observations?: EvalTraceObservations,
@@ -312,11 +285,6 @@ type MatcherResult<T> =
   | { ok: true; predicate: (candidate: T) => boolean }
   | { ok: false; evidence: string };
 
-/**
- * Build a tool-call predicate from a name + optional input matcher. The name
- * must equal the reported tool name ignoring case; the input matcher keeps its
- * own case sensitivity.
- */
 function compileToolMatcher(assertion: BehaviorAssertion): MatcherResult<PiSessionTelemetryToolCall> {
   const name = assertion.value?.toLowerCase();
   let inputCheck: ((summary: string) => boolean) | null = null;
@@ -335,7 +303,6 @@ function compileToolMatcher(assertion: BehaviorAssertion): MatcherResult<PiSessi
   };
 }
 
-/** Build a string predicate: substring by default, regex when `matchKind: "regex"`. */
 function compileStringMatcher(needle: string, matchKind?: "substring" | "regex"): MatcherResult<string> {
   if (matchKind === "regex") {
     let regex: RegExp;
@@ -377,7 +344,6 @@ function readForbiddenPaths(config: unknown): { ok: true; value: string[] } | { 
   return { ok: true, value: paths as string[] };
 }
 
-/** Minimal path match: exact, or the touched path sits under a forbidden prefix. */
 function pathMatchesForbidden(touched: string, forbidden: string): boolean {
   if (touched === forbidden) return true;
   const prefix = forbidden.endsWith("/") ? forbidden : `${forbidden}/`;

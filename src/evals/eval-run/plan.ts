@@ -34,8 +34,6 @@ export async function planEvalRun(options: EvalRunOptions): Promise<EvalRunPlan>
     caseIds: options.caseIds,
   });
 
-  // Resolve the Pi model(s) once, up front, so an unknown model or missing
-  // credentials is one clear error instead of the same failure per case.
   if (!options.createSession && (options.runtime === undefined || options.runtime.id === "pi-sdk")) {
     const judgeModel = !options.judge && selectedCasesNeedJudge(loadedSkills.map((item) => item.evalsFile), options.caseIds)
       ? options.judgeModel
@@ -195,9 +193,7 @@ async function discoverInput(input: string): Promise<DiscoveredEvalSkill[]> {
         },
       ];
     }
-  } catch {
-    // fall through to repo-wide discovery
-  }
+  } catch {}
 
   return await discoverEvalSkills(absolute);
 }

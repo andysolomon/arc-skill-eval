@@ -27,7 +27,6 @@ interface LoadedContextSkill {
   role: ContextSkillRole;
 }
 
-/** Internal owner for Pi context resources, explicit skills, and manifests. */
 export async function createPiSdkResourceLoader(options: {
   workspaceDir: string;
   agentDir: string;

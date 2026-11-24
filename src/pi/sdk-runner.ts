@@ -17,6 +17,7 @@ import {
 } from "./sdk-run-lifecycle.js";
 import {
   buildPromptFailureMessage,
+  caseErrorPrefix,
   collectPiSdkUsageMetrics,
   findTerminalProviderError,
   loadTelemetryIfAvailable,
@@ -177,8 +178,6 @@ export async function runPiSdkEvalCase(
       signal: options.signal,
     });
   } catch (error) {
-    // A failed run (prompt/provider error, abort) never reaches the caller's
-    // `result.cleanup()`, so release the per-case environment we created here.
     if (ownsEnvironment) {
       await environment.cleanup().catch(() => undefined);
     }
@@ -354,7 +353,7 @@ async function finishPiSdkCaseRun(
   if (providerError !== null) {
     const modelLabel = usage.model ? `${usage.model.provider}/${usage.model.id}` : "unknown model";
     throw new PiSdkCaseRunError(
-      `Case ${options.caseDefinition.caseId}: runner model ${modelLabel} returned an error instead of output: ${providerError}`,
+      `${caseErrorPrefix(options.caseDefinition.caseId)}runner model ${modelLabel} returned an error instead of output: ${providerError}`,
       result,
     );
   }

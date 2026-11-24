@@ -54,9 +54,7 @@ export interface LoadedSkillDefinition {
 
 /**
  * Walk a repository and collect skill directories that ship an
- * adjacent `evals/evals.json`. Intentionally separate from the legacy
- * `discoverParticipatingSkills` in `src/load/` so the two formats can
- * coexist until the TS-contract path is retired.
+ * adjacent `evals/evals.json`.
  */
 export async function discoverEvalSkills(
   repositoryRoot: string,
@@ -97,9 +95,7 @@ async function walk(
   try {
     const info = await stat(evalsJsonPath);
     hasEvalsJson = info.isFile();
-  } catch {
-    // no evals.json at this level.
-  }
+  } catch {}
 
   const hasSkillMd = entries.some((e) => e.isFile() && e.name === "SKILL.md");
   const qualifies = hasEvalsJson && (!requireSkillMd || hasSkillMd);

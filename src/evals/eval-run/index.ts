@@ -25,10 +25,6 @@ export async function runEval(options: EvalRunOptions): Promise<EvalRunResult> {
   return { runId: plan.runId, iteration: plan.iteration, skills, summary };
 }
 
-/**
- * Stamp a skill only when its whole suite ran and passed. A record written
- * after a failing or partial run would mark an unconfirmed suite as confirmed.
- */
 async function stampIfSuitePassed(
   skill: SkillRunResult,
   runId: string,

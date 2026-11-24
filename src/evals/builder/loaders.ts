@@ -82,7 +82,6 @@ export async function loadJsonl<T = unknown>(dataPath: string, options?: LoaderO
   return rows;
 }
 
-/** Resolve a data path: absolute wins; else relative to `base`'s directory, else cwd. */
 function resolveDataPath(dataPath: string, base?: string | URL): string {
   if (path.isAbsolute(dataPath)) return dataPath;
 

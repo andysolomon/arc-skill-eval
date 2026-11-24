@@ -26,7 +26,6 @@ type CaseOutcome =
 interface CaseWork {
   planned: PlannedSkillRun;
   evalCase: EvalCase;
-  /** One-based. */
   trial: number;
 }
 
@@ -45,19 +44,12 @@ export async function executeEvalRun(plan: EvalRunPlan, options: EvalRunOptions)
     throw new EvalRunError(`trials must be a positive whole number, got ${trials}.`);
   }
 
-  // Every trial of a case is its own unit of work, in case order then trial order.
   const work: CaseWork[] = plan.skills.flatMap((planned) =>
     planned.cases.flatMap((evalCase) =>
       Array.from({ length: trials }, (_, index) => ({ planned, evalCase, trial: index + 1 })),
     ),
   );
 
-  // A bounded pool over every case of every skill. Cancellation does not
-  // interrupt the pool: each running case already stops on `options.signal`
-  // and removes its own workspace, and a queued case sees the signal and
-  // never starts. Waiting for all of them to settle is what guarantees every
-  // workspace is gone before EvalRunCancelledError is thrown. Results come
-  // back in `work` order, whatever order cases finish in.
   const outcomes = await Effect.runPromise(
     Effect.forEach(work, (unit) => Effect.promise(() => runCase(unit, plan, options)), { concurrency }),
   );
@@ -83,7 +75,6 @@ export async function executeEvalRun(plan: EvalRunPlan, options: EvalRunOptions)
       const caseOutcomes = outcomes.slice(next, next + trials);
       next += trials;
 
-      // The first trial is the run's result, exactly as with a single trial.
       const outcome = caseOutcomes[0]!;
       if (outcome.kind === "done") {
         result.cases.push(outcome.artifacts);
@@ -129,14 +120,12 @@ export async function executeEvalRun(plan: EvalRunPlan, options: EvalRunOptions)
   return skillResults;
 }
 
-/** Runs one case. Never rejects: a failure is recorded, and cancellation is reported as such. */
 async function runCase({ planned, evalCase, trial }: CaseWork, plan: EvalRunPlan, options: EvalRunOptions): Promise<CaseOutcome> {
   if (options.signal?.aborted) {
     return { kind: "cancelled" };
   }
   const caseId = String(evalCase.id);
   const trialTag = (options.trials ?? 1) > 1 ? { trial } : {};
-  // Later trials write beside the first one, in the same layout.
   const outputDir = trial === 1 ? planned.outputDir : path.join(planned.outputDir, `trial-${trial}`);
   options.onProgress?.({ phase: "case-start", caseId, ...trialTag });
   try {
@@ -155,7 +144,6 @@ async function runCase({ planned, evalCase, trial }: CaseWork, plan: EvalRunPlan
         extraSkillPaths: options.extraSkillPaths ?? [],
         contextMode: options.contextMode ?? "isolated",
         sandbox: options.sandbox ?? evalCase.sandbox ?? "none",
-        // Sinks key a result by run and case, so only the first trial is exported.
         observabilitySinks: trial === 1 ? (options.observabilitySinks ?? []) : [],
         createSession: options.createSession,
         judge: options.judge,
@@ -176,7 +164,6 @@ async function runCase({ planned, evalCase, trial }: CaseWork, plan: EvalRunPlan
     });
     return { kind: "done", artifacts };
   } catch (error) {
-    // An interrupted case is not a case failure: the whole run is cancelled.
     if (options.signal?.aborted) {
       return { kind: "cancelled" };
     }

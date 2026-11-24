@@ -1,3 +1,4 @@
+import { caseErrorPrefix } from "../pi/sdk-run-observation.js";
 import { CLI_JSON_SCHEMA_VERSION } from "./json-output.js";
 import type { RunEvalsCommandResult } from "./run-evals-command.js";
 import type { CliRenderOptions } from "./types.js";
@@ -59,7 +60,6 @@ export function formatRunEvalsResult(result: RunEvalsCommandResult, options: Cli
   return `${lines.join("\n")}\n`;
 }
 
-/** What held across the repeats of each case: the delta's spread, and assertions that only pass sometimes. */
 function formatTrials(trials: NonNullable<RunEvalsCommandResult["skills"][number]["trials"]>, trialsPath?: string): string[] {
   const lines: string[] = [];
   const delta = trials.delta;
@@ -96,12 +96,10 @@ function formatSelfJudged(summary: RunEvalsCommandResult["summary"]): string[] {
   ];
 }
 
-/** Identical errors (e.g. a rejected model) print once, listing every case they hit. */
 function groupErrorsByMessage(errors: Array<{ caseId: string; message: string }>) {
   const groups = new Map<string, string[]>();
   for (const error of errors) {
-    // Runner errors start with "Case <id>: "; drop it so identical causes group.
-    const prefix = `Case ${error.caseId}: `;
+    const prefix = caseErrorPrefix(error.caseId);
     const message = error.message.startsWith(prefix) ? error.message.slice(prefix.length) : error.message;
     const caseIds = groups.get(message) ?? [];
     caseIds.push(error.caseId);

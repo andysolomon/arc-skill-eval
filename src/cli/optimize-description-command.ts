@@ -1,11 +1,3 @@
-// `arc-skill-eval optimize-description` — measure and improve a skill's
-// frontmatter description for routing accuracy (the skill-creator description
-// optimization loop). This module ships in slices:
-//   W-000035: --generate-only writes a reviewed routing eval set
-//   W-000036: score the current/candidate description against the set
-//   W-000037: iterative optimization with a train/test split
-//   W-000038: --apply writes the winning description to SKILL.md
-
 import { readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -13,8 +5,6 @@ import type { ModelSelection } from "../contracts/types.js";
 import { parseSkillFrontmatter, type SkillFrontmatter } from "../skills/intake.js";
 import { extractJsonObject, invokePiCompletion, invokePiCompletionDetailed } from "./pi-completion.js";
 import { CliCommandError } from "./types.js";
-
-// ---------------------------------------------------------------- eval set
 
 export type DescriptionEvalExpectation = "trigger" | "no-trigger";
 export type DescriptionEvalSplit = "train" | "test";
@@ -33,10 +23,6 @@ export interface DescriptionEvalSet {
   prompts: DescriptionEvalPrompt[];
 }
 
-/**
- * Validate a parsed description-evals.json value, mirroring the evals.json
- * loader contract: every problem names the offending entry.
- */
 export function validateDescriptionEvalSetValue(value: unknown, sourceDescription = "description-evals.json"): DescriptionEvalSet {
   const issues: string[] = [];
   const record = value as Record<string, unknown> | null;
@@ -96,8 +82,6 @@ export async function readDescriptionEvalSet(filePath: string): Promise<Descript
   return validateDescriptionEvalSetValue(parsed, filePath);
 }
 
-// ---------------------------------------------------------------- generation
-
 export interface GenerateTriggerSetInput {
   skillName: string;
   skillText: string;
@@ -152,18 +136,12 @@ function parseGeneratedTriggerSet(rawResponse: string, skillName: string): Descr
   return validateDescriptionEvalSetValue(parsed, "trigger-set generator response");
 }
 
-// ---------------------------------------------------------------- scoring
-
 export interface RoutingSkillOption {
   name: string;
   description: string;
 }
 
-/**
- * One no-tools routing probe: numbered skill options plus "none", answer with
- * the exact name. The target's position rotates with promptIndex so a
- * position-biased model cannot inflate the score.
- */
+// The target rotates through the option slots with promptIndex so a position-biased model cannot inflate the score.
 export function buildRoutingProbePrompt(options: {
   userPrompt: string;
   target: RoutingSkillOption;
@@ -187,7 +165,6 @@ export function buildRoutingProbePrompt(options: {
   ].join("\n");
 }
 
-/** Normalize a routing answer to a known skill name, "none", or null (unparseable). */
 export function parseRoutingAnswer(raw: string, skillNames: string[]): string | null {
   const lines = raw.trim().split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
   const candidate = (lines.at(-1) ?? "").toLowerCase().replace(/^[^a-z0-9]*|[^a-z0-9]*$/g, "").replace(/^(skill|answer)[:\s]+/i, "");
@@ -195,7 +172,6 @@ export function parseRoutingAnswer(raw: string, skillNames: string[]): string | 
   for (const name of skillNames) {
     if (candidate === name.toLowerCase()) return name;
   }
-  // Fall back to a whole-response scan for exactly one mentioned skill name.
   const haystack = raw.toLowerCase();
   const mentioned = skillNames.filter((name) => haystack.includes(name.toLowerCase()));
   if (mentioned.length === 1) return mentioned[0]!;
@@ -207,7 +183,6 @@ export interface RoutingVerdict {
   id: string;
   split: DescriptionEvalSplit;
   expect: DescriptionEvalExpectation;
-  /** Parsed model choice: a skill name, "none", or null when unparseable. */
   got: string | null;
   correct: boolean;
 }
@@ -233,11 +208,6 @@ function splitScore(verdicts: RoutingVerdict[], split: DescriptionEvalSplit): Sp
   return { correct, total: inSplit.length, accuracy: inSplit.length > 0 ? correct / inSplit.length : 0 };
 }
 
-/**
- * Score one description against the eval set. A "trigger" prompt is correct
- * when the model picks the target skill; a "no-trigger" prompt is correct
- * when it picks anything else (a distractor or none).
- */
 export async function scoreDescription(options: {
   skillName: string;
   description: string;
@@ -276,7 +246,6 @@ export async function scoreDescription(options: {
   };
 }
 
-/** Load distractor skill frontmatter from sibling skill dirs (deterministic order, capped). */
 export async function loadDistractorSkills(options: {
   skillDir: string;
   targetName: string;
@@ -295,9 +264,7 @@ export async function loadDistractorSkills(options: {
       const dir = path.join(parent, entry.name);
       if (dir !== targetDir && !candidateDirs.includes(dir)) candidateDirs.push(dir);
     }
-  } catch {
-    // No sibling directory to scan — explicit distractors (if any) still apply.
-  }
+  } catch {}
 
   const distractors: RoutingSkillOption[] = [];
   for (const dir of candidateDirs) {
@@ -308,18 +275,15 @@ export async function loadDistractorSkills(options: {
       if (frontmatter.name === options.targetName || !frontmatter.description) continue;
       distractors.push({ name: frontmatter.name, description: frontmatter.description });
     } catch {
-      continue; // not a skill dir
+      continue;
     }
   }
   return distractors;
 }
 
-// ---------------------------------------------------------------- optimization loop
-
 export interface ProposeDescriptionInput {
   skillName: string;
   currentDescription: string;
-  /** Train-split failures of the description being improved, with prompt text. */
   failures: Array<{ prompt: string; expect: DescriptionEvalExpectation; got: string | null }>;
   skillText: string;
 }
@@ -350,7 +314,6 @@ export function buildProposeDescriptionPrompt(input: ProposeDescriptionInput): s
   ].join("\n");
 }
 
-/** Normalize a proposed description: strip fences/quotes, collapse whitespace. */
 export function parseProposedDescription(raw: string): string {
   let text = raw.trim();
   const fenceMatch = text.match(/^```[a-z]*\s*([\s\S]*?)\s*```$/);
@@ -364,17 +327,15 @@ export function parseProposedDescription(raw: string): string {
 
 export interface OptimizationIteration {
   iteration: number;
-  description: string | null;   // null when the proposal was unusable
+  description: string | null;
   proposalError?: string;
   train?: SplitScore;
-  /** Present only when the candidate beat the baseline on train (held-out evaluation earned). */
   test?: SplitScore;
 }
 
 export interface OptimizeDescriptionRunReport {
   baseline: { description: string; train: SplitScore; test: SplitScore };
   iterations: OptimizationIteration[];
-  /** Best candidate by held-out test accuracy, only when it beats the baseline. */
   winner: { iteration: number; description: string; train: SplitScore; test: SplitScore } | null;
 }
 
@@ -389,11 +350,6 @@ function trainFailures(evalSet: DescriptionEvalSet, verdicts: RoutingVerdict[]):
     .map((v) => ({ prompt: byId.get(v.id)?.prompt ?? v.id, expect: v.expect, got: v.got }));
 }
 
-/**
- * Hill-climb the description: propose from the best-so-far candidate's
- * train failures, evaluate on train, and spend a held-out test evaluation
- * only on candidates that beat the baseline train accuracy.
- */
 export async function optimizeDescription(options: {
   skillName: string;
   skillText: string;
@@ -415,15 +371,11 @@ export async function optimizeDescription(options: {
 
   const iterations: OptimizationIteration[] = [];
   let best: { iteration: number; description: string; train: SplitScore; test: SplitScore } | null = null;
-  // Propose from the strongest description seen so far (by train accuracy).
   let proposeFrom = { description: options.currentDescription, verdicts: baselineTrain.verdicts, trainAccuracy: baseline.train.accuracy };
 
   for (let iteration = 1; iteration <= options.maxIterations; iteration++) {
     if (proposeFrom.verdicts.every((v) => v.correct)) {
-      if (best) break; // train saturated and held-out already improved — done
-      // Overfit trap: perfect train, no held-out gain. Re-propose from the
-      // baseline's failures for diversity instead of giving up — unless the
-      // baseline itself has nothing left to learn from.
+      if (best) break;
       if (baselineTrain.verdicts.every((v) => v.correct)) break;
       proposeFrom = { description: options.currentDescription, verdicts: baselineTrain.verdicts, trainAccuracy: baseline.train.accuracy };
     }
@@ -462,8 +414,6 @@ export async function optimizeDescription(options: {
   return { baseline, iterations, winner: best };
 }
 
-// ---------------------------------------------------------------- apply
-
 function wrapWords(text: string, width: number): string[] {
   const words = text.split(" ");
   const lines: string[] = [];
@@ -480,14 +430,6 @@ function wrapWords(text: string, width: number): string[] {
   return lines;
 }
 
-/**
- * Replace the frontmatter `description` in a SKILL.md, preserving every other
- * byte. Handles plain scalars, quoted scalars, and `description: >`/`|` block
- * scalars (the style bundled skills use). The new value is always written as
- * a block scalar so long descriptions stay readable. Returns null when the
- * document cannot be rewritten with confidence (no frontmatter, no
- * description key, or an empty replacement) — callers must refuse, not guess.
- */
 export function replaceFrontmatterDescription(skillText: string, newDescription: string): string | null {
   const description = newDescription.replace(/\s+/g, " ").trim();
   if (description.length === 0) return null;
@@ -496,7 +438,7 @@ export function replaceFrontmatterDescription(skillText: string, newDescription:
   if (!match) return null;
   const head = match[1]!;
   const body = match[2]!;
-  const tail = skillText.slice(head.length + body.length); // starts with \n---
+  const tail = skillText.slice(head.length + body.length);
 
   const lines = body.split(/\r?\n/);
   let start = -1;
@@ -507,7 +449,7 @@ export function replaceFrontmatterDescription(skillText: string, newDescription:
     end = index + 1;
     if (/^description\s*:\s*[>|][+-]?\s*$/.test(lines[index]!)) {
       while (end < lines.length && (lines[end]!.trim() === "" || /^\s+\S/.test(lines[end]!))) end++;
-      while (end > start + 1 && lines[end - 1]!.trim() === "") end--; // keep trailing blanks out of the block
+      while (end > start + 1 && lines[end - 1]!.trim() === "") end--;
     }
     break;
   }
@@ -518,27 +460,19 @@ export function replaceFrontmatterDescription(skillText: string, newDescription:
   return head + newBody + tail;
 }
 
-// ---------------------------------------------------------------- command
-
 export interface OptimizeDescriptionCommandOptions {
   skillDir: string;
   generateOnly?: boolean;
   evalSetPath?: string;
-  /** Output path for --generate-only; defaults to <skillDir>/evals/description-evals.json. */
   output?: string;
   force?: boolean;
   model?: ModelSelection;
   agentDir?: string;
   maxIterations?: number;
-  /** Explicit distractor skill dirs (repeatable --distractor). */
   distractorDirs?: string[];
-  /** Write the optimization winner's description into SKILL.md (W-000038). */
   apply?: boolean;
-  /** Injectable generator (tests); defaults to a single Pi completion. */
   generator?: TriggerSetGeneratorFn;
-  /** Injectable routing prober (tests); defaults to a single Pi completion per prompt. */
   prober?: RoutingProberFn;
-  /** Injectable description proposer (tests); defaults to a single Pi completion per iteration. */
   proposer?: DescriptionProposerFn;
 }
 
@@ -576,7 +510,6 @@ export interface OptimizeDescriptionRunResult {
   probeModel: string | null;
   totalTokens: number;
   totalCostUsd: number;
-  /** True when --apply wrote the winner into SKILL.md. */
   applied: boolean;
   skillPath: string;
 }
@@ -732,7 +665,6 @@ async function runScoreMode(
   return { mode: "optimize", report, applied, skillPath, ...meta() };
 }
 
-/** Write the winner into SKILL.md and verify it reads back; restore on failure. */
 async function applyWinningDescription(options: {
   skillPath: string;
   skillDir: string;
