@@ -55,7 +55,6 @@ test('overview deep-dive cards open their chapter by click and keyboard', async 
   await openLearn(page);
   const learn = page.getByTestId('learn-app');
 
-  // One card per non-overview chapter.
   const cards = learn.getByRole('button').filter({ hasText: '→' });
   await expect(cards).toHaveCount(chapters.length - 1);
 
@@ -90,7 +89,6 @@ test('the current chapter persists across reload', async ({ page }) => {
   await chapterButton(page, 'The with / without signal').click();
   await expectChapter(page, chapters[4]);
 
-  // Reading progress is saved shortly (debounced) after navigation.
   await page.waitForTimeout(500);
   await reloadApp(page);
   await expectChapter(page, chapters[4]);
@@ -119,14 +117,12 @@ test('number-key section hotkeys still work from Learn', async ({ page }) => {
   await openLearn(page);
   await chapterButton(page, 'Anatomy of a run').click();
   await expectChapter(page, chapters[5]);
-  // Let the reader's progress save (it is written shortly after navigation).
   await page.waitForTimeout(500);
 
   await page.keyboard.press('4');
   await expect(page.getByTestId('review-empty-state')).toBeVisible();
   await settle(page);
   await page.keyboard.press('5');
-  // Returning to Learn keeps the chapter that was open.
   await expectChapter(page, chapters[5]);
 });
 

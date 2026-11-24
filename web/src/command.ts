@@ -9,7 +9,6 @@ import { savePreferences } from '@/persistence/effect';
 export const INSTALL_COMMAND = 'npm i -g arc-skill-eval';
 const INSTALL_COPIED_MS = 1400;
 
-/** The theme and env live on <html data-theme data-env> so CSS tokens can switch on them. */
 export const ApplyDocumentAttributes = Command.define('ApplyDocumentAttributes', {
   args: { theme: ThemeName, env: EnvName },
   messages: [Message.CompletedApplyDocumentAttributes],

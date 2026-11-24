@@ -1,10 +1,3 @@
-/**
- * Per-case run artifacts the daemon serves in localhost mode
- * (`GET /runs/:runId/artifacts/:caseId/:kind`), and the readers that turn
- * their text into what the detail tabs show. Hosted mode never fetches
- * artifacts: its tabs read the imported case directly, as React did.
- */
-
 import { Array, Option, Order, Schema } from 'effect';
 import { defineTaggedUnion } from 'foldkit/schema';
 
@@ -44,7 +37,6 @@ export type ArtifactEntry = typeof ArtifactEntry.Type;
 export const isSameRequest = (left: ArtifactRequest, right: ArtifactRequest): boolean =>
   left.root === right.root && left.runId === right.runId && left.caseId === right.caseId && left.kind === right.kind;
 
-/** Compare runs keep one artifact folder per variant; plain runs keep one. */
 export const artifactKind = (compare: boolean, variant: Variant, filename: ArtifactFilename): string =>
   compare ? `${variant}/${filename}` : filename;
 
@@ -55,7 +47,6 @@ export const artifactRequest = (run: Run, testCase: Case, variant: Variant, file
   kind: artifactKind(run.compare, variant, filename),
 });
 
-/** The artifacts the open tab reads, in the order React's tab components asked for them. */
 export const requestsForTab = (tab: Tab, run: Run, testCase: Case, variant: Variant): ReadonlyArray<ArtifactRequest> => {
   const request = (forVariant: Variant, filename: ArtifactFilename) => artifactRequest(run, testCase, forVariant, filename);
   const byTab: Record<Tab, () => ReadonlyArray<ArtifactRequest>> = {
@@ -75,9 +66,6 @@ export const artifactUrl = (request: ArtifactRequest): string => {
   )}/${encodeURIComponent(request.kind)}${rootQuery}`;
 };
 
-// READ
-
-/** What a tab sees of one artifact, mirroring React's `ArtifactSourceState`. */
 export type ArtifactView = Readonly<{ text: string; maybeJson: Option.Option<unknown>; maybeError: Option.Option<string> }>;
 
 const parseJson = (text: string): Option.Option<unknown> => {
@@ -139,7 +127,6 @@ export const readGradingEvidence = (maybeJson: Option.Option<unknown>, fallback:
   return typeof evidence === 'string' && evidence.length > 0 ? evidence : fallback;
 };
 
-/** `{ name: count }` entries with finite counts, most frequent first. */
 export const countEntries = (value: unknown): ReadonlyArray<readonly [string, number]> =>
   Option.match(jsonRecord(value), {
     onNone: () => [],

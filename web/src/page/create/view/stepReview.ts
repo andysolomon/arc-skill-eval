@@ -68,7 +68,6 @@ const runCommand = (model: Model, h: HtmlBuilder<Message>): Html =>
     ],
   );
 
-/** Hosted mode downloads the file; localhost mode writes <skill>/evals/evals.json through the daemon. */
 const writeLabel = (model: Model, env: EnvName): string => {
   if (env !== 'localhost') {
     return model.write._tag === 'Written' ? '✓ downloaded evals.json' : 'download evals.json';

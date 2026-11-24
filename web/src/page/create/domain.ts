@@ -1,11 +1,4 @@
-/**
- * The Create wizard's domain: steps, behavior rows, assertion kinds, and the
- * pure translations between a draft and evals.json.
- */
-
 import { Array, Option, Schema } from 'effect';
-
-// STEP
 
 export const steps = ['behaviors', 'prompts', 'assertions', 'review'] as const;
 export const Step = Schema.Literals(steps);
@@ -21,8 +14,6 @@ export const railSteps: ReadonlyArray<Readonly<{ id: Step; num: string; label: s
 export const stepIndex = (step: Step): number => steps.indexOf(step);
 
 export const stepAt = (index: number): Option.Option<Step> => Array.get(steps, index);
-
-// BEHAVIOR
 
 export const dimensions = ['outcome', 'process', 'style', 'efficiency'] as const;
 export const Dimension = Schema.Literals(dimensions);
@@ -46,12 +37,6 @@ export const assertionKinds = [
 export const AssertionKind = Schema.Literals(assertionKinds);
 export type AssertionKind = typeof AssertionKind.Type;
 
-/**
- * One assertion as the wizard edits it: a kind and a single value. An
- * assertion loaded from an existing evals.json keeps its original JSON in
- * `source`, so fields the wizard does not edit (flags, target, id,
- * mustPass, severity, ...) are written back unchanged.
- */
 export const BehaviorAssertion = Schema.Struct({
   kind: AssertionKind,
   val: Schema.String,
@@ -59,16 +44,9 @@ export const BehaviorAssertion = Schema.Struct({
 });
 export type BehaviorAssertion = typeof BehaviorAssertion.Type;
 
-/** An assertion the wizard cannot edit, kept as loaded at its original position. */
 export const KeptAssertion = Schema.Struct({ index: Schema.Number, value: Schema.Unknown });
 export type KeptAssertion = typeof KeptAssertion.Type;
 
-/**
- * One eval case. A case loaded from an existing evals.json keeps its
- * original JSON in `source` (id, expected_output, files, metadata, ...) and
- * the assertions the wizard cannot edit in `kept`, so writing the suite back
- * loses nothing.
- */
 export const BehaviorRow = Schema.Struct({
   id: Schema.String,
   text: Schema.String,
@@ -81,7 +59,6 @@ export const BehaviorRow = Schema.Struct({
 });
 export type BehaviorRow = typeof BehaviorRow.Type;
 
-/** `source` holds the top-level fields of a loaded evals.json (version and any others). */
 export const Draft = Schema.Struct({
   skill: Schema.String,
   behaviors: Schema.Array(BehaviorRow),
@@ -116,8 +93,6 @@ export const isDimension = (value: unknown): value is Dimension =>
 export const isFlavor = (value: unknown): value is Flavor =>
   typeof value === 'string' && Array.contains(flavors as ReadonlyArray<string>, value);
 
-// COLORS AND COPY
-
 export const dimensionColors: Record<Dimension, string> = {
   outcome: 'var(--tt-green)',
   process: 'var(--tt-blue)',
@@ -135,7 +110,6 @@ export const flavorColors: Record<Flavor, string> = {
 export const assertionKindColor = (kind: AssertionKind): string =>
   kind === 'judge' ? 'var(--tt-magenta)' : isBehaviorKind(kind) ? 'var(--tt-blue)' : 'var(--tt-cyan)';
 
-/** JSON field the wizard's single `val` maps to for a given kind. */
 export const assertionField = (kind: AssertionKind): string =>
   kind === 'regex-match' ? 'pattern' : isBehaviorKind(kind) ? 'value' : 'path';
 
@@ -165,8 +139,6 @@ export const ASSIST_MODEL_OPTIONS = [
 
 export const DEFAULT_ASSIST_MODEL = 'minimax/MiniMax-M3';
 
-// MODEL SPEC
-
 export type ModelRef = Readonly<{ provider: string; id: string }>;
 
 export const parseModel = (spec: string): Option.Option<ModelRef> => {
@@ -175,8 +147,6 @@ export const parseModel = (spec: string): Option.Option<ModelRef> => {
     ? Option.none()
     : Option.some({ provider: spec.slice(0, slash), id: spec.slice(slash + 1) });
 };
-
-// PROMPTS
 
 export const stripTrailingPeriod = (text: string): string => text.replace(/\.$/, '');
 
@@ -191,8 +161,6 @@ export const suggestPromptTemplate = (skill: string, behavior: BehaviorRow): str
   };
   return templates[behavior.flavor];
 };
-
-// EVALS.JSON
 
 type JsonRecord = Readonly<Record<string, unknown>>;
 
@@ -226,7 +194,6 @@ export const slugifyBehavior = (text: string, index: number): string => {
   return slug || `case-${index + 1}`;
 };
 
-/** The kind and value the wizard shows for an evals.json assertion, if it can edit it. */
 const toEditable = (assertion: unknown): Option.Option<Readonly<{ kind: AssertionKind; val: string }>> => {
   if (typeof assertion === 'string') {
     return Option.some({ kind: 'judge', val: assertion });
@@ -263,10 +230,6 @@ const freshAssertion = (slug: string, assertion: BehaviorAssertion, index: numbe
   return { type: assertion.kind, [assertionField(assertion.kind)]: assertion.val };
 };
 
-/**
- * A loaded assertion is written back as loaded when its kind and value are
- * unchanged, and with only its value replaced when the kind is unchanged.
- */
 const toEvalsAssertion = (slug: string, assertion: BehaviorAssertion, index: number): EvalsAssertion => {
   const { source } = assertion;
   const maybeOriginal = toEditable(source);
@@ -282,7 +245,6 @@ const toEvalsAssertion = (slug: string, assertion: BehaviorAssertion, index: num
   return { ...source, [isBehaviorKind(assertion.kind) ? 'value' : assertionField(assertion.kind)]: assertion.val };
 };
 
-/** Edited assertions, with the ones the wizard cannot edit put back at their original positions. */
 const caseAssertions = (slug: string, behavior: BehaviorRow): ReadonlyArray<unknown> => {
   const edited: Array<unknown> = Array.map(behavior.asserts, (assertion, index) =>
     toEvalsAssertion(slug, assertion, index),
@@ -300,7 +262,6 @@ const toEvalsCase = (behavior: BehaviorRow, index: number): EvalsCase => {
   if (!isRecord(source)) {
     return { id: slug, prompt: behavior.prompt, assertions };
   }
-  // Spreading the loaded case keeps its fields and their order.
   const id = typeof source.id === 'string' || typeof source.id === 'number' ? source.id : slug;
   return {
     ...source,
@@ -333,8 +294,6 @@ export const countDraft = (draft: Draft): DraftCounts => {
   };
 };
 
-// IMPORT
-
 const toCaseSeed = (entry: Record<string, unknown>): BehaviorSeed => {
   const rawAssertions: ReadonlyArray<unknown> = globalThis.Array.isArray(entry.assertions) ? entry.assertions : [];
   const asserts: Array<BehaviorAssertion> = [];
@@ -359,7 +318,6 @@ const toCaseSeed = (entry: Record<string, unknown>): BehaviorSeed => {
   };
 };
 
-/** Rows (without ids) for an evals.json loaded from disk, and its top-level fields. */
 export const behaviorsFromEvalsJson = (
   evals: unknown,
 ): Readonly<{ skill: string; seeds: ReadonlyArray<BehaviorSeed>; source: unknown }> => {
@@ -407,6 +365,5 @@ const collectBehaviors = (values: ReadonlyArray<string>, value: unknown): Readon
     : fromLists;
 };
 
-/** Behavior descriptions in a `/generate-evals` payload, de-duplicated in order. */
 export const extractGeneratedBehaviors = (payload: unknown): ReadonlyArray<string> =>
   isRecord(payload) ? collectBehaviors(collectBehaviors([], payload.behaviors), payload.evals) : [];

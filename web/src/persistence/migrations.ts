@@ -12,7 +12,6 @@ const requestToPromise = <T,>(request: IDBRequest<T>): Promise<T> =>
 
 const migrations: Record<number, RecordMigration> = {
   2: async () => {
-    // Reserved for the first record-shape migration.
   },
 };
 

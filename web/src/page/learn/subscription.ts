@@ -8,11 +8,9 @@ import { maybeOpenChapterId, type Model, type Playback } from './model';
 
 // SUBSCRIPTION
 
-/** A demo animates only while its chapter is open and it is not paused. */
 const isAnimating = (model: Model, chapterId: ChapterId, playback: Playback): boolean =>
   Option.contains(maybeOpenChapterId(model), chapterId) && playback._tag === 'Playing';
 
-/** Like `setInterval`: the first tick lands one interval after the demo starts. */
 const ticks = (isRunning: boolean, intervalMs: number, message: Message): Stream.Stream<Message> =>
   Stream.when(
     Stream.tick(Duration.millis(intervalMs)).pipe(

@@ -33,7 +33,6 @@ type CompareCounts = Readonly<{
   maybeWithoutTotal: Option.Option<number>;
 }>;
 
-/** Cases without recorded counts fall back to what their status implies. */
 const compareCounts = (testCase: ReviewCase): CompareCounts => {
   const withTotal = Option.getOrElse(testCase.maybeWithTotal, () => (testCase.status === 'partial' ? 2 : 1));
   const withPassed = Option.getOrElse(testCase.maybeWithPassed, () =>

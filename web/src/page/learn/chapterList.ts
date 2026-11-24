@@ -40,7 +40,6 @@ export const learnChapters: ReadonlyArray<Chapter> = [
   },
 ];
 
-/** Two-digit chapter number shown in the rail and chapter headers ("01"). */
 export const chapterNumber = (id: ChapterId): string =>
   String(
     Option.getOrElse(

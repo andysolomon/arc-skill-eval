@@ -27,7 +27,6 @@ const caseStepKeys = Dom.streamFromEventFilterMapPreventDefault({
 
 // SUBSCRIPTION
 
-/** j / k step through the selected run's cases while a case is selected. */
 export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
   browseCaseStepKeys: entry(
     { hasSelectedCase: Schema.Boolean },

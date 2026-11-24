@@ -1,19 +1,13 @@
 import { Schema } from 'effect';
 
-// THEME
-
 export const themeNames = ['tokyonight', 'gruvbox', 'nord'] as const;
 export const ThemeName = Schema.Literals(themeNames);
 export type ThemeName = typeof ThemeName.Type;
 export const defaultTheme: ThemeName = 'tokyonight';
 
-// ENVIRONMENT
-
 export const envNames = ['hosted', 'localhost'] as const;
 export const EnvName = Schema.Literals(envNames);
 export type EnvName = typeof EnvName.Type;
-
-// SECTION
 
 export const sectionNames = ['run', 'browse', 'create', 'review', 'learn'] as const;
 export const SectionName = Schema.Literals(sectionNames);

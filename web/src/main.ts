@@ -1,8 +1,3 @@
-/**
- * Pure program definition: Flags (saved preferences, loaded before the first
- * render) and init. entry.ts boots the runtime.
- */
-
 import { Effect, Schema } from 'effect';
 import { Command, type Runtime, type Update } from 'foldkit';
 
@@ -20,8 +15,6 @@ export { update } from '@/update';
 export { view } from '@/view';
 export { subscriptions } from '@/subscription';
 
-// FLAGS
-
 export const Flags = Schema.Struct({
   theme: ThemeName,
   env: EnvName,
@@ -38,7 +31,6 @@ const documentEnv = (): EnvName => {
   return isEnvName(env) ? env : 'hosted';
 };
 
-/** A theme saved by the pre-IndexedDB app wins once, then moves into preferences. */
 const migrateLegacyTheme = Effect.sync(() => {
   const legacy = window.localStorage.getItem(LEGACY_THEME_STORAGE_KEY);
   if (legacy === null) {

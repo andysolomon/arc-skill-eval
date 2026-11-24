@@ -6,7 +6,6 @@ const HOME = '/home/tester';
 
 type Entry = { name: string; type: 'dir' | 'file'; isSkill?: boolean; hasEvalsRuns?: boolean };
 
-/** In-memory filesystem served by the mocked `GET /fs`. */
 const tree: Record<string, Entry[]> = {
   '/': [{ name: 'home', type: 'dir' }],
   '/home': [{ name: 'tester', type: 'dir' }],
@@ -111,7 +110,6 @@ test('folder picker browses the daemon filesystem and selects a directory', asyn
   await openLocalhost(page);
   await openPicker(page);
 
-  // With no workspace yet, the picker starts at the daemon's home directory.
   await expect(picker(page)).toContainText(HOME);
   await expect(folderRow(page, 'src')).toBeVisible();
   await expect(picker(page)).toContainText('notes.txt');
@@ -133,7 +131,6 @@ test('folder picker browses the daemon filesystem and selects a directory', asyn
   await expect(dropdown(page)).toBeHidden();
   await expect(page.getByTestId('workspace-chip')).toContainText(`${HOME}/src/skills`);
 
-  // The chosen directory is saved and its skills are listed.
   await page.getByTestId('workspace-chip').click();
   const saved = dropdown(page).getByRole('button', { name: `✓ ${HOME}/src/skills` });
   await expect(saved).toBeVisible();
@@ -146,7 +143,6 @@ test('folder picker: back, empty directories and the root', async ({ page, daemo
   await openLocalhost(page);
   await chooseWorkspace(page, '~/empty');
 
-  // The picker opens at the current workspace.
   await openPicker(page);
   await expect(picker(page)).toContainText(`${HOME}/empty`);
   await expect(picker(page)).toContainText('This directory is empty');
@@ -158,7 +154,6 @@ test('folder picker: back, empty directories and the root', async ({ page, daemo
   await expect(folderRow(page, 'tester')).toBeVisible();
   await up.click();
   await expect(folderRow(page, 'home')).toBeVisible();
-  // At the filesystem root there is no parent to go up to.
   await expect(up).toBeDisabled();
 
   await picker(page).getByRole('button', { name: 'Back to saved directories' }).click();
@@ -183,7 +178,6 @@ test('a stale workspace is flagged and the picker falls back to an ancestor', as
   await expect(folderRow(page, 'src')).toBeVisible();
   await expect(picker(page).getByRole('button', { name: /Select this directory/ })).toBeEnabled();
 
-  // Navigating into a missing folder from a good listing keeps the listing.
   daemon.on('GET', '/fs', (request) =>
     request.query.get('path') === `${HOME}/src`
       ? { json: { ok: false, path: `${HOME}/src`, parent: HOME, error: 'permission denied', entries: [] } }
@@ -231,7 +225,6 @@ test('saved directories persist, switch the workspace, and stale ones are pruned
   await expect(dropdown(page)).toBeHidden();
   await expect(page.getByTestId('workspace-chip')).toContainText(`${HOME}/src/skills`);
 
-  // Both survive a reload; the active one is restored.
   await reloadApp(page);
   await expect(page.getByTestId('workspace-chip')).toContainText(`${HOME}/src/skills`);
   await page.getByTestId('workspace-chip').click();
@@ -239,7 +232,6 @@ test('saved directories persist, switch the workspace, and stale ones are pruned
   await expect(dropdown(page).getByRole('button', { name: `${HOME}/empty` })).toBeVisible();
   await page.keyboard.press('Escape');
 
-  // A saved directory that no longer exists is dropped on the next load.
   daemon.on('GET', '/fs', (request) =>
     resolve(request.query.get('path')) === `${HOME}/empty`
       ? { json: { ok: false, path: `${HOME}/empty`, parent: HOME, error: 'directory not found', entries: [] } }

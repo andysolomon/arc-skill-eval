@@ -1,9 +1,7 @@
 /**
- * Interactive, daemon-backed directory picker. Unlike a browser
- * `webkitdirectory` upload (which only exposes the picked folder's name, never
- * an absolute path), this navigates the real filesystem through the daemon's
- * `GET /fs` endpoint and yields a real absolute path: a reference, not an
- * upload.
+ * A browser `webkitdirectory` upload exposes only the picked folder's name,
+ * never its absolute path, so the picker lists folders through the daemon's
+ * `GET /fs` instead.
  */
 
 import { Array, Effect, Option, Schema } from 'effect';

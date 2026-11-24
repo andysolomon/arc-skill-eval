@@ -218,12 +218,10 @@ async function parseRunDir(skillPath, skillId, runDirPath, runDirName) {
     workspaceRoot: skillPath,
     finishedAt,
     status: runStatusFromCases(cases),
-    // A comparison run grades each case twice, in with_skill/ and without_skill/.
     compare: caseDirs.some((caseDirPath) => existsSync(path.join(caseDirPath, "with_skill", "grading.json"))),
     cases,
   };
 
-  // The suite as it is now, so Review can show each case next to a note about it.
   const evalsJson = await readJsonFile(path.join(skillPath, "evals", "evals.json"));
   if (evalsJson) {
     run.evalsJson = evalsJson;
@@ -298,8 +296,6 @@ async function sendArtifact(request, response, context, match) {
     return true;
   }
 
-  // The skill folder must be inside the chosen workspace, and the run id,
-  // case id and artifact name must stay inside its evals-runs folder.
   const skillDir = await resolveInWorkspace(root);
   let filePath;
   try {
@@ -343,7 +339,6 @@ function modelSelection(value, label) {
   return { provider: value.slice(0, slash), id: value.slice(slash + 1) };
 }
 
-/** Turn the composer's POST body into library run options, or explain what is wrong. */
 async function runRequest(body) {
   const skillDir = await resolveInWorkspace(typeof body.workspaceRoot === "string" ? body.workspaceRoot : "");
   if (!existsSync(path.join(skillDir, "evals", "evals.json"))) {
@@ -486,7 +481,6 @@ export async function handleRuns(request, response, context) {
     }
 
     if (request.method === "DELETE") {
-      // The library stops the in-flight case; the run then ends with run.cancelled.
       const cancelling = abortRun(runId);
       context.sendJson(response, 202, { runId, cancelling, status: run.status });
       return true;

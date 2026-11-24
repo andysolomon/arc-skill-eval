@@ -14,8 +14,6 @@ import * as Run from '@/page/run';
 import * as Workspace from '@/shell/workspace';
 import { sx } from '@/ui/sx';
 
-// HEADER
-
 const themeMeta: Record<ThemeName, { label: string; dot: string }> = {
   tokyonight: { label: 'tn', dot: '#7aa2f7' },
   gruvbox: { label: 'gb', dot: '#fabd2f' },
@@ -138,8 +136,6 @@ const header = (model: Model, h: HtmlBuilder<Message>): Html =>
     ],
   );
 
-// STATUS BAR
-
 type StatusHint = Readonly<{ key: string; label: string }>;
 
 const statusHints: Record<SectionName, ReadonlyArray<StatusHint>> = {
@@ -167,11 +163,6 @@ const statusHints: Record<SectionName, ReadonlyArray<StatusHint>> = {
   ],
 };
 
-/**
- * Localhost only: the models a run uses when the composer leaves model and
- * judge on "default", as the daemon reports them. Hosted mode runs no model,
- * so it shows none.
- */
 const statusModels = (context: AppContext, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
   if (context.env !== 'localhost') {
     return [];
@@ -219,8 +210,6 @@ const statusBar = (section: SectionName, context: AppContext, h: HtmlBuilder<Mes
       ),
     ],
   );
-
-// PAGE
 
 const pageView = (page: Page, context: AppContext, h: HtmlBuilder<Message>): Html =>
   Page.match(page, {

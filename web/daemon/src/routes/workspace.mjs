@@ -10,12 +10,6 @@ const execFileAsync = promisify(execFile);
 
 const REPO_CACHE = path.join(homedir(), ".arc-skill-eval", "repos");
 
-/**
- * A workspace ref is either a local directory path (~ expands to $HOME) or a
- * GitHub repo reference: https://github.com/owner/repo, github.com/owner/repo,
- * or github:owner/repo. Repos are shallow-cloned into ~/.arc-skill-eval/repos
- * and fast-forwarded (best effort) on later requests.
- */
 function parseGithubRef(ref) {
   const match =
     /^(?:https?:\/\/)?github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/.exec(ref)
@@ -61,7 +55,6 @@ function parseFrontmatter(markdown) {
     let value = pair[2].trim();
 
     // YAML block scalars (`description: >` / `|`, with optional +/- chomping):
-    // join the following more-indented lines into one string.
     if (/^[>|][+-]?$/.test(value)) {
       const block = [];
       while (index + 1 < lines.length && /^\s+\S/.test(lines[index + 1])) {
@@ -145,11 +138,6 @@ async function collectSkillDirs(dir, depth, maxDepth, out) {
   }
 }
 
-/**
- * A skill dir is any directory containing SKILL.md. Recursively walks the
- * workspace (including dot-directories such as .agents/ and .claude/) while
- * skipping build/cache dirs and treating SKILL.md dirs as leaves.
- */
 export async function scanSkills(root) {
   const dirs = [];
   await collectSkillDirs(root, 0, 5, dirs);
@@ -226,7 +214,6 @@ export async function handleWorkspace(request, response, context) {
     return true;
   }
 
-  // The user chose this directory, so later requests may read and write inside it.
   await registerWorkspace(resolution.resolvedPath);
 
   context.sendJson(response, 200, {

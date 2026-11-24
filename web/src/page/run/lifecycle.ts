@@ -1,10 +1,3 @@
-/**
- * Run lifecycle: a run is idle, starting (POST in flight), streaming
- * progress over the daemon socket, done with a benchmark, or failed with the
- * daemon's reason. Pure transitions; update.ts sequences them with the
- * Commands and socket Messages that drive them.
- */
-
 import { Array, Option, Schema } from 'effect';
 import { defineTaggedUnion } from 'foldkit/schema';
 import { modifyFields } from 'foldkit/struct';
@@ -28,7 +21,6 @@ export type Benchmark = typeof Benchmark.Type;
 
 export const RunState = defineTaggedUnion({
   Idle: {},
-  /** `attempt` tells this POST's answer apart from one the user cancelled. */
   Starting: { attempt: Schema.Number, progressRows: Schema.Array(ProgressRow) },
   Streaming: {
     runId: Schema.String,
@@ -82,12 +74,8 @@ export const elapsedSec = (run: RunState): number =>
     Failed: ({ elapsedSec: seconds }) => seconds,
   });
 
-// TRANSITIONS
-
-/** Label of the placeholder row for a whole-suite run; the daemon's first case rows replace it. */
 const ALL_CASES_ROW = 'all cases';
 
-/** The placeholder row shown while the daemon accepts the run. */
 export const acceptedRow = (composer: Composer): ProgressRow => ({
   caseId: composer.case === ALL_CASES ? ALL_CASES_ROW : composer.case,
   phase: 'queued',
@@ -112,7 +100,6 @@ export const accept = (
     progressRows: starting.progressRows,
   });
 
-/** A later frame for a case updates its row instead of adding one; the placeholder row goes away. */
 export const mergeProgressRow = (rows: ReadonlyArray<ProgressRow>, row: ProgressRow): ReadonlyArray<ProgressRow> => {
   const caseRows = Array.filter(rows, (candidate) => candidate.caseId !== ALL_CASES_ROW);
   return Array.some(caseRows, (candidate) => candidate.caseId === row.caseId)
@@ -136,7 +123,6 @@ export const toBenchmark = (summary: RunSummary, runId: string, rows: ReadonlyAr
 
 export type EventOutcome = Readonly<{
   run: RunState;
-  /** Set when this event finished the run: remember it as the last run. */
   maybeFinishedRunId: Option.Option<string>;
 }>;
 
@@ -152,7 +138,6 @@ const finish = (
   maybeFinishedRunId: Option.some(runId),
 });
 
-/** Apply one socket frame received at `nowMs` to a streaming run. */
 export const applyEvent = (streaming: Streaming, event: RunEvent, nowMs: number): EventOutcome => {
   const seconds = secondsSince(streaming.startedAtMs, nowMs);
   return RunEvent.match(event, {

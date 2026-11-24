@@ -11,7 +11,6 @@ import { gridSection, notice, type TabInput } from './shared';
 
 // VIEW
 
-/** The light markdown rendering React used for assistant.md: headings and bullets, one block per line. */
 const markdownLine = (line: string, h: HtmlBuilder<Message>): Html => {
   if (line.startsWith('### ')) {
     return h.h4([h.Style(sx({ fontSize: 15, margin: '10px 0 4px' }))], [line.slice(4)]);

@@ -1,5 +1,3 @@
-/** Readers for untyped JSON (daemon payloads, artifacts, imported runs): each answers `Option.none()` for the wrong shape. */
-
 import { Array, Option } from 'effect';
 
 export type UnknownRecord = Readonly<Record<string, unknown>>;

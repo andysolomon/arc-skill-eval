@@ -71,7 +71,6 @@ const tabViews: Record<Tab, (input: TabInput, h: HtmlBuilder<Message>) => Html> 
   raw: rawTab,
 };
 
-/** The selected case: header with variant switch (compare runs) and tabs, then the open tab. */
 export const detail = (input: TabInput, tab: Tab, h: HtmlBuilder<Message>): Html =>
   h.section(
     [

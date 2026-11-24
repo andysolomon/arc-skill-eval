@@ -135,9 +135,7 @@ const behaviorTypes: ReadonlyArray<AssertionType> = [
   },
 ];
 
-// Not yet gradeable — declared honestly so authors don't write checks that
-// silently never run. Track them; don't ship suites that depend on them.
-const roadmap: ReadonlyArray<Readonly<{ label: string; desc: Children }>> = [
+const notYetGradeableAssertions: ReadonlyArray<Readonly<{ label: string; desc: Children }>> = [
   {
     label: 'not-regex',
     desc: [
@@ -653,7 +651,7 @@ export const view = (h: HtmlBuilder<Message>): Html =>
       h.div(
         [h.Style(sx({ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 32 }))],
         [
-          ...roadmap.map((item) =>
+          ...notYetGradeableAssertions.map((item) =>
             h.div(
               [
                 h.Style(

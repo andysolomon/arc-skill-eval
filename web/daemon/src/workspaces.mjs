@@ -1,12 +1,7 @@
 /**
- * The workspaces the user opened, and the check that keeps every path a
- * request names inside one of them.
- *
- * A workspace is registered when the web app resolves it through
- * `GET /workspace` (the user typed it, picked it, or it was saved). Every
- * other route that takes a path resolves it with `realpath`, so `..` segments
- * and symlinks that point elsewhere are followed before the check, and
- * refuses it unless it lies inside a registered workspace.
+ * Every route that takes a path resolves it with `realpath` before the
+ * workspace check, so `..` segments and symlinks that point elsewhere cannot
+ * reach files outside a registered workspace.
  */
 
 import { realpath } from "node:fs/promises";
@@ -34,7 +29,6 @@ export function isInside(child, parent) {
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
-/** Remember a resolved workspace directory; later requests may touch files under it. */
 export async function registerWorkspace(directory) {
   const real = await realpath(directory);
   workspaces.add(real);
@@ -70,12 +64,6 @@ async function realpathOfNearestAncestor(absolute) {
   }
 }
 
-/**
- * Resolve a caller-supplied path and return its real location, or throw
- * AccessError when it is outside every registered workspace. With
- * `mustExist: false` the path may name a file that does not exist yet; its
- * nearest existing ancestor is resolved instead.
- */
 export async function resolveInWorkspace(candidate, { mustExist = true } = {}) {
   if (typeof candidate !== "string" || candidate.trim() === "" || candidate.includes("\0")) {
     throw new AccessError("A path inside the chosen workspace is required.");
@@ -99,11 +87,6 @@ export async function resolveInWorkspace(candidate, { mustExist = true } = {}) {
   return real;
 }
 
-/**
- * Join workspace-relative segments under `base` and refuse the result when a
- * segment is absolute, contains `..`, or resolves (through symlinks) outside
- * `base`.
- */
 export async function resolveUnder(base, segments) {
   for (const segment of segments) {
     if (
@@ -135,7 +118,6 @@ export async function resolveUnder(base, segments) {
   return real;
 }
 
-/** Directories the folder picker may list: the home folder and every registered workspace. */
 export async function isBrowsable(realPath) {
   const home = await realpath(homedir()).catch(() => homedir());
   return isInside(realPath, home) || isInsideWorkspace(realPath);

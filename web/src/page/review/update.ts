@@ -56,18 +56,9 @@ export const init = (context: AppContext): Update.Return<Model, Message> => ({
   commands: [LoadReviewData(), ...fetchRunsFor(context, Option.none())],
 });
 
-// SELECTION
-
 const sameOption = (left: Option.Option<string>, right: Option.Option<string>): boolean =>
   Option.match(left, { onNone: () => Option.isNone(right), onSome: (value) => Option.contains(right, value) });
 
-/**
- * Bring the selection back in line after anything changed: a skill that
- * still has runs (else the first), a run of that skill (else the last
- * imported run, else the first), a case of that run (else the first failing
- * one, else the first). On localhost, a new skill (or `forceFetch`) re-asks
- * the daemon for that skill's runs.
- */
 const reconcile = (
   model: Model,
   context: AppContext,
@@ -119,8 +110,6 @@ const reconcile = (
 const settle = (model: Model, context: AppContext, previousSkillId: Option.Option<string>) =>
   reconcile(model, context, { previousSkillId, forceFetch: false });
 
-// IMPORT
-
 const inspectAndImport = (model: Model, context: AppContext, text: string, nowMillis: number): UpdateReturn => {
   const outcome = inspectArtifact(text, new Date(nowMillis).toISOString());
   const inspected = modifyFields(model, {
@@ -149,8 +138,6 @@ const inspectAndImport = (model: Model, context: AppContext, text: string, nowMi
     },
   });
 };
-
-// IMPROVE
 
 const withImprove = (model: Model, changes: Partial<{ [K in keyof Improve]: (value: Improve[K]) => Improve[K] }>) =>
   modifyFields(model, { improve: (improve) => modifyFields(improve, changes) });
@@ -334,9 +321,6 @@ export const update = (model: Model, message: Message, context: AppContext) =>
     FailedCancelPlan: ({ error }) => ({ model: withImprove(model, { apply: () => Apply.Failed({ error }) }) }),
   });
 
-// CONTEXT
-
-/** Env or workspace changed: the daemon's runs belong to the old one, so drop them and ask again. */
 export const contextChanged = (model: Model, context: AppContext): Update.Return<Model, Message> => {
   const isEnvChanged = context.env !== model.env;
   const isRootChanged = context.workspace.root !== model.workspaceRoot;

@@ -1,6 +1,4 @@
 /**
- * Who may talk to the daemon.
- *
  * The daemon listens on 127.0.0.1 and can read and write files in the
  * workspaces the user opens, so it only answers the arc-skill-eval web app.
  * Three checks run on every HTTP request and WebSocket upgrade:
@@ -9,8 +7,6 @@
  *    reaches 127.0.0.1 under its own host name, so it fails here.
  * 2. When the browser sends an Origin header, it must be the production web
  *    app or a page served from localhost (the vite dev and preview servers).
- *    Extra origins can be listed in ARC_SKILL_EVAL_DAEMON_ORIGINS, separated
- *    by commas.
  * 3. A request without an Origin header that a browser marks as cross-site
  *    (Sec-Fetch-Site) is refused. Browsers omit Origin on some cross-site GET
  *    requests, such as an image tag pointing at the daemon.
@@ -55,7 +51,6 @@ function isAllowedHost(host) {
   }
 }
 
-/** Returns null when the request may proceed, or the reason to refuse it. */
 export function refusalReason(headers) {
   if (!isAllowedHost(headers.host)) {
     return "The daemon only answers requests addressed to localhost or 127.0.0.1.";
@@ -74,7 +69,6 @@ export function refusalReason(headers) {
   return null;
 }
 
-/** CORS headers for an allowed origin; none for requests without one. */
 export function corsHeaders(headers) {
   const origin = headers.origin;
   if (typeof origin !== "string" || !isAllowedOrigin(origin)) {

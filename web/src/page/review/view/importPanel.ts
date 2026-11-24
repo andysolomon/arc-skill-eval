@@ -182,7 +182,6 @@ const actions = (h: HtmlBuilder<Message>): Html =>
     ],
   );
 
-/** Import run JSON by file, paste or sample; other arc-skill-eval JSON is inspected only. */
 export const importPanel = (model: Model, h: HtmlBuilder<Message>): Html =>
   h.div(
     [h.Style(sx({ border: '1px solid var(--tt-border)', borderRadius: 8, padding: '14px 16px' }))],

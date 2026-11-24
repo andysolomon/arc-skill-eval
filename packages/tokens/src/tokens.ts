@@ -94,12 +94,6 @@ export const themes = {
 
 export const defaultTheme = 'tokyonight' satisfies ThemeName;
 
-/**
- * Theme-independent dimension tokens, per design.md §1.3–1.7.
- * The build script emits each group as `--tt-<group>-<key>` CSS custom
- * properties (numbers become px; strings pass through verbatim).
- * `space` is value-named: --tt-space-4 … --tt-space-32.
- */
 export const dimensions = {
   text: {
     '2xl': 24,
@@ -135,8 +129,6 @@ export const dimensions = {
   layout: {
     'header-h': 50,
     'statusbar-h': 25,
-    // Fluid-desktop floor: panels flex to fill any width down to this, then the
-    // shell scrolls horizontally. Below it the multi-rail layout gets too tight.
     'app-min-w': 860,
   },
 } as const;

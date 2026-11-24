@@ -1,8 +1,3 @@
-/**
- * Change plans derived from feedback notes. Pure: the caller supplies the
- * plan id and timestamp.
- */
-
 import { Array, Option, Order, pipe } from 'effect';
 
 import type { FeedbackNote, ProposedPlan } from './domain';
@@ -47,7 +42,6 @@ const summarizeCase = (maybeEvalsJson: Option.Option<unknown>, maybeCaseId: Opti
     onNone: () => 'Run-level feedback.',
     onSome: (caseId) => {
       const evalCases = Option.match(maybeEvalsJson, { onNone: () => [], onSome: readEvalCases });
-      // Runs on disk name each case folder eval-<case id>.
       const ids = [caseId, caseId.replace(/^eval-/, '')];
       return Option.match(
         Array.findFirst(evalCases, (testCase) =>
@@ -66,7 +60,6 @@ const summarizeCase = (maybeEvalsJson: Option.Option<unknown>, maybeCaseId: Opti
 
 const byCreatedAt = Order.mapInput(Order.String, (note: FeedbackNote) => note.createdAt);
 
-/** A run's notes, oldest first (the order plan items are listed in). */
 export const runNotesOldestFirst = (
   notes: ReadonlyArray<FeedbackNote>,
   runId: string,
@@ -77,7 +70,6 @@ export const runNotesOldestFirst = (
     Array.sort(byCreatedAt),
   );
 
-/** A run's notes, newest first (the order the feedback panel lists them in). */
 export const runNotesNewestFirst = (
   notes: ReadonlyArray<FeedbackNote>,
   runId: string,
@@ -113,7 +105,6 @@ export const derivePlan = (
   updatedAt: config.nowIso,
 });
 
-/** The plan as the daemon and the downloaded file see it (same keys as the React app). */
 export const planToJson = (plan: ProposedPlan): JsonRecord => ({
   planId: plan.planId,
   runId: plan.runId,

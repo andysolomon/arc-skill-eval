@@ -80,7 +80,6 @@ test.describe('hosted import', () => {
 
     await expect(summary(page)).toContainText('sample-skill');
     await expect(summary(page)).toContainText('1/2 passed');
-    // The failing case is selected first and shows its evidence.
     const failCase = summary(page).getByRole('button', { name: 'select case case-fail' });
     const passCase = summary(page).getByRole('button', { name: 'select case case-pass' });
     await expect(failCase).toHaveAttribute('aria-pressed', 'true');
@@ -94,7 +93,6 @@ test.describe('hosted import', () => {
     await expect(failCase).toHaveAttribute('aria-pressed', 'false');
     await expect(feedbackPanel(page)).toContainText('feedback.json: case-pass');
 
-    // Keyboard selection works on the case cards too.
     await failCase.focus();
     await page.keyboard.press('Enter');
     await expect(failCase).toHaveAttribute('aria-pressed', 'true');
@@ -118,7 +116,6 @@ test.describe('hosted import', () => {
       'true',
     );
 
-    // Runs are filtered to the selected skill; the first (imported) run is selected.
     const rail = runsRail(page);
     await expect(rail.getByRole('button')).toHaveCount(2);
     await expect(rail.getByRole('button', { name: 'select run commits-run-2' })).toHaveAttribute(
@@ -172,7 +169,6 @@ test.describe('hosted import', () => {
     await expect(importPanelResult(page)).toContainText('Recommended');
     await expect(importPanelResult(page)).toContainText('✓ evals.json · suite');
     await expect(importPanelResult(page)).toContainText('2 cases · release-please');
-    // A suite is inspected, not imported as a run.
     await expect(page.getByTestId('review-empty-state')).toBeVisible();
 
     await inspectPasted(page, { skill_name: 'broken', evals: [{ id: 'no-prompt' }] });
@@ -220,7 +216,6 @@ test.describe('hosted import', () => {
     await expect(page.getByTestId('review-app')).toBeVisible();
     await expect(summary(page)).toContainText('1/2 passed');
 
-    // Imported runs live in IndexedDB next to the notes written about them.
     await reloadApp(page);
     await expect(page.getByTestId('review-app')).toBeVisible();
     await expect(summary(page)).toContainText('1/2 passed');
@@ -252,15 +247,12 @@ test.describe('feedback', () => {
     await noteBox(page).fill('Tighten the summary length check.');
     await recordButton(page).click();
     await expect(notes).toHaveCount(2);
-    // Newest first.
     await expect(notes.first()).toContainText('case-pass');
 
-    // The imported run and its notes are both persisted, so both survive a reload.
     await reloadApp(page);
     await expect(page.getByTestId('review-app')).toBeVisible();
     await expect(notes).toHaveCount(2);
 
-    // Removing asks for confirmation; dismissing keeps the note.
     page.once('dialog', (dialog) => void dialog.dismiss());
     await notes.first().getByRole('button', { name: /^remove feedback / }).click();
     await expect(notes).toHaveCount(2);
@@ -344,7 +336,6 @@ test.describe('localhost with the real daemon', () => {
   };
 
   test('reviews the runs the daemon reads from disk', async ({ page }) => {
-    // No import panel: the daemon supplies the run written by the beforeEach run.
     await expect(page.getByTestId('review-empty-state-kicker')).toHaveCount(0);
     await expect(page.getByTestId('reviewing-skill-alpha')).toHaveAttribute('aria-pressed', 'true');
     await expect(
@@ -365,9 +356,7 @@ test.describe('localhost with the real daemon', () => {
 
     const plan = panel(page).getByLabel('Proposed change plan');
     await expect(plan).toContainText('+ The prompt is ambiguous about the file name.');
-    // The plan shows the case the note is about, read from the suite on disk.
     await expect(plan).toContainText('- eval-writes-a-report: Write the weekly report to report.md.');
-    // Staging dry-runs improve on a copy; the suggestions show before anything is written.
     const staged = panel(page).getByRole('region', { name: 'Staged change plan' });
     await expect(staged).toContainText('arc-skill-eval improve --apply');
     await expect(staged).toContainText('"kind": "prompt"');
@@ -378,7 +367,6 @@ test.describe('localhost with the real daemon', () => {
     await expect(panel(page).getByRole('status')).toContainText(`Applied changes to ${evalsPath}`);
     await expect(staged).toHaveCount(0);
 
-    // improve --apply tagged the case and recorded its suggestions; the feedback file stays in the run folder.
     const suite = JSON.parse(await readText(evalsPath)) as {
       evals: Array<{ id: string; metadata?: { tags?: string[]; improvement_suggestions?: Array<{ kind: string }> } }>;
     };

@@ -32,13 +32,9 @@ test.describe('section navigation', () => {
         'page',
       );
       await expect(page.getByTestId('status-bar')).toContainText(section.name);
-      // In the React app, switching again before the previous choice has been
-      // persisted makes the shell bounce between the two sections. Pause like a
-      // human would so this spec pins the intended behavior, not that bug.
       await settle(page);
     }
 
-    // Keys outside 1-5 do nothing.
     await page.keyboard.press('7');
     await page.keyboard.press('0');
     await expect(page.getByTestId('section-nav-tab-run')).toHaveAttribute('aria-current', 'page');
@@ -48,7 +44,6 @@ test.describe('section navigation', () => {
   test('number keys are ignored while typing in an input or textarea', async ({ page }) => {
     await openApp(page);
 
-    // <input>: the Create wizard's skill name field.
     await goToSection(page, 'create');
     const skillName = page.getByRole('textbox', { name: 'skill name' });
     await skillName.fill('');
@@ -56,14 +51,12 @@ test.describe('section navigation', () => {
     await expect(skillName).toHaveValue('skill-12345');
     await expect(page.getByTestId('section-nav-tab-create')).toHaveAttribute('aria-current', 'page');
 
-    // <textarea>: the Review import box.
     await goToSection(page, 'review');
     const paste = page.getByRole('textbox', { name: 'paste arc-skill-eval json' });
     await paste.pressSequentially('[1, 2, 5]');
     await expect(paste).toHaveValue('[1, 2, 5]');
     await expect(page.getByTestId('section-nav-tab-review')).toHaveAttribute('aria-current', 'page');
 
-    // Once focus leaves the field, the hotkeys work again.
     await paste.blur();
     await page.keyboard.press('5');
     await expect(page.getByTestId('learn-app')).toBeVisible();
@@ -121,7 +114,6 @@ test.describe('theme picker', () => {
     await expect(page.getByTestId('theme-option-nord')).toHaveAttribute('aria-checked', 'true');
     await expect.poll(() => page.evaluate(() => localStorage.getItem('arc-pi-theme'))).toBeNull();
 
-    // The migrated value is now the persisted preference.
     await reloadApp(page);
     await expect.poll(() => documentTheme(page)).toBe('nord');
   });
@@ -190,8 +182,6 @@ test.describe('status bar', () => {
       }
     }
 
-    // Hosted mode runs no model, so the status bar names none. Localhost
-    // shows the daemon's models (run.spec.ts) or that the daemon is offline.
     await expect(statusBar).not.toContainText('judge');
     await expect(page.getByTestId('status-reset-hosted-data')).toHaveText('Reset hosted data');
     await switchEnv(page, 'localhost');
@@ -248,6 +238,5 @@ test('install chip copies the install command', async ({ page, context }) => {
     'npm i -g arc-skill-eval',
   );
 
-  // The confirmation resets itself.
   await expect(chip).not.toContainText('copied', { timeout: 5000 });
 });

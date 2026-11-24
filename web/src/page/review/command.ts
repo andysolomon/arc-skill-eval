@@ -15,8 +15,6 @@ import { readImportedRuns, writeImportedRuns } from './importedRuns';
 import { Message } from './message';
 import { derivePlan, planFileName, planToJson, runNotesOldestFirst } from './plan';
 
-// HELPERS
-
 const errorMessage =
   (fallback: string) =>
   (error: unknown): string =>
@@ -54,8 +52,6 @@ const readFeedbackNotes: Effect.Effect<ReadonlyArray<FeedbackNote>, string> = at
 ).pipe(Effect.map(Array.map(toFeedbackNote)));
 
 const nowIso = Clock.currentTimeMillis.pipe(Effect.map((millis) => new Date(millis).toISOString()));
-
-// LOAD
 
 export const LoadReviewData = Command.define('LoadReviewData', {
   messages: [Message.CompletedLoadReviewData],
@@ -101,8 +97,6 @@ export const FetchRuns = Command.define('FetchRuns', {
     ),
 });
 
-// IMPORT
-
 export const GetInspectionTime = Command.define('GetInspectionTime', {
   messages: [Message.CompletedGetInspectionTime],
   execute: Clock.currentTimeMillis.pipe(Effect.map((nowMillis) => Message.CompletedGetInspectionTime({ nowMillis }))),
@@ -139,8 +133,6 @@ export const SaveLastRunId = Command.define('SaveLastRunId', {
   execute: ({ runId }) => savePreferences({ lastRunId: runId }).pipe(Effect.as(Message.CompletedSaveLastRunId())),
 });
 
-// FEEDBACK
-
 export const AddFeedback = Command.define('AddFeedback', {
   args: { runId: Schema.String, maybeCaseId: Schema.Option(Schema.String), note: Schema.String },
   messages: [Message.SucceededAddFeedback, Message.FailedAddFeedback],
@@ -173,14 +165,11 @@ export const DeleteFeedback = Command.define('DeleteFeedback', {
     ),
 });
 
-// CHANGE PLAN
-
 const newPlanId = Effect.gen(function* () {
   const random = yield* SecureRandom.SecureRandom;
   return yield* random.uuidV4();
 }).pipe(Effect.provide(BrowserCrypto.layerSecureRandom));
 
-/** Derive a change plan from the run's feedback notes (read fresh from IndexedDB). */
 export const DerivePlan = Command.define('DerivePlan', {
   args: { runId: Schema.String, workspaceRoot: Schema.String, maybeEvalsJson: Schema.Option(Schema.Unknown) },
   messages: [Message.SucceededDerivePlan, Message.FailedDerivePlan],
@@ -201,7 +190,6 @@ export const DerivePlan = Command.define('DerivePlan', {
     ),
 });
 
-/** Hosted: hand the plan to the browser as a JSON download. */
 export const DownloadPlan = Command.define('DownloadPlan', {
   args: { plan: ProposedPlan, skill: Schema.String },
   messages: [Message.SucceededDownloadPlan, Message.FailedDownloadPlan],
@@ -228,11 +216,6 @@ export const DownloadPlan = Command.define('DownloadPlan', {
 const daemonError = (payload: unknown, fallback: string): string =>
   isRecord(payload) && typeof payload.error === 'string' && payload.error !== '' ? payload.error : fallback;
 
-/**
- * Localhost: send the plan's feedback notes to the daemon, which turns them
- * into a feedback file and dry-runs `arc-skill-eval improve --apply` on a copy
- * of the skill's evals.json. It answers with the diff and the suggestions.
- */
 export const StagePlan = Command.define('StagePlan', {
   args: { plan: ProposedPlan, runId: Schema.String, workspaceRoot: Schema.String },
   messages: [Message.SucceededStagePlan, Message.FailedStagePlan],

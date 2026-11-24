@@ -45,7 +45,6 @@ export const FetchLocalRuns = Command.define('FetchLocalRuns', {
     ),
 });
 
-/** A daemon error answer carries its reason as the body text, which the tabs show as is. */
 export const FetchArtifact = Command.define('FetchArtifact', {
   args: { request: ArtifactRequest },
   messages: [Message.SucceededFetchArtifact, Message.FailedFetchArtifact],

@@ -14,11 +14,6 @@ function resolveFsPath(pathParam) {
   return expandPath(pathParam.trim());
 }
 
-/**
- * The parent directory, when the folder picker may list it too. A parent that
- * no longer exists still counts when its nearest existing ancestor may be
- * listed, so the picker can walk up from a stale workspace path.
- */
 async function browsableParent(resolved) {
   const parentDir = path.dirname(resolved);
   if (parentDir === resolved) {
@@ -36,10 +31,6 @@ async function browsableParent(resolved) {
   }
 }
 
-/**
- * Lists one directory for the folder picker. Only the home folder, the
- * workspaces the user opened, and their subfolders can be listed.
- */
 export async function handleFs(request, response, context) {
   if (request.method !== "GET" || context.url.pathname !== "/fs") {
     return false;

@@ -1,9 +1,3 @@
-/**
- * Side effects of the Create wizard: draft persistence, the evals.json
- * download, and the localhost daemon calls (draft, suggest, load, stage,
- * apply, discard). Every Command turns its failures into a Message.
- */
-
 import { Array, Clock, Effect, Option, Random, Schema } from 'effect';
 import { Command } from 'foldkit';
 
@@ -33,8 +27,6 @@ import {
 } from './domain';
 import { Message } from './message';
 import { SuggestTarget, type StagedPlan } from './model';
-
-// HELPERS
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !globalThis.Array.isArray(value);
@@ -82,8 +74,6 @@ const createRowId: Effect.Effect<string> = Effect.gen(function* () {
 
 const toRows = (seeds: ReadonlyArray<BehaviorSeed>): Effect.Effect<ReadonlyArray<BehaviorRow>> =>
   Effect.forEach(seeds, (seed) => Effect.map(createRowId, (id) => makeBehaviorRow(id, seed)));
-
-// PERSISTENCE
 
 const normalizeDraft = (value: unknown): Draft => {
   if (!isRecord(value)) {
@@ -135,14 +125,10 @@ export const SaveCreateProgress = Command.define('SaveCreateProgress', {
     ).pipe(Effect.ignore, Effect.as(Message.CompletedSaveCreateProgress())),
 });
 
-// ROWS
-
 export const CreateBehaviorId = Command.define('CreateBehaviorId', {
   messages: [Message.CompletedCreateBehaviorId],
   execute: Effect.map(createRowId, (id) => Message.CompletedCreateBehaviorId({ id })),
 });
-
-// DOWNLOAD
 
 export const DownloadEvalsJson = Command.define('DownloadEvalsJson', {
   args: { contents: Schema.String },
@@ -163,8 +149,6 @@ export const DownloadEvalsJson = Command.define('DownloadEvalsJson', {
       Effect.as(Message.CompletedDownloadEvalsJson()),
     ),
 });
-
-// SUGGEST
 
 type SuggestKind = 'behavior' | 'prompt' | 'assertion' | 'dimension' | 'flavor';
 
@@ -283,8 +267,6 @@ export const SuggestAssertion = Command.define('SuggestAssertion', {
     ),
 });
 
-// DRAFT AND LOAD
-
 export const GenerateEvals = Command.define('GenerateEvals', {
   args: { skillId: Schema.String, skillPath: Schema.String, assistModel: Schema.String },
   messages: [Message.SucceededGenerateEvals, Message.FailedGenerateEvals],
@@ -335,8 +317,6 @@ export const LoadSkillEvals = Command.define('LoadSkillEvals', {
     ),
 });
 
-// STAGE, APPLY, DISCARD
-
 const toStagedPlan = (payload: unknown): StagedPlan => {
   if (!isRecord(payload) || typeof payload.planId !== 'string' || typeof payload.stagingPath !== 'string') {
     throw new Error('apply plan returned an invalid response');
@@ -348,7 +328,6 @@ const toStagedPlan = (payload: unknown): StagedPlan => {
   };
 };
 
-/** Stage the suite for <skillDir>/evals/evals.json; the daemon validates it and answers with a diff. */
 export const StagePlan = Command.define('StagePlan', {
   args: { skillDir: Schema.String, draft: Draft },
   messages: [Message.SucceededStagePlan, Message.FailedStagePlan],

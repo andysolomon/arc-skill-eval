@@ -58,17 +58,11 @@ export const init = (_context: AppContext): Update.Return<Model, Message> => ({
   commands: [LoadCreateProgress()],
 });
 
-// CONTEXT
-
-/** The draft banner only exists on localhost; leaving it resets it like an unmount did. */
 export const contextChanged = (model: Model, context: AppContext): Update.Return<Model, Message> =>
   context.env === 'hosted' && model.banner !== initialBanner
     ? { model: modifyFields(model, { banner: () => initialBanner }) }
     : { model };
 
-// DRAFT HELPERS
-
-/** Every draft edit re-arms the write button. */
 const mutateDraft = (model: Model, mutate: (draft: Draft) => Draft): Model =>
   modifyFields(model, { draft: mutate, write: () => DraftWrite.Unwritten() });
 
@@ -91,7 +85,6 @@ const appendRow = (model: Model, row: BehaviorRow): Model =>
 const findRow = (model: Model, rowId: string): Option.Option<BehaviorRow> =>
   Array.findFirst(model.draft.behaviors, (row) => row.id === rowId);
 
-/** Step panes own their suggest and staging state; leaving a step resets it. */
 const goToStep = (model: Model, step: Step): Model =>
   step === model.step
     ? model
@@ -106,7 +99,6 @@ const seedDraft = (model: Model, skill: string, rows: ReadonlyArray<BehaviorRow>
 const modifyBanner = (model: Model, mutate: (banner: Banner) => Banner): Model =>
   modifyFields(model, { banner: mutate });
 
-/** A suggestion result only touches the pane state if that pane still waits for it. */
 const settleSuggest = (model: Model, target: SuggestTarget, next: Suggest): Model =>
   isSuggestPending(model.suggest, target) ? modifyFields(model, { suggest: () => next }) : model;
 
@@ -123,9 +115,6 @@ const withRow = (
     onSome: toReturn,
   });
 
-// PERSISTENCE
-
-/** Save the draft and step whenever either changed, once the saved copy has loaded. */
 const persist = (before: Model, result: UpdateReturn): UpdateReturn => {
   const after = result.model;
   const changed = after.draft !== before.draft || after.step !== before.step;
@@ -148,13 +137,6 @@ const skillPathFor = (context: AppContext, skillId: string): Option.Option<strin
     Option.flatMap((skill) => skill.path),
   );
 
-/**
- * The skill folder a localhost write goes to (the daemon writes
- * <folder>/evals/evals.json): the skill the suite was loaded or drafted
- * from, else the skill picked in the banner, else the workspace skill named
- * like the suite, else the workspace root, which the daemon refuses unless it
- * is a skill folder itself.
- */
 const writeTarget = (model: Model, context: AppContext): string =>
   Option.getOrElse(
     Option.orElse(model.maybeEditTargetPath, () =>

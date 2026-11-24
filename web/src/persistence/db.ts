@@ -33,8 +33,6 @@ const createStores = (db: IDBDatabase, oldVersion: number) => {
     createVersionOneStores(db);
   }
 
-  // Version 2: the runs imported on the Review page (hosted mode), kept in
-  // a single record under the key "current".
   if (oldVersion < 2) {
     db.createObjectStore('importedRuns', { keyPath: 'id' });
   }

@@ -3,18 +3,12 @@ import { defineTaggedUnion } from 'foldkit/schema';
 
 import { DEFAULT_ASSIST_MODEL, Draft, Step, defaultDraft } from './domain';
 
-// HYDRATION
-
-/** The saved draft loads in `init`; nothing is saved until it has landed. */
 export const Hydration = defineTaggedUnion({
   Loading: {},
   Loaded: {},
 });
 export type Hydration = typeof Hydration.Type;
 
-// WRITE
-
-/** Whether the current draft has been written (downloaded or applied). Any edit re-arms it. */
 export const DraftWrite = defineTaggedUnion({
   Unwritten: {},
   Written: {},
@@ -28,7 +22,6 @@ export const StagedPlan = Schema.Struct({
 });
 export type StagedPlan = typeof StagedPlan.Type;
 
-/** Localhost write: stage a plan with the daemon, then apply or discard it. */
 export const Stage = defineTaggedUnion({
   Idle: {},
   Staging: {},
@@ -40,8 +33,6 @@ export const Stage = defineTaggedUnion({
   Failed: { error: Schema.String, maybePlan: Schema.Option(StagedPlan) },
 });
 export type Stage = typeof Stage.Type;
-
-// SUGGEST
 
 export const SuggestTarget = defineTaggedUnion({
   Behavior: {},
@@ -58,8 +49,6 @@ export const Suggest = defineTaggedUnion({
   Failed: { error: Schema.String },
 });
 export type Suggest = typeof Suggest.Type;
-
-// DRAFT BANNER (localhost)
 
 export const BannerActivity = defineTaggedUnion({
   Idle: {},
@@ -100,7 +89,6 @@ export const Model = Schema.Struct({
   stage: Stage,
   suggest: Suggest,
   assistModel: Schema.String,
-  /** Skill folder an "edit existing evals" load came from; writes go back there. */
   maybeEditTargetPath: Schema.Option(Schema.String),
   banner: Banner,
 });

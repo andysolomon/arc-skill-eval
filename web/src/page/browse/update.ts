@@ -20,15 +20,6 @@ import {
 
 type UpdateReturn = Update.Return<Model, Message>;
 
-// RECONCILE
-
-/**
- * Bring every derived choice back in line after the data or a choice changed,
- * the way React's chain of effects did, but in one step: keep the selected
- * skill / run / case while they still exist (else pick the first skill, the
- * newest run, the first failing case), ask the daemon for the runs of the
- * selected skill, and fetch the artifacts the open tab reads.
- */
 const reconcile = (model: Model, context: AppContext): UpdateReturn => {
   const availableSkillIds = skillIds(model, context);
   const maybeSkillId = Option.filter(model.maybeSkillId, (skillId) => Array.contains(availableSkillIds, skillId)).pipe(
@@ -146,9 +137,6 @@ export const init = (context: AppContext): UpdateReturn => {
   return { model: reconciled.model, commands: [LoadImportedRuns(), ...(reconciled.commands ?? [])] };
 };
 
-// CONTEXT
-
-/** A new env or workspace root starts the local runs over, as React's `useLocalhostRuns` did. */
 export const contextChanged = (model: Model, context: AppContext): UpdateReturn => {
   const isNewScope = model.scope.env !== context.env || model.scope.root !== context.workspace.root;
   const scoped = isNewScope
