@@ -11,7 +11,6 @@ import { emptyStateView } from './emptyState';
 
 // VIEW
 
-/** Hosted mode can't run evals (no API keys), so it shows the CLI instructions instead. */
 export const view = Submodel.defineView<Model, Message, AppContext>((model, context, h) => {
   const isLocalhost = context.env === 'localhost';
   return h.main(

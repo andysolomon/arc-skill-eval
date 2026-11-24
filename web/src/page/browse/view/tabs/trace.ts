@@ -52,7 +52,6 @@ const turnCard = (turn: TraceTurn, index: number, h: HtmlBuilder<Message>): Html
     ],
   );
 
-/** Hosted runs carry no tool summary: show the synthetic turns built from the imported case. */
 const hostedTrace = (input: TabInput, h: HtmlBuilder<Message>): Html =>
   gridSection(
     12,

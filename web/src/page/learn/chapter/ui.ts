@@ -1,9 +1,3 @@
-/**
- * Building blocks shared by the chapters: page frame, chapter header, section
- * kickers, callouts and the terminal-window dots. Each takes the caller's `h`
- * last, like the helpers in ui/primitives.ts.
- */
-
 import type { Html, HtmlBuilder } from 'foldkit/html';
 
 import { color, radius, text, tracking } from '@/design/tokens';
@@ -96,7 +90,6 @@ export const callout = <Message>(
 const dot = <Message>(background: string, h: HtmlBuilder<Message>): Html =>
   h.span([h.Style(sx({ background, borderRadius: '50%', height: 9, width: 9 }))]);
 
-/** Red / yellow / green window dots for the terminal demos. */
 export const trafficDots = <Message>(h: HtmlBuilder<Message>): Children => [
   dot(color.red, h),
   dot(color.yellow, h),

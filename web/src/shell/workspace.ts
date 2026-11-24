@@ -1,9 +1,3 @@
-/**
- * Working directory chip (localhost mode). Owns the chosen workspace root,
- * saved favorites, and the daemon's resolution of the root into skills.
- * Pages read it through `toSnapshot` (see app/context.ts).
- */
-
 import { Array, Effect, Option, Schema, Stream } from 'effect';
 import { Command, Dom, Submodel, Subscription, Update } from 'foldkit';
 import type { Html, HtmlBuilder } from 'foldkit/html';
@@ -54,7 +48,6 @@ const sampleSkill = (id: string, role: 'target' | 'distractor', hasEvals: boolea
   hasEvals,
 });
 
-/** Fallback shown when the daemon is not running (hosted, or `npm run dev:web-only`). */
 export const sampleSkills: ReadonlyArray<WorkspaceSkill> = [
   sampleSkill('arc-conventional-commits', 'target', true),
   sampleSkill('arc-creating-evals', 'target', true),
@@ -190,11 +183,6 @@ const FetchHealth = Command.define('FetchHealth', {
 const isGithubReference = (reference: string): boolean =>
   /^(?:https?:\/\/)?github\.com\//.test(reference) || reference.startsWith('github:');
 
-/**
- * Drop local favorites the daemon reports as missing. A favorite it cannot
- * check (offline, outside the folders it may list, or a GitHub repository)
- * is kept.
- */
 const PruneFavorites = Command.define('PruneFavorites', {
   args: { favorites: Schema.Array(Schema.String) },
   messages: [Message.CompletedPruneFavorites],
@@ -240,11 +228,6 @@ const SaveWorkspacePreferences = Command.define('SaveWorkspacePreferences', {
 
 // INIT
 
-/**
- * Ask the daemon for its runtime and default models, unless it already
- * answered. The shell calls this when localhost mode starts, so the hosted
- * app never probes localhost.
- */
 export const checkDaemon = (model: Model): ReadonlyArray<ReturnType<typeof FetchHealth>> =>
   model.daemon._tag === 'Online' ? [] : [FetchHealth()];
 
@@ -286,7 +269,6 @@ const resolveRoot = (
         commands: [FetchWorkspace({ root })],
       };
 
-/** Switch to a saved directory (does not change favorites). */
 const chooseRoot = (model: Model, root: string): UpdateReturn => {
   const resolve = resolveRoot(root, model.resolution);
   return {
@@ -299,7 +281,6 @@ const chooseRoot = (model: Model, root: string): UpdateReturn => {
   };
 };
 
-/** Switch to a new reference and remember it as a favorite. */
 const pickRoot = (model: Model, root: string): UpdateReturn => {
   const resolve = resolveRoot(root, model.resolution);
   const favorites = Array.contains(model.favorites, root) ? model.favorites : [root, ...model.favorites];
@@ -375,7 +356,6 @@ export const update = (model: Model, message: Message) =>
     GotFolderPickerMessage: ({ message }) => foldFolderPicker(model, message),
     SucceededFetchWorkspace: ({ resolution }) => ({
       model: modifyFields(model, { resolution: () => resolution }),
-      // The daemon may have started after the page loaded.
       commands: checkDaemon(model),
     }),
     CompletedFetchHealth: ({ daemon }) => ({ model: modifyFields(model, { daemon: () => daemon }) }),

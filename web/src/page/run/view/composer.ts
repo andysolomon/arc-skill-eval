@@ -1,5 +1,3 @@
-/** Localhost: the left-hand "Configure run" panel of flag rows and the run button. */
-
 import { Array, Option } from 'effect';
 import type { Html, HtmlBuilder } from 'foldkit/html';
 
@@ -23,8 +21,6 @@ import { Message } from '../message';
 import { SuiteCases, type Model } from '../model';
 import { spinnerGlyph } from './glyph';
 
-// LABELS
-
 const caseOptionsFor = (model: Model): ReadonlyArray<string> =>
   SuiteCases.match(model.suiteCases, {
     NotLoaded: () => [ALL_CASES],
@@ -44,15 +40,12 @@ const suiteNote = (model: Model): Option.Option<string> =>
 
 const caseLabel = (option: string): string => (option === ALL_CASES ? '* (all cases)' : option);
 
-/** "default" names the model the daemon reported, when it did. */
 const modelLabel =
   (maybeDefault: Option.Option<string>) =>
   (option: string): string =>
     option === DEFAULT_MODEL
       ? Option.match(maybeDefault, { onNone: () => 'default', onSome: (model) => `default (${model})` })
       : option;
-
-// FLAG ROW
 
 type FlagRowConfig = Readonly<{
   field: FieldName;
@@ -187,8 +180,6 @@ const optionList = <Value extends string | number>(
     }),
   );
 
-// SKILL ROW
-
 const skillButton = (skill: WorkspaceSkill, isSelected: boolean, h: HtmlBuilder<Message>): Html =>
   h.keyed('button')(
     skill.id,
@@ -290,8 +281,6 @@ const lastRun = (model: Model, h: HtmlBuilder<Message>): Html =>
     [`Last run: ${Option.getOrElse(model.maybeLastRunId, () => 'None')}`],
   );
 
-// EXTRA SKILLS
-
 const inputStyle = {
   background: 'var(--tt-bg-dark)',
   border: '1px solid var(--tt-border)',
@@ -367,8 +356,6 @@ const extraSkillEditor = (model: Model, h: HtmlBuilder<Message>): Html =>
     ],
   );
 
-// RUN BUTTON
-
 type RunButtonLook = Readonly<{ label: string; title: string; style: Readonly<Record<string, string>> }>;
 
 const resetLook: RunButtonLook = {
@@ -442,8 +429,6 @@ const runButton = (model: Model, noEvals: boolean, h: HtmlBuilder<Message>): Htm
   );
 };
 
-// COMPOSER
-
 export const composerView = (model: Model, context: AppContext, h: HtmlBuilder<Message>): Html => {
   const { composer } = model;
   const maybeSelectedSkill = findSelectedSkill(context.workspace.skills, composer);
@@ -456,7 +441,6 @@ export const composerView = (model: Model, context: AppContext, h: HtmlBuilder<M
   const hasExtraSkills = Array.isReadonlyArrayNonEmpty(composer.extraSkill);
   const daemon = context.workspace.daemon;
   const maybeDefaultModel = daemon._tag === 'Online' ? daemon.maybeModel : Option.none<string>();
-  // With the judge on "default", the library grades with the model that ran the case.
   const maybeDefaultJudge = composer.model === DEFAULT_MODEL ? maybeDefaultModel : Option.some(composer.model);
 
   return h.aside(

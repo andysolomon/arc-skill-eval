@@ -3,11 +3,6 @@ import { readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { FullConfig } from '@playwright/test';
 
-/**
- * Write `test-artifacts/e2e/manifest.json`: every screenshot and every
- * real-daemon record (`.json`) the run produced, with size and sha256, so a
- * run's record can be listed and diffed.
- */
 export default async function globalTeardown(config: FullConfig) {
   const webDir = path.dirname(config.configFile ?? path.join(process.cwd(), 'x'));
   const root = path.join(webDir, 'test-artifacts', 'e2e');

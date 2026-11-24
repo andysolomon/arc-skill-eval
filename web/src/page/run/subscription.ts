@@ -9,9 +9,6 @@ import { parseRunEvent, type RunEvent } from './runEvent';
 const SPINNER_INTERVAL = Duration.millis(100);
 const SOCKET_RECONNECT_DELAY = Duration.seconds(1);
 
-// RUN SOCKET
-
-/** One connection's frames; ends when the socket closes. */
 const socketEvents = (url: string): Stream.Stream<RunEvent> =>
   Stream.callback<RunEvent>((queue) =>
     Effect.acquireRelease(
@@ -48,10 +45,6 @@ const socketEvents = (url: string): Stream.Stream<RunEvent> =>
     ).pipe(Effect.flatMap(() => Effect.never)),
   );
 
-/**
- * Frames from the run's socket, reconnecting a second after it drops. The
- * subscription ends (closing the socket) once the run is done or cancelled.
- */
 const runSocketMessages = (url: string): Stream.Stream<Message> =>
   Stream.concat(socketEvents(url), Stream.fromEffectDrain(Effect.sleep(SOCKET_RECONNECT_DELAY))).pipe(
     Stream.forever,

@@ -9,8 +9,6 @@ import { Message } from '../message';
 import type { Banner, BannerResult, Model } from '../model';
 import { spacer, tinted } from './common';
 
-// HOSTED
-
 export const hostedBanner = (h: HtmlBuilder<Message>): Html =>
   h.div(
     [
@@ -44,8 +42,6 @@ export const hostedBanner = (h: HtmlBuilder<Message>): Html =>
       ),
     ],
   );
-
-// LOCALHOST
 
 const skillChip = (skill: WorkspaceSkill, isSelected: boolean, h: HtmlBuilder<Message>): Html =>
   h.keyed('button')(

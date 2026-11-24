@@ -33,11 +33,6 @@ const togglePlayback = (playback: Playback): Playback =>
     Paused: () => Playback.Playing(),
   });
 
-/**
- * Open a chapter: save it as the reader's position right away and scroll the
- * reader to the top. Switching to a different chapter restarts its demos, the
- * way remounting the chapter did in the React reader.
- */
 const openChapter = (model: Model, chapterId: ChapterId): UpdateReturn => {
   const isSameChapter = Option.contains(maybeOpenChapterId(model), chapterId);
   const scrollPos = isSameChapter ? model.scrollPos : 0;
@@ -53,7 +48,6 @@ const openChapter = (model: Model, chapterId: ChapterId): UpdateReturn => {
   };
 };
 
-/** The saved position applies only if the reader has not opened a chapter in the meantime. */
 const restoreProgress = (model: Model, maybeProgress: Option.Option<SavedProgress>): UpdateReturn =>
   Reader.match(model.reader, {
     Reading: () => ({ model }),

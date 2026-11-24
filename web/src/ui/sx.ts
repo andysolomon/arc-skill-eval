@@ -1,12 +1,3 @@
-/**
- * Inline style helper. Foldkit's `h.Style` takes string values; the design
- * code (ported from the React app) writes numbers for pixel lengths the way
- * React inline styles do. `sx` applies React's rule: a number becomes `<n>px`
- * unless the property is unitless (lineHeight, fontWeight, zIndex, flex, ...).
- * `undefined` / `false` entries are dropped so styles can be composed with
- * conditionals.
- */
-
 export type StyleValue = string | number | undefined | false;
 export type StyleInput = Readonly<Record<string, StyleValue>>;
 

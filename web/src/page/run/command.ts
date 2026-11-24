@@ -1,8 +1,3 @@
-/**
- * Run section Commands: the daemon's `/runs` endpoints, the selected skill's
- * case ids, the remembered last run id, and the browser alert for refusals.
- */
-
 import { Clock, Effect, Option, Schema } from 'effect';
 import { Command } from 'foldkit';
 
@@ -13,8 +8,6 @@ import { Composer } from './composer';
 import { Message } from './message';
 
 const DAEMON_RUNS_URL = `${DAEMON_URL}/runs`;
-
-// START
 
 const RunStartResponse = Schema.Struct({
   runId: Schema.optional(Schema.Unknown),
@@ -28,7 +21,6 @@ const RunRejection = Schema.Struct({ error: Schema.optional(Schema.Unknown) });
 const nonEmptyString = (value: unknown): Option.Option<string> =>
   typeof value === 'string' && value !== '' ? Option.some(value) : Option.none();
 
-/** The daemon may answer with an http(s) or relative socket URL; normalise it to ws(s). */
 const toSocketUrl = (wsUrl: string): string => {
   const parsed = new URL(wsUrl, DAEMON_RUNS_URL);
   if (parsed.protocol === 'http:') {
@@ -103,9 +95,6 @@ export const StartRun = Command.define('StartRun', {
     ),
 });
 
-// CANCEL
-
-/** Ask the daemon to abort the run; it stops the in-flight case and ends the run with run.cancelled. */
 export const DeleteRun = Command.define('DeleteRun', {
   args: { runId: Schema.String },
   messages: [Message.CompletedDeleteRun],
@@ -115,8 +104,6 @@ export const DeleteRun = Command.define('DeleteRun', {
       Effect.as(Message.CompletedDeleteRun()),
     ),
 });
-
-// SUITE CASES
 
 const SkillEvalsResponse = Schema.Struct({
   ok: Schema.optional(Schema.Unknown),
@@ -161,8 +148,6 @@ export const LoadSuiteCases = Command.define('LoadSuiteCases', {
     ),
 });
 
-// LAST RUN
-
 export const LoadLastRunId = Command.define('LoadLastRunId', {
   messages: [Message.CompletedLoadLastRunId],
   execute: loadPreferences.pipe(
@@ -176,8 +161,6 @@ export const SaveLastRunId = Command.define('SaveLastRunId', {
   messages: [Message.CompletedSaveLastRunId],
   execute: ({ runId }) => savePreferences({ lastRunId: runId }).pipe(Effect.as(Message.CompletedSaveLastRunId({ runId }))),
 });
-
-// ALERT
 
 export const ShowAlert = Command.define('ShowAlert', {
   args: { text: Schema.String },

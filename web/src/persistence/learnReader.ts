@@ -1,9 +1,3 @@
-/**
- * The Learn reader's saved position: which chapter is open, plus the scroll
- * position and completed steps carried in the same record. Stored as a single
- * row of the `learnProgress` store under the fixed key `learn-reader`.
- */
-
 import { openDatabase, requestToPromise, transactionDone } from './db';
 
 const LEARN_READER_PROGRESS_ID = 'learn-reader';
@@ -34,7 +28,6 @@ const isLearnReaderRecord = (value: unknown): value is LearnReaderRecord => {
   );
 };
 
-/** The saved reader progress, or `undefined` when nothing valid is stored. */
 export const getLearnReaderProgress = async (): Promise<LearnReaderProgress | undefined> => {
   const db = await openDatabase();
   const tx = db.transaction('learnProgress', 'readonly');

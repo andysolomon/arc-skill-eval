@@ -1,5 +1,3 @@
-/** Localhost: the right-hand console — command preview, live progress, benchmark. */
-
 import { Array, Option } from 'effect';
 import type { Html, HtmlBuilder } from 'foldkit/html';
 
@@ -147,7 +145,6 @@ const barRow = (
   );
 };
 
-/** Only a comparison run has a without_skill side, so only it gets the bars and the delta. */
 const comparisonView = (
   benchmark: Benchmark,
   withPassed: number,

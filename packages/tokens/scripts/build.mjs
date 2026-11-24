@@ -54,10 +54,6 @@ const renderVars = (themeName, palette) =>
         throw new Error(`Invalid hex token ${themeName}.${role}: ${String(value)}`);
       }
 
-      // IMPORTANT: only emit --tt-* names. Tailwind v4 treats `--color-*`
-      // declarations as theme tokens and wraps them in @theme { ... }, which
-      // does NOT emit runtime CSS variables. We need these to be plain
-      // :root-level custom properties.
       return `  --tt-${themeName}-${toKebab(role)}: ${value};`;
     })
     .join('\n');
@@ -82,7 +78,6 @@ const themeBlocks = Object.keys(themes)
 
 const renderDimensionValue = (group, key, value) => {
   if (typeof value === 'number') {
-    // leading tokens are unitless line-height multipliers
     return group === 'leading' ? String(value) : `${value}px`;
   }
 
@@ -96,7 +91,6 @@ const renderDimensionValue = (group, key, value) => {
 const dimensionVariables = Object.entries(dimensions)
   .flatMap(([group, tokens]) => {
     if (Array.isArray(tokens)) {
-      // value-named scale: --tt-space-4: 4px;
       return tokens.map(
         (value) => `  --tt-${group}-${value}: ${renderDimensionValue(group, value, value)};`,
       );

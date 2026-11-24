@@ -16,7 +16,6 @@ const selectTab = async (page: Page, name: string) => {
   await expect(tab(page, name)).toHaveAttribute('aria-current', 'page');
 };
 
-/** Import the built-in sample run through Review, then open Browse. */
 const browseSampleRun = async (page: Page) => {
   await openApp(page);
   await goToSection(page, 'review');
@@ -62,7 +61,6 @@ test.describe('hosted', () => {
       caseList(page).getByRole('button', { name: 'select case case-fail' }),
     ).toHaveAttribute('aria-pressed', 'true');
     await expect(detail(page).getByRole('heading', { level: 1 })).toHaveText('case-fail');
-    // Imported runs without comparison data have no variant switch.
     await expect(detail(page).getByLabel('variant switch')).toHaveCount(0);
   });
 
@@ -114,7 +112,6 @@ test.describe('hosted', () => {
     await expect(heading).toHaveText('case-pass');
     await expect(detail(page)).toContainText('PASS');
 
-    // j moves down, k moves up, both clamp at the ends.
     await page.keyboard.press('j');
     await expect(heading).toHaveText('case-fail');
     await page.keyboard.press('j');
@@ -153,7 +150,6 @@ test.describe('localhost with the real daemon', () => {
     await expect(variants.getByRole('button')).toHaveText(['with_skill', 'without_skill']);
     await expect(surface).toContainText('PASS');
 
-    // The Response tab reads assistant.md through the daemon's artifact route.
     await selectTab(page, 'Response');
     await expect(surface).toContainText('This answer comes from the replay runtime, not a model.');
     await selectTab(page, 'Raw');
@@ -218,7 +214,6 @@ test.describe('localhost (daemon responses mocked)', () => {
       runsRail(page).getByRole('button', { name: 'select run disk-run-compare' }),
     ).toHaveAttribute('aria-pressed', 'true');
 
-    // Pick the passing case so Overview reads its grading/timing artifacts.
     await caseList(page).getByRole('button', { name: 'select case feat-commit' }).click();
     const surface = detail(page);
     const variants = surface.getByLabel('variant switch');
@@ -279,7 +274,6 @@ test.describe('localhost (daemon responses mocked)', () => {
     mockDiskRuns(daemon);
     await openLocalBrowse(page);
 
-    // breaking-change has no artifacts in the fixture, and it is selected first (failing).
     await expect(detail(page).getByRole('heading', { level: 1 })).toHaveText('breaking-change');
     await expect(detail(page)).toContainText('no artifact with_skill/grading.json');
 

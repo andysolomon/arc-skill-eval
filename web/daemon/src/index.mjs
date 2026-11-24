@@ -46,7 +46,6 @@ async function readJson(request) {
 
 async function routeRequest(request, response) {
   // Refuse other websites and rebound host names before anything else,
-  // preflights included, so a refused page never gets CORS headers.
   const refusal = refusalReason(request.headers);
   if (refusal) {
     sendJson(response, 403, { ok: false, error: refusal });

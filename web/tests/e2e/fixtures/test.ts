@@ -6,17 +6,11 @@ import { DaemonMock } from './daemon';
 export { expect };
 
 type Options = {
-  /**
-   * When true (default) every request to the localhost daemon goes through
-   * `DaemonMock`: registered endpoints answer, everything else is refused as if
-   * the daemon were offline. Set false only for specs that probe a real daemon.
-   */
   mockDaemon: boolean;
 };
 
 type Fixtures = {
   daemon: DaemonMock;
-  /** Saves `web/test-artifacts/e2e/<spec>/<test>.png` after every test. */
   artifactScreenshot: void;
 };
 
@@ -42,7 +36,6 @@ export const test = base.extend<Fixtures & Options>({
 
   page: async ({ page }, use) => {
     // Google Fonts is the only third-party request the app makes. Refuse it so
-    // runs are hermetic and screenshots always use the same fallback font.
     await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, (route) =>
       route.abort('blockedbyclient'),
     );
@@ -76,18 +69,11 @@ export const test = base.extend<Fixtures & Options>({
   ],
 });
 
-/**
- * Give the app a moment to hydrate persisted preferences (section, theme, env)
- * after a load. The shell renders defaults first and then applies stored
- * preferences asynchronously; an interaction in that window can be overwritten
- * by hydration, which no human user could hit but a test can.
- */
 export const settle = async (page: Page) => {
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(150);
 };
 
-/** Load the app and wait for the persisted shell state to hydrate. */
 export const openApp = async (page: Page) => {
   await page.goto('/');
   await expect(page.getByTestId('global-header')).toBeVisible();
@@ -95,7 +81,6 @@ export const openApp = async (page: Page) => {
   await settle(page);
 };
 
-/** Reload like a user would: after pending preference writes have landed. */
 export const reloadApp = async (page: Page) => {
   await settle(page);
   await page.reload();
@@ -112,8 +97,6 @@ export const goToSection = async (
     'aria-current',
     'page',
   );
-  // Sections hydrate their own persisted state (Create draft, Learn chapter)
-  // on mount; let that land before interacting.
   await settle(page);
 };
 
@@ -123,7 +106,6 @@ export const switchEnv = async (page: Page, env: 'hosted' | 'localhost') => {
   await expect.poll(() => page.evaluate(() => document.documentElement.dataset.env)).toBe(env);
 };
 
-/** Point the localhost workspace chip at a directory, as a user would. */
 export const chooseWorkspace = async (page: Page, reference: string) => {
   await page.getByTestId('workspace-chip').click();
   await expect(page.getByTestId('workspace-dropdown')).toBeVisible();
@@ -136,10 +118,6 @@ export const chooseWorkspace = async (page: Page, reference: string) => {
   await expect(page.getByTestId('workspace-chip')).toContainText(reference);
 };
 
-/**
- * Accept the next alert/confirm and resolve with its message. Register before
- * the action that opens it: an unhandled dialog would block that action.
- */
 export const acceptNextDialog = (page: Page) =>
   new Promise<string>((resolve) => {
     page.once('dialog', (dialog) => {

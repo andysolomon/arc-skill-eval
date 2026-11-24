@@ -40,7 +40,6 @@ const openCreate = async (page: Page) => {
   await expect(page.getByTestId('create-app')).toBeVisible();
 };
 
-/** Step 01: skill name + two behaviors. */
 const fillBehaviors = async (page: Page) => {
   await stepPane(page).getByRole('textbox', { name: 'skill name' }).fill('release-please');
   await stepPane(page).getByRole('button', { name: /Add behavior/ }).click();
@@ -85,7 +84,6 @@ test.describe('hosted wizard', () => {
     await expect(preview(page)).toContainText('"id": "configures-release-please"');
     await expect(preview(page)).toContainText('"id": "skips-docs-only-changes"');
 
-    // New behaviors default to "outcome"; a dimension is a single choice.
     const outcome = stepPane(page).getByRole('button', { name: 'outcome', exact: true }).first();
     const process = stepPane(page).getByRole('button', { name: 'process', exact: true }).first();
     await expect(outcome).toHaveAttribute('aria-pressed', 'true');
@@ -93,7 +91,6 @@ test.describe('hosted wizard', () => {
     await expect(process).toHaveAttribute('aria-pressed', 'true');
     await expect(outcome).toHaveAttribute('aria-pressed', 'false');
 
-    // Remove is offered only while there is more than one behavior.
     const remove = stepPane(page).getByRole('button', { name: 'remove behavior' });
     await expect(remove).toHaveCount(2);
     await remove.first().click();
@@ -107,7 +104,6 @@ test.describe('hosted wizard', () => {
     await openCreate(page);
     await fillBehaviors(page);
 
-    // Step 02: prompts and prompt flavors.
     await nextButton(page).click();
     await expectStep(page, 1);
     await expect(backButton(page)).toBeVisible();
@@ -129,7 +125,6 @@ test.describe('hosted wizard', () => {
     ).toHaveAttribute('aria-pressed', 'false');
     await expect(preview(page)).toContainText('"prompt": "Set up release-please for this repo."');
 
-    // Step 03: assertions of each family.
     await nextButton(page).click();
     await expectStep(page, 2);
     await expect(stepPane(page).getByText('No checks yet. Add one below.')).toHaveCount(2);
@@ -141,7 +136,6 @@ test.describe('hosted wizard', () => {
     await stepPane(page).getByRole('textbox', { name: 'judge assertion' }).fill('Opens a release PR');
     await stepPane(page).getByRole('button', { name: '＋ tool-call-forbidden' }).nth(1).click();
     await stepPane(page).getByRole('textbox', { name: 'tool-call-forbidden assertion' }).fill('Write');
-    // An extra assertion that gets removed again.
     await stepPane(page).getByRole('button', { name: '＋ regex-match' }).nth(1).click();
     await expect(stepPane(page).getByRole('button', { name: 'remove assertion' })).toHaveCount(4);
     await stepPane(page).getByRole('button', { name: 'remove assertion' }).nth(3).click();
@@ -153,7 +147,6 @@ test.describe('hosted wizard', () => {
     await expect(preview(page)).toContainText('"Opens a release PR"');
     await expect(preview(page)).toContainText('"method": "tool-call-forbidden"');
 
-    // Step 04: summary, command and download.
     await nextButton(page).click();
     await expectStep(page, 3);
     await expect(nextButton(page)).toHaveCount(0);
@@ -354,7 +347,6 @@ test.describe('localhost assist (model calls mocked)', () => {
       model: { provider: 'minimax', id: 'MiniMax-M3' },
     });
   });
-
 });
 
 test.describe('localhost with the real daemon', () => {
@@ -396,7 +388,6 @@ test.describe('localhost with the real daemon', () => {
     const before = await readText(evalsPath);
     await loadExisting(page, 'gamma', 2);
     await expect(behaviorInputs(page).nth(0)).toHaveValue('keeps every field of this case');
-    // Assertions the wizard cannot edit still show in the preview.
     await expect(preview(page)).toContainText('"kind": "output"');
 
     await railStep(page, 'Review & run').click();
@@ -476,7 +467,6 @@ test.describe('localhost with the real daemon', () => {
       skill_name: 'beta',
       evals: [{ id: 'greets-the-user', prompt: 'Say hello.', assertions: [{ type: 'regex-match', pattern: 'hello' }] }],
     });
-    // Nothing lands at the workspace root.
     await expect(readText(path.join(workspace, 'evals.json'))).rejects.toThrow();
     await recordArtifact(testInfo, { file: relativeTo(workspace, evalsPath), written });
   });
@@ -499,8 +489,6 @@ test.describe('localhost with the real daemon', () => {
   });
 
   test('a write with no skill to go to is refused with the reason', async ({ page }) => {
-    // No skill picked and the suite is named after no skill: the target is the
-    // workspace root, which is not a skill folder.
     await stepPane(page).getByRole('textbox', { name: 'skill name' }).fill('nowhere');
     await railStep(page, 'Review & run').click();
     await page.getByTestId('write-evals-json').click();

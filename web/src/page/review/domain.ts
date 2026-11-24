@@ -1,13 +1,5 @@
-/**
- * Review domain values: runs and cases under review, feedback notes, and the
- * change plans derived from them. Everything here is a Schema so it can live
- * in the Model and travel in Messages.
- */
-
 import { Schema } from 'effect';
 import { defineTaggedUnion } from 'foldkit/schema';
-
-// RUN
 
 export const ReviewCaseStatus = Schema.Literals(['pass', 'fail', 'partial', 'timeout']);
 export type ReviewCaseStatus = typeof ReviewCaseStatus.Type;
@@ -39,12 +31,9 @@ export const ReviewRun = Schema.Struct({
 });
 export type ReviewRun = typeof ReviewRun.Type;
 
-// INSPECTION
-
 export const ImportCheck = Schema.Struct({ ok: Schema.Boolean, label: Schema.String });
 export type ImportCheck = typeof ImportCheck.Type;
 
-/** What the import panel shows after inspecting pasted or loaded JSON. */
 export const Inspection = Schema.Struct({
   ok: Schema.Boolean,
   kind: Schema.String,
@@ -54,8 +43,6 @@ export const Inspection = Schema.Struct({
   error: Schema.String,
 });
 export type Inspection = typeof Inspection.Type;
-
-// FEEDBACK
 
 export const FeedbackNote = Schema.Struct({
   noteId: Schema.String,
@@ -73,8 +60,6 @@ export const ImprovePlanSummary = Schema.Struct({
   createdAt: Schema.String,
 });
 export type ImprovePlanSummary = typeof ImprovePlanSummary.Type;
-
-// CHANGE PLAN
 
 export const ImprovePlanItem = Schema.Struct({
   path: Schema.String,
@@ -109,7 +94,6 @@ export const ApplyResult = Schema.Struct({
 });
 export type ApplyResult = typeof ApplyResult.Type;
 
-/** Deriving a plan from notes, then (localhost) staging it on the daemon. */
 export const Proposal = defineTaggedUnion({
   Idle: {},
   Deriving: {},
@@ -120,7 +104,6 @@ export const Proposal = defineTaggedUnion({
 });
 export type Proposal = typeof Proposal.Type;
 
-/** Committing or discarding a staged plan on the daemon (localhost). */
 export const Apply = defineTaggedUnion({
   Idle: {},
   Committing: {},
@@ -145,7 +128,6 @@ export const Improve = Schema.Struct({
 });
 export type Improve = typeof Improve.Type;
 
-/** A plan is being derived or staged, or a staged plan is being applied or discarded. */
 export const isImproveInFlight = (improve: Improve): boolean =>
   improve.proposal._tag === 'Deriving' ||
   improve.proposal._tag === 'Staging' ||

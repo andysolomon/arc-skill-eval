@@ -1,9 +1,3 @@
-/**
- * Timelines of the animated demos: how a tick advances and which lines are
- * visible at a given tick. Ported from the React `useLearnAnimations` hooks;
- * the ticking itself is a Subscription (see subscription.ts).
- */
-
 import { Array, Option } from 'effect';
 
 import type { CreateDemo, PiDemo, Playback } from './model';
@@ -26,13 +20,10 @@ export const advanceCreateCommand = (tick: number): number => advance(tick, CREA
 export const advanceCreateScaffold = (tick: number): number => advance(tick, CREATE_SCAFFOLD_LAST_TICK);
 export const advancePi = (tick: number): number => advance(tick, PI_LAST_TICK);
 
-/** 1 once the timeline reaches `at`, else 0 (used as an opacity). */
 const reached = (tick: number, at: number): number => (tick >= at ? 1 : 0);
 const within = (tick: number, from: number, until: number): number => (tick >= from && tick < until ? 1 : 0);
 
 export const playbackLabel = (playback: Playback): string => (playback._tag === 'Paused' ? '▶ play' : '⏸ pause');
-
-// CREATE
 
 export const createCommandFrame = (demo: CreateDemo) => {
   const tick = demo.commandTick;
@@ -78,13 +69,10 @@ export const createScaffoldFrame = (demo: CreateDemo) => {
 
 export const createScaffoldSpinner = (demo: CreateDemo): string => spinnerAt(demo.scaffoldTick + 3);
 
-// PI
-
 const piToolLabels = ['read', 'bash', 'edit', 'write'] as const;
 
 const piCycling = (tick: number): boolean => tick >= 4 && tick < 40;
 
-/** Index of the tool highlighted while the loop cycles. */
 const piActiveTool = (tick: number): Option.Option<number> =>
   piCycling(tick) ? Option.some(Math.floor((tick - 4) / 4) % 4) : Option.none();
 

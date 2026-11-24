@@ -1,5 +1,3 @@
-/** Hosted mode: a run needs the user's API keys, so point them at the CLI. */
-
 import type { Html, HtmlBuilder } from 'foldkit/html';
 
 import { sx } from '@/ui/sx';

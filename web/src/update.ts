@@ -23,9 +23,6 @@ import * as Workspace from '@/shell/workspace';
 
 type UpdateReturn = Update.Return<Model, Message>;
 
-// PAGES
-
-/** Build the page for `section`, lifting its init Commands. */
 export const initPage = (section: SectionName, context: AppContext): Update.Return<Page, Message> => {
   const lift = <M, PM>(
     init: Update.Return<M, PM>,
@@ -57,7 +54,6 @@ export const initPage = (section: SectionName, context: AppContext): Update.Retu
   );
 };
 
-/** Tell the active page that env / theme / workspace changed. */
 const notifyPage = (model: Model): UpdateReturn => {
   const context = toContext(model);
   const withPage = (page: Page, commands: Update.Return<Page, Message>['commands']): UpdateReturn => ({
@@ -140,8 +136,6 @@ const foldLearn = (context: AppContext) =>
     toParentMessage: (message: Learn.Message) => Message.GotLearnMessage({ message }),
     foldOutMessage: foldPageOutMessage,
   });
-
-// SHELL
 
 const switchSection = (model: Model, section: SectionName): UpdateReturn => {
   if (section === model.section) {

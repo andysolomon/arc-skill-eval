@@ -1,18 +1,5 @@
-/**
- * The daemon's run progress protocol (WebSocket `/runs/<id>` frames, see
- * web/daemon/src/state.mjs), parsed into {@link RunEvent}:
- *
- * - `run.snapshot`: the run so far, sent first on every connection
- * - `case.progress`: one case changed state (queued, running, pass, fail)
- * - `run.completed`, `run.cancelled`, `run.failed`: the run ended
- *
- * Frames of any other type are ignored.
- */
-
 import { Array, Option, Schema } from 'effect';
 import { defineTaggedUnion } from 'foldkit/schema';
-
-// PROGRESS ROW
 
 export const CasePhase = Schema.Literals(['queued', 'running', 'pass', 'fail']);
 export type CasePhase = typeof CasePhase.Type;
@@ -23,14 +10,10 @@ export const ProgressRow = Schema.Struct({
   assertionsPassed: Schema.Number,
   assertionsFailed: Schema.Number,
   totalAssertions: Schema.Number,
-  /** Why the case errored before its assertions ran (no model credentials, a timeout, ...). */
   maybeError: Schema.Option(Schema.String),
 });
 export type ProgressRow = typeof ProgressRow.Type;
 
-// EVENT
-
-/** Benchmark figures a completion frame carries; turned into a Benchmark once the run id and rows are known. */
 export const RunSummary = Schema.Struct({
   maybePassed: Schema.Option(Schema.Number),
   maybeTotal: Schema.Option(Schema.Number),
@@ -44,7 +27,6 @@ export const RunSummary = Schema.Struct({
 export type RunSummary = typeof RunSummary.Type;
 
 export const RunEvent = defineTaggedUnion({
-  /** Sent when a socket opens: the run so far, possibly already finished. */
   Snapshot: {
     maybeRunId: Schema.Option(Schema.String),
     maybeStatus: Schema.Option(Schema.String),
@@ -57,8 +39,6 @@ export const RunEvent = defineTaggedUnion({
   Progress: { row: ProgressRow },
 });
 export type RunEvent = typeof RunEvent.Type;
-
-// PARSE
 
 type Frame = Readonly<Record<string, unknown>>;
 
@@ -143,6 +123,5 @@ const parseJson = (data: string): Option.Option<unknown> => {
   }
 };
 
-/** Parse one text frame; frames that are not a JSON object of a known type are ignored. */
 export const parseRunEvent = (data: string): Option.Option<RunEvent> =>
   parseJson(data).pipe(Option.flatMap(decodeFrame), Option.flatMap(toRunEvent));

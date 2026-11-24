@@ -1,16 +1,3 @@
-/**
- * Staged writes into a skill folder. A plan is staged first (the daemon
- * answers with a diff the web app shows), then committed or cancelled.
- *
- * - `kind: "evals"` (Create): write an eval suite to <skillDir>/evals/evals.json.
- *   The suite is checked with the library's evals.json validator before it is
- *   staged, and written byte for byte as staged.
- * - `kind: "improve"` (Review): turn feedback notes on a run into a feedback
- *   file and apply it with the library's `improve --apply` command. Staging
- *   runs improve on a copy of evals.json; committing writes the feedback file
- *   into the run folder and runs improve on the real suite.
- */
-
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
@@ -48,7 +35,6 @@ async function readJsonFile(filePath) {
   }
 }
 
-/** Write next to the target, then rename over it, so a crash never leaves half a file. */
 async function writeAtomically(filePath, text) {
   await mkdir(path.dirname(filePath), { recursive: true });
   const temporary = `${filePath}.${process.pid}.${Date.now()}.tmp`;
@@ -67,8 +53,6 @@ async function skillFolder(skillDir) {
 function stagingDir(planId) {
   return path.join(os.tmpdir(), "arc-skill-eval-daemon", planId);
 }
-
-// EVALS (Create)
 
 async function stageEvals(body, planId) {
   const skillDir = await skillFolder(body.skillDir);
@@ -105,8 +89,6 @@ async function commitEvals(plan) {
   return { path: plan.targetPath };
 }
 
-// IMPROVE (Review)
-
 async function gradingFor(caseDir) {
   const flat = await readJsonFile(path.join(caseDir, "grading.json"));
   if (flat) {
@@ -127,12 +109,6 @@ async function gradingFor(caseDir) {
   };
 }
 
-/**
- * The feedback file `improve` reads, built from the web app's notes. A note
- * on a case goes to that case; a note on the whole run goes to every case.
- * Case notes name the case folder (what the Review page lists); the file
- * uses the case id from that folder's grading.json.
- */
 async function buildFeedback(runDir, notes) {
   const entries = await readdir(runDir, { withFileTypes: true });
   const cases = [];
@@ -192,8 +168,6 @@ async function stageImprove(body, planId) {
   const runDir = await resolveUnder(path.join(skillDir, "evals-runs"), [body.runId]);
   const feedback = await buildFeedback(runDir, readNotes(body.notes));
 
-  // Dry run on a copy: <staging>/evals/evals.json and <staging>/run/feedback.json,
-  // where improve finds the suite by walking up from the run folder.
   const staging = stagingDir(planId);
   const stagedEvals = path.join(staging, "evals", "evals.json");
   const stagedFeedback = path.join(staging, "run", "feedback.json");
@@ -236,8 +210,6 @@ async function commitImprove(plan) {
   const result = await improveCommand({ feedbackPath, apply: true });
   return { path: result.evalsJsonPath, feedbackPath, suggestions: result.suggestions.length };
 }
-
-// ROUTES
 
 async function createPlan(request, response, context) {
   const body = await context.readJson(request);

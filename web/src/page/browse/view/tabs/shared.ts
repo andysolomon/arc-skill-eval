@@ -7,7 +7,6 @@ import type { ArtifactEntry } from '../../artifact';
 import type { Case, Run, Variant } from '../../domain';
 import type { Message } from '../../message';
 
-/** What every detail tab reads. Hosted tabs read the case; localhost tabs read `artifacts`. */
 export type TabInput = Readonly<{
   context: AppContext;
   run: Run;
@@ -21,7 +20,6 @@ export const MONO_FONT = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospa
 export const gridSection = (gap: number, children: ReadonlyArray<Html>, h: HtmlBuilder<Message>): Html =>
   h.section([h.Style(sx({ display: 'grid', gap, minWidth: 0 }))], children);
 
-/** Dashed box for "nothing to show" and daemon errors. */
 export const notice = (content: string, h: HtmlBuilder<Message>, extra?: StyleInput): Html =>
   h.p(
     [

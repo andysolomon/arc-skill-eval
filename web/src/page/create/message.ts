@@ -43,7 +43,6 @@ export const Message = defineMessageUnion({
     skill: Schema.String,
     rows: Schema.Array(BehaviorRow),
     skillPath: Schema.String,
-    /** Top-level fields of the loaded evals.json, written back unchanged. */
     source: Schema.Unknown,
   },
   FailedLoadSkillEvals: { error: Schema.String },

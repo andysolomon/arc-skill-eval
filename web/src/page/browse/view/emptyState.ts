@@ -34,7 +34,6 @@ const localCommands = (h: HtmlBuilder<Message>): Html =>
     [commandLine('arc-skill-eval run ./skills/my-skill --compare', h), commandLine('arc-skill-eval browse', h)],
   );
 
-/** No run to show: hosted points to importing in Review, localhost to running an eval. */
 export const emptyState = (env: EnvName, h: HtmlBuilder<Message>): Html => {
   const isHosted = env === 'hosted';
   return h.section(

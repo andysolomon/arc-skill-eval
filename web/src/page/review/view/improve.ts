@@ -144,8 +144,6 @@ type PanelConfig = Readonly<{
   improvePlans: ReadonlyArray<ImprovePlanSummary>;
 }>;
 
-// HOSTED
-
 const hostedPanel = (config: PanelConfig, h: HtmlBuilder<Message>): Html => {
   const { improve } = config;
   const maybePlan = proposedPlan(improve.proposal);
@@ -187,8 +185,6 @@ const hostedPanel = (config: PanelConfig, h: HtmlBuilder<Message>): Html => {
     ],
   );
 };
-
-// LOCALHOST
 
 const stagedSection = (staged: StagedPlan, isInFlight: boolean, h: HtmlBuilder<Message>): Html =>
   h.section(

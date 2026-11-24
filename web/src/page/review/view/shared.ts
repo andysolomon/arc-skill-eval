@@ -8,7 +8,6 @@ export const passCount = (run: ReviewRun): number =>
 export const rateColor = (passed: number, total: number): string =>
   total > 0 && passed >= total ? 'var(--tt-green)' : passed <= 0 ? 'var(--tt-red)' : 'var(--tt-orange)';
 
-/** Enter / Space activate a `role="button"` card, like a native button. */
 export const activationKey =
   <Message>(message: Message) =>
   (key: string): Option.Option<Message> =>

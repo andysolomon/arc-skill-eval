@@ -14,19 +14,14 @@ import {
 } from './domain';
 
 export const Model = Schema.Struct({
-  /** The env and workspace root the localhost runs were fetched for (to spot changes in `contextChanged`). */
   env: EnvName,
   workspaceRoot: Schema.String,
-  /** Runs imported through the import panel (kept in memory across section switches). */
   importedRuns: Schema.Array(ReviewRun),
-  /** Runs the daemon read from disk (localhost only). */
   localRuns: Schema.Array(ReviewRun),
-  /** Skills the daemon has reported runs for (localhost only). */
   localSkillIds: Schema.Array(Schema.String),
   feedback: Schema.Array(FeedbackNote),
   improvePlans: Schema.Array(ImprovePlanSummary),
   maybeLastRunId: Schema.Option(Schema.String),
-  /** When runs last arrived; relative "finished … ago" labels are computed against it. */
   maybeNowMillis: Schema.Option(Schema.Number),
   maybeSelectedSkillId: Schema.Option(Schema.String),
   maybeSelectedRunId: Schema.Option(Schema.String),

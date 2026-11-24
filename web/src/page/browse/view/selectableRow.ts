@@ -7,7 +7,6 @@ import type { Message } from '../message';
 
 // VIEW
 
-/** A rail row that acts as a toggle button (click, Enter or Space). */
 export const selectableRow = (
   config: Readonly<{
     key: string;
@@ -72,7 +71,6 @@ export const selectableRow = (
     ],
   );
 
-/** The bar at the top of a rail panel: a title and a count. */
 export const panelHeader = (title: string, count: string, h: HtmlBuilder<Message>): Html =>
   h.div(
     [

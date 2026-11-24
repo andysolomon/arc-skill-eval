@@ -1,9 +1,3 @@
-/**
- * Effect wrappers over the IndexedDB persistence modules, for Commands.
- * Persistence is best-effort in the UI: a failed write must never crash the
- * app, so `savePreferences` swallows errors.
- */
-
 import { Effect } from 'effect';
 
 import { getPrefs, setPrefs, type PreferencesPatch, type PreferencesRecord } from './preferences';

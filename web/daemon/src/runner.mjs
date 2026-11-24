@@ -1,18 +1,3 @@
-/**
- * Runs an eval suite in process with the arc-skill-eval library built into
- * the repository's `dist/` (run `npm run build` at the repository root), the
- * same call the TUI makes. Case progress comes from the library's
- * `onProgress` hook and cancellation goes through its `signal`, so the web
- * app sees real progress and Cancel stops the in-flight case.
- *
- * Test seam: when ARC_SKILL_EVAL_DAEMON_REPLAY names a replay fixture (see
- * src/runtime/replay.ts), cases run on the library's replay runtime instead
- * of a model. Everything else (planning, workspaces, grading, artifacts on
- * disk, progress, cancellation) is the real code path.
- * ARC_SKILL_EVAL_DAEMON_REPLAY_DELAY_MS holds each case for that long first,
- * so a test can cancel a run while a case is in flight.
- */
-
 import path from "node:path";
 import { EvalRunCancelledError, readEvalsJson, runEvalsCommand } from "../../../dist/index.js";
 import { createReplayRuntimeFromFile } from "../../../dist/runtime/replay.js";
@@ -63,12 +48,10 @@ async function replayRuntime() {
   };
 }
 
-/** The runtime the daemon reports in `/health`: replay when the test seam is on. */
 export function runtimeName() {
   return process.env.ARC_SKILL_EVAL_DAEMON_REPLAY ? "replay" : "pi-sdk";
 }
 
-/** Case ids and assertion counts in a skill's suite, in file order. */
 export async function readSuiteCases(skillDir) {
   const evals = await readEvalsJson(path.join(skillDir, "evals", "evals.json"));
   return evals.evals.map((evalCase) => ({
@@ -113,11 +96,6 @@ function summarize(result, compare) {
   };
 }
 
-/**
- * Start a run in the background. `request` holds library options that the
- * route already validated: skillDir, cases (the selected suite cases),
- * caseIds, and the run flags.
- */
 export function startRun(runId, request) {
   const controller = new AbortController();
   controllers.set(runId, controller);
@@ -195,7 +173,6 @@ export function startRun(runId, request) {
   })();
 }
 
-/** Abort a run in flight. Returns false when the run is not running. */
 export function abortRun(runId) {
   const controller = controllers.get(runId);
   if (!controller) {

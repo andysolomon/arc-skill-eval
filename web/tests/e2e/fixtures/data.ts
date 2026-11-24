@@ -1,7 +1,3 @@
-/**
- * Canned daemon payloads shaped like web/daemon's real responses.
- */
-
 export const WORKSPACE_ROOT = '~/src/skills';
 export const RESOLVED_ROOT = '/home/tester/src/skills';
 
@@ -29,7 +25,6 @@ export const workspaceResponse = {
   skills: workspaceSkills,
 };
 
-/** `GET /runs` — runs the daemon read from `<skill>/evals-runs` on disk. */
 export const localhostRuns = {
   runs: [
     {
@@ -83,7 +78,6 @@ export const localhostRuns = {
   ],
 };
 
-/** Filter `GET /runs` the way the daemon does for `?skill=`. */
 export const runsForQuery = (query: URLSearchParams) => {
   const skill = query.get('skill');
   return {
@@ -91,10 +85,6 @@ export const runsForQuery = (query: URLSearchParams) => {
   };
 };
 
-/**
- * `GET /runs/:runId/artifacts/:caseId/:kind` bodies for disk-run-compare's
- * `feat-commit` case. Every other case has no artifacts on disk (404).
- */
 export const featCommitArtifacts: Record<string, string> = {
   'with_skill/grading.json': JSON.stringify({
     case_id: 'feat-commit',

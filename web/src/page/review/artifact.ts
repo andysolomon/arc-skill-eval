@@ -1,10 +1,3 @@
-/**
- * Reading arc-skill-eval JSON: run results (imported for review), eval
- * suites and per-case artifacts (inspected only), plus the runs the localhost
- * daemon reads from disk. Pure: the caller supplies the current time, used as
- * `finishedAt` for runs that do not record one.
- */
-
 import { Array, Option, Result } from 'effect';
 
 import type { ImportCheck, Inspection, ReviewCase, ReviewCaseStatus, ReviewRun } from './domain';
@@ -28,8 +21,6 @@ const maybeString = (value: unknown): Option.Option<string> =>
   typeof value === 'string' ? Option.some(value) : Option.none();
 
 const isPresent = (value: unknown): boolean => value !== null && value !== undefined;
-
-// RUN RESULTS
 
 const normalizeCaseStatus = (value: unknown): ReviewCaseStatus => {
   if (value === 'fail' || value === 'failed' || value === 'FAIL') {
@@ -136,9 +127,6 @@ const parseRuns = (parsed: unknown, nowIso: string): Result.Result<ReadonlyArray
   );
 };
 
-// INSPECTION
-
-/** An inspection, plus the runs to import when the JSON held run results. */
 export type InspectionOutcome = Readonly<{ inspection: Inspection; maybeRuns: Option.Option<ReadonlyArray<ReviewRun>> }>;
 
 const inspected = (inspection: Inspection): InspectionOutcome => ({ inspection, maybeRuns: Option.none() });
@@ -279,7 +267,6 @@ const parseJson = (text: string): Parsed => {
   }
 };
 
-/** Inspect pasted / loaded JSON. Run results come back with the runs to import. */
 export const inspectArtifact = (text: string, nowIso: string): InspectionOutcome => {
   const parsed = parseJson(text);
   const maybeRecord = parsed._tag === 'Parsed' ? toRecord(parsed.value) : Option.none();
@@ -325,9 +312,6 @@ export const inspectArtifact = (text: string, nowIso: string): InspectionOutcome
   });
 };
 
-// SAMPLE
-
-/** The "Load sample" run, as the JSON text the paste box shows. */
 export const sampleRunJson = (nowIso: string): string =>
   JSON.stringify(
     {
@@ -373,8 +357,6 @@ export const sampleRunJson = (nowIso: string): string =>
     2,
   );
 
-// DAEMON RUNS
-
 const fromDaemonCase = (value: unknown, index: number): Option.Option<ReviewCase> =>
   Result.getSuccess(normalizeCase(value, index));
 
@@ -395,7 +377,6 @@ const fromDaemonRun = (value: unknown): Option.Option<ReviewRun> =>
       }),
   );
 
-/** `GET /runs` payload → runs (entries without a string id are skipped, like the React app). */
 export const fromDaemonRuns = (payload: unknown): ReadonlyArray<ReviewRun> =>
   Option.match(toRecord(payload), {
     onNone: () => [],

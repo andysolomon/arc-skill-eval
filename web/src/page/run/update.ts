@@ -36,7 +36,6 @@ const toggleField = (model: Model, field: FieldName): UpdateReturn => ({
   }),
 });
 
-/** Pick a flag value from its open row, which then closes. */
 const selectFlag = (model: Model, patch: (composer: Composer) => Composer): UpdateReturn => ({
   model: modifyFields(model, { composer: patch, maybeOpenField: () => Option.none() }),
 });
@@ -54,7 +53,6 @@ const addExtraSkill = (model: Model): UpdateReturn => {
   };
 };
 
-/** Refuse to start: point the user at the skill row and tell them why. */
 const refuseRun = (model: Model, text: string): UpdateReturn => ({
   model: modifyFields(model, { maybeOpenField: () => Option.some<FieldName>('skill') }),
   commands: [ShowAlert({ text })],
@@ -89,7 +87,6 @@ const clickRunButton = (model: Model, context: AppContext): UpdateReturn =>
     Failed: () => ({ model: modifyFields(model, { run: () => RunState.Idle() }) }),
   });
 
-/** Picking a skill resets the case to all cases and reads its case ids for the Cases row. */
 const selectSkill = (model: Model, workspaceRoot: string): UpdateReturn => ({
   model: modifyFields(model, {
     composer: (composer) => modifyFields(composer, { workspaceRoot: () => workspaceRoot, case: () => ALL_CASES }),
@@ -183,13 +180,6 @@ export const update = (model: Model, message: Message, context: AppContext) =>
     CompletedShowAlert: () => ({ model }),
   });
 
-// CONTEXT
-
-/**
- * The composer is only on screen in localhost mode. Leaving it resets its
- * open row and draft, as the React composer did by unmounting; the run itself
- * keeps going.
- */
 export const contextChanged = (model: Model, context: AppContext): Update.Return<Model, Message> =>
   context.env === 'hosted'
     ? {

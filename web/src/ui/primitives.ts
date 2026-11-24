@@ -1,17 +1,9 @@
-/**
- * Shared view helpers used by more than one page. Each takes the caller's
- * `h` (typed to the caller's Message) as its last parameter, so they work in
- * any Submodel view.
- */
-
 import { Array } from 'effect';
 import type { Html, HtmlBuilder } from 'foldkit/html';
 
 import type { SectionName, ThemeName } from '@/app/domain';
 import { color, text } from '@/design/tokens';
 import { sx } from '@/ui/sx';
-
-// KICKER
 
 export type KickerTone = 'neutral' | 'accent' | 'warning';
 
@@ -21,7 +13,6 @@ const kickerToneColors: Record<KickerTone, string> = {
   warning: color.yellow,
 };
 
-/** Small uppercase label above a heading. `section` is the active section (AppContext.section). */
 export const kicker = <Message>(
   config: Readonly<{ section: SectionName; tone?: KickerTone; content: ReadonlyArray<Html | string> | string }>,
   h: HtmlBuilder<Message>,
@@ -45,8 +36,6 @@ export const kicker = <Message>(
     typeof config.content === 'string' ? [config.content] : config.content,
   );
 
-// COLUMN
-
 export const gaps = {
   1: 'var(--tt-gap-1, 4px)',
   2: 'var(--tt-gap-2, 8px)',
@@ -61,7 +50,6 @@ export type ColumnWidth = 'full' | 'auto' | number;
 const resolveWidth = (width: ColumnWidth): string =>
   width === 'full' ? '100%' : width === 'auto' ? 'auto' : `${width}px`;
 
-/** Vertical stack. `theme` is AppContext.theme (recorded as data-theme-variant). */
 export const column = <Message>(
   config: Readonly<{ theme: ThemeName; gap?: keyof typeof gaps; width?: ColumnWidth }>,
   children: ReadonlyArray<Html>,
@@ -83,9 +71,6 @@ export const column = <Message>(
     children,
   );
 
-// SKILL PICKER
-
-/** Row of toggle buttons for choosing a skill (browse / review). */
 export const skillPicker = <Message>(
   config: Readonly<{
     label: 'browsing' | 'reviewing';

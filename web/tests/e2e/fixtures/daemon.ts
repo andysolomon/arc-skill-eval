@@ -1,17 +1,8 @@
 import type { Page, Route } from '@playwright/test';
+import { E2E_DAEMON_PORT } from './local';
 
-/**
- * In-page mock of the localhost daemon (web/daemon, port 7357).
- *
- * Every request the app makes to the daemon is intercepted with `page.route`.
- * A test registers only the endpoints its flow needs; anything else is refused
- * the same way an offline daemon would refuse it (connection refused), so tests
- * never depend on a real daemon or a real model call.
- */
-
-// The app built for the suite talks to port 7358 (see playwright.config.ts);
-// a deployed app (PLAYWRIGHT_BASE_URL) talks to the default port 7357.
-const DAEMON_URL = /^http:\/\/(localhost|127\.0\.0\.1):(7357|7358)\//;
+const DEFAULT_DAEMON_PORT = 7357;
+const DAEMON_URL = new RegExp(`^http://(localhost|127\\.0\\.0\\.1):(${DEFAULT_DAEMON_PORT}|${E2E_DAEMON_PORT})/`);
 
 const corsHeaders = {
   'access-control-allow-origin': '*',
@@ -53,7 +44,6 @@ const parseBody = (raw: string | null): unknown => {
 };
 
 export class DaemonMock {
-  /** Every daemon request the page made (preflights excluded), in order. */
   readonly requests: DaemonRequest[] = [];
 
   private readonly registrations: Registration[] = [];
@@ -64,10 +54,6 @@ export class DaemonMock {
     await this.page.route(DAEMON_URL, (route) => this.handle(route));
   }
 
-  /**
-   * Register a handler. Later registrations win over earlier ones for the same
-   * method + path, so a test can override a default mid-flow.
-   */
   on(method: string, path: string | RegExp, reply: DaemonHandler | DaemonReply): this {
     const handler: DaemonHandler = typeof reply === 'function' ? reply : () => reply;
     this.registrations.unshift({ method: method.toUpperCase(), path, handler });

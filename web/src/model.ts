@@ -10,7 +10,6 @@ import * as Review from '@/page/review';
 import * as Run from '@/page/run';
 import * as Workspace from '@/shell/workspace';
 
-/** Only the active section's page is alive, matching the React app, where switching sections unmounted the previous one. */
 export const Page = defineTaggedUnion({
   Run: { model: Run.Model },
   Browse: { model: Browse.Model },

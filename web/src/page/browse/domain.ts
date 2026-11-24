@@ -1,17 +1,8 @@
-/**
- * Browse's view of a run: the run results (imported in Review, or read from
- * disk by the daemon) normalized into Schema values, plus the presentational
- * values React's `useBrowseData` derived from them (delta tag, fallback
- * metrics, expected text, synthetic trace).
- */
-
 import { Array, Option, Schema } from 'effect';
 
 import type { ReviewRun } from '@/page/review/domain';
 
 import { finiteNumber, jsonRecord, maybeString, unknownList, type UnknownRecord } from './json';
-
-// SCHEMA
 
 export const CaseStatus = Schema.Literals(['pass', 'fail', 'partial', 'timeout']);
 export type CaseStatus = typeof CaseStatus.Type;
@@ -65,12 +56,9 @@ export const tabs: ReadonlyArray<Readonly<{ id: Tab; label: string }>> = [
 
 export const variants: ReadonlyArray<Variant> = ['with_skill', 'without_skill'];
 
-// DECODE
-
 const nonEmptyString = (value: unknown): Option.Option<string> =>
   typeof value === 'string' && value.trim().length > 0 ? Option.some(value) : Option.none();
 
-/** The first of `keys` holding a number decides; a non-finite number means absent. */
 const readOptionalNumber = (record: UnknownRecord, keys: ReadonlyArray<string>): Option.Option<number> =>
   Array.findFirst(keys, (key) => typeof record[key] === 'number').pipe(
     Option.flatMap((key) => finiteNumber(record[key])),
@@ -89,7 +77,6 @@ const toCaseStatus = (value: unknown): CaseStatus => {
   return 'pass';
 };
 
-/** What a case recorded about its own cost; React fell back to estimates for anything missing. */
 type RecordedMetrics = Readonly<{
   maybeTokens: Option.Option<number>;
   maybeLatencyMs: Option.Option<number>;
@@ -172,20 +159,14 @@ const toRun = (value: unknown): Option.Option<Run> =>
     }),
   );
 
-/** Normalize the daemon's run results. Entries without a string id are dropped. */
 const decodeRuns = (values: ReadonlyArray<unknown>): ReadonlyArray<Run> => Array.getSomes(Array.map(values, toRun));
 
-/** `GET /runs` answers `{ runs: [...] }`; anything else reads as no runs. */
 export const decodeRunsPayload = (payload: unknown): ReadonlyArray<Run> =>
   Option.match(jsonRecord(payload), {
     onNone: () => [],
     onSome: (record) => decodeRuns(unknownList(record.runs)),
   });
 
-/**
- * A run imported in Review. Imports are normalized by Review and carry no
- * comparison data or per-case metrics, so Browse shows estimates for those.
- */
 export const fromReviewRun = (run: ReviewRun): Run => ({
   id: run.id,
   skill: run.skill,
@@ -203,8 +184,6 @@ export const fromReviewRun = (run: ReviewRun): Run => ({
     metrics: toMetrics(noRecordedMetrics, testCase.prompt, testCase.maybeOutput, run.maybeCost, index, run.cases.length),
   })),
 });
-
-// DERIVE
 
 export const deltaTag = (status: CaseStatus): DeltaTag =>
   status === 'fail' ? 'FAIL' : status === 'timeout' ? 'TIMEOUT' : 'PASS';
@@ -240,7 +219,6 @@ export const traceTurns = (testCase: Case): ReadonlyArray<TraceTurn> => [
   },
 ];
 
-/** The JSON Raw shows when no grading.json is available (hosted). Key order matches the React app. */
 export const fallbackRawJson = (run: Run, testCase: Case, variant: Variant): string =>
   JSON.stringify(
     {
@@ -269,7 +247,6 @@ export const fallbackRawJson = (run: Run, testCase: Case, variant: Variant): str
 export const countStatus = (cases: ReadonlyArray<Case>, status: CaseStatus): number =>
   Array.filter(cases, (testCase) => testCase.status === status).length;
 
-/** The case a run opens on: its first failing case, else its first case. */
 export const defaultCase = (run: Run): Option.Option<Case> =>
   Option.orElse(
     Array.findFirst(run.cases, (testCase) => testCase.status === 'fail'),

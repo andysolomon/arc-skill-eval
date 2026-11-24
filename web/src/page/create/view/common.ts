@@ -23,7 +23,6 @@ export const stepHeader = (
 export const tinted = (content: string, tint: string, h: HtmlBuilder<Message>): Html =>
   h.span([h.Style(sx({ color: tint }))], [content]);
 
-/** Colored dot + behavior text heading a prompt or assertion card. */
 export const rowHeading = (row: BehaviorRow, h: HtmlBuilder<Message>): Html =>
   h.div(
     [h.Style(sx({ alignItems: 'center', display: 'flex', gap: 8, marginBottom: 10 }))],

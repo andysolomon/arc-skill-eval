@@ -80,8 +80,6 @@ const { kw, fn, str, key, punc, plain } = codeColors;
 type CodeToken = Readonly<[text: string, color: string]>;
 type CodeRow = Readonly<{ indent?: number; toks: ReadonlyArray<CodeToken> }>;
 
-// The same arc-conventional-commits suite as the JSON above, authored with the
-// typed builder. Kept faithful to the real arc-skill-eval/evals API.
 const builderLines: ReadonlyArray<CodeRow> = [
   {
     toks: [

@@ -10,10 +10,6 @@ import { Message, SavedProgress } from './message';
 
 export const READER_SCROLL_ID = 'learn-scroll';
 
-/**
- * Read the saved reader position. A saved chapter id this version does not
- * know falls back to the overview, as the React reader did.
- */
 export const LoadReaderProgress = Command.define('LoadReaderProgress', {
   messages: [Message.SucceededLoadReaderProgress, Message.FailedLoadReaderProgress],
   execute: Effect.tryPromise(() => getLearnReaderProgress()).pipe(
@@ -52,7 +48,6 @@ export const SaveReaderProgress = Command.define('SaveReaderProgress', {
     ),
 });
 
-/** Opening a chapter starts it at the top. */
 export const ScrollReaderToTop = Command.define('ScrollReaderToTop', {
   messages: [Message.CompletedScrollReaderToTop],
   execute: Effect.sync(() => {
