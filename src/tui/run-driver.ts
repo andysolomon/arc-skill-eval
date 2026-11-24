@@ -12,7 +12,8 @@ import type { RunEvalsCommandOptions, RunEvalsCommandResult } from '../cli/run-e
 import { readEvalsJson } from '../evals/loader.js';
 import { EvalRunCancelledError } from '../evals/eval-run/types.js';
 import type { EvalContextMode } from '../observability/types.js';
-import { THINKING_LEVEL_VALUES, type ModelSelection, type ThinkingLevel } from '../contracts/types.js';
+import { parseModelSelection } from '../contracts/model-selection.js';
+import type { ModelSelection } from '../contracts/types.js';
 import * as path from 'node:path';
 
 export type CasePhase = 'queued' | 'running' | 'pass' | 'fail';
@@ -42,8 +43,6 @@ export interface RunRequest {
   extraArgs?: string;
 }
 
-const THINKING_LEVELS = new Set<ThinkingLevel>(THINKING_LEVEL_VALUES);
-
 /**
  * Build a case-done event. An errored case is exactly one that carries an
  * error message with no assertions run (assertTotal 0), which is how the
@@ -56,17 +55,9 @@ export function makeCaseDone(fields: { id: string; phase: 'pass' | 'fail'; asser
 }
 
 function parseModel(raw: string, flag: string): ModelSelection {
-  const slash = raw.indexOf('/');
-  if (slash <= 0 || slash === raw.length - 1) throw new Error(`Invalid ${flag}: ${raw}. Expected provider/model or provider/model:thinking.`);
-  const provider = raw.slice(0, slash);
-  const modelAndMaybeThinking = raw.slice(slash + 1);
-  const colon = modelAndMaybeThinking.lastIndexOf(':');
-  if (colon < 0) return { provider, id: modelAndMaybeThinking };
-  const suffix = modelAndMaybeThinking.slice(colon + 1);
-  if (!THINKING_LEVELS.has(suffix as ThinkingLevel)) return { provider, id: modelAndMaybeThinking };
-  const id = modelAndMaybeThinking.slice(0, colon);
-  if (!id) throw new Error(`Invalid ${flag}: ${raw}. Expected provider/model or provider/model:thinking.`);
-  return { provider, id, thinking: suffix as ThinkingLevel };
+  const parsed = parseModelSelection(raw, flag);
+  if (!parsed.ok) throw new Error(parsed.message);
+  return parsed.selection;
 }
 
 // Same rule as the run CLI's --case-timeout: positive seconds, stored as ms.

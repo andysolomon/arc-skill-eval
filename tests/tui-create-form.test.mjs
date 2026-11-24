@@ -6,7 +6,7 @@ import * as path from "node:path";
 import { render } from "ink-testing-library";
 import { createElement } from "react";
 
-import { CreateForm, parseModelInput } from "../dist/tui/CreateForm.js";
+import { CreateForm } from "../dist/tui/CreateForm.js";
 
 const sleep = (n) => new Promise((r) => setTimeout(r, n));
 const waitFor = async (pred, timeoutMs = 2000) => {
@@ -106,16 +106,6 @@ test("a designer failure renders a dismissible error panel instead of crashing",
   stdin.write("\u001b"); // esc dismisses
   assert.ok(await waitFor(() => closes.length === 1));
   unmount();
-});
-
-test("parseModelInput follows the run CLI's --model rules", () => {
-  assert.deepEqual(parseModelInput("anthropic/claude-haiku-4-5"), { provider: "anthropic", id: "claude-haiku-4-5" });
-  assert.deepEqual(parseModelInput("anthropic/claude-opus-4:high"), { provider: "anthropic", id: "claude-opus-4", thinking: "high" });
-  // an unknown :suffix stays part of the model id — mirrors run-driver's parseModel
-  assert.deepEqual(parseModelInput("openai/gpt-5:turbo"), { provider: "openai", id: "gpt-5:turbo" });
-  assert.throws(() => parseModelInput("no-slash"), /Invalid model/);
-  assert.throws(() => parseModelInput("provider/"), /Invalid model/);
-  assert.throws(() => parseModelInput("anthropic/:high"), /Invalid model/);
 });
 
 test("an invalid model shows an inline error and generation does not start", async () => {

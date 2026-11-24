@@ -1,6 +1,7 @@
 import { createReadStream, existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { ModelRequestError, modelFromRequest } from "../model-selection.mjs";
 import { abortRun, readSuiteCases, startRun } from "../runner.mjs";
 import { createRun, getRun } from "../state.mjs";
 import { AccessError, resolveInWorkspace, resolveUnder } from "../workspaces.mjs";
@@ -328,17 +329,6 @@ const sandboxModes = new Set(["none", "just-bash"]);
 
 class RunRequestError extends Error {}
 
-function modelSelection(value, label) {
-  if (value === undefined || value === null || value === "" || value === "default") {
-    return undefined;
-  }
-  const slash = typeof value === "string" ? value.indexOf("/") : -1;
-  if (slash <= 0 || slash === value.length - 1) {
-    throw new RunRequestError(`${label} must look like provider/model.`);
-  }
-  return { provider: value.slice(0, slash), id: value.slice(slash + 1) };
-}
-
 async function runRequest(body) {
   const skillDir = await resolveInWorkspace(typeof body.workspaceRoot === "string" ? body.workspaceRoot : "");
   if (!existsSync(path.join(skillDir, "evals", "evals.json"))) {
@@ -390,8 +380,8 @@ async function runRequest(body) {
     skillDir,
     cases,
     caseIds: caseId === null ? [] : [caseId],
-    model: modelSelection(body.model, "model"),
-    judgeModel: modelSelection(body.judgeModel, "judgeModel"),
+    model: modelFromRequest(body.model, "model"),
+    judgeModel: modelFromRequest(body.judgeModel, "judgeModel"),
     compare: compare !== "off",
     extraSkillPaths,
     contextMode,
@@ -406,7 +396,7 @@ async function postRun(request, response, context) {
   try {
     options = await runRequest(body);
   } catch (error) {
-    if (error instanceof RunRequestError || error instanceof AccessError) {
+    if (error instanceof RunRequestError || error instanceof ModelRequestError || error instanceof AccessError) {
       context.sendJson(response, 400, { error: error.message });
       return true;
     }

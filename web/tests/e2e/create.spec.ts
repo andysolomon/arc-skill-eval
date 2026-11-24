@@ -285,7 +285,7 @@ test.describe('localhost assist (model calls mocked)', () => {
     expect(request.body).toEqual({
       workspaceRoot: `${RESOLVED_ROOT}/release-please`,
       behaviors: [],
-      model: { provider: 'anthropic', id: 'claude-sonnet-4' },
+      model: 'anthropic/claude-sonnet-4',
     });
   });
 
@@ -344,7 +344,7 @@ test.describe('localhost assist (model calls mocked)', () => {
     expect(kinds).toEqual(['behavior', 'prompt', 'assertion']);
     expect(daemon.requestsTo('POST', '/suggest')[0].body).toMatchObject({
       skill: 'my-skill',
-      model: { provider: 'minimax', id: 'MiniMax-M3' },
+      model: 'minimax/MiniMax-M3',
     });
   });
 });

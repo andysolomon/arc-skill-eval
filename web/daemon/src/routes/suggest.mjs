@@ -2,6 +2,7 @@ import {
   extractJsonObject,
   invokePiCompletion,
 } from "../../../../dist/cli/pi-completion.js";
+import { modelFromRequest } from "../model-selection.mjs";
 
 const behaviorDimensions = new Set(["outcome", "process", "style", "efficiency"]);
 const promptFlavors = new Set(["explicit", "implicit", "contextual", "adjacent-negative"]);
@@ -29,22 +30,6 @@ function parseResponse(raw) {
   }
 
   return parsed;
-}
-
-function modelFromBody(body) {
-  if (!body.model) {
-    return undefined;
-  }
-
-  if (
-    typeof body.model !== "object"
-    || typeof body.model.provider !== "string"
-    || typeof body.model.id !== "string"
-  ) {
-    throw new Error("model must include string provider and id values.");
-  }
-
-  return { provider: body.model.provider, id: body.model.id };
 }
 
 function behaviorPrompt(skill, context) {
@@ -124,7 +109,7 @@ function assertionPrompt(skill, context) {
 
 async function makeSuggestion(body) {
   const context = body.context && typeof body.context === "object" ? body.context : {};
-  const model = modelFromBody(body);
+  const model = modelFromRequest(body.model, "model");
   const prompts = {
     behavior: () => behaviorPrompt(body.skill, context),
     prompt: () => promptPrompt(body.skill, context),

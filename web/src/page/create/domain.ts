@@ -139,15 +139,6 @@ export const ASSIST_MODEL_OPTIONS = [
 
 export const DEFAULT_ASSIST_MODEL = 'minimax/MiniMax-M3';
 
-export type ModelRef = Readonly<{ provider: string; id: string }>;
-
-export const parseModel = (spec: string): Option.Option<ModelRef> => {
-  const slash = spec.indexOf('/');
-  return slash <= 0 || slash >= spec.length - 1
-    ? Option.none()
-    : Option.some({ provider: spec.slice(0, slash), id: spec.slice(slash + 1) });
-};
-
 export const stripTrailingPeriod = (text: string): string => text.replace(/\.$/, '');
 
 export const suggestPromptTemplate = (skill: string, behavior: BehaviorRow): string => {
