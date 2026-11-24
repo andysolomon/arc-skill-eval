@@ -54,3 +54,37 @@ jobs:
 
       - name: smoke test web
         run: npm --prefix web run test:e2e
+
+  formal:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: setup java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: cache tla2tools.jar
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/arc-skill-eval
+          key: tla2tools-${{ hashFiles('scripts/verify-formal.mjs') }}
+
+      # Current code must pass every rule; each bug variant must break its rule.
+      - name: model-check the run console
+        run: npm run verify:formal
+
+      - name: upload TLC output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tlc-output
+          path: test-artifacts/formal/
