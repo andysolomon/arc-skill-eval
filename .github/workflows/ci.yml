@@ -43,6 +43,15 @@ jobs:
       - name: test core
         run: npm test
 
+      # Every frame of the TUI screen-fit gate (tests/tui-screens-fit.test.mjs).
+      - name: upload tui frames
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tui-fit-frames
+          path: test-artifacts/tui-fit/
+          if-no-files-found: warn
+
       - name: typecheck web
         run: npm --prefix web run typecheck
 

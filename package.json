@@ -77,7 +77,8 @@
     "@types/react": "^18.3.31",
     "conventional-changelog-conventionalcommits": "^9.1.0",
     "ink-testing-library": "^4.0.0",
-    "semantic-release": "^25.0.9"
+    "semantic-release": "^25.0.9",
+    "string-width": "^7.2.0"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "^1.6.0",
