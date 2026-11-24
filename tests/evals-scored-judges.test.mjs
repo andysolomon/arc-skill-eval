@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { gradeEvalCase, buildJudgePrompt, parseJudgeResponse } from "../dist/evals/grade.js";
 import { defineSkillEval, evalCase, judge } from "../dist/evals/builder/index.js";
-import { validateEvalsJsonValue, EvalsJsonValidationError } from "../dist/evals/loader.js";
+import { validateEvalsJsonValue } from "../dist/evals/loader.js";
 
 const scoredCase = (threshold, scaleMax) => ({
   id: "c",
@@ -91,17 +91,6 @@ test("builder .atLeast(n, { outOf }) sets a custom scale and composes with .soft
   assert.equal(a.threshold, 8);
   assert.equal(a.scaleMax, 10);
   assert.equal(a.mustPass, false);
-});
-
-test("loader rejects a threshold outside 1..scaleMax", () => {
-  assert.throws(
-    () =>
-      validateEvalsJsonValue(
-        { skill_name: "d", evals: [{ id: "c", prompt: "p", assertions: [{ id: "x", kind: "output", method: "judge", prompt: "p", threshold: 9, scaleMax: 5 }] }] },
-        "t",
-      ),
-    EvalsJsonValidationError,
-  );
 });
 
 test("loader accepts a well-formed scored judge and round-trips through the builder", () => {

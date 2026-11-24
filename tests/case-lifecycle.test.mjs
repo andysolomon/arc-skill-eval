@@ -4,12 +4,14 @@
 // cleanup:
 //
 //   1. A hung harness is never killed, so `run` hangs forever.
-//   2. A timed-out or cancelled case leaves its child process running.
-//   3. A failed, timed-out or cancelled case leaves its temp
-//      workspace (with staged `.claude/skills`) in the temp dir.
+//   2. A timed-out case leaves its child process running.
+//   3. A timed-out case leaves its temp workspace (with staged
+//      `.claude/skills`) in the temp dir.
 //   4. A timeout is recorded with the wrong message, or aborts the whole run
 //      instead of failing just that case.
-//   5. Ctrl-C exits with the wrong code or skips cleanup.
+//
+// Ctrl-C and a harness that exits non-zero are covered in
+// case-concurrency.test.mjs.
 //
 // Each test writes the CLI's stdout/stderr to test-artifacts/case-lifecycle/
 // so a run leaves a reviewable record.
@@ -29,12 +31,7 @@ const artifactDir = path.join(repoRoot, "test-artifacts", "case-lifecycle");
 const FAKE_CLAUDE = `#!/usr/bin/env node
 const fs = require("node:fs");
 fs.writeFileSync(process.env.FAKE_CLAUDE_PID_FILE, String(process.pid));
-const mode = process.env.FAKE_CLAUDE_MODE;
-if (mode === "fail") {
-  process.stderr.write("simulated harness crash\\n");
-  process.exit(3);
-}
-if (mode === "hang") {
+if (process.env.FAKE_CLAUDE_MODE === "hang") {
   setInterval(() => {}, 1000);
 }
 `;
@@ -110,18 +107,6 @@ async function withDeadline(promise, ms, label) {
   }
 }
 
-async function waitForFile(file, ms) {
-  const until = Date.now() + ms;
-  while (Date.now() < until) {
-    try {
-      return await readFile(file, "utf8");
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-  }
-  throw new Error(`timed out waiting for ${file}`);
-}
-
 function isAlive(pid) {
   try {
     process.kill(pid, 0);
@@ -172,33 +157,5 @@ test("--case-timeout kills a hung harness, fails only that case, and removes its
 
   const lastPid = Number(await readFile(ctx.pidFile, "utf8"));
   assert.ok(await waitForExit(lastPid, 8_000), "fake claude child was killed");
-  assert.deepEqual(await leftoverCaseDirs(ctx), []);
-});
-
-test("Ctrl-C cancels the run with exit 130, kills the harness, and cleans up", async () => {
-  const ctx = await setup("hang");
-  const cli = startCli(ctx);
-  const pid = Number(await waitForFile(ctx.pidFile, 15_000));
-  cli.child.kill("SIGINT");
-  const result = await withDeadline(cli.done, 15_000, "cancelled run");
-  await saveArtifact("ctrl-c", result);
-
-  assert.equal(result.code, 130, result.stderr);
-  const { error } = JSON.parse(result.stdout);
-  assert.equal(error.kind, "cancelled");
-  assert.match(error.message, /Run cancelled/);
-  assert.ok(await waitForExit(pid, 8_000), "fake claude child was killed");
-  assert.deepEqual(await leftoverCaseDirs(ctx), []);
-});
-
-test("a harness that exits non-zero is recorded per case and leaves no workspace behind", async () => {
-  const ctx = await setup("fail");
-  const result = await withDeadline(startCli(ctx).done, 30_000, "failing run");
-  await saveArtifact("harness-exit", result);
-
-  assert.equal(result.code, 1, result.stderr);
-  const errors = JSON.parse(result.stdout).skills[0].errors;
-  assert.equal(errors.length, 2);
-  assert.match(errors[0].message, /Claude Code run failed for case first \(exit 3\)\. stderr: simulated harness crash/);
   assert.deepEqual(await leftoverCaseDirs(ctx), []);
 });

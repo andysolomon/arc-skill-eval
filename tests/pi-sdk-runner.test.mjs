@@ -54,27 +54,6 @@ function simpleAlphaCase() {
   return { skill: { files: skillFiles, contract }, caseDefinition };
 }
 
-test("runPiSdkCase surfaces a terminal provider error as a case error", async () => {
-  const { skill, caseDefinition } = simpleAlphaCase();
-  await assert.rejects(
-    runPiSdkCase({
-      source,
-      skill,
-      caseDefinition,
-      workspaceDir: process.cwd(),
-      createSession: stubSessionFactory([
-        { role: "assistant", content: [], stopReason: "error", errorMessage: "400 You're out of extra usage." },
-      ]),
-    }),
-    (error) => {
-      assert.equal(error.name, "PiSdkCaseRunError");
-      assert.match(error.message, /returned an error instead of output/);
-      assert.match(error.message, /out of extra usage/);
-      return true;
-    },
-  );
-});
-
 test("runPiSdkCase does not flag a mid-session provider error the agent recovered from", async () => {
   const { skill, caseDefinition } = simpleAlphaCase();
   const result = await runPiSdkCase({

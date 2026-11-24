@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
 import { auditCommand, renderAuditMarkdown } from "../dist/cli/audit-command.js";
 
-test("auditCommand reports deterministic skill findings", async () => {
+test("auditCommand reports deterministic skill findings", async (t) => {
   const root = await mkdtemp(path.join(tmpdir(), "arc-skill-eval-audit-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
   const skillDir = path.join(root, "demo-skill");
   await mkdir(skillDir, { recursive: true });
   await writeFile(path.join(skillDir, "SKILL.md"), `---

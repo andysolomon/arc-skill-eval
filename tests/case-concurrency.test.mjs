@@ -42,7 +42,7 @@ if (process.env.FAKE_CLAUDE_MODE === "hang") {
   const total = Number(process.env.FAKE_CASES);
   setTimeout(() => {
     log("end");
-    process.stderr.write("simulated failure\\n");
+    process.stderr.write("simulated harness crash\\n");
     process.exit(3);
   }, 250 + (total - caseNumber) * 250);
 }
@@ -211,7 +211,9 @@ test("without --concurrency, cases run one at a time", async () => {
 
   assert.equal(result.code, 1, result.stderr);
   assert.equal(maxOverlap(events), 1);
-  assert.deepEqual(JSON.parse(result.stdout).skills[0].errors.map((error) => error.caseId), ctx.caseIds);
+  const errors = JSON.parse(result.stdout).skills[0].errors;
+  assert.deepEqual(errors.map((error) => error.caseId), ctx.caseIds);
+  assert.match(errors[0].message, /Claude Code run failed for case case-1 \(exit 3\)\. stderr: simulated harness crash/);
 });
 
 test("Ctrl-C with three cases in flight kills every harness, removes every workspace, and starts no new case", async () => {

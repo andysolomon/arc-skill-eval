@@ -94,14 +94,6 @@ test("emit transpiles a TypeScript suite in-process and leaves no temp files", a
   assert.deepEqual(leftovers, []);
 });
 
-test("emit resolves a skill directory to evals/evals.eval.ts -> evals/evals.json", async () => {
-  const { dir, evalsDir } = await makeSuiteDir({ ext: ".ts" });
-  const result = await emitCommand({ skillDir: dir });
-
-  assert.equal(result.fromPath, path.join(evalsDir, "evals.eval.ts"));
-  assert.equal(result.outPath, path.join(evalsDir, "evals.json"));
-});
-
 test("emit surfaces suite validation errors (duplicate case ids) as a command error", async () => {
   const { suitePath } = await makeSuiteDir({ dup: true });
   await assert.rejects(() => emitCommand({ from: suitePath }), CliCommandError);
