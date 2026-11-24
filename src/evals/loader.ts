@@ -193,13 +193,24 @@ const Metadata = Schema.Struct({
 
 const SCRIPT_ASSERTION_TYPES = ["file-exists", "file-absent", "regex-match", "json-valid"] as const;
 
+const HARD_ONLY = Schema.optionalKey(
+  Schema.Never.annotate({
+    message:
+      "only applies to an assertion with `kind`; a `type` script assertion always fails the run when it misses. " +
+      'For a soft file check write { "id": "<slug>", "kind": "workspace", "method": "file-exists", "path": "<relative>", "mustPass": false }',
+  }),
+);
+
+const scriptBase = { mustPass: HARD_ONLY, severity: HARD_ONLY };
+
 // Union members are told apart by single-literal fields; a member keyed on
 // several literals isn't, and its errors would leak into unrelated
 // assertions. So there is one struct per `type` (and per `method` below).
 const pathScriptAssertion = <T extends "file-exists" | "file-absent" | "json-valid">(type: T) =>
-  Schema.Struct({ type: Schema.Literal(type), path: required(nonEmpty, NON_EMPTY) });
+  Schema.Struct({ type: Schema.Literal(type), path: required(nonEmpty, NON_EMPTY), ...scriptBase });
 
 const RegexMatchAssertion = Schema.Struct({
+  ...scriptBase,
   type: Schema.Literal("regex-match"),
   pattern: required(nonEmpty, NON_EMPTY),
   flags: optional(Schema.String, STRING),
