@@ -61,6 +61,12 @@ export function parseCopilotJsonl(stdout: string, fallbackSessionId: string): Pa
       }
     }
 
+    const data = asRecord(record.data);
+    if (type === "assistant.message" && data && typeof data.content === "string" && data.content) {
+      assistantText = data.content;
+      messages.push({ role: "assistant", content: data.content });
+    }
+
     if (type === "tool_call" || type === "tool_use") {
       toolCalls.push({
         toolCallId: (typeof record.id === "string" && record.id) || `copilot-tool-${(toolCallCounter += 1)}`,

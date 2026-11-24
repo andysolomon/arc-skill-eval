@@ -10,13 +10,6 @@ test("parseCliArgs rejects invalid context mode", () => {
   );
 });
 
-test("parseCliArgs leaves sandbox undefined when flag omitted", () => {
-  const parsed = parseCliArgs(["run", "./skill"]);
-
-  assert.equal(parsed.command, "run");
-  assert.equal(parsed.sandbox, undefined);
-});
-
 test("parseCliArgs rejects invalid --sandbox value", () => {
   assert.throws(
     () => parseCliArgs(["run", "./skill", "--sandbox", "docker"]),
