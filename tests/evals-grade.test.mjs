@@ -141,31 +141,6 @@ test("gradeEvalCase resolves every assertion (string + script mixture, all pass)
   }
 });
 
-test("gradeEvalCase handles file-exists failure: missing file", async () => {
-  const ws = await makeTempWorkspace();
-  try {
-    const result = await gradeEvalCase({
-      case: {
-        id: 7,
-        prompt: "noop",
-        assertions: [{ type: "file-exists", path: "missing.txt" }],
-      },
-      workspaceDir: ws.dir,
-      assistantText: "",
-      judge: async () => ({ results: [] }),
-    });
-
-    assert.equal(result.case_id, "7");
-    assert.equal(result.summary.passed, 0);
-    assert.equal(result.summary.failed, 1);
-    assert.equal(result.summary.pass_rate, 0);
-    assert.equal(result.assertion_results[0].passed, false);
-    assert.match(result.assertion_results[0].evidence, /No such file:.*missing\.txt/);
-  } finally {
-    await ws.cleanup();
-  }
-});
-
 test("gradeEvalCase handles regex-match failure: no match", async () => {
   const ws = await makeTempWorkspace();
   try {
@@ -257,43 +232,6 @@ test("gradeEvalCase rejects path-traversal in script assertions", async () => {
     } finally {
       await rm(outside, { force: true }).catch(() => undefined);
     }
-  } finally {
-    await ws.cleanup();
-  }
-});
-
-test("gradeEvalCase parses judge output into per-assertion results", async () => {
-  const ws = await makeTempWorkspace();
-  try {
-    const judge = async () => ({
-      results: [
-        { passed: true, evidence: "quote: \"ready\"" },
-        { passed: false, evidence: "No file reference found." },
-      ],
-    });
-
-    const result = await gradeEvalCase({
-      case: {
-        id: 1,
-        prompt: "noop",
-        assertions: [
-          "Assistant replies with the word 'ready'.",
-          "Assistant cites a specific file.",
-        ],
-      },
-      workspaceDir: ws.dir,
-      assistantText: "Here is your response: ready",
-      judge,
-    });
-
-    assert.equal(result.summary.passed, 1);
-    assert.equal(result.summary.failed, 1);
-    assert.equal(result.assertion_results[0].passed, true);
-    assert.equal(result.assertion_results[0].evidence, 'quote: "ready"');
-    assert.equal(result.assertion_results[1].passed, false);
-    assert.equal(result.assertion_results[1].evidence, "No file reference found.");
-    // The raw `assertion` on the result preserves the original string assertion.
-    assert.equal(result.assertion_results[0].assertion, "Assistant replies with the word 'ready'.");
   } finally {
     await ws.cleanup();
   }

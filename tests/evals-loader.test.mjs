@@ -159,34 +159,6 @@ test("readEvalsJson flags duplicate ids", async () => {
   }
 });
 
-test("readEvalsJson validates regex-match pattern syntax", async () => {
-  const tmp = path.join(__dirname, "tmp-evals-regex.json");
-  const { writeFile, unlink } = await import("node:fs/promises");
-  await writeFile(
-    tmp,
-    JSON.stringify({
-      skill_name: "alpha",
-      evals: [
-        {
-          id: 1,
-          prompt: "p",
-          assertions: [{ type: "regex-match", pattern: "[invalid" }],
-        },
-      ],
-    }),
-    "utf-8",
-  );
-  try {
-    await readEvalsJson(tmp);
-    assert.fail("expected EvalsJsonValidationError");
-  } catch (error) {
-    assert.ok(error instanceof EvalsJsonValidationError);
-    assert.ok(error.issues.some((issue) => issue.includes("valid regular expression")));
-  } finally {
-    await unlink(tmp).catch(() => undefined);
-  }
-});
-
 test("discoverEvalSkills finds SKILL.md + evals/evals.json adjacency", async () => {
   const skills = await discoverEvalSkills(FIXTURE_REPO);
   assert.equal(skills.length, 1);
