@@ -3,7 +3,7 @@
 
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
-import { COLORS } from './theme.js';
+import { COLORS, trunc, pad } from './theme.js';
 import { GLYPHS, BORDER } from './caps.js';
 import { runInProcess } from './run-driver.js';
 import type { RunCaseState, RunEvent, RunRequest } from './run-driver.js';
@@ -96,7 +96,32 @@ function bar(passed: number, total: number, w = 14): string {
   return GLYPHS.barFull.repeat(filled) + GLYPHS.barEmpty.repeat(Math.max(0, w - filled));
 }
 
-export function RunConsole({ state, elapsed, frame }: { state: RunState; elapsed: number; frame: number }) {
+/** Rows the console spends outside the case list: border 2, padding 2, header, command, two spacers, footer. */
+const CHROME_ROWS = 9;
+const MAX_ERROR_ROWS = 3;
+
+const caseRows = (c: RunCaseState): number => (c.errored && c.message ? 2 : 1);
+
+/** The cases [start, end) around `focus` whose rows fit in `room`. */
+function caseWindow(cases: RunCaseState[], focus: number, room: number): [number, number] {
+  let start = focus;
+  let end = focus + 1;
+  let used = caseRows(cases[focus]!);
+  for (let grew = true; grew;) {
+    grew = false;
+    if (end < cases.length && used + caseRows(cases[end]!) <= room) { used += caseRows(cases[end]!); end++; grew = true; }
+    if (start > 0 && used + caseRows(cases[start - 1]!) <= room) { start--; used += caseRows(cases[start]!); grew = true; }
+  }
+  return [start, end];
+}
+
+/** `text` in rows of at most `w` characters, no more than `max` rows. */
+function clipRows(text: string, w: number, max: number): string[] {
+  const rows = text.split('\n').flatMap((l) => (l.length ? (l.match(new RegExp(`.{1,${Math.max(1, w)}}`, 'g')) ?? []) : ['']));
+  return rows.length > max ? [...rows.slice(0, max - 1), trunc(rows.slice(max - 1).join(' '), w)] : rows;
+}
+
+export function RunConsole({ state, elapsed, frame, cols, rows }: { state: RunState; elapsed: number; frame: number; cols: number; rows: number }) {
   const spinner = GLYPHS.spinner[frame % GLYPHS.spinner.length] ?? '.';
   const t = elapsed.toFixed(1) + 's';
   const doneN = state.cases.filter((c) => c.phase === 'pass' || c.phase === 'fail').length;
@@ -109,8 +134,19 @@ export function RunConsole({ state, elapsed, frame }: { state: RunState; elapsed
   const passedRows = state.cases.filter((c) => c.phase === 'pass').length;
   const failedRows = state.cases.filter((c) => c.phase === 'fail' && !c.errored).length;
 
+  // Fit the screen: a run with more cases than rows shows the cases around the
+  // one in flight, and one line counts the rest.
+  const width = Math.min(64, cols);
+  const inner = width - 6; // border 1 and padding 2 each side
+  const errorRows = state.error ? clipRows(state.error, inner, MAX_ERROR_ROWS) : [];
+  const room = Math.max(1, rows - CHROME_ROWS - (errorRows.length ? errorRows.length + 1 : 0));
+  const cut = state.cases.reduce((n, c) => n + caseRows(c), 0) > room;
+  const running = state.cases.findIndex((c) => c.phase === 'running');
+  const finished = state.cases.reduce((last, c, i) => (c.phase === 'pass' || c.phase === 'fail' ? i : last), 0);
+  const [start, end] = cut ? caseWindow(state.cases, running >= 0 ? running : finished, Math.max(1, room - 1)) : [0, state.cases.length];
+
   return (
-    <Box flexDirection="column" borderStyle={BORDER} borderColor={state.done ? headColor : COLORS.border} paddingX={2} paddingY={1} width={64}>
+    <Box flexDirection="column" borderStyle={BORDER} borderColor={state.done ? headColor : COLORS.border} paddingX={2} paddingY={1} width={width}>
       {/* header */}
       {state.done && failed ? (
         <Text>
@@ -148,11 +184,11 @@ export function RunConsole({ state, elapsed, frame }: { state: RunState; elapsed
           <Text color={COLORS.comment}>{'   ' + t}</Text>
         </Text>
       )}
-      <Text color={COLORS.comment}>{'$ arc-skill-eval run ./skills/' + state.skill + (state.compare ? ' --compare' : '') + (state.extraArgs ? ' ' + state.extraArgs : '')}</Text>
+      <Text color={COLORS.comment}>{trunc('$ arc-skill-eval run ./skills/' + state.skill + (state.compare ? ' --compare' : '') + (state.extraArgs ? ' ' + state.extraArgs : ''), inner)}</Text>
       <Box height={1} />
 
       {/* per-case rows */}
-      {state.cases.map((c) => {
+      {state.cases.slice(start, end).map((c) => {
         if (c.errored) {
           // Errored cases never ran their assertions — a red 0/0 fail bar would
           // read as "all assertions failed", so render a distinct error row.
@@ -160,10 +196,10 @@ export function RunConsole({ state, elapsed, frame }: { state: RunState; elapsed
             <Box key={c.id} flexDirection="column">
               <Text>
                 <Text color={COLORS.orange} bold>{' !  '}</Text>
-                <Text color={COLORS.fg}>{c.id.padEnd(28)}</Text>
+                <Text color={COLORS.fg}>{pad(trunc(c.id, 27), 28)}</Text>
                 <Text color={COLORS.orange}>{'error'}</Text>
               </Text>
-              {c.message ? <Text color={COLORS.dim} wrap="truncate">{'    ' + c.message}</Text> : null}
+              {c.message ? <Text color={COLORS.dim}>{'    ' + trunc(c.message, inner - 4)}</Text> : null}
             </Box>
           );
         }
@@ -172,13 +208,14 @@ export function RunConsole({ state, elapsed, frame }: { state: RunState; elapsed
         return (
           <Text key={c.id}>
             <Text color={gc} bold={c.phase !== 'queued'}>{' ' + g + '  '}</Text>
-            <Text color={c.phase === 'queued' ? COLORS.comment : COLORS.fg}>{c.id.padEnd(28)}</Text>
+            <Text color={c.phase === 'queued' ? COLORS.comment : COLORS.fg}>{pad(trunc(c.id, 27), 28)}</Text>
             <Text color={c.phase === 'fail' ? COLORS.red : COLORS.green}>{bar(c.assertPass, c.assertTotal)}</Text>
             <Text color={COLORS.comment}>{c.phase === 'queued' ? (state.done ? '  not run' : '  queued') : '  ' + c.assertPass + '/' + c.assertTotal}</Text>
           </Text>
         );
       })}
-      {state.error ? <Text color={COLORS.red}>{'\n' + state.error}</Text> : null}
+      {cut ? <Text color={COLORS.dim}>{`  … ${start} above · ${state.cases.length - end} below`}</Text> : null}
+      {errorRows.length ? <Box flexDirection="column" marginTop={1}>{errorRows.map((l, i) => <Text key={i} color={COLORS.red}>{l}</Text>)}</Box> : null}
 
       <Box height={1} />
       {state.done

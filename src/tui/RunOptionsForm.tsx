@@ -4,7 +4,7 @@
 import { useMemo, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
-import { COLORS } from './theme.js';
+import { COLORS, trunc } from './theme.js';
 import { BORDER } from './caps.js';
 
 interface RunOptionsFormProps {
@@ -19,6 +19,8 @@ interface RunOptionsFormProps {
 type Field = 'judge' | 'judgeCustom' | 'runner' | 'runnerCustom' | 'iteration' | 'context' | 'compare' | 'extraSkill' | 'advanced';
 const FIELDS: Field[] = ['judge', 'judgeCustom', 'runner', 'runnerCustom', 'iteration', 'context', 'compare', 'extraSkill', 'advanced'];
 const CONTEXT_MODES = ['isolated', 'ambient'] as const;
+const WIDTH = 76;
+const INNER = WIDTH - 6; // border 1 and padding 2 each side
 
 function uniq(values: string[]): string[] {
   return [...new Set(values.filter((v) => v && v !== '—'))];
@@ -92,16 +94,16 @@ export function RunOptionsForm({ skillName, caseId, recentJudgeModels, recentRun
     return (
       <Text key={id}>
         <Text color={active ? COLORS.blue : COLORS.comment} bold={active}>{active ? '› ' : '  '}{label.padEnd(14)}</Text>
-        <Text color={active ? COLORS.fg : COLORS.fgDark}>{value || 'default'}</Text>
+        <Text color={active ? COLORS.fg : COLORS.fgDark}>{trunc(value || 'default', INNER - 16 - (hint ? hint.length + 2 : 0))}</Text>
         {hint ? <Text color={COLORS.dim}>{'  ' + hint}</Text> : null}
       </Text>
     );
   };
 
   return (
-    <Box flexDirection="column" borderStyle={BORDER} borderColor={COLORS.borderActive} paddingX={2} paddingY={1} width={76}>
+    <Box flexDirection="column" borderStyle={BORDER} borderColor={COLORS.borderActive} paddingX={2} paddingY={1} width={WIDTH}>
       <Text color={COLORS.blue} bold>Run options</Text>
-      <Text color={COLORS.comment}>{`./skills/${skillName}${caseId ? ` · case ${caseId}` : ''}`}</Text>
+      <Text color={COLORS.comment}>{trunc(`./skills/${skillName}${caseId ? ` · case ${caseId}` : ''}`, INNER)}</Text>
       <Box height={1} />
       {row('judge', 'judge model', judgeChoices[judgeIdx] ?? 'default', '←/→ choose')}
       {current === 'judgeCustom' ? (
@@ -124,7 +126,7 @@ export function RunOptionsForm({ skillName, caseId, recentJudgeModels, recentRun
       ) : row('advanced', 'advanced', advanced, 'raw supported flags')}
       <Box height={1} />
       <Text color={COLORS.comment}>command preview</Text>
-      <Text color={COLORS.fgDark}>{`arc-skill-eval run ${skillName}${caseId ? ` --case ${caseId}` : ''}${compare ? ' --compare' : ''}${generated ? ` ${generated}` : ''}`}</Text>
+      <Text color={COLORS.fgDark}>{trunc(`arc-skill-eval run ${skillName}${caseId ? ` --case ${caseId}` : ''}${compare ? ' --compare' : ''}${generated ? ` ${generated}` : ''}`, 2 * INNER)}</Text>
       <Box height={1} />
       <Text color={COLORS.comment}><Text color={COLORS.yellow} bold>enter</Text> run · <Text color={COLORS.yellow} bold>tab/↑↓</Text> field · <Text color={COLORS.yellow} bold>←→/space</Text> choose · <Text color={COLORS.yellow} bold>esc</Text> cancel</Text>
     </Box>

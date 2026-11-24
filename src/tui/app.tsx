@@ -1,9 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Box, Text, useInput, useStdout } from 'ink';
+import { Box, Text, useInput } from 'ink';
 import type { Key } from 'ink';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
-import { COLORS, NO_COLOR, segLen, pad, trunc } from './theme.js';
+import { COLORS, NO_COLOR, segLen, pad, trunc, truncMiddle, fitSegs } from './theme.js';
 import { GLYPHS, BORDER } from './caps.js';
 import { seg } from './theme.js';
 import type { Seg } from './theme.js';
@@ -14,6 +14,7 @@ import { NewCaseForm } from './NewCaseForm.js';
 import { CreateForm } from './CreateForm.js';
 import { RunOptionsForm } from './RunOptionsForm.js';
 import { KEYMAP } from './keymap.js';
+import { screen, useTerminalSize, type Framed } from './screen.js';
 
 type SortMode = 'name' | 'pass' | 'delta' | 'cost';
 
@@ -90,29 +91,6 @@ export type AppAction = { type: 'quit'; state?: AppState };
 const clampIdx = (i: number, len: number): number => Math.max(0, Math.min(Math.max(0, len - 1), i));
 
 interface DisplayLine { segs: Seg[]; bg?: string }
-interface TerminalSize { cols: number; rows: number }
-
-function readTerminalSize(stdout?: NodeJS.WriteStream): TerminalSize {
-  return { cols: stdout?.columns ?? 120, rows: stdout?.rows ?? 40 };
-}
-
-function useTerminalSize(): TerminalSize {
-  const { stdout } = useStdout();
-  const [size, setSize] = useState<TerminalSize>(() => readTerminalSize(stdout));
-
-  useEffect(() => {
-    const update = () => {
-      const next = readTerminalSize(stdout);
-      setSize((prev) => (prev.cols === next.cols && prev.rows === next.rows ? prev : next));
-    };
-
-    update();
-    stdout?.on('resize', update);
-    return () => { stdout?.off('resize', update); };
-  }, [stdout]);
-
-  return size;
-}
 
 // ------------------------------------------------------------------ rows
 
@@ -134,11 +112,13 @@ function RowList({ rows, selected, focused, width, maxRows }: { rows: Seg[][]; s
         const bg = sel ? (focused ? COLORS.selection : COLORS.bgHi) : undefined;
         const accent = focused && sel ? GLYPHS.accent : ' ';
         const more = overflow && idx === 0 && start > 0 ? GLYPHS.up : overflow && idx === maxRows - 1 && start + maxRows < total ? GLYPHS.down : null;
-        const fill = ' '.repeat(Math.max(0, width - segLen(segs) - 1 - (more ? 1 : 0)));
+        const room = width - 1 - (more ? 1 : 0);
+        const shown = fitSegs(segs, room);
+        const fill = ' '.repeat(Math.max(0, room - segLen(shown)));
         return (
           <Text key={i} wrap="truncate" backgroundColor={bg} inverse={NO_COLOR && sel}>
             <Text color={COLORS.blue} backgroundColor={bg}>{accent}</Text>
-            {segs.map((s, j) => (
+            {shown.map((s, j) => (
               <Text key={j} color={s.c} bold={s.b} backgroundColor={bg}>{s.t}</Text>
             ))}
             <Text backgroundColor={bg}>{fill}</Text>
@@ -226,11 +206,13 @@ function MainPane(props: {
           const abs = start + i;
           const isCursor = abs === cursorLine;
           const bg = isCursor ? COLORS.selection : line.bg;
-          const fill = isCursor ? ' '.repeat(Math.max(0, innerWidth - segLen(line.segs) - 1)) : '';
+          const room = innerWidth - 2 - (isCursor ? 1 : 0); // padding 1 each side, the cursor mark
+          const segs = fitSegs(line.segs, room);
+          const fill = isCursor ? ' '.repeat(Math.max(0, room - segLen(segs))) : '';
           return (
             <Text key={i} wrap="truncate" backgroundColor={bg} inverse={NO_COLOR && isCursor}>
               {isCursor ? <Text color={COLORS.blue} backgroundColor={bg}>{GLYPHS.accent}</Text> : null}
-              {line.segs.map((s, j) => (<Text key={j} color={s.c} bold={s.b} backgroundColor={bg}>{s.t}</Text>))}
+              {segs.map((s, j) => (<Text key={j} color={s.c} bold={s.b} backgroundColor={bg}>{s.t}</Text>))}
               {isCursor ? <Text backgroundColor={bg}>{fill}</Text> : null}
             </Text>
           );
@@ -264,7 +246,10 @@ function emptyFilterView(filter: string, failOnly: boolean): { title: string; su
 
 // ------------------------------------------------------------------ status bar
 
-function StatusBar({ focused, caseMode, pane, sk, filter, filtering, failOnly, sortMode, noting, note, flash, flashWarn }: { flashWarn: boolean; focused: Focus; caseMode: CaseMode; pane: boolean; sk: Skill | undefined; filter: string; filtering: boolean; failOnly: boolean; sortMode: SortMode; noting: boolean; note: string; flash: string }) {
+/** The end of `s` that fits in `n` characters, led by … when cut. */
+const tailOf = (s: string, n: number): string => (s.length <= n ? s : '…' + s.slice(s.length - Math.max(0, n - 1)));
+
+function StatusBar({ width, focused, caseMode, pane, sk, filter, filtering, failOnly, sortMode, noting, note, flash, flashWarn }: { width: number; flashWarn: boolean; focused: Focus; caseMode: CaseMode; pane: boolean; sk: Skill | undefined; filter: string; filtering: boolean; failOnly: boolean; sortMode: SortMode; noting: boolean; note: string; flash: string }) {
   const ud = `${GLYPHS.up}${GLYPHS.down}`;
   const hints: [string, string][] = !sk
     ? [['F', 'failures-only'], ['/', 'filter'], ['?', 'help'], ['q', 'quit']]
@@ -277,34 +262,47 @@ function StatusBar({ focused, caseMode, pane, sk, filter, filtering, failOnly, s
         : focused === 'assertions'
           ? [[ud, 'assertion'], [GLYPHS.arrowR, 'sections'], ['tab', 'panel'], ['?', 'help']]
           : [[ud, 'run'], [GLYPHS.arrowR, 'sections'], ['c', 'pin base'], ['tab', 'panel'], ['?', 'help']];
+  // One row, padding 1 each side. The model name gives way first, then hints
+  // drop from the end, so nothing wraps to a second row.
+  const room = width - 2;
+  const play = GLYPHS.play + ' ';
+  const sigma = '  ' + GLYPHS.sigma + ' ';
+  const fixed = sk ? play.length + sigma.length + sk.totalCost.length : 0;
+  const model = sk ? trunc(sk.model, Math.max(1, Math.floor(room / 2) - fixed)) : '';
+  const left = Math.max(0, room - (sk ? fixed + model.length + 1 : 0));
+  const parts: Seg[] = [];
+  let used = 0;
+  const add = (more: Seg[]): boolean => {
+    const w = segLen(more);
+    if (used + w > left) return false;
+    parts.push(...more);
+    used += w;
+    return true;
+  };
+  if (filter) add([seg('/' + trunc(filter, 16) + '  ', COLORS.cyan)]);
+  if (failOnly) add([seg('fail-only  ', COLORS.red)]);
+  if (sortMode !== 'name') add([seg('sort:' + sortMode + '  ', COLORS.magenta)]);
+  for (const [i, [k, l]] of hints.entries()) {
+    if (!add([seg((i ? '   ' : '') + k, COLORS.yellow, true), seg(' ' + l, COLORS.comment)])) break;
+  }
   return (
     <Box height={1} justifyContent="space-between" paddingX={1}>
       <Box>
         {noting ? (
-          <Text><Text color={COLORS.yellow} bold>{'note: '}</Text><Text color={COLORS.fg}>{note}</Text><Text color={COLORS.blue}>{GLYPHS.accent}</Text></Text>
+          <Text><Text color={COLORS.yellow} bold>{'note: '}</Text><Text color={COLORS.fg}>{tailOf(note, left - 7)}</Text><Text color={COLORS.blue}>{GLYPHS.accent}</Text></Text>
         ) : filtering ? (
-          <Text><Text color={COLORS.yellow} bold>{'/ '}</Text><Text color={COLORS.fg}>{filter}</Text><Text color={COLORS.blue}>{GLYPHS.accent}</Text></Text>
+          <Text><Text color={COLORS.yellow} bold>{'/ '}</Text><Text color={COLORS.fg}>{tailOf(filter, left - 3)}</Text><Text color={COLORS.blue}>{GLYPHS.accent}</Text></Text>
         ) : flash ? (
-          <Text color={flashWarn ? COLORS.orange : COLORS.green} wrap="truncate-middle">{flash}</Text>
+          <Text color={flashWarn ? COLORS.orange : COLORS.green}>{truncMiddle(flash, left)}</Text>
         ) : (
-          <Box>
-            {filter ? <Text color={COLORS.cyan}>{'/' + filter + '  '}</Text> : null}
-            {failOnly ? <Text color={COLORS.red}>{'fail-only  '}</Text> : null}
-            {sortMode !== 'name' ? <Text color={COLORS.magenta}>{'sort:' + sortMode + '  '}</Text> : null}
-            {hints.map(([k, l], i) => (
-              <Text key={i}>
-                <Text color={COLORS.yellow} bold>{k}</Text>
-                <Text color={COLORS.comment}>{` ${l}   `}</Text>
-              </Text>
-            ))}
-          </Box>
+          <Text>{parts.map((p, i) => <Text key={i} color={p.c} bold={p.b}>{p.t}</Text>)}</Text>
         )}
       </Box>
       {sk ? (
         <Box>
-          <Text color={COLORS.green}>{GLYPHS.play + ' '}</Text>
-          <Text color={COLORS.blue}>{sk.model}</Text>
-          <Text color={COLORS.comment}>{'  ' + GLYPHS.sigma + ' '}</Text>
+          <Text color={COLORS.green}>{play}</Text>
+          <Text color={COLORS.blue}>{model}</Text>
+          <Text color={COLORS.comment}>{sigma}</Text>
           <Text color={COLORS.green}>{sk.totalCost}</Text>
         </Box>
       ) : null}
@@ -335,16 +333,19 @@ function HelpView({ rows, cols, scroll }: { rows: number; cols: number; scroll: 
   const start = Math.min(scroll, helpScrollMax(rows));
   const shown = HELP_LINES.slice(start, start + windowRows);
   const more = HELP_LINES.length > windowRows;
+  const room = cols - 6 - 18; // border 1 and padding 2 each side, then the keys column
   return (
-    <Box flexDirection="column" borderStyle={BORDER} borderColor={COLORS.borderActive} paddingX={2} paddingY={1} width={cols} height={rows}>
+    <Box flexDirection="column" flexGrow={1} borderStyle={BORDER} borderColor={COLORS.borderActive} paddingX={2} paddingY={1}>
       <Box flexDirection="column" flexGrow={1}>
         {shown.map((line, i) => {
           if (line.kind === 'binding') {
+            const desc = trunc(line.desc, room);
+            const context = line.context && room - desc.length > 4 ? trunc(' (' + line.context + ')', room - desc.length) : '';
             return (
               <Text key={i} wrap="truncate">
                 <Text color={COLORS.yellow} bold>{pad(line.keys, 18)}</Text>
-                <Text color={COLORS.fgDark}>{line.desc}</Text>
-                {line.context ? <Text color={COLORS.comment}>{' (' + line.context + ')'}</Text> : null}
+                <Text color={COLORS.fgDark}>{desc}</Text>
+                {context ? <Text color={COLORS.comment}>{context}</Text> : null}
               </Text>
             );
           }
@@ -363,8 +364,9 @@ function HelpView({ rows, cols, scroll }: { rows: number; cols: number; scroll: 
 
 // ------------------------------------------------------------------ app
 
-export function App({ skills, runs, onAction, onReload, initial, showWithout }: { skills: Skill[]; runs: Run[]; onAction: (a: AppAction) => void; onReload?: (skillDir: string) => void | Promise<void>; initial?: AppState; showWithout?: boolean }) {
-  const { cols, rows: rowsT } = useTerminalSize();
+export function App({ skills, runs, onAction, onReload, initial, showWithout }: { skills: Skill[]; runs: Run[]; onAction: (a: AppAction) => void; onReload?: (skillDir: string) => void | Promise<void>; initial?: AppState; showWithout?: boolean }): Framed {
+  const size = useTerminalSize();
+  const { cols, rows: rowsT } = size;
 
   const [focused, setFocused] = useState<Focus>(initial?.focused ?? 'cases');
   const [sel, setSel] = useState<Sel>(initial?.sel ?? { skills: 0, cases: 0, assertions: 0, runs: 0 });
@@ -559,85 +561,87 @@ export function App({ skills, runs, onAction, onReload, initial, showWithout }: 
   // help visibility is declared with the other state above; the input handler
   // re-registers each render, so it always reads the current value.
 
-  // Every screen fills the terminal. Ink clears the terminal before a frame
-  // only when the frame is at least as tall as the screen, so a shorter
-  // overlay after the full layout was drawn below the old frame's leftovers.
-  const fullScreen = (node: ReactNode) => <Box flexDirection="column" width={cols} minHeight={rowsT}>{node}</Box>;
+  // Every screen is drawn in one terminal-sized frame. App returns Framed,
+  // which only screen() makes, so no screen can be shorter, taller, or wider
+  // than the terminal.
+  return screen(size, body());
 
-  if (skills.length === 0) {
-    return fullScreen(
-      <Box padding={1} flexDirection="column">
-        <Text color={COLORS.orange}>No eval runs found.</Text>
-        <Text color={COLORS.comment}>Run `arc-skill-eval run &lt;skill-dir&gt;` first, then `arc-skill-eval browse`.</Text>
-      </Box>
-    );
-  }
-  if (showHelp) return <HelpView rows={rowsT} cols={cols} scroll={helpScroll} />;
-  // Overlays render in place of the layout, and Ink stays mounted. The run
-  // console takes priority.
-  if (runCtl.state.active) return fullScreen(<RunConsole state={runCtl.state} elapsed={runCtl.elapsed} frame={runCtl.frame} />);
-  if (runOptions && sk) return fullScreen(
-    <Box padding={1}>
-      <RunOptionsForm
-        skillName={sk.id}
-        caseId={focused === 'cases' && cs ? cs.id : null}
-        recentJudgeModels={runs.map((r) => r.judge).concat(sk.judge)}
-        recentRunnerModels={runs.map((r) => r.model).concat(sk.model)}
-        onRun={({ compare, extraArgs }) => { setRunOptions(false); runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' && cs ? cs.id : null, compare, extraArgs }); }}
-        onClose={() => setRunOptions(false)}
-      />
-    </Box>
-  );
-  if (creating && sk) return fullScreen(
-    <NewCaseForm
-      skillDir={sk.dir}
-      skillName={sk.id}
-      onClose={(msg) => { setCreating(false); if (msg) setFlash(msg); reload(sk.dir); }}
-      onDryRun={(caseId, msg) => {
-        // Reload so the fresh case is visible even if the run is aborted;
-        // the run-complete path reloads again with the new grading.
-        setCreating(false); setFlash(msg); reload(sk.dir);
-        runCtl.start({ skillDir: sk.dir, caseId, compare: false });
-      }}
-    />
-  );
-  if (creatingSuite && sk) return fullScreen(
-    <CreateForm
-      skillDir={sk.dir}
-      skillName={sk.id}
-      hasSuite={sk.role !== 'distractor'}
-      recentModels={runs.map((r) => r.model).concat(sk.model).filter(Boolean)}
-      onClose={(msg) => { setCreatingSuite(false); if (msg) setFlash(msg); reload(sk.dir); }}
-    />
-  );
-
-  if (cols < 72 || rowsT < 18) {
-    return fullScreen(
-      <Box padding={1} flexDirection="column">
-        <Text color={COLORS.orange}>Terminal too small.</Text>
-        <Text color={COLORS.comment}>{`Resize to at least 72×18 (currently ${cols}×${rowsT}).`}</Text>
-      </Box>
-    );
-  }
-
-  // Split the rail into whole-row panel heights. With fractional flex heights
-  // the layout rounded a panel shorter than its row estimate, and the
-  // selected first row could disappear at 80x24.
-  const heights = splitRows(rowsT - 1, [1.4, 1.5, 1.6, 1.2]); // rail = screen minus the status bar
-  const cap = (i: number) => Math.max(1, heights[i]! - 3); // border 2 + title 1
-
-  return (
-    <Box flexDirection="column" width={cols} height={rowsT}>
-      <Box flexGrow={1} flexDirection="row">
-        <Box flexDirection="column" width={railWidth}>
-          <Panel n={1} name="Skills" height={heights[0]!} count={String(viewSkills.length)} rows={skillRows(viewSkills)} selected={clampIdx(sel.skills, viewSkills.length)} focused={!pane && focused === 'skills'} innerWidth={innerRail} maxRows={cap(0)} />
-          <Panel n={2} name="Cases" height={heights[1]!} count={String(viewCases.length)} rows={caseRows(viewCases)} selected={clampIdx(sel.cases, viewCases.length)} focused={!pane && focused === 'cases'} innerWidth={innerRail} maxRows={cap(1)} />
-          <Panel n={3} name="Assertions" height={heights[2]!} count={String(cs?.assertions.length ?? 0)} rows={cs ? assertionRows(cs) : []} selected={clampIdx(sel.assertions, cs?.assertions.length ?? 0)} focused={!pane && focused === 'assertions'} innerWidth={innerRail} maxRows={cap(2)} />
-          <Panel n={4} name="Runs" height={heights[3]!} count={String(runs.length)} rows={runRows(runs, compareBase?.runId)} selected={sel.runs} focused={!pane && focused === 'runs'} innerWidth={innerRail} maxRows={cap(3)} />
+  function body(): ReactNode {
+    if (skills.length === 0) {
+      return (
+        <Box padding={1} flexDirection="column">
+          <Text color={COLORS.orange}>No eval runs found.</Text>
+          <Text color={COLORS.comment}>Run `arc-skill-eval run &lt;skill-dir&gt;` first, then `arc-skill-eval browse`.</Text>
         </Box>
-        <MainPane title={main.title} sub={main.sub} lines={main.lines} scroll={scroll} maxRows={maxRows} innerWidth={mainInner} cursorLine={cursorLine} paneFocused={pane} />
+      );
+    }
+    if (showHelp) return <HelpView rows={rowsT} cols={cols} scroll={helpScroll} />;
+    // Overlays render in place of the layout, and Ink stays mounted. The run
+    // console takes priority.
+    if (runCtl.state.active) return <RunConsole state={runCtl.state} elapsed={runCtl.elapsed} frame={runCtl.frame} cols={cols} rows={rowsT} />;
+    if (runOptions && sk) return (
+      <Box paddingX={1}>
+        <RunOptionsForm
+          skillName={sk.id}
+          caseId={focused === 'cases' && cs ? cs.id : null}
+          recentJudgeModels={runs.map((r) => r.judge).concat(sk.judge)}
+          recentRunnerModels={runs.map((r) => r.model).concat(sk.model)}
+          onRun={({ compare, extraArgs }) => { setRunOptions(false); runCtl.start({ skillDir: sk.dir, caseId: focused === 'cases' && cs ? cs.id : null, compare, extraArgs }); }}
+          onClose={() => setRunOptions(false)}
+        />
       </Box>
-      <StatusBar focused={focused} caseMode={caseMode} pane={pane} sk={sk} filter={filter} filtering={filtering} failOnly={failOnly} sortMode={sortMode} noting={noting} note={note} flash={flash} flashWarn={flashWarn} />
-    </Box>
-  );
+    );
+    if (creating && sk) return (
+      <NewCaseForm
+        skillDir={sk.dir}
+        skillName={sk.id}
+        onClose={(msg) => { setCreating(false); if (msg) setFlash(msg); reload(sk.dir); }}
+        onDryRun={(caseId, msg) => {
+          // Reload so the fresh case is visible even if the run is aborted;
+          // the run-complete path reloads again with the new grading.
+          setCreating(false); setFlash(msg); reload(sk.dir);
+          runCtl.start({ skillDir: sk.dir, caseId, compare: false });
+        }}
+      />
+    );
+    if (creatingSuite && sk) return (
+      <CreateForm
+        skillDir={sk.dir}
+        skillName={sk.id}
+        hasSuite={sk.role !== 'distractor'}
+        recentModels={runs.map((r) => r.model).concat(sk.model).filter(Boolean)}
+        onClose={(msg) => { setCreatingSuite(false); if (msg) setFlash(msg); reload(sk.dir); }}
+      />
+    );
+
+    if (cols < 72 || rowsT < 18) {
+      return (
+        <Box padding={1} flexDirection="column">
+          <Text color={COLORS.orange}>Terminal too small.</Text>
+          <Text color={COLORS.comment}>{`Resize to at least 72×18 (currently ${cols}×${rowsT}).`}</Text>
+        </Box>
+      );
+    }
+
+    // Split the rail into whole-row panel heights. With fractional flex heights
+    // the layout rounded a panel shorter than its row estimate, and the
+    // selected first row could disappear at 80x24.
+    const heights = splitRows(rowsT - 1, [1.4, 1.5, 1.6, 1.2]); // rail = screen minus the status bar
+    const cap = (i: number) => Math.max(1, heights[i]! - 3); // border 2 + title 1
+
+    return (
+      <Box flexDirection="column" flexGrow={1}>
+        <Box flexGrow={1} flexDirection="row">
+          <Box flexDirection="column" width={railWidth}>
+            <Panel n={1} name="Skills" height={heights[0]!} count={String(viewSkills.length)} rows={skillRows(viewSkills)} selected={clampIdx(sel.skills, viewSkills.length)} focused={!pane && focused === 'skills'} innerWidth={innerRail} maxRows={cap(0)} />
+            <Panel n={2} name="Cases" height={heights[1]!} count={String(viewCases.length)} rows={caseRows(viewCases)} selected={clampIdx(sel.cases, viewCases.length)} focused={!pane && focused === 'cases'} innerWidth={innerRail} maxRows={cap(1)} />
+            <Panel n={3} name="Assertions" height={heights[2]!} count={String(cs?.assertions.length ?? 0)} rows={cs ? assertionRows(cs) : []} selected={clampIdx(sel.assertions, cs?.assertions.length ?? 0)} focused={!pane && focused === 'assertions'} innerWidth={innerRail} maxRows={cap(2)} />
+            <Panel n={4} name="Runs" height={heights[3]!} count={String(runs.length)} rows={runRows(runs, compareBase?.runId)} selected={sel.runs} focused={!pane && focused === 'runs'} innerWidth={innerRail} maxRows={cap(3)} />
+          </Box>
+          <MainPane title={main.title} sub={main.sub} lines={main.lines} scroll={scroll} maxRows={maxRows} innerWidth={mainInner} cursorLine={cursorLine} paneFocused={pane} />
+        </Box>
+        <StatusBar width={cols} focused={focused} caseMode={caseMode} pane={pane} sk={sk} filter={filter} filtering={filtering} failOnly={failOnly} sortMode={sortMode} noting={noting} note={note} flash={flash} flashWarn={flashWarn} />
+      </Box>
+    );
+  }
 }
