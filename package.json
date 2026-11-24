@@ -56,6 +56,7 @@
     "prepare": "npm run build",
     "prepack": "npm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "check:packages": "node scripts/check-package-entrypoints.mjs",
     "release": "semantic-release",
     "test": "npm run build && node --test tests/*.test.mjs",
     "docs:keymap": "npm run build && node scripts/gen-keymap-docs.mjs",
