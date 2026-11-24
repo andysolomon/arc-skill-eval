@@ -1,3 +1,9 @@
+## [0.29.1](https://github.com/andysolomon/arc-skill-eval/compare/v0.29.0...v0.29.1) (2026-11-24)
+
+### Bug Fixes
+
+* **evals:** reject mustPass and severity on script assertions ([1614ff8](https://github.com/andysolomon/arc-skill-eval/commit/1614ff8648e96c8bb6a230ddd1759d4503c69330))
+
 ## [0.29.0](https://github.com/andysolomon/arc-skill-eval/compare/v0.28.0...v0.29.0) (2026-11-23)
 
 ### Features
